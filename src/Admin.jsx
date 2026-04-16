@@ -421,16 +421,20 @@ function Admin() {
       if (timeFilter === 'all') return true;
 
       const saleDate = new Date(sale.created_at);
-      const daysDifference = (now - saleDate) / (1000 * 60 * 60 * 24);
+      
+      // FIX 1: Strict calendar-day matching instead of "24 hours ago"
+      if (timeFilter === 'today') {
+        return saleDate.toDateString() === now.toDateString();
+      }
 
-      if (timeFilter === 'today') return daysDifference <= 1;
+      const daysDifference = (now - saleDate) / (1000 * 60 * 60 * 24);
       if (timeFilter === 'week') return daysDifference <= 7;
       if (timeFilter === 'month') return daysDifference <= 30;
       if (timeFilter === '6months') return daysDifference <= 180;
       if (timeFilter === 'year') return daysDifference <= 365;
       return true;
     });
-  }, [salesData, timeFilter]); // Only re-run if the raw data or the dropdown filter changes
+  }, [dexieSales, timeFilter]); // FIX 2: Listens to dexieSales instead of static salesData
 
   // 2. Calculate Total Revenue
   const totalRevenue = useMemo(() => {
@@ -455,10 +459,15 @@ function Admin() {
     const now = new Date();
     return expenses.filter(exp => {
       if (timeFilter === 'all') return true;
+      
       const expDate = new Date(exp.timestamp);
-      const daysDifference = (now - expDate) / (1000 * 60 * 60 * 24);
 
-      if (timeFilter === 'today') return daysDifference <= 1;
+      // FIX 3: Strict calendar-day matching for Gastos
+      if (timeFilter === 'today') {
+        return expDate.toDateString() === now.toDateString();
+      }
+
+      const daysDifference = (now - expDate) / (1000 * 60 * 60 * 24);
       if (timeFilter === 'week') return daysDifference <= 7;
       if (timeFilter === 'month') return daysDifference <= 30;
       return true;
