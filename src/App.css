@@ -1,0 +1,877 @@
+.pos-container {
+  display: flex;
+  height: 100dvh;
+  width: 100vw;
+}
+
+/* --- Menu Area (Left Side) --- */
+.menu-area {
+  flex: 1;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0; /* CRITICAL: Prevents long menu bars from pushing the ticket area off-screen horizontally! */
+  min-height: 0;
+}
+
+.category-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+  /* The magic horizontal scroll */
+  -webkit-overflow-scrolling: touch;
+  /* Smooth buttery scrolling on iOS */
+  flex-shrink: 0;
+}
+
+/* Hide the ugly scrollbar but keep the swipe functionality */
+.category-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.category-tabs {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.tab-btn {
+  padding: 12px 24px;
+  border: 2px solid var(--border);
+  background: var(--bg-surface);
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  font-size: 1rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  /* Prevents text from breaking into two lines */
+  flex-shrink: 0;
+  /* Prevents the buttons from getting squished! */
+}
+
+.tab-btn.active {
+  border-color: var(--brand-color);
+  color: var(--brand-color);
+  background: var(--brand-light);
+}
+
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+  flex: 1; /* Pushes to bottom */
+  overflow-y: auto; /* Internal scroll lock */
+  min-height: 0;
+  padding-bottom: 30px;
+}
+
+.item-btn {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+  height: 120px;
+}
+
+.item-btn:active {
+  transform: scale(0.95);
+  border-color: var(--brand-color);
+}
+
+.item-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+.item-price {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+/* --- Ticket Area (Right Side) --- */
+.ticket-area {
+  width: 380px;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 15px rgba(0, 0, 0, 0.03);
+  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* --- Ticket Tabs --- */
+.ticket-tabs-container {
+  display: flex;
+  gap: 8px;
+  padding: 12px 24px;
+  border-bottom: 1px dotted var(--border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: var(--bg-surface);
+  flex-shrink: 0; /* Ensures mobile doesn't crush the tabs container */
+}
+.ticket-tabs-container::-webkit-scrollbar { display: none; }
+
+.ticket-tab {
+  padding: 8px 16px;
+  background: var(--bg-main);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.ticket-tab.active {
+  background: var(--brand-light);
+  color: var(--brand-color);
+  border: 1px solid var(--brand-color);
+}
+.new-ticket-btn {
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--brand-color);
+  border: 2px dashed var(--brand-color);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.ticket-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ticket-header h2 {
+  font-size: 1.5rem;
+}
+
+.ticket-items {
+  flex: 1;
+  padding: 16px 24px;
+  overflow-y: auto;
+  list-style: none;
+  min-height: 150px;
+  /* Prevent being severely crushed on sideways viewports */
+}
+
+.empty-cart {
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 40px;
+  font-style: italic;
+}
+
+.ticket-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+/* --- Checkout & Totals --- */
+.ticket-footer {
+  padding: 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.charge-btn {
+  flex: 1;
+  width: 100%;
+  padding: 16px;
+  background-color: var(--brand-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.charge-btn:active {
+  transform: scale(0.98);
+}
+
+/* --- The Modifier Modal --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  /* Semi-transparent black background */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  /* Ensures it sits on top of everything else */
+}
+
+.modal-content {
+  background: var(--bg-surface);
+  width: 500px;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.btn-cancel,
+.btn-confirm {
+  flex: 1;
+  padding: 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-cancel {
+  background: var(--border);
+  color: var(--text-main);
+}
+
+.btn-confirm {
+  background: var(--brand-color);
+  color: white;
+}
+
+.modifier-group {
+  margin-top: 16px;
+}
+
+/* Update your existing modifier button class */
+.modifier-btn {
+  /* Use the dynamic surface background so it changes with the theme! */
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 15px;
+  cursor: pointer;
+  /* Add a smooth transition for the color flip */
+  transition: all 0.2s ease;
+}
+
+.modifier-btn.selected {
+  background-color: var(--brand-color);
+  color: white;
+  /* Force white text when the background is the brand color */
+  border-color: var(--brand-color);
+}
+
+/* --- Multi-Ticket Tabs --- */
+.ticket-tabs-container {
+  display: flex;
+  overflow-x: auto;
+  background: var(--bg-main);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 8px 0 8px;
+}
+
+.ticket-tab {
+  padding: 12px 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.ticket-tab.active {
+  background: var(--bg-surface);
+  border-color: var(--border);
+  color: var(--brand-color);
+}
+
+.new-ticket-btn {
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--brand-color);
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 1.2rem;
+}
+
+/* --- Deletion & Voiding --- */
+
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* Aligns the text and the delete button */
+  width: 100%;
+}
+
+.delete-item-btn {
+  background: transparent;
+  border: none;
+  color: #e74c3c;
+  /* Red color for destructive action */
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 10px;
+  opacity: 0.5;
+  transition: opacity 0.1s;
+}
+
+.delete-item-btn:hover,
+.delete-item-btn:active {
+  opacity: 1;
+}
+
+.checkout-actions {
+  display: flex;
+  gap: 10px;
+  /* Space between Cancel and Charge buttons */
+}
+
+.cancel-btn {
+  flex: 0.4;
+  /* Takes up 40% of the space */
+  padding: 16px;
+  background-color: var(--bg-main);
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancel-btn:active {
+  background-color: #fdf0ed;
+}
+
+.admin-btn {
+  width: 100px;
+  padding: 16px;
+  background-color: var(--brand-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-btn:active {
+  transform: scale(0.98);
+}
+
+/* --- LOADING ANIMATION --- */
+.loader-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--brand-color);
+  font-family: system-ui, sans-serif;
+}
+
+.spinner {
+  width: 60px;
+  height: 60px;
+  border: 6px solid var(--border);
+  border-top: 6px solid var(--brand-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* By default, variables are set in :root (Light Mode) */
+:root {
+  --brand-color: #2c3e50;
+  --bg-main: #f4f6f8;
+  --bg-surface: #ffffff;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --border: var(--brand-color);
+}
+
+/* When the 'dark-mode' class is added to the body, these take over */
+body.dark-mode {
+  --bg-main: #121212;
+  --bg-surface: #1e1e1e;
+  --text-main: #e0e0e0;
+  --text-muted: #a0a0a0;
+  --border: var(--brand-color);
+}
+
+/* --- UI ANIMATIONS --- */
+@keyframes shake-horizontal {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-10px);
+  }
+
+  40% {
+    transform: translateX(10px);
+  }
+
+  60% {
+    transform: translateX(-10px);
+  }
+
+  80% {
+    transform: translateX(10px);
+  }
+}
+
+.input-error-shake {
+  animation: shake-horizontal 0.4s cubic-bezier(.36, .07, .19, .97) both;
+  border-color: #e74c3c !important;
+  /* Flash red */
+  color: #e74c3c !important;
+}
+
+.lock-btn {
+  padding: '10px 16px';
+  width: 100px;
+  height: 40px;
+  background: transparent;
+  color: 'var(--text-main)';
+  border: '2px solid';
+  border-color: #e74c3c;
+  border-radius: 9999px;
+  font-size: 1rem;
+  font-weight: 'Bold';
+  display: 'flex';
+  align-items: center;
+  cursor: pointer;
+  gap: '8px';
+}
+
+/* --- FLYING RECEIPT ANIMATION --- */
+@keyframes receipt-fly-up {
+  0% {
+    transform: translate(-50%, 50px);
+    opacity: 0;
+  }
+
+  30% {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+
+  60% {
+    transform: translate(-50%, 0px);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate(-50%, -200px);
+    opacity: 0;
+  }
+}
+
+.flying-receipt {
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  /* Centers it perfectly */
+  transform: translateX(-50%);
+  background: white;
+  color: black;
+  padding: 24px;
+  width: 320px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  font-family: 'Courier New', Courier, monospace;
+  animation: receipt-fly-up 1.5s cubic-bezier(0.2, 0.65, 0.45, 1) forwards;
+  z-index: 9999;
+  /* Crucial: Prevents the receipt from blocking the cashier's clicks! */
+  pointer-events: none;
+  /* Gives it that torn paper look at the top and bottom */
+  border-top: 2px dashed #ccc;
+  border-bottom: 2px dashed #ccc;
+}
+
+.flying-receipt-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 0.95rem;
+}
+
+/* --- STATUS BADGE ANIMATIONS --- */
+
+/* The entry bounce */
+.pop-in {
+  animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Red breathing glow for Offline */
+.status-badge-offline {
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.7);
+  }
+
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 10px 6px rgba(231, 76, 60, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0);
+  }
+}
+
+/* Orange breathing glow for Syncing */
+.status-badge-syncing {
+  animation: pulse-orange 2s infinite;
+}
+
+@keyframes pulse-orange {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.7);
+  }
+
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 10px 6px rgba(243, 156, 18, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(243, 156, 18, 0);
+  }
+}
+
+/* --- TOAST NOTIFICATIONS --- */
+.toast-container {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast {
+  background-color: #27ae60;
+  color: white;
+  padding: 16px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: toast-slide-up 4.9s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  pointer-events: auto;
+}
+
+@keyframes toast-slide-up {
+  0% {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+
+  10% {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+
+  85% {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+}
+
+/* --- ADMIN LAYOUT CLASSES --- */
+.admin-layout {
+  display: flex;
+  height: 100vh;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: system-ui;
+  overflow: hidden;
+}
+
+.admin-aside {
+  width: 250px;
+  background-color: var(--brand-color);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  transition: transform 0.3s ease;
+}
+
+.admin-main {
+  flex: 1;
+  padding: 40px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.admin-section {
+  overflow-x: auto;
+}
+
+.desktop-hidden {
+  display: none !important;
+}
+
+.mobile-hamburger {
+  background: transparent;
+  border: none;
+  font-size: 1.8rem;
+  color: var(--text-main);
+  cursor: pointer;
+}
+
+.admin-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 50;
+}
+
+.action-buttons-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* --- BOTTOM SHEET (TICKET ACTIONS) --- */
+.bottom-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1050;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.bottom-sheet-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(100%);
+  margin: 0 auto;
+  max-width: 500px;
+  max-height: 85vh; /* Prevents it from going off the very top edge */
+  overflow-y: auto; /* CRITICAL: Enables internal scrolling for many buttons! */
+  background: var(--bg-surface);
+  border-radius: 24px 24px 0 0;
+  padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom)); /* Fixed iOS bottom overlap */
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+  z-index: 1060;
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+
+/* --- TABLET & LANDSCAPE NAVIGATION --- */
+@media (max-width: 1100px) {
+  .desktop-hidden {
+    display: flex !important;
+  }
+
+  .action-buttons-container {
+    display: none !important;
+    flex-direction: column;
+    position: absolute;
+    top: 50px;
+    right: 0;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+  }
+
+  .action-buttons-container.mobile-open {
+    display: flex !important;
+  }
+}
+
+/* --- MOBILE RESPONSIVENESS --- */
+@media (max-width: 768px) {
+  .pos-container {
+    flex-direction: column;
+  }
+
+  /* Stack vertically instead of side-by-side */
+
+.menu-area {
+  flex: 1;
+  height: auto;
+  padding: 8px;
+}
+
+
+
+.menu-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.ticket-area {
+  width: 100%;
+  flex: 1;
+  height: auto;
+  min-height: auto;
+  border-left: none;
+  border-top: 2px solid var(--border);
+}
+
+.ticket-items {
+  min-height: 250px;
+}
+
+/* Make items highly compact for 3-column view */
+.item-btn {
+  height: 85px;
+  padding: 6px;
+}
+
+.item-name {
+  font-size: 0.9rem;
+}
+
+.ticket-header {
+  padding: 12px;
+}
+
+.ticket-footer {
+  padding: 12px;
+}
+
+/* Stack checkout buttons so they don't get squished */
+.checkout-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.checkout-actions button {
+  flex: 1 1 45%;
+  /* Buttons take up half the width to form a nice grid */
+  font-size: 1rem;
+  padding: 12px;
+}
+
+/* Admin Mobile Layout */
+
+.admin-main {
+  padding: 16px;
+}
+
+.admin-aside {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  transform: translateX(-100%);
+}
+
+.admin-aside.open {
+  transform: translateX(0);
+}
+
+.admin-overlay.open {
+  display: block;
+}
+}

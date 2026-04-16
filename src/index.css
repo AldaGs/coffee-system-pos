@@ -1,0 +1,47 @@
+:root {
+  /* The Shop's Primary Brand Color - Try changing this to a dark green or espresso brown */
+  --brand-color: #2c3e50; 
+  --brand-light: #dde8ee; /* Used for active states */
+  
+  /* Neutral App Palette */
+  --bg-main: #f4f6f8;
+  --bg-surface: #ffffff;
+  --text-main: #111827;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  /* Crucial for touch screens: prevents accidental text highlighting when tapping fast */
+  user-select: none; 
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  height: 100dvh;
+  overflow: hidden; /* Prevents the whole app from bouncing on tablets */
+}
+
+/* --- GLOBAL BUTTON UPGRADES --- */
+button {
+  /* 1. Fix the Dark Mode text issue by forcing buttons to inherit the theme's text color */
+  color: var(--text-main);
+  
+  /* 2. Set up a lightning-fast, smooth transition for our animation */
+  transition: transform 0.05s ease-in-out, background-color 0.1s ease;
+}
+
+/* 3. The tactile "physical press" animation */
+button:active {
+  /* scale(0.96) is slightly punchier than 0.98 on touch screens! */
+  transform: scale(0.96); 
+}
+
+
+@media (hover: hover) { button:hover { transform: scale(0.98); } }
+
