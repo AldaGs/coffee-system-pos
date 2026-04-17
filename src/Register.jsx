@@ -19,7 +19,7 @@ import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
 import DiscountModal from './components/register/DiscountModal';
-import ToastNotifications from './components/register/ToastNotifications';
+
 import Dialog from './components/shared/Dialog';
 
 function Register() {
@@ -34,44 +34,8 @@ function Register() {
   // --- SUCCESS ANIMATION STATE ---
   const [successTicket, setSuccessTicket] = useState(null);
 
-  // --- KDS REVERSE BRIDGE (TOAST STATE) ---
-  const [toastNotifications, setToastNotifications] = useState([]);
 
-  useEffect(() => {
-    if (!supabase || !navigator.onLine) return;
-    // Listen for KDS completing an order
-    const channel = supabase
-      .channel('kds-register-listener')
-      .on('postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'sales' },
-        (payload) => {
-          if (payload.new.status === 'completed') {
-            const orderName = payload.new.order_name || `Order #${payload.new.id}`;
-            const newId = Date.now() + Math.random();
 
-            setToastNotifications(prev => {
-              const newToasts = [...prev, { id: newId, message: `${orderName} is Ready!` }];
-
-              // Keep a max of 3, discarding the oldest
-              if (newToasts.length > 3) {
-                return newToasts.slice(newToasts.length - 3);
-              }
-              return newToasts;
-            });
-
-            // Auto hide after 5 seconds
-            setTimeout(() => {
-              setToastNotifications(current => current.filter(t => t.id !== newId));
-            }, 5000);
-          }
-        }
-      )
-      .subscribe((status, err) => {
-        if (err) console.error("Realtime Error (KDS):", err);
-      });
-
-    return () => supabase.removeChannel(channel);
-  }, []);
 
 
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
@@ -849,31 +813,7 @@ Are you sure you want to close this shift? This will reset the register for the 
     );
   };
 
-  const handleSendToBarista = async () => {
-    if (!activeTicket || activeTicket.items.length === 0) return;
 
-    const partialOrder = {
-      total_amount: cartTotal,
-      payment_method: 'Pending', // Mark as unpaid
-      items_sold: activeTicket.items.map(item => item.name),
-      cashier_name: activeCashier?.name || 'Unknown',
-      status: 'pending', // NEW: Tells the KDS this is a live prep order
-      order_name: activeTicket.name
-    };
-
-    try {
-      await db.sales.add({ ...partialOrder, created_at: new Date().toISOString() });
-      if (!navigator.onLine) throw new Error("Offline");
-      const { error } = await supabase.from('sales').insert([partialOrder]);
-      if (error) throw error;
-      if (activeTicket) await db.active_tickets.update(activeTicket.id, { sentToBarista: true });
-      showAlert("Sent to Kitchen", "The barista has received the order!");
-    } catch {
-      await db.syncQueue.add(partialOrder);
-      if (activeTicket) await db.active_tickets.update(activeTicket.id, { sentToBarista: true });
-      showAlert("Sync Error", "Offline: Saved to local queue, will sync when online.");
-    }
-  };
 
   // --- THE ESC/POS IMAGE ENCODER ---
   const convertLogoToESCPOS = async (base64Data) => {
@@ -1427,7 +1367,7 @@ Are you sure you want to close this shift? This will reset the register for the 
     <div className="pos-container">
       <MenuArea activeCategory={activeCategory} setActiveCategory={setActiveCategory} menuData={menuData} isCurrentlyOffline={isCurrentlyOffline} totalOfflineRecords={totalOfflineRecords} setIsSyncModalOpen={setIsSyncModalOpen} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} activeCashier={activeCashier} requirePin={requirePin} setIsExpenseModalOpen={setIsExpenseModalOpen} posSettings={posSettings} shiftOrders={shiftOrders} shiftExpenses={shiftExpenses} showAlert={showAlert} showConfirm={showConfirm} setIsCorteModalOpen={setIsCorteModalOpen} tickets={tickets} setIsLocked={setIsLocked} navigate={navigate} handleItemClick={handleItemClick} />
 
-      <TicketArea activeTicketId={activeTicketId} setActiveTicketId={setActiveTicketId} visibleTickets={visibleTickets} handleNewTicket={handleNewTicket} handleWheelScroll={handleWheelScroll} activeTicket={activeTicket} cartSubtotal={cartSubtotal} cartTotal={cartTotal} autoDiscountAmount={autoDiscountAmount} activeAutoRuleName={activeAutoRuleName} manualDiscountAmount={manualDiscountAmount} handleRemoveItem={handleRemoveItem} handleSendToBarista={handleSendToBarista} handleOpenCheckout={handleOpenCheckout} isActionSheetOpen={isActionSheetOpen} setIsActionSheetOpen={setIsActionSheetOpen} handleCancelTicket={handleCancelTicket} requirePin={requirePin} setIsDiscountModalOpen={setIsDiscountModalOpen} printRawReceipt={printRawReceipt} setLoyaltyModal={setLoyaltyModal} />
+      <TicketArea activeTicketId={activeTicketId} setActiveTicketId={setActiveTicketId} visibleTickets={visibleTickets} handleNewTicket={handleNewTicket} handleWheelScroll={handleWheelScroll} activeTicket={activeTicket} cartSubtotal={cartSubtotal} cartTotal={cartTotal} autoDiscountAmount={autoDiscountAmount} activeAutoRuleName={activeAutoRuleName} manualDiscountAmount={manualDiscountAmount} handleRemoveItem={handleRemoveItem}  handleOpenCheckout={handleOpenCheckout} isActionSheetOpen={isActionSheetOpen} setIsActionSheetOpen={setIsActionSheetOpen} handleCancelTicket={handleCancelTicket} requirePin={requirePin} setIsDiscountModalOpen={setIsDiscountModalOpen} printRawReceipt={printRawReceipt} setLoyaltyModal={setLoyaltyModal} />
 
       <ModifierModal isModalOpen={isModalOpen} pendingItem={pendingItem} menuData={menuData} handleToggleModifier={handleToggleModifier} handleTextModifierChange={handleTextModifierChange} setIsModalOpen={setIsModalOpen} addToTicket={addToTicket} />
 
@@ -1449,7 +1389,7 @@ Are you sure you want to close this shift? This will reset the register for the 
 
       <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
 
-      <ToastNotifications toastNotifications={toastNotifications} />
+
     </div>
   );
 }

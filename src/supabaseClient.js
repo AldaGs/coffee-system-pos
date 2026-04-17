@@ -11,6 +11,17 @@ console.log("Supabase Client Init:", {
 });
 
 // Create the connection if keys are available
-export const supabase = (supabaseUrl && supabaseAnonKey) 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+if (!supabaseUrl) {
+  console.error('Supabase URL is missing. Set TINY_POS_URL in localStorage or VITE_SUPABASE_URL env variable.');
+}
+if (!supabaseAnonKey) {
+  console.error('Supabase anon key is missing. Set TINY_POS_KEY in localStorage or VITE_SUPABASE_ANON_KEY env variable.');
+}
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+    })
   : null;

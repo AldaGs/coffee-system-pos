@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Register from './Register';
 import Admin from './Admin';
-import Barista from './Barista';
+
 import { supabase } from './supabaseClient'; // Make sure this is imported!
 
 function App() {
@@ -131,7 +131,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Register />} />
         <Route path="/admin" element={<Admin />} />
-        <Route path="/kds" element={<Barista />} />
+
       </Routes>
     </BrowserRouter>
   );
