@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +28,11 @@ function Register() {
   const [menuData, setMenuData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Refs to prevent Realtime re-subscription storms
+  const activeTicketIdRef = useRef(null);
+  const activeCashierRef = useRef(null);
+  const sessionTimeRef = useRef(0);
+
   const [activeCategory, setActiveCategory] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingItem, setPendingItem] = useState(null);
@@ -44,6 +49,8 @@ function Register() {
     const savedId = localStorage.getItem('tinypos_activeTicketId');
     return savedId ? JSON.parse(savedId) : 1;
   });
+
+
 
   // --- UPDATED: FULL SOURCE-OF-TRUTH SYNC ---
   const syncCloudTickets = async () => {
@@ -76,10 +83,8 @@ function Register() {
   // --- TRIGGER SYNC & SET UP REAL-TIME LISTENER ---
   useEffect(() => {
     if (!supabase || !navigator.onLine) return;
-    // 1. Run the "Ghost Hunter" sync immediately on mount
     syncCloudTickets();
 
-    // 2. Listen for Real-time changes (especially DELETES from the PC)
     const ticketChannel = supabase
       .channel('active-tickets-realtime')
       .on('postgres_changes',
@@ -89,11 +94,8 @@ function Register() {
             await db.active_tickets.put(payload.new);
           }
           else if (payload.eventType === 'DELETE') {
-            // This is the magic part that clears your phone when the PC pays!
             await db.active_tickets.delete(payload.old.id);
-
-            // If the phone was looking at the ticket that just got deleted, clear the screen
-            if (activeTicketId === payload.old.id) {
+            if (activeTicketIdRef.current === payload.old.id) {
               setActiveTicketId(null);
             }
           }
@@ -104,7 +106,7 @@ function Register() {
     return () => {
       supabase.removeChannel(ticketChannel);
     };
-  }, [activeTicketId]); // Re-run if we switch tickets to keep context fresh
+  }, []); // Stable: Only on mount
 
   // --- DAILY EXPENSES (GASTOS) STATE ---
   const [expenses, setExpenses] = useState(() => {
@@ -421,6 +423,11 @@ Are you sure you want to close this shift? This will reset the register for the 
     return saved ? JSON.parse(saved) : cashiers[0];
   });
 
+  // Keep refs in sync (moved here to ensure state is initialized)
+  useEffect(() => { activeTicketIdRef.current = activeTicketId; }, [activeTicketId]);
+  useEffect(() => { activeCashierRef.current = activeCashier; }, [activeCashier]);
+  useEffect(() => { sessionTimeRef.current = sessionTime; }, [sessionTime]);
+
 
   // Lock Screen temporary states
   const [selectedProfile, setSelectedProfile] = useState(null);
@@ -512,9 +519,7 @@ Are you sure you want to close this shift? This will reset the register for the 
 
   // --- UPGRADED SUPABASE PRESENCE (SESSION LOCK) ---
   useEffect(() => {
-    if (!supabase || !navigator.onLine) return;
-    // Only track and broadcast if we are actively logged in (not locked)
-    if (!activeCashier || isLocked) return;
+    if (!supabase || !navigator.onLine || !activeCashier || isLocked) return;
 
     const channel = supabase.channel('cashier-presence', {
       config: { presence: { key: myDeviceId } },
@@ -529,21 +534,18 @@ Are you sure you want to close this shift? This will reset the register for the 
       showAlert("Access Revoked", reason);
     };
 
-    // 1. Listen for EXPLICIT login broadcasts (Instant Kick)
     channel.on('broadcast', { event: 'force-kick' }, (payload) => {
-      // If someone shouts that they logged into our profile, and it isn't our specific device, lock down!
-      if (payload.payload.cashierId === activeCashier.id && payload.payload.deviceId !== myDeviceId) {
+      if (payload.payload.cashierId === activeCashierRef.current?.id && payload.payload.deviceId !== myDeviceId) {
         forceLockOut("Your session was overridden by a new login on another device.");
       }
     });
 
-    // 2. Listen for background presence (Tie-Breaker for sleeping devices)
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
       for (const [key, presenceData] of Object.entries(state)) {
         if (key !== myDeviceId) {
           presenceData.forEach(p => {
-            if (p.cashierId === activeCashier.id && p.sessionTime > sessionTime) {
+            if (p.cashierId === activeCashierRef.current?.id && p.sessionTime > sessionTimeRef.current) {
               forceLockOut("Another device has logged into this profile.");
             }
           });
@@ -552,17 +554,14 @@ Are you sure you want to close this shift? This will reset the register for the 
     });
 
     channel.subscribe(async (status, err) => {
-      console.log("Realtime Status:", status); // This SHOULD say 'SUBSCRIBED'
-      if (err) console.error("Realtime Error (Presence):", err);
+      console.log("Presence Status:", status);
+      if (err) console.error("Presence Error:", err);
       if (status === 'SUBSCRIBED') {
-        // Track our presence in the background
-        await channel.track({ cashierId: activeCashier.id, sessionTime: sessionTime });
-
-        // Instantly shout into the channel that we just logged in to clear out ghosts
+        await channel.track({ cashierId: activeCashierRef.current.id, sessionTime: sessionTimeRef.current });
         await channel.send({
           type: 'broadcast',
           event: 'force-kick',
-          payload: { cashierId: activeCashier.id, deviceId: myDeviceId }
+          payload: { cashierId: activeCashierRef.current.id, deviceId: myDeviceId }
         });
       }
     });
@@ -570,7 +569,7 @@ Are you sure you want to close this shift? This will reset the register for the 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeCashier, isLocked, sessionTime, myDeviceId]);
+  }, [activeCashier?.id, isLocked, myDeviceId]); // Only re-subscribe if cashier identity or lock state changes
 
   // --- SHIFT CALCULATIONS ---
   // 1. Filter data to ONLY include things that happened after the last Corte
