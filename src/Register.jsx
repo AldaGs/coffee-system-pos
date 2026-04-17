@@ -5,6 +5,23 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import './App.css';
 
+// Modular Child Components
+import BootScreen from './components/register/BootScreen';
+import LockScreen from './components/register/LockScreen';
+import MenuArea from './components/register/MenuArea';
+import TicketArea from './components/register/TicketArea';
+import ModifierModal from './components/register/ModifierModal';
+import CheckoutModal from './components/register/CheckoutModal';
+import LoyaltyModal from './components/register/LoyaltyModal';
+import FlyingReceipt from './components/register/FlyingReceipt';
+import ExpenseModal from './components/register/ExpenseModal';
+import CorteModal from './components/register/CorteModal';
+import PinChallengeModal from './components/register/PinChallengeModal';
+import SyncStatusModal from './components/register/SyncStatusModal';
+import DiscountModal from './components/register/DiscountModal';
+import ToastNotifications from './components/register/ToastNotifications';
+import Dialog from './components/shared/Dialog';
+
 function Register() {
   const navigate = useNavigate();
 
@@ -21,6 +38,7 @@ function Register() {
   const [toastNotifications, setToastNotifications] = useState([]);
 
   useEffect(() => {
+    if (!supabase || !navigator.onLine) return;
     // Listen for KDS completing an order
     const channel = supabase
       .channel('kds-register-listener')
@@ -48,7 +66,9 @@ function Register() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (err) console.error("Realtime Error (KDS):", err);
+      });
 
     return () => supabase.removeChannel(channel);
   }, []);
@@ -91,6 +111,7 @@ function Register() {
 
   // --- TRIGGER SYNC & SET UP REAL-TIME LISTENER ---
   useEffect(() => {
+    if (!supabase || !navigator.onLine) return;
     // 1. Run the "Ghost Hunter" sync immediately on mount
     syncCloudTickets();
 
@@ -270,9 +291,9 @@ function Register() {
     }
 
     // Determine the status string
-    let statusMsg = "Perfectly Balanced ⚖️";
-    if (difference > 0) statusMsg = `Over (Sobrante) by $${difference.toFixed(2)} ⬆️`;
-    if (difference < 0) statusMsg = `Short (Faltante) by $${Math.abs(difference).toFixed(2)} ⬇️`;
+    let statusMsg = "Perfectly Balanced âš–ï¸";
+    if (difference > 0) statusMsg = `Over (Sobrante) by $${difference.toFixed(2)} â¬†ï¸`;
+    if (difference < 0) statusMsg = `Short (Faltante) by $${Math.abs(difference).toFixed(2)} â¬‡ï¸`;
 
     const confirmMessage = `
 SHIFT SUMMARY:
@@ -527,6 +548,7 @@ Are you sure you want to close this shift? This will reset the register for the 
 
   // --- UPGRADED SUPABASE PRESENCE (SESSION LOCK) ---
   useEffect(() => {
+    if (!supabase || !navigator.onLine) return;
     // Only track and broadcast if we are actively logged in (not locked)
     if (!activeCashier || isLocked) return;
 
@@ -565,8 +587,9 @@ Are you sure you want to close this shift? This will reset the register for the 
       }
     });
 
-    channel.subscribe(async (status) => {
+    channel.subscribe(async (status, err) => {
       console.log("Realtime Status:", status); // This SHOULD say 'SUBSCRIBED'
+      if (err) console.error("Realtime Error (Presence):", err);
       if (status === 'SUBSCRIBED') {
         // Track our presence in the background
         await channel.track({ cashierId: activeCashier.id, sessionTime: sessionTime });
@@ -1091,6 +1114,47 @@ Are you sure you want to close this shift? This will reset the register for the 
     }
   };
 
+  // --- WHATSAPP RECEIPT LOGIC ---
+  const sendFinalMessage = (phone, loyaltyData) => {
+    if (!activeTicket) return;
+
+    // Build receipt text
+    let message = `☕ *${posSettings.name || 'TinyPOS'} Receipt*\n`;
+    message += `Order: ${activeTicket.name}\n`;
+    message += `Date: ${new Date().toLocaleString()}\n`;
+    message += `--------------------------\n`;
+
+    activeTicket.items.forEach(item => {
+      message += `• ${item.name} - $${item.basePrice.toFixed(2)}\n`;
+      if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+        item.selectedModifiers.forEach(mod => {
+          message += `  + ${mod.name} ($${mod.price.toFixed(2)})\n`;
+        });
+      }
+    });
+
+    message += `--------------------------\n`;
+    message += `*TOTAL: $${cartTotal.toFixed(2)}*\n`;
+
+    if (loyaltyData) {
+      message += `\n🌟 *Loyalty Status*\n`;
+      message += `Visits: ${loyaltyData.visits} / ${loyaltyData.target}\n`;
+      if (loyaltyData.isRewardReady) {
+        message += `🎉 REWARD READY: ${loyaltyData.reward}!\n`;
+      } else {
+        message += `Next Reward: ${loyaltyData.target - (loyaltyData.visits % loyaltyData.target)} more visits!\n`;
+      }
+    }
+
+    message += `\nThank you for your visit! ✨`;
+
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/52${phone}?text=${encodedMessage}`;
+
+    window.open(whatsappUrl, '_blank');
+    setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
+  };
+
   // --- 2. THE GUEST CHECKOUT (NO TRACKING) ---
   const handleGuestReceipt = () => {
     const cleanPhone = loyaltyModal.phone.replace(/\D/g, '');
@@ -1273,97 +1337,12 @@ Are you sure you want to close this shift? This will reset the register for the 
 
   // --- THE NEW BRANDED BOOT SCREEN ---
   if (isLoading) {
-    // Read directly from local storage so it renders in 0 milliseconds
-    const bootLogo = localStorage.getItem('tinypos_boot_logo');
-
-    return (
-      <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-main)' }}>
-
-        {bootLogo ? (
-          // If they uploaded a logo, show it with a smooth pop-in animation
-          <img
-            src={bootLogo}
-            alt="App Logo"
-            className="pop-in"
-            style={{ width: '140px', height: '140px', objectFit: 'contain', marginBottom: '24px' }}
-          />
-        ) : (
-          // Fallback if they haven't set a logo yet
-          <div className="spinner" style={{ marginBottom: '24px' }}></div>
-        )}
-
-        <h1 style={{ color: 'var(--text-main)', letterSpacing: '6px', textTransform: 'uppercase', margin: 0, fontSize: '1.5rem' }}>
-          {posSettings.name || "TinyPOS"}
-        </h1>
-        <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '0.9rem' }}>
-          Starting system...
-        </p>
-
-      </div>
-    );
+    return <BootScreen posSettings={posSettings} />;
   }
 
   // --- THE LOCK SCREEN ---
   if (isLocked) {
-    return (
-      <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
-
-        <h1 style={{ color: 'var(--text-main)', marginBottom: '40px' }}>Who is using the register?</h1>
-
-        {/* STEP 1: CHOOSE PROFILE */}
-        {!selectedProfile ? (
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {cashiers.map(cashier => (
-              <button
-                key={cashier.id}
-                onClick={() => setSelectedProfile(cashier)}
-                style={{ height: '120px', width: '120px', borderRadius: '16px', border: 'none', background: 'var(--bg-surface)', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', transition: 'transform 0.1s' }}
-                onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
-                onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                <div style={{ height: '50px', width: '50px', borderRadius: '25px', background: 'var(--brand-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold' }}>
-                  {cashier.name.charAt(0)}
-                </div>
-                <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{cashier.name}</span>
-              </button>
-            ))}
-          </div>
-        ) : (
-
-          /* STEP 2: ENTER PIN */
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
-            <h2 style={{ color: 'var(--text-main)', margin: 0 }}>Welcome, {selectedProfile.name}</h2>
-            <p style={{ color: 'var(--text-muted)', margin: 0 }}>Enter your 4-digit PIN</p>
-
-            <input
-              type="password"
-              maxLength="4"
-              autoFocus // Automatically highlights the input so they can type instantly
-              value={pinAttempt}
-              onChange={(e) => setPinAttempt(e.target.value)}
-              onKeyDown={handlePinKeyDown} // THE ENTER KEY FIX
-              className={phoneError ? 'input-error-shake' : ''}
-              style={{ padding: '15px', fontSize: '2rem', width: '150px', textAlign: 'center', letterSpacing: '8px', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none' }}
-            />
-
-            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-              <button
-                onClick={() => { setSelectedProfile(null); setPinAttempt(''); }}
-                style={{ flex: 1, padding: '15px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Back
-              </button>
-              <button
-                onClick={handleUnlockSubmit}
-                style={{ flex: 2, padding: '15px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Unlock
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
+    return <LockScreen cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} />;
   }
 
   if (!menuData) return <div>Error: Menu data is missing.</div>;
@@ -1446,901 +1425,31 @@ Are you sure you want to close this shift? This will reset the register for the 
 
   return (
     <div className="pos-container">
-      <main className="menu-area">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', position: 'relative' }}>
-          <h2 style={{ margin: 0 }}>{activeCategory}</h2>
+      <MenuArea activeCategory={activeCategory} setActiveCategory={setActiveCategory} menuData={menuData} isCurrentlyOffline={isCurrentlyOffline} totalOfflineRecords={totalOfflineRecords} setIsSyncModalOpen={setIsSyncModalOpen} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} activeCashier={activeCashier} requirePin={requirePin} setIsExpenseModalOpen={setIsExpenseModalOpen} posSettings={posSettings} shiftOrders={shiftOrders} shiftExpenses={shiftExpenses} showAlert={showAlert} showConfirm={showConfirm} setIsCorteModalOpen={setIsCorteModalOpen} tickets={tickets} setIsLocked={setIsLocked} navigate={navigate} handleItemClick={handleItemClick} />
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {/* THE NEW DYNAMIC STATUS BADGE */}
-            {(isCurrentlyOffline || totalOfflineRecords > 0) && (
-              <button
-                onClick={() => setIsSyncModalOpen(true)}
-                // NEW: Dynamic classes for the pop-in and the glowing pulse!
-                className={`pop-in ${isCurrentlyOffline ? 'status-badge-offline' : 'status-badge-syncing'}`}
-                style={{ padding: '8px 12px', background: isCurrentlyOffline ? '#e74c3c' : '#f39c12', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                {isCurrentlyOffline ? '📵' : '☁️'}
-                {totalOfflineRecords > 0 && (
-                  <span style={{ background: 'white', color: 'black', padding: '2px 8px', borderRadius: '12px', fontSize: '0.85rem' }}>
-                    {totalOfflineRecords}
-                  </span>
-                )}
-              </button>
-            )}
+      <TicketArea activeTicketId={activeTicketId} setActiveTicketId={setActiveTicketId} visibleTickets={visibleTickets} handleNewTicket={handleNewTicket} handleWheelScroll={handleWheelScroll} activeTicket={activeTicket} cartSubtotal={cartSubtotal} cartTotal={cartTotal} autoDiscountAmount={autoDiscountAmount} activeAutoRuleName={activeAutoRuleName} manualDiscountAmount={manualDiscountAmount} handleRemoveItem={handleRemoveItem} handleSendToBarista={handleSendToBarista} handleOpenCheckout={handleOpenCheckout} isActionSheetOpen={isActionSheetOpen} setIsActionSheetOpen={setIsActionSheetOpen} handleCancelTicket={handleCancelTicket} requirePin={requirePin} setIsDiscountModalOpen={setIsDiscountModalOpen} printRawReceipt={printRawReceipt} setLoyaltyModal={setLoyaltyModal} />
 
-            <button className="mobile-hamburger desktop-hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
-              ☰
-            </button>
+      <ModifierModal isModalOpen={isModalOpen} pendingItem={pendingItem} menuData={menuData} handleToggleModifier={handleToggleModifier} handleTextModifierChange={handleTextModifierChange} setIsModalOpen={setIsModalOpen} addToTicket={addToTicket} />
 
-            <div className={`action-buttons-container ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-              <span style={{ background: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '9999px', fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--brand-color)', border: '1px solid var(--border)' }}>
-                👤 {activeCashier?.name}
-              </span>
+      <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} cartTotal={cartTotal} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} activeTicket={activeTicket} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
 
-              {/* GASTO BUTTON (SECURED) */}
-              <button
-                onClick={() => { requirePin("Authorize Gasto", () => setIsExpenseModalOpen(true)); setIsMobileMenuOpen(false); }}
-                style={{ padding: '8px 16px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
-              >
-                💸 Gasto
-              </button>
+      <Dialog uiDialog={uiDialog} closeDialog={closeDialog} />
 
-              {/* CORTE BUTTON (SECURED) */}
-              {posSettings.enableCorte !== false && (
-                <button
-                  onClick={() => {
-                    setIsMobileMenuOpen(false);
-                    if (shiftOrders.length === 0 && shiftExpenses.length === 0) {
-                      return showAlert("No Activity", "There are no sales or expenses to report for this shift yet.");
-                    }
+      <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} />
 
-                    // Warning about hidden cash!
-                    const hasPendingCash = tickets.some(t => t.savedSplitPayments && t.savedSplitPayments.some(p => p.method === 'Cash'));
-                    if (hasPendingCash) {
-                      return showConfirm("Pending Cash Warning", "There are open tickets with 'Saved Partial Payments' in Cash. This physical cash is currently in your drawer but is NOT counted in the Corte report until those tickets are finalized. Close shift anyway?", () => {
-                        requirePin("Authorize Corte de Caja", () => setIsCorteModalOpen(true));
-                      });
-                    }
+      <FlyingReceipt successTicket={successTicket} />
 
-                    // Wrap the modal trigger in the security challenge
-                    requirePin("Authorize Corte de Caja", () => setIsCorteModalOpen(true));
-                  }}
-                  style={{ padding: '8px 16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
-                >
-                  📊 Corte
-                </button>
-              )}
+      <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} />
 
-              <button onClick={() => { setIsLocked(true); setIsMobileMenuOpen(false); }} className={"lock-btn"}>🔒 Lock</button>
-              <button onClick={() => { navigate('/admin'); setIsMobileMenuOpen(false); }} className="admin-btn">⚙️ Admin</button>
-            </div>
-          </div>
-        </div>
+      <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
 
-        <div className="category-tabs">
-          {Object.keys(menuData.categories).map(category => (
-            <button key={category} onClick={() => setActiveCategory(category)} className={`tab-btn ${activeCategory === category ? 'active' : ''}`}>
-              {category}
-            </button>
-          ))}
-        </div>
+      <PinChallengeModal pinChallenge={pinChallenge} setPinChallenge={setPinChallenge} challengePinAttempt={challengePinAttempt} setChallengePinAttempt={setChallengePinAttempt} handleChallengeKeyDown={handleChallengeKeyDown} challengeError={challengeError} handleChallengeSubmit={handleChallengeSubmit} />
 
-        <div className="menu-grid">
-          {menuData.categories[activeCategory].map(item => (
-            <button key={item.id} onClick={() => handleItemClick(item)} className="item-btn">
-              <span className="item-name">{item.emoji || ''} {item.name}</span>
-              <span className="item-price">${item.basePrice}</span>
-            </button>
-          ))}
-        </div>
-      </main>
+      <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 
-      <aside className="ticket-area">
-        <div className="ticket-tabs-container" onWheel={handleWheelScroll}>
-          {visibleTickets.map(ticket => (
-            <button key={ticket.id} onClick={() => setActiveTicketId(ticket.id)} className={`ticket-tab ${activeTicketId === ticket.id ? 'active' : ''}`}>
-              {ticket.name}
-            </button>
-          ))}
-          <button className="new-ticket-btn" onClick={handleNewTicket}>+</button>
-        </div>
+      <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
 
-        {/* SAFE GUARD: If this cashier has no tickets, show an empty state! */}
-        {!activeTicket ? (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
-            <h3 style={{ marginBottom: '10px' }}>No Active Orders</h3>
-            <p style={{ marginBottom: '20px' }}>You don't have any open tickets right now.</p>
-            <button onClick={handleNewTicket} style={{ padding: '12px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-              + Start New Ticket
-            </button>
-          </div>
-        ) : (
-          <>
-            <ul className="ticket-items">
-              {activeTicket.items.length === 0 ? (
-                <li className="empty-cart">Cart is empty</li>
-              ) : (
-                activeTicket.items.map(item => (
-                  <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <div className="item-row">
-                      <div>
-                        <span>{item.emoji || '•'} {item.name}</span>
-                        <span style={{ marginLeft: '10px' }}>${item.basePrice}</span>
-                      </div>
-                      <button className="delete-item-btn" onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
-                    </div>
-                    {item.selectedModifiers.map(mod => (
-                      <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>
-                        <span>
-                          + {mod.name}
-                          {/* NEW: Display the custom text value directly on the screen! */}
-                          {mod.textValue && (
-                            <strong style={{ color: 'var(--text-main)', marginLeft: '4px' }}>
-                              : "{mod.textValue}"
-                            </strong>
-                          )}
-                        </span>
-                        <span>{mod.price > 0 ? `$${mod.price.toFixed(2)}` : ''}</span>
-                      </div>
-                    ))}
-                  </li>
-                ))
-              )}
-            </ul>
-
-            <div className="ticket-footer">
-
-              {/* SUBTOTAL ROW (Shrinks if there is a discount) */}
-              <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
-                <span>Subtotal</span>
-                <span>${cartSubtotal.toFixed(2)}</span>
-              </div>
-
-              {/* AUTOMATED DISCOUNT ROW */}
-              {autoDiscountAmount > 0 && (
-                <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#27ae60' }}>
-                  <span>⭐ Auto: {activeAutoRuleName}</span>
-                  <span>-${autoDiscountAmount.toFixed(2)}</span>
-                </div>
-              )}
-
-              {/* DISCOUNT ROW (Only shows if a discount is active) */}
-              {activeTicket.discount && (
-                <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#e74c3c' }}>
-                  <span>Discount ({activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : `$${activeTicket.discount.value}`})</span>
-                  <span>-${manualDiscountAmount.toFixed(2)}</span>
-                </div>
-              )}
-
-              {/* NEW GRAND TOTAL ROW */}
-              {activeTicket.discount && (
-                <div className="total-row" style={{ marginBottom: '16px', fontSize: '1.5rem', color: 'var(--text-main)' }}>
-                  <span>Total</span>
-                  <span>${cartTotal.toFixed(2)}</span>
-                </div>
-              )}
-
-              <button
-                onClick={handleSendToBarista}
-                disabled={activeTicket.items.length === 0 || activeTicket.sentToBarista}
-                style={{
-                  width: '100%',
-                  padding: '16px',
-                  background: activeTicket.sentToBarista ? 'var(--bg-main)' : '#f39c12',
-                  color: activeTicket.sentToBarista ? 'var(--text-muted)' : 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 'bold',
-                  fontSize: '1.1rem',
-                  marginBottom: '10px',
-                  cursor: activeTicket.sentToBarista ? 'default' : 'pointer'
-                }}
-              >
-                {activeTicket.sentToBarista ? '✓ Sent to Barista' : '☕ Send to Barista'}
-              </button>
-
-              <div className="checkout-actions">
-                <button
-                  className="options-btn"
-                  onClick={() => setIsActionSheetOpen(true)}
-                  disabled={activeTicket.items.length === 0}
-                  style={{ flex: '0 0 auto', width: '60px', padding: '16px 0', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: activeTicket.items.length === 0 ? 0.5 : 1, cursor: activeTicket.items.length === 0 ? 'not-allowed' : 'pointer' }}
-                >
-                  ⚙️
-                </button>
-                <button className="charge-btn" onClick={handleOpenCheckout} disabled={activeTicket.items.length === 0} style={{ flex: 1 }}>
-                  Pay & Close
-                </button>
-              </div>
-            </div>
-
-            {/* --- SLIDE-UP TICKET ACTIONS DRAWER --- */}
-            <div className={`bottom-sheet-overlay ${isActionSheetOpen ? 'open' : ''}`} onClick={() => setIsActionSheetOpen(false)}></div>
-            <div className={`bottom-sheet ${isActionSheetOpen ? 'open' : ''}`}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h3 style={{ margin: 0, color: 'var(--text-main)' }}>Ticket Options</h3>
-                <button onClick={() => setIsActionSheetOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', cursor: 'pointer' }}>×</button>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button className="cancel-btn" onClick={() => { setIsActionSheetOpen(false); handleCancelTicket(); }} style={{ flex: 1, padding: '16px', fontSize: '1.1rem' }}>
-                  Void Ticket
-                </button>
-
-                <button
-                  onClick={() => { setIsActionSheetOpen(false); requirePin("Authorize Discount", () => setIsDiscountModalOpen(true)); }}
-                  style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}
-                >
-                  % Discount
-                </button>
-
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>
-                    🖨️ Print
-                  </button>
-                  <button style={{ flex: 1, padding: '16px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); setLoyaltyModal({ isOpen: true, step: 'phone', phone: '', data: null }); }}>
-                    📱 WhatsApp
-                  </button>
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-      </aside>
-
-      {/* DRINK MODIFIER MODAL (Unchanged) */}
-      {isModalOpen && pendingItem && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h2>Customize: {pendingItem.name}</h2>
-            {pendingItem.allowedModifiers.map(modKey => (
-              <div key={modKey} className="modifier-group">
-                <h4 style={{ textTransform: 'capitalize' }}>{modKey.replace('_', ' ')}</h4>
-                {menuData.modifierGroups[modKey].map(option => {
-                  const existingMod = pendingItem.selectedModifiers.find(m => m.id === option.id);
-                  const isSelected = !!existingMod;
-
-                  // IF IT IS A TEXT INPUT (For Liverpool Customization)
-                  if (option.isTextInput) {
-                    return (
-                      <div key={option.id} style={{ marginBottom: '10px' }}>
-                        <label style={{ fontSize: '0.9rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px', fontWeight: 'bold' }}>{option.name}</label>
-                        <input
-                          type="text"
-                          placeholder="Type here..."
-                          value={existingMod ? existingMod.textValue : ''}
-                          onChange={(e) => handleTextModifierChange(modKey, option, e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: `2px solid ${isSelected ? 'var(--brand-color)' : 'var(--border)'}`, background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
-                        />
-                      </div>
-                    )
-                  }
-
-                  // IF IT IS A STANDARD BUTTON (For Coffee Shop)
-                  return (
-                    <button key={option.id} onClick={() => handleToggleModifier(modKey, option)} className={`modifier-btn ${isSelected ? 'selected' : ''}`} style={{ margin: '4px' }}>
-                      {option.name} {option.price > 0 && `(+$${option.price})`}
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-            <div className="modal-actions">
-              <button className="btn-cancel" onClick={() => setIsModalOpen(false)}>Cancel</button>
-              <button className="btn-confirm" onClick={() => addToTicket(pendingItem, pendingItem.selectedModifiers)}>Add to Ticket</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* NEW: PAYMENT MODAL WITH SPLIT ENGINE */}
-      {isCheckoutModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ textAlign: 'center', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ marginBottom: '10px', color: 'var(--text-main)' }}>Payment Checkout</h2>
-
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px', background: 'var(--bg-main)', padding: '15px', borderRadius: '8px' }}>
-              <div>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Total Due</span>
-                <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: 'var(--brand-color)' }}>${cartTotal.toFixed(2)}</p>
-              </div>
-              <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Paid</span>
-                <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#27ae60' }}>${splitPayments.reduce((s, p) => s + p.amount, 0).toFixed(2)}</p>
-              </div>
-              <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Remaining</span>
-                <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#e74c3c' }}>${Math.max(0, cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0)).toFixed(2)}</p>
-              </div>
-            </div>
-
-            {/* SPLIT TABS (ALWAYS VISIBLE NOW TO ALLOW MIXED METHODS) */}
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px', paddingBottom: '4px' }}>
-              <button onClick={() => setSplitMode('full')} style={{ flex: '1 1 45%', padding: '12px 8px', background: splitMode === 'full' ? 'var(--brand-color)' : 'var(--bg-main)', color: splitMode === 'full' ? 'white' : 'var(--text-main)', borderRadius: '8px', border: splitMode === 'full' ? 'none' : '2px solid var(--border)', fontWeight: 'bold' }}>💰 Remaining</button>
-              <button onClick={() => setSplitMode('even')} style={{ flex: '1 1 45%', padding: '12px 8px', background: splitMode === 'even' ? 'var(--brand-color)' : 'var(--bg-main)', color: splitMode === 'even' ? 'white' : 'var(--text-main)', borderRadius: '8px', border: splitMode === 'even' ? 'none' : '2px solid var(--border)', fontWeight: 'bold' }}>👥 Even By N</button>
-              <button onClick={() => setSplitMode('product')} style={{ flex: '1 1 45%', padding: '12px 8px', background: splitMode === 'product' ? 'var(--brand-color)' : 'var(--bg-main)', color: splitMode === 'product' ? 'white' : 'var(--text-main)', borderRadius: '8px', border: splitMode === 'product' ? 'none' : '2px solid var(--border)', fontWeight: 'bold' }}>🛍️ By Prod.</button>
-              <button onClick={() => setSplitMode('custom')} style={{ flex: '1 1 45%', padding: '12px 8px', background: splitMode === 'custom' ? 'var(--brand-color)' : 'var(--bg-main)', color: splitMode === 'custom' ? 'white' : 'var(--text-main)', borderRadius: '8px', border: splitMode === 'custom' ? 'none' : '2px solid var(--border)', fontWeight: 'bold' }}>🔢 Custom</button>
-            </div>
-
-            {/* THE TENDER BUTTONS (Dynamic based on mode) */}
-            <div style={{ textAlign: 'left', minHeight: '150px' }}>
-
-              {/* === FULL MODE === */}
-              {splitMode === 'full' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <button onClick={() => handlePartialPayment(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0), 'Cash')} style={{ padding: '20px', fontSize: '1.2rem', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>💵 Cash</button>
-                  <button onClick={() => handlePartialPayment(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0), 'Card')} style={{ padding: '20px', fontSize: '1.2rem', background: '#2980b9', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>💳 Credit / Debit</button>
-                  <button onClick={() => handlePartialPayment(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0), 'Transfer')} style={{ padding: '20px', fontSize: '1.2rem', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>📱 Transfer</button>
-                </div>
-              )}
-
-              {/* === EVEN SPLIT MODE (REDESIGNED FOR MIXED SUPPORT) === */}
-              {splitMode === 'even' && (
-                <div style={{ background: 'var(--bg-main)', padding: '20px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-                  <p style={{ color: 'var(--text-muted)', marginBottom: '16px', textAlign: 'center' }}>Divide the remaining balance evenly.</p>
-
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', marginBottom: '20px' }}>
-                    <span style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.2rem' }}>Remaining People:</span>
-                    <button onClick={() => setNWays(Math.max(1, nWays - 1))} style={{ padding: '10px 20px', borderRadius: '8px', border: '2px solid var(--border)', background: 'transparent', color: 'var(--text-main)', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
-                    <span style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{nWays}</span>
-                    <button onClick={() => setNWays(nWays + 1)} style={{ padding: '10px 20px', borderRadius: '8px', border: '2px solid var(--border)', background: 'transparent', color: 'var(--text-main)', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
-                  </div>
-
-                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--brand-color)' }}>
-                      ${((cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0)) / nWays).toFixed(2)}
-                    </span>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', marginTop: '5px' }}>due per person</span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '12px' }}>
-                    <button onClick={() => {
-                      handlePartialPayment((cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0)) / nWays, 'Cash');
-                      setNWays(Math.max(1, nWays - 1)); // Auto decrement
-                    }} style={{ flex: 1, padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>💵 Cash</button>
-                    <button onClick={() => {
-                      handlePartialPayment((cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0)) / nWays, 'Card');
-                      setNWays(Math.max(1, nWays - 1)); // Auto decrement
-                    }} style={{ flex: 1, padding: '16px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>💳 Card</button>
-                  </div>
-                </div>
-              )}
-
-              {/* === BY PRODUCT MODE === */}
-              {splitMode === 'product' && (
-                <div>
-                  <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>Select an item to pay for it independently.</p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', padding: '4px' }}>
-                    {activeTicket.items.map(item => {
-                      const isPaid = paidProductIds.includes(item.id);
-                      let itemTotal = item.basePrice;
-                      if (item.selectedModifiers) {
-                        itemTotal += Object.values(item.selectedModifiers).reduce((s, m) => s + (m.price || 0), 0);
-                      }
-
-                      return (
-                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: isPaid ? 'rgba(0,0,0,0.05)' : 'var(--bg-main)', opacity: isPaid ? 0.6 : 1, borderRadius: '8px', border: '1px solid var(--border)' }}>
-                          <div>
-                            <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.1rem' }}>{item.name}</div>
-                            <div style={{ color: 'var(--brand-color)' }}>${itemTotal.toFixed(2)}</div>
-                          </div>
-                          {isPaid ? (
-                            <span>✅ Paid</span>
-                          ) : (
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button onClick={() => handlePartialPayment(itemTotal, 'Cash', [item.id])} style={{ padding: '8px 12px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>Cash</button>
-                              <button onClick={() => handlePartialPayment(itemTotal, 'Card', [item.id])} style={{ padding: '8px 12px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>Card</button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {/* Catch-all for discounts/tips/taxes that alter the base sum of items */}
-                  {(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0)) > 0 && paidProductIds.length === activeTicket.items.length && (
-                    <div style={{ marginTop: '20px', padding: '16px', background: '#fff3cd', borderRadius: '8px', border: '1px solid #ffeeba' }}>
-                      <strong style={{ color: '#856404' }}>Unitemized Balance: ${(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0)).toFixed(2)}</strong>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-                        <button onClick={() => handlePartialPayment(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0), 'Cash')} style={{ flex: 1, padding: '10px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>Cash</button>
-                        <button onClick={() => handlePartialPayment(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0), 'Card')} style={{ flex: 1, padding: '10px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>Card</button>
-                        <button onClick={() => handlePartialPayment(cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0), 'Transfer')} style={{ flex: 1, padding: '10px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>Transfer</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* === CUSTOM AMOUNT MODE === */}
-              {splitMode === 'custom' && (
-                <div>
-                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-                    <div style={{ flex: 2 }}>
-                      <label style={{ display: 'block', marginBottom: '5px', color: 'var(--text-muted)' }}>Enter partial amount:</label>
-                      <input
-                        type="number"
-                        placeholder="0.00"
-                        step="0.01"
-                        value={customVal}
-                        onChange={(e) => setCustomVal(e.target.value)}
-                        style={{ width: '100%', padding: '16px', fontSize: '1.5rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
-                      <button onClick={() => {
-                        const amt = parseFloat(customVal);
-                        const rem = cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0);
-                        if (amt > 0 && amt <= rem + 0.01) {
-                          handlePartialPayment(amt, 'Cash');
-                          setCustomVal('');
-                        } else alert('Please enter a valid amount less than or equal to the remaining balance.');
-                      }} style={{ padding: '10px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>Cash</button>
-
-                      <button onClick={() => {
-                        const amt = parseFloat(customVal);
-                        const rem = cartTotal - splitPayments.reduce((s, p) => s + p.amount, 0);
-                        if (amt > 0 && amt <= rem + 0.01) {
-                          handlePartialPayment(amt, 'Card');
-                          setCustomVal('');
-                        } else alert('Please enter a valid amount less than or equal to the remaining balance.');
-                      }} style={{ padding: '10px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>Card</button>
-                    </div>
-                  </div>
-
-                  {/* Show history of payments */}
-                  {splitPayments.length > 0 && (
-                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
-                      <h4 style={{ margin: '0 0 10px 0', color: 'var(--text-main)' }}>Payment Log</h4>
-                      {splitPayments.map((p, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
-                          <span>✅ {p.method}</span>
-                          <span>${p.amount.toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-            </div>
-
-            {splitPayments.length > 0 ? (
-              <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-                <button
-                  onClick={handleSavePartialPayments}
-                  style={{ flex: 2, padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
-                >
-                  💾 Save & Hide
-                </button>
-                <button
-                  onClick={handleVoidPartialPayments}
-                  style={{ flex: 1, padding: '16px', background: 'transparent', color: '#e74c3c', border: '2px solid #e74c3c', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
-                >
-                  🗑️ Void
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleCancelCheckout}
-                style={{ width: '100%', marginTop: '24px', padding: '16px', background: 'transparent', color: '#e74c3c', border: '2px solid #e74c3c', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
-              >
-                Close Checkout
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* --- UNIVERSAL SYSTEM DIALOG (ALERTS & CONFIRMS) --- */}
-      {uiDialog.isOpen && (
-        <div className="modal-overlay" style={{ zIndex: 9999 }}>
-          <div className="modal-content fade-in" style={{ textAlign: 'center', maxWidth: '400px', background: 'var(--bg-surface)' }}>
-
-            {/* Dynamic Icon */}
-            <div style={{ fontSize: '3.5rem', marginBottom: '10px' }}>
-              {uiDialog.type === 'alert' ? '🔔' : '⚠️'}
-            </div>
-
-            <h2 style={{ color: 'var(--text-main)', marginBottom: '16px', marginTop: 0 }}>{uiDialog.title}</h2>
-            <p style={{ fontSize: '1.1rem', marginBottom: '24px', color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>
-              {uiDialog.message}
-            </p>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              {/* Only show Cancel button if it is a confirmation */}
-              {uiDialog.type === 'confirm' && (
-                <button
-                  onClick={closeDialog}
-                  style={{ flex: 1, padding: '14px', background: 'transparent', color: 'var(--text-main)', border: '2px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem' }}
-                >
-                  Cancel
-                </button>
-              )}
-
-              <button
-                onClick={() => {
-                  if (uiDialog.type === 'confirm' && uiDialog.onConfirm) {
-                    uiDialog.onConfirm();
-                  }
-                  closeDialog();
-                }}
-                style={{ flex: 1, padding: '14px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem' }}
-              >
-                {uiDialog.type === 'confirm' ? 'Yes, Confirm' : 'OK'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- CUSTOM LOYALTY & WHATSAPP MODAL --- */}
-      {loyaltyModal.isOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: 'var(--text-main)' }}>Loyalty Rewards</h2>
-              <button onClick={() => setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null })} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
-            </div>
-
-            {/* STEP 1: ENTER PHONE */}
-            {loyaltyModal.step === 'phone' && (
-              <div>
-                {/* Dynamically change the text if the program is paused */}
-                <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
-                  {(() => {
-                    const isLoyaltyActive = menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true";
-                    return isLoyaltyActive
-                      ? "Enter customer's WhatsApp number to check their status."
-                      : "Enter customer's WhatsApp number to send receipt.";
-                  })()}
-                </p>
-
-                <input
-                  type="tel"
-                  maxLength="10"
-                  placeholder="222 123 4567"
-                  value={loyaltyModal.phone}
-                  onChange={(e) => setLoyaltyModal({ ...loyaltyModal, phone: e.target.value })}
-                  className={phoneError ? 'input-error-shake' : ''}
-                  style={{ width: '100%', padding: '15px', fontSize: '1.5rem', letterSpacing: '2px', textAlign: 'center', marginBottom: '20px', borderRadius: '8px', border: '2px solid var(--brand-color)', background: 'var(--bg-main)', color: 'var(--text-main)', boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s' }}
-                />
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-
-                  {/* HIDE THE LOYALTY BUTTON IF THE PROGRAM IS PAUSED */}
-                  {(menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true") && (
-                    <button onClick={handleCheckLoyalty} style={{ width: '100%', padding: '15px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                      Check Loyalty Status
-                    </button>
-                  )}
-
-                  {/* ALWAYS SHOW THE GUEST / STANDARD RECEIPT BUTTON */}
-                  <button onClick={handleGuestReceipt} style={{ width: '100%', padding: '15px', background: (menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true") ? 'transparent' : '#25D366', color: (menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true") ? 'var(--text-muted)' : 'white', border: (menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true") ? '1px solid var(--border)' : 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                    {(menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true") ? "Send Receipt Only (Do Not Track)" : "Send Receipt"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 2: THE CASHIER ALERT & SEND SCRIPT */}
-            {loyaltyModal.step === 'result' && loyaltyModal.data && (
-              <div>
-                {loyaltyModal.data.isRewardReady ? (
-                  <div style={{ background: '#fff0f5', border: '2px solid #ff69b4', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
-                    <h1 style={{ margin: '0 0 10px 0', fontSize: '3rem' }}>🎉</h1>
-                    <h2 style={{ color: '#ff1493', margin: '0 0 10px 0' }}>REWARD READY!</h2>
-                    <p style={{ fontSize: '1.1rem', color: '#333', margin: 0 }}>
-                      <strong>Tell the customer:</strong><br />
-                      "This is your {loyaltyModal.data.visits}th visit! You get {loyaltyModal.data.reward} today!"
-                    </p>
-                  </div>
-                ) : (
-                  <div style={{ background: 'var(--bg-main)', border: '2px solid var(--border)', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
-                    <h2 style={{ color: 'var(--brand-color)', margin: '0 0 10px 0' }}>Visit #{loyaltyModal.data.visits}</h2>
-                    <div style={{ fontSize: '1.5rem', margin: '10px 0' }}>
-                      {"⭐".repeat(loyaltyModal.data.visits % loyaltyModal.data.target || loyaltyModal.data.target)}
-                    </div>
-                    <p style={{ fontSize: '1.1rem', color: 'var(--text-main)', margin: 0 }}>
-                      <strong>Tell the customer:</strong><br />
-                      "You have {loyaltyModal.data.visits} visits! You only need {loyaltyModal.data.target - (loyaltyModal.data.visits % loyaltyModal.data.target)} more for {loyaltyModal.data.reward}."
-                    </p>
-                  </div>
-                )}
-
-                {/* Find this button in STEP 2 and update the onClick */}
-                <button
-                  onClick={() => sendFinalMessage(loyaltyModal.phone.replace(/\D/g, ''), loyaltyModal.data)}
-                  style={{ width: '100%', padding: '15px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-                >
-                  📱 Send WhatsApp Receipt
-
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* --- THE FLYING SUCCESS RECEIPT --- */}
-      {successTicket && (
-        <div className="flying-receipt">
-          <h2 style={{ textAlign: 'center', margin: '0 0 15px 0', fontSize: '2rem', color: '#27ae60' }}>PAID</h2>
-          <div style={{ textAlign: 'center', marginBottom: '15px', fontSize: '1.2rem', fontWeight: 'bold' }}>
-            {successTicket.name}
-          </div>
-
-          <div style={{ marginBottom: '15px' }}>
-            {successTicket.items.map(item => (
-              <div key={item.uniqueId} className="flying-receipt-row">
-                <span>{item.emoji || '•'} {item.name}</span>
-                <span>${item.basePrice.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ borderTop: '1px dashed black', margin: '15px 0' }}></div>
-
-          <div className="flying-receipt-row" style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
-            <span>TOTAL</span>
-            <span>${successTicket.total.toFixed(2)}</span>
-          </div>
-
-          <div style={{ textAlign: 'center', marginTop: '20px', color: '#666', fontSize: '0.9rem' }}>
-            Method: {successTicket.method}
-          </div>
-        </div>
-      )}
-
-      {/* --- EXPENSE (GASTO) MODAL --- */}
-      {isExpenseModalOpen && (
-        <div className="modal-overlay" style={{ zIndex: 100 }}>
-          <div className="modal-content fade-in" style={{ maxWidth: '400px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: '#e74c3c' }}>Record Expense (Gasto)</h2>
-              <button onClick={() => setIsExpenseModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
-            </div>
-
-            <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>Log money taken out of the cash drawer to keep your register balanced.</p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>Amount ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  placeholder="e.g., 150.50"
-                  value={expenseForm.amount}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                  style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>Reason / Vendor</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Hielo, Leche, Propinas"
-                  value={expenseForm.reason}
-                  onChange={(e) => setExpenseForm({ ...expenseForm, reason: e.target.value })}
-                  style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-                />
-              </div>
-
-              <button
-                onClick={handleSaveExpense}
-                style={{ width: '100%', padding: '16px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '10px' }}
-              >
-                Withdraw Cash
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- CORTE DE CAJA MODAL --- */}
-      {isCorteModalOpen && (
-        <div className="modal-overlay" style={{ zIndex: 100 }}>
-          <div className="modal-content fade-in" style={{ maxWidth: '450px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: 'var(--text-main)' }}>Corte de Caja</h2>
-              <button onClick={() => setIsCorteModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
-            </div>
-
-            <div style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--border)' }}>
-              <h4 style={{ margin: '0 0 10px 0', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Shift Breakdown</h4>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
-                <span>💵 Cash Sales:</span> <span>${shiftCashSales.toFixed(2)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
-                <span>💳 Card Sales:</span> <span>${shiftCardSales.toFixed(2)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
-                <span>📱 Transfer Sales:</span> <span>${shiftTransferSales.toFixed(2)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: '#e74c3c' }}>
-                <span>💸 Cash Expenses:</span> <span>-${shiftTotalExpenses.toFixed(2)}</span>
-              </div>
-              <div style={{ borderTop: '2px dashed var(--border)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--text-main)' }}>
-                <span>Expected Cash in Drawer:</span>
-                <span style={{ color: '#27ae60' }}>${expectedCash.toFixed(2)}</span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.1rem' }}>Actual Cash Counted ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="How much physical money is there?"
-                value={countedCash}
-                onChange={(e) => setCountedCash(e.target.value)}
-                style={{ width: '100%', padding: '15px', fontSize: '1.5rem', textAlign: 'center', borderRadius: '8px', border: '2px solid var(--brand-color)', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
-              />
-            </div>
-
-            <button
-              onClick={handleProcessCorte}
-              style={{ width: '100%', padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '20px' }}
-            >
-              Close Shift
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* --- PIN CHALLENGE MODAL --- */}
-      {pinChallenge.isOpen && (
-        <div className="modal-overlay" style={{ zIndex: 1000 }}>
-          <div className="modal-content fade-in" style={{ maxWidth: '350px', textAlign: 'center', background: 'var(--bg-surface)' }}>
-
-            <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🛡️</div>
-            <h2 style={{ color: 'var(--text-main)', margin: '0 0 10px 0' }}>{pinChallenge.title}</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>Enter PIN to continue</p>
-
-            <input
-              type="password"
-              maxLength="4"
-              autoFocus
-              value={challengePinAttempt}
-              onChange={(e) => setChallengePinAttempt(e.target.value.replace(/\D/g, ''))} // Force numbers only
-              onKeyDown={handleChallengeKeyDown} // Supports the physical Enter key
-              className={challengeError ? 'input-error-shake' : ''}
-              style={{ padding: '15px', fontSize: '2rem', width: '150px', textAlign: 'center', letterSpacing: '8px', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
-            />
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-              <button
-                onClick={() => { setPinChallenge({ isOpen: false, title: "", onAuthorized: null }); setChallengePinAttempt(''); }}
-                style={{ flex: 1, padding: '12px', background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleChallengeSubmit}
-                style={{ flex: 1, padding: '12px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                Verify
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- OFFLINE SYNC STATUS MODAL --- */}
-      {isSyncModalOpen && (
-        <div className="modal-overlay" style={{ zIndex: 1000 }}>
-          <div className="modal-content fade-in" style={{ maxWidth: '400px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: 'var(--text-main)' }}>System Status</h2>
-              <button onClick={() => setIsSyncModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
-            </div>
-
-            {isCurrentlyOffline ? (
-              <div style={{ background: '#fdf0ed', color: '#e74c3c', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e74c3c' }}>
-                <strong>📵 You are currently offline.</strong><br />
-                Don't worry! You can keep ringing up orders and logging expenses. Everything is saved safely on this device.
-              </div>
-            ) : (
-              <div style={{ background: '#eafaf1', color: '#27ae60', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #27ae60' }}>
-                <strong>🟢 Internet Connected!</strong><br />
-                We are currently uploading your saved data to the cloud.
-              </div>
-            )}
-
-            <h4 style={{ color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '10px' }}>Pending Uploads:</h4>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', borderBottom: '1px dashed var(--border)', fontSize: '1.1rem', color: 'var(--text-main)' }}>
-              <span>🛒 Sales Tickets</span>
-              <span style={{ fontWeight: 'bold' }}>{syncQueue.length}</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', borderBottom: '1px dashed var(--border)', fontSize: '1.1rem', color: 'var(--text-main)' }}>
-              <span>💸 Gastos (Expenses)</span>
-              <span style={{ fontWeight: 'bold' }}>{expenseQueue.length}</span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px', fontSize: '1.1rem', color: 'var(--text-main)' }}>
-              <span>📱 WhatsApp Receipts</span>
-              <span style={{ fontWeight: 'bold' }}>{waQueue.length}</span>
-            </div>
-
-            <button
-              onClick={() => setIsSyncModalOpen(false)}
-              style={{ width: '100%', padding: '16px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '2px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '20px' }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* --- DISCOUNT MODAL --- */}
-      {isDiscountModalOpen && (
-        <div className="modal-overlay" style={{ zIndex: 100 }}>
-          <div className="modal-content fade-in" style={{ maxWidth: '400px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, color: '#8e44ad' }}>Apply Discount</h2>
-              <button onClick={() => setIsDiscountModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              <button
-                onClick={() => setDiscountForm({ ...discountForm, type: 'percentage' })}
-                style={{ flex: 1, padding: '12px', borderRadius: '8px', fontWeight: 'bold', border: `2px solid ${discountForm.type === 'percentage' ? '#8e44ad' : 'var(--border)'}`, background: discountForm.type === 'percentage' ? '#f5eef8' : 'var(--bg-main)', color: discountForm.type === 'percentage' ? '#8e44ad' : 'var(--text-main)' }}
-              >
-                % Percentage
-              </button>
-              <button
-                onClick={() => setDiscountForm({ ...discountForm, type: 'flat' })}
-                style={{ flex: 1, padding: '12px', borderRadius: '8px', fontWeight: 'bold', border: `2px solid ${discountForm.type === 'flat' ? '#8e44ad' : 'var(--border)'}`, background: discountForm.type === 'flat' ? '#f5eef8' : 'var(--bg-main)', color: discountForm.type === 'flat' ? '#8e44ad' : 'var(--text-main)' }}
-              >
-                $ Flat Amount
-              </button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-              <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>
-                {discountForm.type === 'percentage' ? 'Discount Percentage (%)' : 'Discount Amount ($)'}
-              </label>
-              <input
-                type="number"
-                step={discountForm.type === 'percentage' ? "1" : "0.01"}
-                placeholder={discountForm.type === 'percentage' ? "e.g., 10" : "e.g., 5.00"}
-                value={discountForm.value}
-                onChange={(e) => setDiscountForm({ ...discountForm, value: e.target.value })}
-                style={{ width: '100%', padding: '15px', fontSize: '1.5rem', textAlign: 'center', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {activeTicket?.discount && (
-                <button
-                  onClick={handleRemoveDiscount}
-                  style={{ flex: 1, padding: '16px', background: 'transparent', color: '#e74c3c', border: '2px solid #e74c3c', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
-                >
-                  Remove
-                </button>
-              )}
-              <button
-                onClick={handleApplyDiscount}
-                style={{ flex: 2, padding: '16px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- KDS REVERSE BRIDGE TOAST --- */}
-      <div className="toast-container">
-        {toastNotifications.map(toast => (
-          <div key={toast.id} className="toast">
-            <span style={{ fontSize: '1.5rem' }}>✅</span>
-            <span>{toast.message}</span>
-          </div>
-        ))}
-      </div>
-
+      <ToastNotifications toastNotifications={toastNotifications} />
     </div>
   );
 }
