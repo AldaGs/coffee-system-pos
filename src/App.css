@@ -122,7 +122,9 @@
   -webkit-overflow-scrolling: touch;
   background: var(--bg-surface);
   flex-shrink: 0; /* Ensures mobile doesn't crush the tabs container */
+  scroll-behavior: smooth; /* Makes the wheel scroll feel less jumpy */
 }
+
 .ticket-tabs-container::-webkit-scrollbar { display: none; }
 
 .ticket-tab {
@@ -312,6 +314,7 @@
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .ticket-tab.active {
@@ -328,6 +331,7 @@
   font-weight: bold;
   cursor: pointer;
   font-size: 1.2rem;
+  flex-shrink: 0;
 }
 
 /* --- Deletion & Voiding --- */

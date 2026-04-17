@@ -67,7 +67,8 @@ function Admin() {
     pinCode: "1234",
     orderResetPolicy: "daily",
     enableCorte: true,
-    ticketVisibility: "open"
+    ticketVisibility: "open",
+    printerSize: "80mm" // <-- ADD THIS LINE
   });
 
   // --- NEW: LOYALTY SETTINGS STATE ---
@@ -225,18 +226,22 @@ function Admin() {
     }
   };
 
+  // --- NEW: APP BOOT LOGO UPLOADER ---
+  const handleAppLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setGeneralSettings({ ...generalSettings, appBootLogo: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Saves the custom receipt form to our JSON cloud object
   const handleSaveReceipt = () => {
     const updatedMenu = { ...menuData, receiptSettings: receiptForm };
     saveMenuToCloud(updatedMenu);
-    
-    // NEW: Save the logo locally so the boot screen can access it instantly!
-    if (receiptForm.logo) {
-      localStorage.setItem('tinypos_boot_logo', receiptForm.logo);
-    } else {
-      localStorage.removeItem('tinypos_boot_logo'); // If they removed the logo
-    }
-    
     showAlert("Success", "Receipt settings & App Logo saved successfully!");
   };
 
@@ -265,6 +270,14 @@ function Admin() {
 
     const updatedMenu = { ...menuData, posSettings: generalSettings };
     saveMenuToCloud(updatedMenu);
+
+    // NEW: Save the colorful app logo to the iPad's local memory!
+    if (generalSettings.appBootLogo) {
+      localStorage.setItem('tinypos_boot_logo', generalSettings.appBootLogo);
+    } else {
+      localStorage.removeItem('tinypos_boot_logo'); 
+    }
+
     showAlert("Success", "Settings saved! Changes will instantly apply.");
   };
 
@@ -1497,6 +1510,33 @@ function Admin() {
                   <input type="color" value={generalSettings.brandColor} onChange={(e) => setGeneralSettings({ ...generalSettings, brandColor: e.target.value })} style={{ width: '60px', height: '50px', border: 'none', cursor: 'pointer', padding: 0, borderRadius: '8px', overflow: 'hidden' }} />
                   <span style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '1.1rem' }}>{generalSettings.brandColor.toUpperCase()}</span>
                 </div>
+
+                {/* --- NEW BRANDING SECTION --- */}
+              <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>App Branding</h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>App Loading Screen Logo (Color PNG/JPG)</label>
+                <input type="file" accept="image/*" onChange={handleAppLogoUpload} style={{ padding: '8px', color: 'var(--text-main)' }} />
+                
+                {generalSettings.appBootLogo && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                    <img 
+                      src={generalSettings.appBootLogo} 
+                      alt="App Boot Logo" 
+                      style={{ maxHeight: '100px', objectFit: 'contain', background: 'var(--bg-main)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }} 
+                    />
+                    <button 
+                      onClick={() => setGeneralSettings({ ...generalSettings, appBootLogo: null })} 
+                      style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold' }}
+                    >
+                      Remove App Logo
+                    </button>
+                  </div>
+                )}
+                <small style={{ color: 'var(--text-muted)' }}>This logo is used strictly for the app's loading screen and browser tab. It will not be printed.</small>
+              </div>
+              {/* ----------------------------- */}
+
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Color Theme</label>
@@ -1579,6 +1619,22 @@ function Admin() {
                 <small style={{ color: 'var(--text-muted)' }}>Turn this off if the café does not reconcile the cash drawer per shift.</small>
               </div>
 
+              {/* --- ADD THIS NEW SECTION --- */}
+              <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Hardware</h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Thermal Printer Size</label>
+                <select
+                  value={generalSettings.printerSize || '80mm'}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, printerSize: e.target.value })}
+                  style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+                >
+                  <option value="80mm">Standard (80mm)</option>
+                  <option value="58mm">Narrow (58mm)</option>
+                </select>
+                <small style={{ color: 'var(--text-muted)' }}>Adjusts the receipt layout to prevent text from being cut off on smaller printers.</small>
+              </div>
+              {/* ---------------------------- */}
 
               <button onClick={handleSaveGeneralSettings} style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '16px', fontSize: '1.1rem' }}>Save General Settings</button>
             </div>

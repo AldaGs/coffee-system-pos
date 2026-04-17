@@ -53,12 +53,73 @@ function Register() {
     return () => supabase.removeChannel(channel);
   }, []);
 
+
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
 
   const [activeTicketId, setActiveTicketId] = useState(() => {
     const savedId = localStorage.getItem('tinypos_activeTicketId');
     return savedId ? JSON.parse(savedId) : 1;
   });
+
+  // --- UPDATED: FULL SOURCE-OF-TRUTH SYNC ---
+  const syncCloudTickets = async () => {
+    if (!navigator.onLine) return;
+    try {
+      const { data, error } = await supabase.from('active_tickets').select('*');
+      if (data && !error) {
+        // 1. Get all tickets currently on this device (Phone/PC)
+        const localTickets = await db.active_tickets.toArray();
+        const cloudIds = data.map(t => t.id);
+
+        // 2. Find "Ghost" tickets (Items on your phone that aren't in Supabase)
+        const ghostTickets = localTickets.filter(t => !cloudIds.includes(t.id));
+
+        if (ghostTickets.length > 0) {
+          // Kill the ghosts!
+          const idsToDelete = ghostTickets.map(g => g.id);
+          await db.active_tickets.bulkDelete(idsToDelete);
+          console.log(`Cleared ${idsToDelete.length} ghost tickets from local storage.`);
+        }
+
+        // 3. Update the local database with the actual cloud data
+        await db.active_tickets.bulkPut(data);
+      }
+    } catch (err) {
+      console.error("Could not sync cloud tickets:", err);
+    }
+  };
+
+  // --- TRIGGER SYNC & SET UP REAL-TIME LISTENER ---
+  useEffect(() => {
+    // 1. Run the "Ghost Hunter" sync immediately on mount
+    syncCloudTickets();
+
+    // 2. Listen for Real-time changes (especially DELETES from the PC)
+    const ticketChannel = supabase
+      .channel('active-tickets-realtime')
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'active_tickets' },
+        async (payload) => {
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            await db.active_tickets.put(payload.new);
+          }
+          else if (payload.eventType === 'DELETE') {
+            // This is the magic part that clears your phone when the PC pays!
+            await db.active_tickets.delete(payload.old.id);
+
+            // If the phone was looking at the ticket that just got deleted, clear the screen
+            if (activeTicketId === payload.old.id) {
+              setActiveTicketId(null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ticketChannel);
+    };
+  }, [activeTicketId]); // Re-run if we switch tickets to keep context fresh
 
   // --- DAILY EXPENSES (GASTOS) STATE ---
   const [expenses, setExpenses] = useState(() => {
@@ -464,50 +525,58 @@ Are you sure you want to close this shift? This will reset the register for the 
     };
   }, [menuData, isLocked, posSettings.autoLockMinutes]);
 
-  // --- SUPABASE PRESENCE (SESSION LOCK) ---
+  // --- UPGRADED SUPABASE PRESENCE (SESSION LOCK) ---
   useEffect(() => {
-    // Only track presence if we are actively logged in (not locked)
+    // Only track and broadcast if we are actively logged in (not locked)
     if (!activeCashier || isLocked) return;
 
     const channel = supabase.channel('cashier-presence', {
-      config: {
-        presence: { key: myDeviceId },
-      },
+      config: { presence: { key: myDeviceId } },
     });
 
+    const forceLockOut = (reason) => {
+      setIsLocked(true);
+      setActiveCashier(null);
+      setSessionTime(0);
+      localStorage.removeItem('tinypos_activeCashier');
+      localStorage.removeItem('tinypos_session_time');
+      showAlert("Access Revoked", reason);
+    };
+
+    // 1. Listen for EXPLICIT login broadcasts (Instant Kick)
+    channel.on('broadcast', { event: 'force-kick' }, (payload) => {
+      // If someone shouts that they logged into our profile, and it isn't our specific device, lock down!
+      if (payload.payload.cashierId === activeCashier.id && payload.payload.deviceId !== myDeviceId) {
+        forceLockOut("Your session was overridden by a new login on another device.");
+      }
+    });
+
+    // 2. Listen for background presence (Tie-Breaker for sleeping devices)
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
-
-      let shouldLockOut = false;
-
-      // Loop through all connected devices
       for (const [key, presenceData] of Object.entries(state)) {
         if (key !== myDeviceId) {
-          // If another device is using the same cashier profile
           presenceData.forEach(p => {
-            if (p.cashierId === activeCashier.id) {
-              // If their session is NEWER than ours, we lost the tie-breaker
-              if (p.sessionTime > sessionTime) {
-                shouldLockOut = true;
-              }
+            if (p.cashierId === activeCashier.id && p.sessionTime > sessionTime) {
+              forceLockOut("Another device has logged into this profile.");
             }
           });
         }
       }
-
-      if (shouldLockOut) {
-        setIsLocked(true);
-        setActiveCashier(null);
-        setSessionTime(0);
-        localStorage.removeItem('tinypos_activeCashier');
-        localStorage.removeItem('tinypos_session_time');
-        showAlert("Access Revoked", "This profile was securely logged into from another device. Your session has been locked to prevent system conflicts.");
-      }
     });
 
     channel.subscribe(async (status) => {
+      console.log("Realtime Status:", status); // This SHOULD say 'SUBSCRIBED'
       if (status === 'SUBSCRIBED') {
+        // Track our presence in the background
         await channel.track({ cashierId: activeCashier.id, sessionTime: sessionTime });
+
+        // Instantly shout into the channel that we just logged in to clear out ghosts
+        await channel.send({
+          type: 'broadcast',
+          event: 'force-kick',
+          payload: { cashierId: activeCashier.id, deviceId: myDeviceId }
+        });
       }
     });
 
@@ -605,12 +674,27 @@ Are you sure you want to close this shift? This will reset the register for the 
     const newId = Date.now();
     const currentNum = nextOrderNum; // Grab the global counter
 
-    await db.active_tickets.add({
+    // Grab the first 3 letters of this specific device's ID
+    const prefix = myDeviceId.substring(0, 3).toUpperCase();
+
+    const newTicket = {
       id: newId,
-      name: `Order #${currentNum}`,
+      name: `${prefix} - #${currentNum}`,
       items: [],
       cashierId: activeCashier?.id
-    });
+    };
+
+    // 1. Save locally
+    await db.active_tickets.add(newTicket);
+
+    // 2. NEW: Push new ticket to the cloud
+    if (navigator.onLine) {
+      try {
+        await supabase.from('active_tickets').insert([newTicket]);
+      } catch (err) {
+        console.error("Cloud create failed:", err);
+      }
+    }
 
     setActiveTicketId(newId);
 
@@ -659,18 +743,24 @@ Are you sure you want to close this shift? This will reset the register for the 
   };
 
   const addToTicket = async (item, modifiers) => {
-    // FIX: Provide UX feedback instead of failing silently!
     if (!activeTicket) {
       showAlert("No Active Order", "Please click '+ Start New Ticket' before adding items.");
-      setIsModalOpen(false); // Close the modifier modal if they had it open to check prices
+      setIsModalOpen(false);
       setPendingItem(null);
       return;
     }
 
-    // Added a randomizer so clicking ultra-fast doesn't accidentally group items
     const newItem = { ...item, uniqueId: Date.now() + Math.random(), selectedModifiers: modifiers };
+    const updatedItems = [...activeTicket.items, newItem];
 
-    if (activeTicket) await db.active_tickets.update(activeTicket.id, { items: [...activeTicket.items, newItem] });
+    // 1. Update locally
+    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
+
+    // 2. NEW: Update cloud instantly
+    if (navigator.onLine) {
+      supabase.from('active_tickets').update({ items: updatedItems }).eq('id', activeTicket.id).then();
+    }
+
     setIsModalOpen(false);
     setPendingItem(null);
   };
@@ -678,16 +768,36 @@ Are you sure you want to close this shift? This will reset the register for the 
   const handleRemoveItem = async (itemUniqueId) => {
     if (!activeTicket) return;
 
-    if (activeTicket) {
-       await db.active_tickets.update(activeTicket.id, { items: activeTicket.items.filter(i => i.uniqueId !== itemUniqueId) });
+    const updatedItems = activeTicket.items.filter(i => i.uniqueId !== itemUniqueId);
+
+    // 1. Update locally
+    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
+
+    // 2. NEW: Update cloud instantly
+    if (navigator.onLine) {
+      supabase.from('active_tickets').update({ items: updatedItems }).eq('id', activeTicket.id).then();
     }
   };
 
   const clearCurrentTicket = async () => {
     if (!activeTicket) return;
 
-    await db.active_tickets.delete(activeTicket.id);
-    const remainingTickets = tickets.filter(t => t.id !== activeTicket.id);
+    const ticketIdToDelete = activeTicket.id; // Store ID before deleting
+
+    // 1. Delete locally
+    await db.active_tickets.delete(ticketIdToDelete);
+
+    // 2. NEW: Delete from the cloud so it vanishes from the phone!
+    if (navigator.onLine) {
+      try {
+        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
+        console.log("Ticket deleted");
+      } catch (err) {
+        console.error("Cloud delete failed:", err);
+      }
+    }
+
+    const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
 
     // Try to find another ticket that belongs to this cashier
     if (remainingTickets.length > 0) {
@@ -742,359 +852,243 @@ Are you sure you want to close this shift? This will reset the register for the 
     }
   };
 
-  const printVirtualReceipt = (ticket, total) => {
-    // 1. Grab settings from cloud (with fallbacks)
-    const receiptSettings = menuData?.receiptSettings || {
-      header: "TINY COFFEE BAR",
-      subheader: "Puebla, Mexico",
-      footer: "Thank you for your visit!",
-      logo: null
-    };
+  // --- THE ESC/POS IMAGE ENCODER ---
+  const convertLogoToESCPOS = async (base64Data) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Data;
 
-    // 2. Build actual HTML for the receipt
-    // We use a fixed width of 300px to perfectly simulate 80mm thermal paper
-    let htmlContent = `
-      <html>
-        <head>
-          <style>
-            body {
-              font-family: 'Courier New', Courier, monospace; 
-              width: 300px; 
-              margin: 0;
-              padding: 20px;
-              color: black;
-              background: white;
-            }
-            .center { text-align: center; }
-            .divider { border-bottom: 1px dashed black; margin: 10px 0; }
-            .flex-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
-            .logo { max-width: 100%; max-height: 100px; object-fit: contain; filter: grayscale(100%) contrast(200%); margin-bottom: 10px; }
-          </style>
-        </head>
-        <body>
-    `;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
 
-    // Add Logo if it exists
-    if (receiptSettings.logo) {
-      htmlContent += `<div class="center"><img src="${receiptSettings.logo}" class="logo" /></div>`;
-    }
+        // 58mm printers have a max printable width of exactly 384 dots (pixels).
+        // Let's cap the logo at 300px so it has a nice visual margin.
+        const MAX_WIDTH = 300;
+        let width = img.width;
+        let height = img.height;
 
-    // Add Header & Info
-    htmlContent += `
-          <div class="center" style="font-size: 1.2rem; font-weight: bold;">${receiptSettings.header}</div>
-          <div class="center" style="margin-bottom: 10px;">${receiptSettings.subheader}</div>
-          <div class="divider"></div>
-          <div>Ticket: ${ticket.name}</div>
-          <div>Date: ${new Date().toLocaleString()}</div>
-          <div class="divider"></div>
-    `;
-
-    // Loop through Drinks and Modifiers
-    ticket.items.forEach(item => {
-      // NEW: Added the emoji fallback right before item.name
-      htmlContent += `
-          <div class="flex-row">
-            <span>${item.emoji || '•'} ${item.name}</span>
-            <span>$${item.basePrice.toFixed(2)}</span>
-          </div>
-      `;
-      item.selectedModifiers.forEach(mod => {
-        const modPrice = mod.price > 0 ? `+$${mod.price.toFixed(2)}` : "";
-        htmlContent += `
-          <div class="flex-row" style="font-size: 0.9em; color: #444; padding-left: 10px;">
-            <span>+ ${mod.name}</span>
-            <span>${modPrice}</span>
-          </div>
-        `;
-      });
-    });
-
-    // Add Footer and Total
-    let discountHtml = '';
-
-    // 1. Calculate raw subtotal for the receipt
-    const subtotal = ticket.items.reduce((sum, item) => {
-      let cost = item.basePrice;
-      item.selectedModifiers.forEach(mod => cost += mod.price);
-      return sum + cost;
-    }, 0);
-
-    // 2. Scan for Auto Discounts
-    let autoDiscountAmount = 0;
-    let activeAutoRuleName = "";
-    const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
-
-    if (activeRules.length > 0 && subtotal > 0) {
-      activeRules.forEach(rule => {
-        if (rule.targetType === 'cart') {
-          const ruleValue = rule.type === 'percentage' ? subtotal * (rule.value / 100) : rule.value;
-          autoDiscountAmount += ruleValue;
-          activeAutoRuleName = rule.name;
-        } else if (rule.targetType === 'item') {
-          ticket.items.forEach(item => {
-            if (item.name === rule.targetValue) {
-              let itemCost = item.basePrice;
-              item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-              const ruleValue = rule.type === 'percentage' ? itemCost * (rule.value / 100) : rule.value;
-              autoDiscountAmount += ruleValue;
-              activeAutoRuleName = rule.name;
-            }
-          });
+        if (width > MAX_WIDTH) {
+          height = Math.round((height * MAX_WIDTH) / width);
+          width = MAX_WIDTH;
         }
-      });
-    }
 
-    // 3. Scan for Manual Overrides
-    let manualDiscountAmount = 0;
-    let manualDiscountLabel = "";
-    if (ticket.discount) {
-      const subtotalAfterAuto = Math.max(0, subtotal - autoDiscountAmount);
-      manualDiscountAmount = ticket.discount.type === 'percentage' ? subtotalAfterAuto * (ticket.discount.value / 100) : ticket.discount.value;
-      manualDiscountLabel = ticket.discount.type === 'percentage' ? `${ticket.discount.value}%` : `$${manualDiscountAmount.toFixed(2)}`;
-    }
+        // CRITICAL: ESC/POS raster images MUST have a width that is a multiple of 8.
+        width = Math.ceil(width / 8) * 8;
 
-    // 4. Build the HTML if ANY discount exists
-    if (autoDiscountAmount > 0 || manualDiscountAmount > 0) {
-      discountHtml += `
-          <div class="flex-row" style="color: #555; font-size: 0.95rem;">
-            <span>Subtotal</span>
-            <span>$${subtotal.toFixed(2)}</span>
-          </div>`;
+        canvas.width = width;
+        canvas.height = height;
 
-      if (autoDiscountAmount > 0) {
-        discountHtml += `
-          <div class="flex-row" style="color: #555; font-size: 0.95rem;">
-            <span>⭐ Auto: ${activeAutoRuleName}</span>
-            <span>-$${autoDiscountAmount.toFixed(2)}</span>
-          </div>`;
-      }
+        // 1. Fill with white first! (Otherwise transparent PNGs print as giant solid black squares)
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, width, height);
 
-      if (manualDiscountAmount > 0) {
-        discountHtml += `
-          <div class="flex-row" style="color: #555; font-size: 0.95rem;">
-            <span>Discount (${manualDiscountLabel})</span>
-            <span>-$${manualDiscountAmount.toFixed(2)}</span>
-          </div>`;
-      }
-    }
-    
+        // 2. Draw the logo
+        ctx.drawImage(img, 0, 0, width, height);
 
-    htmlContent += `
-          <div class="divider"></div>
-          ${discountHtml}
-          <div class="flex-row" style="font-weight: bold; font-size: 1.1rem;">
-            <span>TOTAL</span>
-            <span>$${total.toFixed(2)}</span>
-          </div>
-          <div class="divider" style="margin-bottom: 20px;"></div>
-          <div class="center" style="font-size: 0.9rem; white-space: pre-wrap;">${receiptSettings.footer}</div>
-        </body>
-      </html>
-    `;
+        // 3. Extract the raw pixel data
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const pixels = imageData.data;
 
-    // --- NEW: THE SAT TAX EXTRACTION ENGINE ---
-    if (receiptSettings.enableTaxBreakdown) {
-      const taxRatePercentage = receiptSettings.taxRate || 16;
-      const taxDecimal = taxRatePercentage / 100;
-      
-      // Backwards math: Total = Subtotal * (1 + TaxRate)
-      const baseSubtotal = total / (1 + taxDecimal);
-      const extractedTax = total - baseSubtotal;
+        // 4. Calculate ESC/POS parameters
+        const widthBytes = width / 8;
+        const xL = widthBytes % 256;
+        const xH = Math.floor(widthBytes / 256);
+        const yL = height % 256;
+        const yH = Math.floor(height / 256);
 
-      htmlContent += `
-          <div class="flex-row" style="color: #555; font-size: 0.95rem;">
-            <span>Subtotal (Sin IVA)</span>
-            <span>$${baseSubtotal.toFixed(2)}</span>
-          </div>
-          <div class="flex-row" style="color: #555; font-size: 0.95rem; margin-bottom: 8px;">
-            <span>IVA (${taxRatePercentage}%)</span>
-            <span>$${extractedTax.toFixed(2)}</span>
-          </div>
-      `;
-    }
+        // The ESC/POS command: GS v 0 (Print Raster Bit Image)
+        const header = [0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH];
+        const imageBytes = [];
 
-    htmlContent += `
-          <div class="flex-row" style="font-weight: bold; font-size: 1.1rem;">
-            <span>TOTAL</span>
-            <span>$${total.toFixed(2)}</span>
-          </div>
-    `;
+        let currentByte = 0;
+        let bitIndex = 0;
 
-    
+        // 5. Loop through every single pixel (RGBA) and convert to 1-bit monochrome
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          const a = pixels[i + 3];
 
-    // 3. Create the Invisible Iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'absolute';
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
-    iframe.style.border = 'none';
-    document.body.appendChild(iframe);
+          // Calculate brightness. If it's dark, it becomes a black dot.
+          const isBlack = (a > 128) && ((r * 0.299 + g * 0.587 + b * 0.114) < 128);
 
-    // 4. Write the HTML inside the iframe
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
+          if (isBlack) {
+            currentByte |= (1 << (7 - bitIndex)); // Turn on the bit
+          }
 
-    // 5. Wait a fraction of a second for the logo image to load, then trigger Print
-    iframe.onload = () => {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
+          bitIndex++;
 
-      // 6. Clean up: Delete the iframe 1 second after the print dialog opens
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-      }, 1000);
-    };
+          // Once we have 8 bits, push the completed byte to our array
+          if (bitIndex === 8) {
+            imageBytes.push(currentByte);
+            currentByte = 0;
+            bitIndex = 0;
+          }
+        }
+
+        resolve(new Uint8Array([...header, ...imageBytes]));
+      };
+    });
   };
 
+  const printRawReceipt = async (ticket, total) => {
+    try {
+      const encoder = new TextEncoder();
+      let receiptBuffer = []; // We store EVERYTHING here first
 
-  // --- NEW: SPLIT CHECKOUT LOGIC ---
+      // --- ESC/POS COMMANDS ---
+      const ESC_INIT = [0x1B, 0x40];
+      const ESC_ALIGN_LEFT = [0x1B, 0x61, 0x00];
+      const ESC_ALIGN_CENTER = [0x1B, 0x61, 0x01];
+      const ESC_BOLD_ON = [0x1B, 0x45, 0x01];
+      const ESC_BOLD_OFF = [0x1B, 0x45, 0x00];
 
-  // Action 1: Just print the ticket, do not close the tab.
-  const handlePrintOnly = () => {
-    printVirtualReceipt(activeTicket, cartTotal);
-    // You could add a little toast notification here later saying "Printing..."
-  };
+      // --- HELPERS ---
+      const pushCommand = (cmdArray) => receiptBuffer.push(...cmdArray);
 
-  // --- 1. THE UNIFIED RECEIPT SENDER ---
-  const sendFinalMessage = (phone, loyaltyData = null) => {
-    const receiptSettings = menuData?.receiptSettings || { header: "TINY COFFEE BAR", subheader: "Puebla, Mexico", footer: "Thank you!" };
+      const stripEmojis = (str) => {
+        if (!str) return "";
+        return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
+      };
 
-    // ==========================================
-    // 1. THE LOGIC (Math & Calculations)
-    // ==========================================
+      const pushText = (text) => receiptBuffer.push(...encoder.encode(text));
 
-    // A. Calculate the raw subtotal first
-    const rawSubtotal = activeTicket.items.reduce((sum, item) => {
-      let cost = item.basePrice;
-      item.selectedModifiers.forEach(mod => cost += mod.price);
-      return sum + cost;
-    }, 0);
+      const pushRow = (leftText, rightText) => {
+        const cleanLeft = stripEmojis(leftText);
+        const spacesNeeded = Math.max(1, 32 - cleanLeft.length - rightText.length);
+        pushText(`${cleanLeft}${' '.repeat(spacesNeeded)}${rightText}\n`);
+      };
 
-    // B. Calculate Auto Discounts
-    let autoDiscountAmount = 0;
-    let activeAutoRuleName = "";
-    const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
+      // 1. GRAB SETTINGS
+      const receiptSettings = menuData?.receiptSettings || {
+        header: "TINY COFFEE BAR",
+        subheader: "Puebla, Mexico",
+        footer: "Thank you for your visit!",
+        enableTaxBreakdown: false,
+        taxRate: 16,
+        logo: null
+      };
 
-    if (activeRules.length > 0 && rawSubtotal > 0) {
-      activeRules.forEach(rule => {
-        if (rule.targetType === 'cart') {
-          const ruleValue = rule.type === 'percentage' ? rawSubtotal * (rule.value / 100) : rule.value;
-          autoDiscountAmount += ruleValue;
-          activeAutoRuleName = rule.name;
-        } else if (rule.targetType === 'item') {
-          activeTicket.items.forEach(item => {
-            if (item.name === rule.targetValue) {
-              let itemCost = item.basePrice;
-              item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-              const ruleValue = rule.type === 'percentage' ? itemCost * (rule.value / 100) : rule.value;
-              autoDiscountAmount += ruleValue;
-              activeAutoRuleName = rule.name;
-            }
-          });
+      // ==========================================
+      // --- BUILD THE RECEIPT ---
+      // ==========================================
+      pushCommand(ESC_INIT);
+      pushCommand(ESC_ALIGN_CENTER);
+
+      // --- LOGO INJECTION ---
+      if (receiptSettings.logo) {
+        try {
+          const logoBytes = await convertLogoToESCPOS(receiptSettings.logo);
+          // Convert the Uint8Array to a normal array so we can push it into the buffer
+          pushCommand(Array.from(logoBytes));
+          pushText("\n");
+        } catch (e) {
+          console.warn("Could not process logo:", e);
         }
-      });
-    }
-
-    // C. Calculate Manual Discounts
-    let manualDiscountAmount = 0;
-    let manualDiscountLabel = "";
-    if (activeTicket.discount) {
-      const subtotalAfterAuto = Math.max(0, rawSubtotal - autoDiscountAmount);
-      manualDiscountAmount = activeTicket.discount.type === 'percentage' ? subtotalAfterAuto * (activeTicket.discount.value / 100) : activeTicket.discount.value;
-      manualDiscountLabel = activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : `$${manualDiscountAmount.toFixed(2)}`;
-    }
-
-    // D. Calculate FINAL Total (Fixes the undefined cartTotal bug!)
-    const cartTotal = Math.max(0, rawSubtotal - autoDiscountAmount - manualDiscountAmount);
-
-    // E. Extract the Tax (Based on the final discounted total)
-    let subtotalLine = "";
-    let taxLine = "";
-    
-    if (receiptSettings.enableTaxBreakdown) {
-      const taxRate = receiptSettings.taxRate || 16;
-      const taxDecimal = taxRate / 100;
-      
-      const baseSubtotal = cartTotal / (1 + taxDecimal);
-      const extractedTax = cartTotal - baseSubtotal;
-      
-      subtotalLine = `Subtotal: $${baseSubtotal.toFixed(2)}\n`;
-      taxLine = `IVA (${taxRate}%): $${extractedTax.toFixed(2)}\n`;
-    }
-
-    // ==========================================
-    // 2. THE UI (String Template Builder)
-    // ==========================================
-
-    let waText = `*${receiptSettings.header}*\n_${receiptSettings.subheader}_\n---------------------------------\n`;
-    waText += `*Ticket:* ${activeTicket.name}\n*Date:* ${new Date().toLocaleString()}\n---------------------------------\n`;
-
-    // Print Items
-    activeTicket.items.forEach(item => {
-      const itemIcon = item.emoji || '•';
-      waText += `${itemIcon} ${item.name} - $${item.basePrice.toFixed(2)}\n`;
-      item.selectedModifiers.forEach(mod => {
-        const modPrice = mod.price > 0 ? ` (+$${mod.price.toFixed(2)})` : "";
-        waText += `    + ${mod.name}${modPrice}\n`;
-      });
-      waText += `\n`;
-    });
-
-    // Print Discounts (if any)
-    if (autoDiscountAmount > 0 || manualDiscountAmount > 0) {
-      waText += `---------------------------------\n`;
-      waText += `Subtotal: $${rawSubtotal.toFixed(2)}\n`;
-
-      if (autoDiscountAmount > 0) {
-        waText += `⭐ Auto: ${activeAutoRuleName}: -$${autoDiscountAmount.toFixed(2)}\n`;
       }
-      if (manualDiscountAmount > 0) {
-        waText += `Discount (${manualDiscountLabel}): -$${manualDiscountAmount.toFixed(2)}\n`;
+
+      // --- HEADER ---
+      pushCommand(ESC_BOLD_ON);
+      pushText(`${receiptSettings.header}\n`);
+      pushCommand(ESC_BOLD_OFF);
+      pushText(`${receiptSettings.subheader}\n`);
+      pushText("--------------------------------\n");
+      pushText(`Ticket: ${ticket.name}\n`);
+      pushText(`Date: ${new Date().toLocaleString()}\n`);
+      pushText("--------------------------------\n");
+
+      pushCommand(ESC_ALIGN_LEFT);
+
+      let rawSubtotal = 0;
+
+      // --- ITEMS ---
+      for (const item of ticket.items) {
+        let itemTotal = item.basePrice;
+        item.selectedModifiers.forEach(mod => itemTotal += mod.price);
+        rawSubtotal += itemTotal;
+
+        pushRow(item.name, `$${item.basePrice.toFixed(2)}`);
+
+        for (const mod of item.selectedModifiers) {
+          const modPrice = mod.price > 0 ? `+$${mod.price.toFixed(2)}` : "";
+          pushRow(`  + ${mod.name}`, modPrice);
+        }
       }
-    }
 
-    waText += `---------------------------------\n`;
-    
-    // Print Tax Breakdown (will be completely invisible if disabled in settings)
-    waText += subtotalLine;
-    waText += taxLine;
-    
-    // Print Final Total
-    waText += `*TOTAL: $${cartTotal.toFixed(2)}*\n---------------------------------\n`;
+      pushText("--------------------------------\n");
 
-    // Print Loyalty Program
-    if (loyaltyData) {
-      if (loyaltyData.isRewardReady) {
-        waText += `🎉 *¡Felicidades!*\nEsta es tu visita #${loyaltyData.visits}. ¡Te has ganado ${loyaltyData.reward}!\n`;
+      // --- DISCOUNTS ---
+      if (rawSubtotal > total) {
+        pushRow("Subtotal", `$${rawSubtotal.toFixed(2)}`);
+        const discountAmt = rawSubtotal - total;
+        pushRow("Discount", `-$${discountAmt.toFixed(2)}`);
+        pushText("--------------------------------\n");
+      }
+
+      // --- SAT TAX EXTRACTION ---
+      if (receiptSettings.enableTaxBreakdown) {
+        const taxRate = receiptSettings.taxRate || 16;
+        const taxDecimal = taxRate / 100;
+        const baseSubtotal = total / (1 + taxDecimal);
+        const extractedTax = total - baseSubtotal;
+
+        pushRow("Subtotal ", `$${baseSubtotal.toFixed(2)}`);
+        pushRow(`IVA (${taxRate}%)`, `$${extractedTax.toFixed(2)}`);
+        pushText("--------------------------------\n");
+      }
+
+      // --- GRAND TOTAL ---
+      pushCommand(ESC_ALIGN_CENTER);
+      pushCommand(ESC_BOLD_ON);
+      pushText(`TOTAL: $${total.toFixed(2)}\n`);
+      pushCommand(ESC_BOLD_OFF);
+      pushText("--------------------------------\n");
+      pushText(`${receiptSettings.footer}\n`);
+      pushText("\n\n\n"); // Feed paper
+
+      // ==========================================
+      // --- ROUTING: WHERE DOES THE BUFFER GO? ---
+      // ==========================================
+      const finalBytes = new Uint8Array(receiptBuffer);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+
+      if (isAndroid) {
+        // --- PATH A: ANDROID (RAWBT BRIDGE) ---
+        let binary = '';
+        for (let i = 0; i < finalBytes.byteLength; i++) {
+          binary += String.fromCharCode(finalBytes[i]);
+        }
+        const base64Data = window.btoa(binary);
+
+        const rawbtUrl = `rawbt:base64,${base64Data}`;
+
+        const link = document.createElement('a');
+        link.href = rawbtUrl;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+
+        setTimeout(() => document.body.removeChild(link), 100);
+
+      } else if (navigator.serial) {
+        // --- PATH B: WINDOWS / MAC LAPTOP (WEB SERIAL) ---
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        const writer = port.writable.getWriter();
+        await writer.write(finalBytes);
+        writer.releaseLock();
+        await port.close();
+
       } else {
-        const remaining = loyaltyData.target - (loyaltyData.visits % loyaltyData.target);
-        const starString = "⭐".repeat(loyaltyData.visits % loyaltyData.target || loyaltyData.target);
-        waText += `${starString}\nTienes *${loyaltyData.visits}* visitas.\n¡Faltan ${remaining} para ${loyaltyData.reward}!\n`;
+        showAlert("Unsupported Device", "Direct printing is only supported on Windows/Mac via Chrome, or Android via the RawBT app.");
       }
-      waText += `---------------------------------\n`;
+
+    } catch (err) {
+      console.error("Printing failed:", err);
+      showAlert("Printer Error", "Could not connect to the printer.");
     }
-
-    waText += `_${receiptSettings.footer}_`;
-
-    // ==========================================
-    // 3. THE ROUTING LOGIC
-    // ==========================================
-    
-    const encodedText = encodeURIComponent(waText);
-    const fullPhone = `52${phone}`; // Mexico country code applied here
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-    let waUrl = '';
-    if (isMobile) {
-      waUrl = `whatsapp://send?phone=${fullPhone}&text=${encodedText}`;
-    } else {
-      waUrl = `https://web.whatsapp.com/send?phone=${fullPhone}&text=${encodedText}`;
-    }
-
-    window.open(waUrl, '_blank');
-    setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
   };
 
   // --- 2. THE GUEST CHECKOUT (NO TRACKING) ---
@@ -1281,17 +1275,17 @@ Are you sure you want to close this shift? This will reset the register for the 
   if (isLoading) {
     // Read directly from local storage so it renders in 0 milliseconds
     const bootLogo = localStorage.getItem('tinypos_boot_logo');
-    
+
     return (
       <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-main)' }}>
-        
+
         {bootLogo ? (
           // If they uploaded a logo, show it with a smooth pop-in animation
-          <img 
-            src={bootLogo} 
-            alt="App Logo" 
-            className="pop-in" 
-            style={{ width: '140px', height: '140px', objectFit: 'contain', marginBottom: '24px' }} 
+          <img
+            src={bootLogo}
+            alt="App Logo"
+            className="pop-in"
+            style={{ width: '140px', height: '140px', objectFit: 'contain', marginBottom: '24px' }}
           />
         ) : (
           // Fallback if they haven't set a logo yet
@@ -1442,6 +1436,14 @@ Are you sure you want to close this shift? This will reset the register for the 
   const totalDiscounts = autoDiscountAmount + manualDiscountAmount;
   const cartTotal = Math.max(0, cartSubtotal - totalDiscounts);
 
+  // --- MOUSE WHEEL HORIZONTAL SCROLL HELPERS ---
+  const handleWheelScroll = (e) => {
+    // If the user scrolls the wheel vertically, move the container horizontally
+    if (e.deltaY !== 0) {
+      e.currentTarget.scrollLeft += e.deltaY;
+    }
+  };
+
   return (
     <div className="pos-container">
       <main className="menu-area">
@@ -1534,7 +1536,7 @@ Are you sure you want to close this shift? This will reset the register for the 
       </main>
 
       <aside className="ticket-area">
-        <div className="ticket-tabs-container">
+        <div className="ticket-tabs-container" onWheel={handleWheelScroll}>
           {visibleTickets.map(ticket => (
             <button key={ticket.id} onClick={() => setActiveTicketId(ticket.id)} className={`ticket-tab ${activeTicketId === ticket.id ? 'active' : ''}`}>
               {ticket.name}
@@ -1673,7 +1675,7 @@ Are you sure you want to close this shift? This will reset the register for the 
                 </button>
 
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); handlePrintOnly(); }}>
+                  <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>
                     🖨️ Print
                   </button>
                   <button style={{ flex: 1, padding: '16px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); setLoyaltyModal({ isOpen: true, step: 'phone', phone: '', data: null }); }}>
