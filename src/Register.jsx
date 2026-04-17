@@ -527,7 +527,8 @@ Are you sure you want to close this shift? This will reset the register for the 
 
     channel.on('broadcast', { event: 'force-kick' }, (payload) => {
       if (payload.payload.cashierId === activeCashierRef.current?.id && payload.payload.deviceId !== myDeviceId) {
-        forceLockOut("Your session was overridden by a new login on another device.");
+        console.log("Note: Another device logged into this cashier profile.");
+        // forceLockOut("Your session was overridden by a new login on another device.");
       }
     });
 
@@ -537,7 +538,8 @@ Are you sure you want to close this shift? This will reset the register for the 
         if (key !== myDeviceId) {
           presenceData.forEach(p => {
             if (p.cashierId === activeCashierRef.current?.id && p.sessionTime > sessionTimeRef.current) {
-              forceLockOut("Another device has logged into this profile.");
+              console.log("Note: A more recent session exists on another device.");
+              // forceLockOut("Another device has logged into this profile.");
             }
           });
         }
@@ -1082,9 +1084,24 @@ Are you sure you want to close this shift? This will reset the register for the 
     message += `\nThank you for your visit! ✨`;
 
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://wa.me/52${phone}?text=${encodedMessage}`;
+    const targetPhone = `52${phone}`; // Keeping your default MX country code
 
-    window.open(whatsappUrl, '_blank');
+    // Detect if the device is mobile (Phone/Tablet) or Desktop
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    // Route to native app on mobile, or web.whatsapp on PC
+    const whatsappUrl = isMobile 
+      ? `whatsapp://send?phone=${targetPhone}&text=${encodedMessage}`
+      : `https://web.whatsapp.com/send?phone=${targetPhone}&text=${encodedMessage}`;
+
+    // For the native whatsapp:// scheme, window.open sometimes gets blocked by popup blockers if not direct.
+    // Assigning to window.location.href is often safer for custom URL schemes on mobile.
+    if (isMobile) {
+      window.location.href = whatsappUrl;
+    } else {
+      window.open(whatsappUrl, '_blank');
+    }
+    
     setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
   };
 
