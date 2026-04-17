@@ -36,22 +36,13 @@ function Register() {
   const [activeCategory, setActiveCategory] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingItem, setPendingItem] = useState(null);
-  // --- SUCCESS ANIMATION STATE ---
   const [successTicket, setSuccessTicket] = useState(null);
-
-
-
-
-
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
 
   const [activeTicketId, setActiveTicketId] = useState(() => {
     const savedId = localStorage.getItem('tinypos_activeTicketId');
     return savedId ? JSON.parse(savedId) : 1;
   });
-
-
-
   // --- UPDATED: FULL SOURCE-OF-TRUTH SYNC ---
   const syncCloudTickets = async () => {
     if (!navigator.onLine) return;
@@ -554,14 +545,17 @@ Are you sure you want to close this shift? This will reset the register for the 
     });
 
     channel.subscribe(async (status, err) => {
-      console.log("Presence Status:", status);
+      console.log(`Presence Status (${activeCashierRef.current?.name}):`, status);
       if (err) console.error("Presence Error:", err);
       if (status === 'SUBSCRIBED') {
-        await channel.track({ cashierId: activeCashierRef.current.id, sessionTime: sessionTimeRef.current });
+        const payload = { cashierId: activeCashierRef.current.id, sessionTime: sessionTimeRef.current };
+        console.log("Tracking Presence:", payload);
+        await channel.track(payload);
+        
         await channel.send({
           type: 'broadcast',
           event: 'force-kick',
-          payload: { cashierId: activeCashierRef.current.id, deviceId: myDeviceId }
+          payload: { ...payload, deviceId: myDeviceId }
         });
       }
     });
