@@ -1,10 +1,36 @@
+import { useMemo } from 'react';
+
 function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems }) {
+  
+  // --- 1. ALPHABETICAL INVENTORY SORTING ---
+  // Ensure the warehouse dropdown is always perfectly A-Z
+  const sortedInventory = useMemo(() => {
+    if (!inventoryItems) return [];
+    return [...inventoryItems].sort((a, b) => a.name.localeCompare(b.name));
+  }, [inventoryItems]);
+
+  // --- 2. GLOBAL DYNAMIC MATH ENGINE (UPGRADED FOR MANUAL ITEMS) ---
+  const calculateLiveCost = (ingredients) => {
+    return (ingredients || []).reduce((sum, ing) => {
+      // If it's a theoretical custom ingredient, use the manual cost
+      if (ing.isManual) {
+        return sum + (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0));
+      } 
+      // If it's a warehouse ingredient, pull the live unit_cost
+      else {
+        const matchedItem = inventoryItems?.find(inv => inv.name === ing.name);
+        const unitCost = matchedItem?.unit_cost || 0;
+        return sum + (parseFloat(ing.qty || 0) * unitCost);
+      }
+    }, 0);
+  };
+
   return (
     <div className="admin-section fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)' }}>Recipe Builder</h1>
-          <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0' }}>Calculate profitable selling prices based on item cost and target margins.</p>
+          <h1 style={{ margin: 0, color: 'var(--text-main)' }}>Recipe & Profit Sandbox</h1>
+          <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0' }}>Engineer menus, test theoretical ingredients, and calculate live profit margins.</p>
         </div>
         <button
           onClick={handleCreateDraftRecipe}
@@ -40,7 +66,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             >
               <span>{recipe.name}</span>
               <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-                ${(recipe.ingredients || []).reduce((sum, ing) => sum + parseFloat(ing.cost || 0), 0).toFixed(2)}
+                ${calculateLiveCost(recipe.ingredients).toFixed(2)}
               </span>
             </button>
           ))}
@@ -87,7 +113,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             {/* INGREDIENTS LIST */}
             <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
-                <h3 style={{ margin: 0, color: 'var(--text-main)' }}>Ingredients Breakdown</h3>
+                <h3 style={{ margin: 0, color: 'var(--text-main)' }}>Ingredients Breakdown (COGS)</h3>
                 <button onClick={handleAddIngredient} style={{ padding: '8px 16px', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', border: '1px solid #3498db', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>
                   + Add Row
                 </button>
@@ -99,50 +125,95 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                 )}
 
                 {activeRecipe.ingredients.map(ing => {
-                  // Find the matched warehouse item so we can display its unit (g, ml, etc.)
-                  const matchedWarehouseItem = inventoryItems?.find(inv => inv.name === ing.name);
+                  const isManual = ing.isManual || false;
+                  const matchedWarehouseItem = !isManual ? inventoryItems?.find(inv => inv.name === ing.name) : null;
 
                   return (
-                    <div key={ing.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                    <div key={ing.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', flexWrap: 'wrap', background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'transparent', padding: isManual ? '8px' : '0', borderRadius: '8px' }}>
                       
-                      {/* 1. WAREHOUSE DROPDOWN */}
-                      <select
-                        value={ing.name}
-                        onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
-                        style={{ flex: 2, padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+                      {/* 1. SOURCE TOGGLE (WAREHOUSE VS CUSTOM) */}
+                      <button 
+                        onClick={() => handleUpdateIngredient(ing.id, 'isManual', !isManual)}
+                        style={{ padding: '10px', background: isManual ? '#9b59b6' : '#f39c12', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', width: '110px' }}
+                        title="Toggle between Live Warehouse Item and Custom Theoretical Item"
                       >
-                        <option value="">-- Select from Warehouse --</option>
-                        {inventoryItems && inventoryItems.map(invItem => (
-                          <option key={invItem.id} value={invItem.name}>
-                            {invItem.name}
-                          </option>
-                        ))}
-                      </select>
+                        {isManual ? '✏️ Custom' : '📦 Live Inv.'}
+                      </button>
 
-                      {/* 2. EXACT QUANTITY NEEDED */}
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', paddingRight: '10px' }}>
-                          <input
-                            type="number"
-                            placeholder="Qty"
-                            value={ing.qty || ''}
-                            onChange={(e) => handleUpdateIngredient(ing.id, 'qty', e.target.value)}
-                            style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none' }}
+                      {/* 2. NAME (DROPDOWN OR TEXT INPUT) */}
+                      {isManual ? (
+                        <input
+                          type="text"
+                          placeholder="Theoretical Ingredient..."
+                          value={ing.name || ''}
+                          onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
+                          style={{ flex: 2, minWidth: '150px', padding: '10px', borderRadius: '6px', border: '1px solid #9b59b6', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+                        />
+                      ) : (
+                        <select
+                          value={ing.name}
+                          onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
+                          style={{ flex: 2, minWidth: '150px', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+                        >
+                          <option value="">-- Select from Warehouse --</option>
+                          {sortedInventory.map(invItem => (
+                            <option key={invItem.id} value={invItem.name}>
+                              {invItem.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {/* 3. EXACT QUANTITY NEEDED */}
+                      <div style={{ flex: 1, minWidth: '100px', display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: `1px solid ${isManual ? '#9b59b6' : 'var(--border)'}`, borderRadius: '6px', paddingRight: '10px' }}>
+                        <input
+                          type="number"
+                          placeholder="Qty"
+                          value={ing.qty || ''}
+                          onChange={(e) => handleUpdateIngredient(ing.id, 'qty', e.target.value)}
+                          style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none' }}
+                        />
+                        {isManual ? (
+                          <input 
+                            type="text" 
+                            placeholder="Unit (g, ml)" 
+                            value={ing.manualUnit || ''} 
+                            onChange={(e) => handleUpdateIngredient(ing.id, 'manualUnit', e.target.value)}
+                            style={{ width: '60px', padding: '4px', fontSize: '0.8rem', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
                           />
+                        ) : (
                           <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold' }}>
                             {matchedWarehouseItem ? matchedWarehouseItem.unit : '-'}
                           </span>
-                        </div>
+                        )}
+                      </div>
 
-                        {/* 3. AUTO-CALCULATED COST (LOCKED) */}
-                        <div style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
-                          <span style={{ marginRight: '4px' }}>$</span>
-                          {matchedWarehouseItem && ing.qty 
-                            ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0)).toFixed(2) 
-                            : '0.00'}
+                      {/* 4. MANUAL COST INPUT (ONLY IF MANUAL) */}
+                      {isManual && (
+                        <div style={{ flex: 1, minWidth: '100px', display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '1px solid #9b59b6', borderRadius: '6px', paddingLeft: '10px' }}>
+                          <span style={{ color: '#9b59b6', fontSize: '0.9rem', fontWeight: 'bold' }}>$/Unit</span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={ing.manualCostPerUnit || ''}
+                            onChange={(e) => handleUpdateIngredient(ing.id, 'manualCostPerUnit', e.target.value)}
+                            style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none' }}
+                          />
                         </div>
+                      )}
 
-                        {/* DELETE BUTTON */}
-                        <button onClick={() => handleDeleteIngredient(ing.id)} style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
+                      {/* 5. LIVE AUTO-CALCULATED COST (LOCKED) */}
+                      <div style={{ flex: 1, minWidth: '80px', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
+                        <span style={{ marginRight: '4px' }}>$</span>
+                        {isManual 
+                          ? (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0)).toFixed(2)
+                          : (matchedWarehouseItem && ing.qty ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0)).toFixed(2) : '0.00')
+                        }
+                      </div>
+
+                      {/* DELETE BUTTON */}
+                      <button onClick={() => handleDeleteIngredient(ing.id)} style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
                     </div>
                   );
                 })}
@@ -168,13 +239,14 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                 </div>
 
                 {(() => {
-                  const totalCost = (activeRecipe.ingredients || []).reduce((sum, ing) => sum + parseFloat(ing.cost || 0), 0);
-                  const recommendedPrice = totalCost / ((activeRecipe.target_margin || 25) / 100);
-                  const expectedProfit = recommendedPrice - totalCost;
+                  const liveTotalCost = calculateLiveCost(activeRecipe.ingredients);
+                  const recommendedPrice = liveTotalCost > 0 ? liveTotalCost / ((activeRecipe.target_margin || 25) / 100) : 0;
+                  const expectedProfit = recommendedPrice - liveTotalCost;
+                  
                   return (
                     <div style={{ textAlign: 'center' }}>
                       <p style={{ color: 'var(--text-muted)', margin: '0 0 5px 0', textTransform: 'uppercase', fontSize: '0.8rem' }}>Total Ingredients COGS</p>
-                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '16px' }}>${totalCost.toFixed(2)}</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '16px' }}>${liveTotalCost.toFixed(2)}</div>
 
                       <div style={{ padding: '16px', background: 'rgba(46, 204, 113, 0.1)', borderRadius: '8px', border: '1px solid #27ae60' }}>
                         <p style={{ color: '#27ae60', margin: '0 0 5px 0', fontWeight: 'bold' }}>Recommended Selling Price</p>
@@ -186,10 +258,10 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                 })()}
               </div>
 
-              {/* RIGHT: WHAT-IF */}
+              {/* RIGHT: WHAT-IF NAPKIN MATH */}
               <div style={{ flex: 1, minWidth: '250px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ marginTop: 0, color: 'var(--text-main)' }}>"What-If" Analysis</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>What happens if you sell it at a custom price?</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>Test a hypothetical menu price to see your margins.</p>
 
                 <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0 12px', marginBottom: '24px' }}>
                   <span style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>$</span>
@@ -202,20 +274,26 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                 </div>
 
                 {activeRecipe.custom_price && parseFloat(activeRecipe.custom_price) > 0 ? (() => {
-                  const cost = (activeRecipe.ingredients || []).reduce((sum, ing) => sum + parseFloat(ing.cost || 0), 0);
+                  const liveTotalCost = calculateLiveCost(activeRecipe.ingredients);
                   const customPrice = parseFloat(activeRecipe.custom_price);
-                  const profit = customPrice - cost;
-                  const trueCostPercentage = cost > 0 ? ((cost / customPrice) * 100).toFixed(1) : 0;
+                  
+                  const netProfit = customPrice - liveTotalCost;
+                  const foodCostPercentage = liveTotalCost > 0 ? ((liveTotalCost / customPrice) * 100).toFixed(1) : 0;
+                  const grossMarginPercentage = netProfit > 0 ? ((netProfit / customPrice) * 100).toFixed(1) : 0;
 
                   return (
-                    <div style={{ background: profit >= 0 ? 'rgba(26, 188, 156, 0.1)' : 'rgba(231, 76, 60, 0.1)', padding: '16px', borderRadius: '8px', border: `1px solid ${profit >= 0 ? '#1abc9c' : '#e74c3c'}` }}>
+                    <div style={{ background: netProfit >= 0 ? 'rgba(26, 188, 156, 0.1)' : 'rgba(231, 76, 60, 0.1)', padding: '16px', borderRadius: '8px', border: `1px solid ${netProfit >= 0 ? '#1abc9c' : '#e74c3c'}` }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', borderBottom: `1px dashed ${netProfit >= 0 ? '#1abc9c' : '#e74c3c'}`, paddingBottom: '8px' }}>
+                        <span style={{ color: 'var(--text-main)' }}>Net Profit per cup:</span>
+                        <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: netProfit >= 0 ? '#1abc9c' : '#e74c3c' }}>${netProfit.toFixed(2)}</span>
+                      </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ color: 'var(--text-main)' }}>True Profit:</span>
-                        <span style={{ fontWeight: 'bold', color: profit >= 0 ? '#1abc9c' : '#e74c3c' }}>${profit.toFixed(2)}</span>
+                        <span style={{ color: 'var(--text-main)', fontSize: '0.9rem' }}>Gross Margin:</span>
+                        <span style={{ fontWeight: 'bold', color: 'var(--brand-color)', fontSize: '0.9rem' }}>{grossMarginPercentage}%</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-main)' }}>True Margin %:</span>
-                        <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{trueCostPercentage}%</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Food Cost:</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{foodCostPercentage}%</span>
                       </div>
                     </div>
                   );

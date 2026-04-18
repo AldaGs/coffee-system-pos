@@ -227,6 +227,7 @@ function Register() {
     const saved = localStorage.getItem('tinypos_expense_queue');
     return saved ? JSON.parse(saved) : [];
   });
+
   const [waQueue] = useState(() => {
     const saved = localStorage.getItem('tinypos_wa_queue');
     return saved ? JSON.parse(saved) : [];
@@ -247,24 +248,37 @@ function Register() {
       try {
         // 1. Sync Sales
         if (syncQueue.length > 0) {
-          const { error: salesErr } = await supabase.from('sales').insert(syncQueue);
+          // THE FIX: Strip the local Dexie ID from the sales
+          const cleanSales = syncQueue.map(({ id, ...rest }) => rest);
+          
+          const { error: salesErr } = await supabase.from('sales').insert(cleanSales);
           if (!salesErr) {
             await db.syncQueue.clear();
+          } else {
+            console.error("Sales sync failed:", salesErr);
           }
         }
         
         // 2. Sync Expenses
         if (expenseQueue.length > 0) {
-          const { error: expErr } = await supabase.from('expenses').insert(expenseQueue);
+          // THE FIX: Strip the local ID from expenses just in case
+          const cleanExpenses = expenseQueue.map(({ id, ...rest }) => rest);
+          
+          const { error: expErr } = await supabase.from('expenses').insert(cleanExpenses);
           if (!expErr) setExpenseQueue([]);
         }
 
-        // 3. Sync Inventory Logs (MOVED INSIDE THE ASYNC FUNCTION!)
+        // 3. Sync Inventory Logs
         const pendingInventory = await db.inventory_logs.toArray();
         if (pendingInventory.length > 0) {
-          const { error: invErr } = await supabase.from('inventory_logs').insert(pendingInventory);
+          // THE FIX: Strip the local Dexie ID from the inventory logs
+          const cleanLogs = pendingInventory.map(({ id, ...rest }) => rest);
+          
+          const { error: invErr } = await supabase.from('inventory_logs').insert(cleanLogs);
           if (!invErr) {
             await db.inventory_logs.clear();
+          } else {
+            console.error("Inventory sync failed:", invErr);
           }
         }
       } catch (err) {
@@ -305,31 +319,31 @@ function Register() {
     if (difference < 0) statusMsg = `Short (Faltante) by $${Math.abs(difference).toFixed(2)} â¬‡ï¸`;
 
     const confirmMessage = `
-SHIFT SUMMARY:
-Total Tickets: ${shiftOrders.length}
-Gross Revenue: $${shiftTotalRevenue.toFixed(2)}
-Cash Expenses: $${shiftTotalExpenses.toFixed(2)}
+      SHIFT SUMMARY:
+      Total Tickets: ${shiftOrders.length}
+      Gross Revenue: $${shiftTotalRevenue.toFixed(2)}
+      Cash Expenses: $${shiftTotalExpenses.toFixed(2)}
 
-CASH RECONCILIATION:
-Expected Cash: $${expectedCash.toFixed(2)}
-Counted Cash: $${actualCash.toFixed(2)}
-Result: ${statusMsg}
+      CASH RECONCILIATION:
+      Expected Cash: $${expectedCash.toFixed(2)}
+      Counted Cash: $${actualCash.toFixed(2)}
+      Result: ${statusMsg}
 
-Are you sure you want to close this shift? This will reset the register for the next cashier.`;
+      Are you sure you want to close this shift? This will reset the register for the next cashier.`;
 
-    showConfirm("Confirm Corte de Caja", confirmMessage, () => {
-      // 1. Mark the current exact time as the new baseline
-      const newTimestamp = new Date().toISOString();
-      setLastCorteTimestamp(newTimestamp);
-      localStorage.setItem('tinypos_last_corte', newTimestamp);
+          showConfirm("Confirm Corte de Caja", confirmMessage, () => {
+            // 1. Mark the current exact time as the new baseline
+            const newTimestamp = new Date().toISOString();
+            setLastCorteTimestamp(newTimestamp);
+            localStorage.setItem('tinypos_last_corte', newTimestamp);
 
-      // 2. Reset the modal
-      setIsCorteModalOpen(false);
-      setCountedCash("");
+            // 2. Reset the modal
+            setIsCorteModalOpen(false);
+            setCountedCash("");
 
-      showAlert("Shift Closed", "The Corte de Caja was successful. The register is ready for the next shift.");
-    });
-  };
+            showAlert("Shift Closed", "The Corte de Caja was successful. The register is ready for the next shift.");
+          });
+        };
 
   // --- ORDER NUMBER ENGINE ---
   const [nextOrderNum, setNextOrderNum] = useState(() => {
@@ -1372,71 +1386,133 @@ useEffect(() => {
       cashier_name: activeCashier?.name || 'Unknown Cashier'
     };
 
-    try {
-      await db.sales.add({ ...currentSale, created_at: new Date().toISOString(), status: 'completed' });
+    // --- 1. PREPARE THE DATA ---
+    const finalizedSale = { ...currentSale, created_at: new Date().toISOString(), status: 'completed' };
+    const inventoryLogsToPush = [];
 
-      // --- HYBRID INVENTORY DEDUCTION ENGINE ---
-      const inventoryLogs = [];
-      
-      activeTicket.items.forEach(item => {
-        // 1. STANDARD ITEM: Direct Deduction (Make-to-Stock)
-        if (item.item_type === 'standard') {
-          inventoryLogs.push({
+    try {
+      // Immediately save to local Dexie so it shows up in your history instantly
+      await db.sales.add(finalizedSale);
+
+      // --- 2. HYBRID INVENTORY DEDUCTION ENGINE (CART BOM) ---
+      const timestamp = finalizedSale.created_at;
+
+      for (const item of activeTicket.items) {
+        
+        if (item.item_type === "standard") {
+          // A. STANDARD ITEMS (Make-to-Stock)
+          inventoryLogsToPush.push({
             item_name: item.name,
-            qty_deducted: 1, 
-            deduction_type: 'sale_direct',
-            created_at: new Date().toISOString(),
+            qty_deducted: 1,
+            deduction_type: "sale",
+            created_at: timestamp,
             ticket_id: activeTicket.id
           });
-        } 
-        // 2. RECIPE ITEM: BOM Backflushing (Make-to-Order)
-        else if (item.item_type === 'recipe') {
-          const recipeBOM = recipes.find(r => r.linked_menu_item === item.name);
-          
-          if (recipeBOM && Array.isArray(recipeBOM.ingredients)) {
-            recipeBOM.ingredients.forEach(ingredient => {
-              inventoryLogs.push({
-                item_name: ingredient.name,
-                qty_deducted: parseFloat(ingredient.qty), 
-                deduction_type: 'sale_backflush',
-                created_at: new Date().toISOString(),
-                ticket_id: activeTicket.id
+
+          // Process Additions on Standard Items (e.g. adding a Plastic Cup to a Soda)
+          if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+            item.selectedModifiers.forEach(mod => {
+              if (mod.deductionTarget && !mod.substitutionTarget) {
+                inventoryLogsToPush.push({
+                  item_name: mod.deductionTarget,
+                  qty_deducted: 1,
+                  deduction_type: "sale",
+                  created_at: timestamp,
+                  ticket_id: activeTicket.id
+                });
+              }
+            });
+          }
+
+        } else if (item.item_type === "recipe") {
+          // B. RECIPE ITEMS (Make-to-Order)
+          const recipe = recipes.find(r => r.linked_menu_item === item.name);
+
+          if (recipe && recipe.ingredients) {
+            // Clone the base recipe into a temporary Cart BOM
+            let cartBOM = recipe.ingredients.map(ing => ({
+              item_name: ing.name,
+              qty: parseFloat(ing.qty) || 0
+            }));
+
+            // Process Modifiers (Substitutions and Additions)
+            if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+              item.selectedModifiers.forEach(mod => {
+                if (mod.deductionTarget && mod.substitutionTarget) {
+                  
+                  // THE SWAP (Substitution) - NOW BULLETPROOFED
+                  const targetName = mod.substitutionTarget.trim().toLowerCase();
+                  const baseIndex = cartBOM.findIndex(ing => ing.item_name.trim().toLowerCase() === targetName);
+
+                  if (baseIndex !== -1) {
+                    const baseQty = cartBOM[baseIndex].qty;
+                    cartBOM.splice(baseIndex, 1); // Remove old ingredient
+                    cartBOM.push({
+                      item_name: mod.deductionTarget,
+                      qty: baseQty // Inject new ingredient at exact same quantity
+                    });
+                  } else {
+                    // FALLBACK: If string didn't match, deduct 1 unit of new ingredient anyway
+                    cartBOM.push({
+                      item_name: mod.deductionTarget,
+                      qty: 1
+                    });
+                  }
+                } else if (mod.deductionTarget && !mod.substitutionTarget) {
+                  // THE ADDITION (e.g., Extra Vanilla Syrup)
+                  cartBOM.push({
+                    item_name: mod.deductionTarget,
+                    qty: 1
+                  });
+                }
               });
+            }
+
+            // Push the finalized, dynamically altered BOM to the deduction queue
+            cartBOM.forEach(ing => {
+              if (ing.qty > 0) {
+                inventoryLogsToPush.push({
+                  item_name: ing.item_name,
+                  qty_deducted: ing.qty,
+                  deduction_type: "sale",
+                  created_at: timestamp,
+                  ticket_id: activeTicket.id
+                });
+              }
             });
           }
         }
-      });
-
-      // Commit to local Dexie database for offline resilience
-      if (inventoryLogs.length > 0) {
-        await db.inventory_logs.bulkAdd(inventoryLogs);
       }
-      
+
+      // --- 3. INSTANT CLOUD SYNC ATTEMPT ---
+      // If we know we have no internet, skip directly to the catch block
       if (!navigator.onLine) throw new Error("Device is offline");
 
-      // 3. Send to Cloud
-      const { error: salesError } = await supabase.from('sales').insert([currentSale]);
+      // Strip the local Dexie ID from the sale to prevent the 400 Bad Request error
+      const { id: localId, ...cleanSale } = finalizedSale;
+      
+      const { error: salesError } = await supabase.from('sales').insert([cleanSale]);
       if (salesError) throw salesError;
 
-      if (inventoryLogs.length > 0) {
-         const { error: invError } = await supabase.from('inventory_logs').insert(inventoryLogs);
-         if (invError) console.error("Cloud inventory sync failed:", invError);
-         else await db.inventory_logs.clear(); // Clear local logs if cloud success
+      // Push the clean inventory logs directly to the cloud
+      if (inventoryLogsToPush.length > 0) {
+        const { error: invError } = await supabase.from('inventory_logs').insert(inventoryLogsToPush);
+        if (invError) throw invError;
       }
 
-      if (inventoryLogs.length > 0) {
-        await db.inventory_logs.bulkAdd(inventoryLogs);
+      console.log("SALE COMPLETE & SAVED TO CLOUD INSTANTLY");
+
+    } catch (error) {
+      // --- 4. OFFLINE QUEUE FALLBACK ---
+      console.warn("Cloud save failed. Moving to offline queue.", error.message);
+      
+      // Put the sale in the sync queue for the background worker
+      await db.syncQueue.add(finalizedSale);
+
+      // Put the inventory logs in the Dexie queue for the background worker
+      if (inventoryLogsToPush.length > 0) {
+        await db.inventory_logs.bulkPut(inventoryLogsToPush);
       }
-      if (!navigator.onLine) throw new Error("Device is offline");
-
-      // 3. Send it to the cloud!
-      const { error } = await supabase.from('sales').insert([currentSale]);
-      if (error) throw error;
-
-      console.log("SALE COMPLETE & SAVED TO CLOUD");
-    } catch {
-      console.warn("Cloud save failed. Moving to offline queue.");
-      await db.syncQueue.add(currentSale);
     }
 
     // 4. ALWAYS DO THIS (Whether online or offline)

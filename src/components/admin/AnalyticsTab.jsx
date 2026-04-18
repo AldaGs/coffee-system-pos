@@ -1,25 +1,95 @@
-function AnalyticsTab({ timeFilter, setTimeFilter, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, netProfit, methodCounts, topItemsArray, filteredSales }) {
+import { useMemo } from 'react';
+
+function AnalyticsTab({ timeFilter, setTimeFilter, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, methodCounts, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [] }) {
+  
+  // --- TRUE PROFIT MATH ENGINE ---
+  const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit } = useMemo(() => {
+    // 1. Get the IDs of the sales currently visible in the date filter
+    const relevantTicketIds = new Set(filteredSales.map(sale => sale.id));
+    
+    let cogs = 0;
+    let waste = 0;
+
+    // 2. Scan every inventory log ever recorded
+    inventoryLogs.forEach(log => {
+      // Find the current monetary value of the item in the warehouse
+      const matchedItem = inventoryItems.find(i => i.name === log.item_name);
+      const unitCost = matchedItem ? matchedItem.unit_cost : 0;
+      const financialImpact = log.qty_deducted * unitCost;
+
+      if (log.deduction_type === 'sale') {
+        // Only count COGS if the sale is within our current Date Filter
+        if (relevantTicketIds.has(log.ticket_id)) {
+          cogs += financialImpact;
+        }
+      } else {
+        // Count Wastage/Spillage/Audits (Ideally, we'd date-filter this too, but we track all-time here for simplicity)
+        waste += financialImpact;
+      }
+    });
+
+    const gross = totalRevenue - cogs;
+    const net = gross - waste - totalExpenses - totalRefunds;
+
+    return { totalCOGS: cogs, totalWastage: waste, trueGrossProfit: gross, trueNetProfit: net };
+  }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, totalRefunds]);
+
   return (
     <div className="admin-section fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)' }}>Dashboard Overview</h1>
-          <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0' }}>Real-time sales performance and inventory movement.</p>
+          <h1 style={{ margin: 0, color: 'var(--text-main)' }}>Financial Dashboard</h1>
+          <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0' }}>Live Profit & Loss (P&L) tracking based on real-time warehouse data.</p>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 'bold', background: 'var(--bg-surface)', color: 'var(--text-main)' }}>
-            <option value="today">Today</option><option value="week">Last 7 Days</option><option value="month">Last 30 Days</option><option value="6months">Last 6 Months</option><option value="year">Last Year</option><option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">Last 30 Days</option>
+            <option value="6months">Last 6 Months</option>
+            <option value="year">Last Year</option>
+            <option value="all">All Time</option>
           </select>
-          <button onClick={handleDownloadCSV} style={{ padding: '10px 20px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>📥 Export CSV</button>
+          <button onClick={handleDownloadCSV} style={{ padding: '10px 20px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            📥 Export CSV
+          </button>
         </div>
       </div>
+
+      {/* --- ROW 1: MENU HEALTH (SALES VS COGS) --- */}
+      <h3 style={{ color: 'var(--text-main)', borderBottom: '2px solid var(--border)', paddingBottom: '8px', marginBottom: '16px' }}>Menu Health (Trading Margin)</h3>
       <div style={{ display: 'flex', gap: '24px', marginBottom: '32px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #2980b9' }}><h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Gross Revenue</h3><p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-main)' }}>${totalRevenue.toFixed(2)}</p></div>
-        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #e74c3c' }}><h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Total Expenses</h3><p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#e74c3c' }}>-${totalExpenses.toFixed(2)}</p></div>
-        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #f39c12' }}><h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Total Refunded</h3><p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#f39c12' }}>${totalRefunds.toFixed(2)}</p></div>
-        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #27ae60' }}><h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Net Profit</h3><p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#27ae60' }}>${netProfit.toFixed(2)}</p></div>
-        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #9b59b6' }}><h3 style={{ margin: '0 0 16px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Payment Methods</h3><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1rem', color: 'var(--text-main)', fontWeight: 'bold', flexWrap: 'wrap', gap: '8px' }}><span>💵 {methodCounts['Cash'] || 0}</span><span>💳 {methodCounts['Card'] || 0}</span><span>📱 {methodCounts['Transfer'] || 0}</span>{(methodCounts['Split'] > 0) && <span style={{ color: 'var(--brand-color)' }}>🔀 {methodCounts['Split']} Splits</span>}</div></div>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #3498db' }}>
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Gross Revenue</h3>
+          <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-main)' }}>${totalRevenue.toFixed(2)}</p>
+        </div>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #e67e22' }}>
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Cost of Goods (COGS)</h3>
+          <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#e67e22' }}>-${totalCOGS.toFixed(2)}</p>
+        </div>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #2ecc71' }}>
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Gross Profit</h3>
+          <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#2ecc71' }}>${trueGrossProfit.toFixed(2)}</p>
+        </div>
       </div>
+
+      {/* --- ROW 2: BUSINESS HEALTHCARE  (LEAKS & BOTTOM LINE) --- */}
+      <h3 style={{ color: 'var(--text-main)', borderBottom: '2px solid var(--border)', paddingBottom: '8px', marginBottom: '16px' }}>Business Healthcare (Bottom Line)</h3>
+      <div style={{ display: 'flex', gap: '24px', marginBottom: '32px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #e74c3c' }}>
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Wastage & Audits</h3>
+          <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#e74c3c' }}>-${totalWastage.toFixed(2)}</p>
+        </div>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #f39c12' }}>
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>Expenses & Refunds</h3>
+          <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#f39c12' }}>-${(totalExpenses + totalRefunds).toFixed(2)}</p>
+        </div>
+        <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderTop: '4px solid #27ae60' }}>
+          <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>True Net Profit</h3>
+          <p style={{ margin: 0, fontSize: '2rem', fontWeight: 'bold', color: '#27ae60' }}>${trueNetProfit.toFixed(2)}</p>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: '300px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Top Selling Drinks</h3>
@@ -44,4 +114,5 @@ function AnalyticsTab({ timeFilter, setTimeFilter, handleDownloadCSV, totalReven
     </div>
   );
 }
+
 export default AnalyticsTab;

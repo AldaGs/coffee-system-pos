@@ -28,6 +28,9 @@ function Admin() {
   const [menuData, setMenuData] = useState(null);
   const [salesData, setSalesData] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
+
+  const [inventoryLogs, setInventoryLogs] = useState([]);
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -39,7 +42,12 @@ function Admin() {
     emoji: '☕' ,
     allowedModifiers: [],
     color: "#3498db",
-    item_type: "none"
+    item_type: "none",
+
+    groupKey: "",
+    isTextInput: false,
+    deductionTarget: "", 
+    substitutionTarget: ""
   });
   const [newModGroupName, setNewModGroupName] = useState("");
   const [newModOption, setNewModOption] = useState({ groupKey: "", name: "", price: "0", isTextInput: false });
@@ -189,7 +197,7 @@ function Admin() {
           setRecipes(recipesData);
         }
 
-        // --- ADD THIS WHOLE NEW BLOCK ---
+        // --- EXISTING INVENTORY FETCH ---
         const { data: invData, error: invError } = await supabase.from('inventory').select('*');
         if (invError) {
           console.warn("Inventory fetch error:", invError.message);
@@ -197,6 +205,15 @@ function Admin() {
           setInventoryItems(invData);
           await db.inventory.bulkPut(invData); // Cache it locally!
         }
+
+        // --- ADD THIS NEW FETCH BLOCK FOR INVENTORY LOGS ---
+        const { data: logsData, error: logsError } = await supabase.from('inventory_logs').select('*');
+        if (logsError) {
+          console.warn("Inventory logs fetch error:", logsError.message);
+        } else if (logsData) {
+          setInventoryLogs(logsData);
+        }
+        // ----------------------------------------------------
 
       } catch (error) {
         console.error("Error fetching data:", error.message);
@@ -380,7 +397,6 @@ function Admin() {
   const handleAddModifierGroup = () => { if (!newModGroupName.trim()) return; const groupKey = newModGroupName.toLowerCase().replace(/\s+/g, '_'); const updatedMenu = { ...menuData }; if (!updatedMenu.modifierGroups[groupKey]) { updatedMenu.modifierGroups[groupKey] = []; saveMenuToCloud(updatedMenu); } setNewModGroupName(""); };
 
   const handleAddModifierOption = () => {
-    // Safety check: If it's a standard button, it needs a price. If it's text, it doesn't!
     if (!newModOption.groupKey || !newModOption.name || (!newModOption.isTextInput && newModOption.price === "")) {
       return showAlert("Missing Info", "Please fill all required fields.");
     }
@@ -389,16 +405,24 @@ function Admin() {
     const newOption = {
       id: newModOption.name.toLowerCase().replace(/\s+/g, '_'),
       name: newModOption.name,
-      // If it's a text input, force price to 0. Otherwise, parse the number.
       price: newModOption.isTextInput ? 0 : parseFloat(newModOption.price),
-      isTextInput: newModOption.isTextInput // Save the flag!
+      isTextInput: newModOption.isTextInput,
+      deductionTarget: newModOption.deductionTarget || null, // NEW: The item it consumes
+      substitutionTarget: newModOption.substitutionTarget || null // NEW: The item it replaces
     };
 
     updatedMenu.modifierGroups[newModOption.groupKey].push(newOption);
     saveMenuToCloud(updatedMenu);
 
-    // Reset the form
-    setNewModOption({ groupKey: newModOption.groupKey, name: "", price: "0", isTextInput: false });
+    // Reset the form completely
+    setNewModOption({ 
+      groupKey: newModOption.groupKey, 
+      name: "", 
+      price: "0", 
+      isTextInput: false, 
+      deductionTarget: "", 
+      substitutionTarget: "" 
+    });
   };
 
   const toggleModifierForDrink = (modGroupKey) => { const updatedMenu = { ...menuData }; const categoryArray = updatedMenu.categories[editingDrink.categoryName]; const drinkIndex = categoryArray.findIndex(d => d.id === editingDrink.drink.id); const drinkToUpdate = categoryArray[drinkIndex]; const hasModifier = drinkToUpdate.allowedModifiers.includes(modGroupKey); if (hasModifier) { drinkToUpdate.allowedModifiers = drinkToUpdate.allowedModifiers.filter(key => key !== modGroupKey); } else { drinkToUpdate.allowedModifiers.push(modGroupKey); } saveMenuToCloud(updatedMenu); setEditingDrink({ ...editingDrink, drink: drinkToUpdate }); };
@@ -763,9 +787,24 @@ function Admin() {
 
         {isSaving && <div style={{ position: 'fixed', top: 20, right: 20, background: '#27ae60', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>Saving to Cloud...</div>}
 
-        {/* --- MERGED ANALYTICS & PERFORMANCE TAB --- */}
+        {/* 1. ANALYTICS TAB */}
         {activeTab === 'analytics' && (
-          <AnalyticsTab timeFilter={timeFilter} setTimeFilter={setTimeFilter} handleDownloadCSV={handleDownloadCSV} totalRevenue={totalRevenue} totalExpenses={totalExpenses} totalRefunds={totalRefunds} netProfit={netProfit} methodCounts={methodCounts} topItemsArray={topItemsArray} filteredSales={filteredSales} />
+          <AnalyticsTab 
+            timeFilter={timeFilter} 
+            setTimeFilter={setTimeFilter} 
+            handleDownloadCSV={handleDownloadCSV} 
+            totalRevenue={totalRevenue} 
+            totalExpenses={totalExpenses} 
+            totalRefunds={totalRefunds} 
+            netProfit={netProfit} 
+            methodCounts={methodCounts} 
+            topItemsArray={topItemsArray} 
+            filteredSales={filteredSales}
+            
+            // ADD THESE TWO NEW LINES:
+            inventoryLogs={inventoryLogs} 
+            inventoryItems={inventoryItems} 
+          />
         )}
 
         
@@ -782,7 +821,18 @@ function Admin() {
 
         {/* 3. MODIFIER LIBRARY TAB */}
         {activeTab === 'modifiers' && (
-          <ModifierLibraryTab menuData={menuData} newModGroupName={newModGroupName} setNewModGroupName={setNewModGroupName} handleAddModifierGroup={handleAddModifierGroup} newModOption={newModOption} setNewModOption={setNewModOption} handleAddModifierOption={handleAddModifierOption} handleDeleteModifierGroup={handleDeleteModifierGroup} handleDeleteModifierOption={handleDeleteModifierOption} />
+          <ModifierLibraryTab 
+            menuData={menuData} 
+            inventoryItems={inventoryItems} 
+            newModGroupName={newModGroupName} 
+            setNewModGroupName={setNewModGroupName} 
+            handleAddModifierGroup={handleAddModifierGroup} 
+            newModOption={newModOption} 
+            setNewModOption={setNewModOption} 
+            handleAddModifierOption={handleAddModifierOption} 
+            handleDeleteModifierGroup={handleDeleteModifierGroup} 
+            handleDeleteModifierOption={handleDeleteModifierOption} 
+          />
         )}
 
         {/* 4. RECEIPT TAB */}
