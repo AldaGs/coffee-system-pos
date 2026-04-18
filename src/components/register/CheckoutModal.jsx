@@ -1,7 +1,20 @@
-function CheckoutModal({ isCheckoutModalOpen, cartTotal, splitPayments, splitMode, setSplitMode, nWays, setNWays, customVal, setCustomVal, paidProductIds, activeTicket, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments, handleCancelCheckout }) {
+import { usePos } from '../../utils/PosContext';
+
+function CheckoutModal({ 
+  isCheckoutModalOpen, splitPayments, splitMode, setSplitMode, 
+  nWays, setNWays, customVal, setCustomVal, paidProductIds, 
+  handlePartialPayment, handleSavePartialPayments, 
+  handleVoidPartialPayments, handleCancelCheckout 
+}) {
+  
+  // 🔥 Pull global data directly from the utils Context!
+  const { cartTotal, activeTicket } = usePos();
+
   if (!isCheckoutModalOpen) return null;
+  
   const totalPaid = splitPayments.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, cartTotal - totalPaid);
+
   return (
     <div className="modal-overlay"><div className="modal-content" style={{ textAlign: 'center', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
       <h2 style={{ marginBottom: '10px', color: 'var(--text-main)' }}>Payment Checkout</h2>

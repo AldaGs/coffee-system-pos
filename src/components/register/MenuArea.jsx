@@ -1,4 +1,21 @@
-function MenuArea({ activeCategory, setActiveCategory, menuData, isCurrentlyOffline, totalOfflineRecords, setIsSyncModalOpen, isMobileMenuOpen, setIsMobileMenuOpen, activeCashier, requirePin, setIsExpenseModalOpen, posSettings, shiftOrders, shiftExpenses, showAlert, showConfirm, setIsCorteModalOpen, tickets, setIsLocked, navigate, handleItemClick }) {
+import { usePos } from '../../utils/PosContext';
+
+function MenuArea({ 
+  // ONLY the local props stay here now
+  activeCategory, setActiveCategory, 
+  isMobileMenuOpen, setIsMobileMenuOpen, 
+  setIsSyncModalOpen, setIsExpenseModalOpen, setIsCorteModalOpen 
+}) {
+
+  // 🔥 Pull all the heavy data from the Context!
+  const { 
+    menuData, posSettings, activeCashier, 
+    isCurrentlyOffline, totalOfflineRecords, 
+    shiftOrders, shiftExpenses, tickets, 
+    showAlert, showConfirm, requirePin, 
+    handleItemClick, setIsLocked, navigate 
+  } = usePos();
+  
   return (
     <main className="menu-area">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', position: 'relative' }}>

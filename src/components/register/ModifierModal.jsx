@@ -1,4 +1,16 @@
-function ModifierModal({ isModalOpen, pendingItem, menuData, handleToggleModifier, handleTextModifierChange, setIsModalOpen, addToTicket }) {
+import { usePos } from '../../utils/PosContext';
+
+function ModifierModal({ 
+  // ONLY these 2 local UI props stay here
+  isModalOpen, setIsModalOpen 
+}) {
+
+  // 🔥 Pull the active item, menu rules, and cart functions from Context!
+  const { 
+    pendingItem, menuData, handleToggleModifier, 
+    handleTextModifierChange, addToTicket 
+  } = usePos();
+
   if (!isModalOpen || !pendingItem) return null;
   return (
     <div className="modal-overlay"><div className="modal-content">

@@ -4,6 +4,7 @@ import { db } from './db';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import './App.css';
+import { PosContext } from './utils/PosContext';
 
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
@@ -351,7 +352,7 @@ Are you sure you want to close this shift? This will reset the register for the 
   // --- DEVICE IDENTITY & SESSION ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const myDeviceId = useMemo(() => {
-    let id = localStorage.getItem('tinypos_device_id');
+    let id = sessionStorage.getItem('tinypos_device_id');
     if (!id) {
       id = Math.random().toString(36).substring(2, 15);
       localStorage.setItem('tinypos_device_id', id);
@@ -454,6 +455,83 @@ Are you sure you want to close this shift? This will reset the register for the 
     }
   };
 
+  // --- CONTEXT RESTORATION (Snap to current data on login) ---
+useEffect(() => {
+  // If the screen just unlocked, and we know who the cashier is
+  if (!isLocked && activeCashier && tickets.length > 0) {
+     
+     // Find all tickets belonging to this specific cashier
+     const myTickets = tickets.filter(t => t.cashierId === activeCashier.id);
+     
+     if (myTickets.length > 0) {
+        // Sort them to find the newest one (highest ID)
+        const newestTicket = myTickets.sort((a, b) => b.id - a.id)[0];
+        
+        // Snap the UI to that ticket immediately
+        setActiveTicketId(newestTicket.id);
+     }
+  }
+}, [isLocked, activeCashier]); // This runs exactly once when you unlock the screen
+
+// --- PRESENCE & SECURITY (Active Lockout System) ---
+useEffect(() => {
+  if (!activeCashier) return;
+
+  // 1. Configure the channel to allow two-way broadcasting
+  const channel = supabase.channel('cashier-presence', {
+    config: { 
+      presence: { key: myDeviceId },
+      broadcast: { ack: true } 
+    },
+  });
+
+  channel
+    // 2. THE EAR: Listen for incoming kill commands
+    .on('broadcast', { event: 'force-kick' }, (payload) => {
+      const { incomingCashierId, incomingDeviceId } = payload.payload;
+      
+      // If the broadcast is for my logged-in cashier, but it came from a DIFFERENT device -> Lockout
+      if (incomingCashierId === activeCashier.id && incomingDeviceId !== myDeviceId) {
+        console.warn(`🔒 Session terminated by device: ${incomingDeviceId}`);
+        setIsLocked(true);
+        // Optional: clear the active screen state if you want them to fully start over
+      }
+    })
+    // 3. THE EYE: Passive tracking (mostly for your console debugging)
+    .on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      console.log("Tracking Presence:", state);
+    })
+    // 4. THE CONNECTION
+    .subscribe(async (status) => {
+      console.log(`Presence Status (${activeCashier.name}):`, status);
+      
+      if (status === 'SUBSCRIBED') {
+        // Announce our presence to the room
+        await channel.track({ 
+          cashierId: activeCashier.id, 
+          deviceId: myDeviceId,
+          loginAt: new Date().toISOString()
+        });
+
+        // THE WEAPON: Instantly fire the kick command to any older devices
+        await channel.send({
+          type: 'broadcast',
+          event: 'force-kick',
+          payload: { 
+            incomingCashierId: activeCashier.id, 
+            incomingDeviceId: myDeviceId 
+          }
+        });
+      }
+    });
+
+  // Cleanup on unmount or when cashier logs out
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [activeCashier, myDeviceId]); // Re-runs anytime the cashier changes
+
   // Extract POS settings with safe fallbacks
   const posSettings = menuData?.posSettings || {
     name: "Main Register",
@@ -508,64 +586,70 @@ Are you sure you want to close this shift? This will reset the register for the 
     };
   }, [menuData, isLocked, posSettings.autoLockMinutes]);
 
-  // --- UPGRADED SUPABASE PRESENCE (SESSION LOCK) ---
-  useEffect(() => {
-    if (!supabase || !navigator.onLine || !activeCashier || isLocked) return;
+// --- PRESENCE & SECURITY (Active Lockout System) ---
+useEffect(() => {
+  // Don't connect if we are already locked out or offline
+  if (!supabase || !navigator.onLine || !activeCashier || isLocked) return;
 
-    const channel = supabase.channel('cashier-presence', {
-      config: { presence: { key: myDeviceId } },
-    });
+  const channel = supabase.channel('cashier-presence', {
+    config: { 
+      presence: { key: myDeviceId },
+      broadcast: { ack: true } 
+    },
+  });
 
-    const forceLockOut = (reason) => {
-      setIsLocked(true);
-      setActiveCashier(null);
-      setSessionTime(0);
-      localStorage.removeItem('tinypos_activeCashier');
-      localStorage.removeItem('tinypos_session_time');
-      showAlert("Access Revoked", reason);
-    };
+  // The function that ruthlessly kills the session
+  const executeLockout = (reason) => {
+    console.warn(`🔒 ${reason}`);
+    setIsLocked(true);
+    setActiveCashier(null);
+    localStorage.removeItem('tinypos_activeCashier');
+    localStorage.removeItem('tinypos_session_time');
+    showAlert("Access Revoked", reason);
+  };
 
-    channel.on('broadcast', { event: 'force-kick' }, (payload) => {
-      if (payload.payload.cashierId === activeCashierRef.current?.id && payload.payload.deviceId !== myDeviceId) {
-        console.log("Note: Another device logged into this cashier profile.");
-        // forceLockOut("Your session was overridden by a new login on another device.");
+  channel
+    // 1. THE EAR: Listen for the kill command from new devices
+    .on('broadcast', { event: 'force-kick' }, (payload) => {
+      const { incomingCashierId, incomingDeviceId } = payload.payload;
+      
+      // If the login is for my profile, but from a different device -> Lockout!
+      if (incomingCashierId === activeCashierRef.current?.id && incomingDeviceId !== myDeviceId) {
+        executeLockout("Session terminated by a new login on another device.");
       }
-    });
-
-    channel.on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState();
-      for (const [key, presenceData] of Object.entries(state)) {
-        if (key !== myDeviceId) {
-          presenceData.forEach(p => {
-            if (p.cashierId === activeCashierRef.current?.id && p.sessionTime > sessionTimeRef.current) {
-              console.log("Note: A more recent session exists on another device.");
-              // forceLockOut("Another device has logged into this profile.");
-            }
-          });
-        }
-      }
-    });
-
-    channel.subscribe(async (status, err) => {
+    })
+    // 2. THE EYE: Passive tracking (optional, but good for debugging)
+    .on('presence', { event: 'sync' }, () => {
+      console.log("Active Devices:", Object.keys(channel.presenceState()).length);
+    })
+    // 3. THE WEAPON: Connect and fire!
+    .subscribe((status) => { // <-- Removed 'async' here
       console.log(`Presence Status (${activeCashierRef.current?.name}):`, status);
-      if (err) console.error("Presence Error:", err);
+      
       if (status === 'SUBSCRIBED') {
-        const payload = { cashierId: activeCashierRef.current.id, sessionTime: sessionTimeRef.current };
-        console.log("Tracking Presence:", payload);
-        await channel.track(payload);
         
-        await channel.send({
+        // 1. SHOOT FIRST: Instantly fire the kick command (No 'await')
+        channel.send({
           type: 'broadcast',
           event: 'force-kick',
-          payload: { ...payload, deviceId: myDeviceId }
+          payload: { 
+            incomingCashierId: activeCashierRef.current.id, 
+            incomingDeviceId: myDeviceId 
+          }
+        });
+
+        // 2. TRACK LATER: Let presence sync in the background (No 'await')
+        channel.track({ 
+          cashierId: activeCashierRef.current.id, 
+          deviceId: myDeviceId 
         });
       }
     });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [activeCashier?.id, isLocked, myDeviceId]); // Only re-subscribe if cashier identity or lock state changes
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [activeCashier?.id, isLocked, myDeviceId]);
 
   // --- SHIFT CALCULATIONS ---
   // 1. Filter data to ONLY include things that happened after the last Corte
@@ -1373,15 +1457,49 @@ Are you sure you want to close this shift? This will reset the register for the 
     }
   };
 
+  // Bundle global state for the context wormhole
+  const posState = {
+    cartTotal, activeTicket, menuData, posSettings, activeCashier, 
+    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets, 
+    showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
+    activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal, 
+    autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
+    handleNewTicket, handleWheelScroll, handleRemoveItem, 
+    handleOpenCheckout, handleCancelTicket, printRawReceipt,
+    
+    // --- NEW: ModifierModal Data & Functions ---
+    pendingItem, 
+    handleToggleModifier, 
+    handleTextModifierChange, 
+    addToTicket
+  };
+
   return (
+    <PosContext.Provider value={posState}>
     <div className="pos-container">
-      <MenuArea activeCategory={activeCategory} setActiveCategory={setActiveCategory} menuData={menuData} isCurrentlyOffline={isCurrentlyOffline} totalOfflineRecords={totalOfflineRecords} setIsSyncModalOpen={setIsSyncModalOpen} isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} activeCashier={activeCashier} requirePin={requirePin} setIsExpenseModalOpen={setIsExpenseModalOpen} posSettings={posSettings} shiftOrders={shiftOrders} shiftExpenses={shiftExpenses} showAlert={showAlert} showConfirm={showConfirm} setIsCorteModalOpen={setIsCorteModalOpen} tickets={tickets} setIsLocked={setIsLocked} navigate={navigate} handleItemClick={handleItemClick} />
+      <MenuArea 
+        activeCategory={activeCategory} 
+        setActiveCategory={setActiveCategory} 
+        isMobileMenuOpen={isMobileMenuOpen} 
+        setIsMobileMenuOpen={setIsMobileMenuOpen} 
+        setIsSyncModalOpen={setIsSyncModalOpen} 
+        setIsExpenseModalOpen={setIsExpenseModalOpen} 
+        setIsCorteModalOpen={setIsCorteModalOpen} 
+      />
 
-      <TicketArea activeTicketId={activeTicketId} setActiveTicketId={setActiveTicketId} visibleTickets={visibleTickets} handleNewTicket={handleNewTicket} handleWheelScroll={handleWheelScroll} activeTicket={activeTicket} cartSubtotal={cartSubtotal} cartTotal={cartTotal} autoDiscountAmount={autoDiscountAmount} activeAutoRuleName={activeAutoRuleName} manualDiscountAmount={manualDiscountAmount} handleRemoveItem={handleRemoveItem}  handleOpenCheckout={handleOpenCheckout} isActionSheetOpen={isActionSheetOpen} setIsActionSheetOpen={setIsActionSheetOpen} handleCancelTicket={handleCancelTicket} requirePin={requirePin} setIsDiscountModalOpen={setIsDiscountModalOpen} printRawReceipt={printRawReceipt} setLoyaltyModal={setLoyaltyModal} />
+      <TicketArea 
+        isActionSheetOpen={isActionSheetOpen} 
+        setIsActionSheetOpen={setIsActionSheetOpen} 
+        setIsDiscountModalOpen={setIsDiscountModalOpen} 
+        setLoyaltyModal={setLoyaltyModal} 
+      />
 
-      <ModifierModal isModalOpen={isModalOpen} pendingItem={pendingItem} menuData={menuData} handleToggleModifier={handleToggleModifier} handleTextModifierChange={handleTextModifierChange} setIsModalOpen={setIsModalOpen} addToTicket={addToTicket} />
+      <ModifierModal 
+        isModalOpen={isModalOpen} 
+        setIsModalOpen={setIsModalOpen} 
+      />
 
-      <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} cartTotal={cartTotal} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} activeTicket={activeTicket} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
+      <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
 
       <Dialog uiDialog={uiDialog} closeDialog={closeDialog} />
 
@@ -1401,6 +1519,7 @@ Are you sure you want to close this shift? This will reset the register for the 
 
 
     </div>
+    </PosContext.Provider>
   );
 }
 

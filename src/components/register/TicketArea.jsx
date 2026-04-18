@@ -1,4 +1,20 @@
-function TicketArea({ activeTicketId, setActiveTicketId, visibleTickets, handleNewTicket, handleWheelScroll, activeTicket, cartSubtotal, cartTotal, autoDiscountAmount, activeAutoRuleName, manualDiscountAmount, handleRemoveItem, handleOpenCheckout, isActionSheetOpen, setIsActionSheetOpen, handleCancelTicket, requirePin, setIsDiscountModalOpen, printRawReceipt, setLoyaltyModal }) {
+import { usePos } from '../../utils/PosContext';
+
+function TicketArea({ 
+  // ONLY these 4 local UI props stay here
+  isActionSheetOpen, setIsActionSheetOpen, 
+  setIsDiscountModalOpen, setLoyaltyModal 
+}) {
+
+  // 🔥 Pull all the cart logic and math from Context!
+  const { 
+    activeTicketId, setActiveTicketId, visibleTickets, handleNewTicket, 
+    handleWheelScroll, activeTicket, cartSubtotal, cartTotal, 
+    autoDiscountAmount, activeAutoRuleName, manualDiscountAmount, 
+    handleRemoveItem, handleOpenCheckout, handleCancelTicket, 
+    requirePin, printRawReceipt 
+  } = usePos();
+  
   return (
     <aside className="ticket-area">
       <div className="ticket-tabs-container" onWheel={handleWheelScroll}>{visibleTickets.map(ticket => (<button key={ticket.id} onClick={() => setActiveTicketId(ticket.id)} className={`ticket-tab ${activeTicketId === ticket.id ? 'active' : ''}`}>{ticket.name}</button>))}<button className="new-ticket-btn" onClick={handleNewTicket}>+</button></div>
