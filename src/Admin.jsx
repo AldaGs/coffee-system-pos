@@ -15,6 +15,7 @@ import TeamTab from './components/admin/TeamTab';
 import GeneralSettingsTab from './components/admin/GeneralSettingsTab';
 import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
+import InventoryTab from './components/admin/InventoryTab.jsx';
 
 
 function Admin() {
@@ -26,11 +27,20 @@ function Admin() {
   const [activeTab, setActiveTab] = useState('analytics');
   const [menuData, setMenuData] = useState(null);
   const [salesData, setSalesData] = useState([]);
+  const [inventoryItems, setInventoryItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [newItemForm, setNewItemForm] = useState({ category: '', name: '', price: '', emoji: '☕' });
+  const [newItemForm, setNewItemForm] = useState({ 
+    category: '', 
+    name: '', 
+    price: '', 
+    emoji: '☕' ,
+    allowedModifiers: [],
+    color: "#3498db",
+    item_type: "none"
+  });
   const [newModGroupName, setNewModGroupName] = useState("");
   const [newModOption, setNewModOption] = useState({ groupKey: "", name: "", price: "0", isTextInput: false });
   // --- UNIVERSAL CUSTOM DIALOG SYSTEM ---
@@ -177,6 +187,15 @@ function Admin() {
           console.warn("Recipes fetch error (Have you run the SQL yet?):", recipesError.message);
         } else if (recipesData) {
           setRecipes(recipesData);
+        }
+
+        // --- ADD THIS WHOLE NEW BLOCK ---
+        const { data: invData, error: invError } = await supabase.from('inventory').select('*');
+        if (invError) {
+          console.warn("Inventory fetch error:", invError.message);
+        } else if (invData) {
+          setInventoryItems(invData);
+          await db.inventory.bulkPut(invData); // Cache it locally!
         }
 
       } catch (error) {
@@ -572,7 +591,7 @@ function Admin() {
 
   const handleAddIngredient = () => {
     if (!activeRecipe) return;
-    const newIngredient = { id: `ing_${Date.now()}`, name: "", cost: "" };
+    const newIngredient = { id: `ing_${Date.now()}`, name: "", cost: "", qty: "" };
     setActiveRecipe({ ...activeRecipe, ingredients: [...activeRecipe.ingredients, newIngredient] });
   };
 
@@ -722,7 +741,8 @@ function Admin() {
           <button onClick={() => switchTab('menu')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'menu' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🍴 Menu Editor</button>
           <button onClick={() => switchTab('modifiers')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'modifiers' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🛠️ Modifier Library</button>
           <button onClick={() => switchTab('receipt')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'receipt' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>📄 Receipt Settings</button>
-          <button onClick={() => switchTab('calculator')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'calculator' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🧮 Price Calculator</button>
+          <button onClick={() => switchTab('calculator')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'calculator' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🧮 Recipe Builder</button>
+          <button onClick={() => switchTab('inventory')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'inventory' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>📦 Inventory</button>
           <button onClick={() => switchTab('loyalty')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'loyalty' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🎁 Loyalty Program</button>
           <button onClick={() => switchTab('discounts')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'discounts' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🏷️ Auto Discounts</button>
           <button onClick={() => switchTab('team')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'team' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>👥 Team & PINs</button>
@@ -757,7 +777,7 @@ function Admin() {
 
           {/* 2. MENU EDITOR TAB */}
         {activeTab === 'menu' && (
-          <MenuEditorTab menuData={menuData} newCategoryName={newCategoryName} setNewCategoryName={setNewCategoryName} handleAddCategory={handleAddCategory} newItemForm={newItemForm} setNewItemForm={setNewItemForm} handleAddDrink={handleAddDrink} handleDeleteCategory={handleDeleteCategory} handleDeleteDrink={handleDeleteDrink} setEditingDrink={setEditingDrink} />
+          <MenuEditorTab menuData={menuData} newCategoryName={newCategoryName} setNewCategoryName={setNewCategoryName} handleAddCategory={handleAddCategory} newItemForm={newItemForm} setNewItemForm={setNewItemForm} handleAddDrink={handleAddDrink} handleDeleteCategory={handleDeleteCategory} handleDeleteDrink={handleDeleteDrink} setEditingDrink={setEditingDrink} saveMenuToCloud={saveMenuToCloud} />
         )}
 
         {/* 3. MODIFIER LIBRARY TAB */}
@@ -792,8 +812,19 @@ function Admin() {
 
         {/* 6. RECIPE BUILDER TAB */}
         {activeTab === 'calculator' && (
-          <RecipeBuilderTab recipes={recipes} activeRecipe={activeRecipe} setActiveRecipe={setActiveRecipe} handleCreateDraftRecipe={handleCreateDraftRecipe} menuData={menuData} handleAddIngredient={handleAddIngredient} handleUpdateIngredient={handleUpdateIngredient} handleDeleteIngredient={handleDeleteIngredient} handleDeleteRecipe={handleDeleteRecipe} handleSaveRecipeToCloud={handleSaveRecipeToCloud} />
+          <RecipeBuilderTab recipes={recipes} activeRecipe={activeRecipe} setActiveRecipe={setActiveRecipe} handleCreateDraftRecipe={handleCreateDraftRecipe} menuData={menuData} handleAddIngredient={handleAddIngredient} handleUpdateIngredient={handleUpdateIngredient} handleDeleteIngredient={handleDeleteIngredient} handleDeleteRecipe={handleDeleteRecipe} handleSaveRecipeToCloud={handleSaveRecipeToCloud} inventoryItems={inventoryItems} />
         )}
+
+        {/* --- ADD THIS NEW RENDER BLOCK --- */}
+        {activeTab === 'inventory' && (
+          <InventoryTab 
+            inventoryItems={inventoryItems} 
+            setInventoryItems={setInventoryItems} 
+            showAlert={showAlert} 
+            showConfirm={showConfirm} 
+          />
+        )}
+        {/* --------------------------------- */}
 
 
         {/* --- UNIVERSAL SYSTEM DIALOG (ALERTS & CONFIRMS) --- */}

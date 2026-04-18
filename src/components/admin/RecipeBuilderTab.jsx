@@ -1,4 +1,4 @@
-function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud }) {
+function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems }) {
   return (
     <div className="admin-section fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
@@ -98,32 +98,54 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                   <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', margin: '20px 0' }}>Add your first ingredient to start calculating COGS.</p>
                 )}
 
-                {activeRecipe.ingredients?.map((ing, index) => (
-                  <div key={ing.id} className="fade-in" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                    <span style={{ color: 'var(--text-muted)', fontWeight: 'bold', width: '20px' }}>{index + 1}.</span>
-                    <input
-                      type="text"
-                      placeholder="Ingredient Name (e.g. Milk 8oz)"
-                      value={ing.name}
-                      onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
-                      style={{ flex: 2, padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-                    />
-                    <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0 12px', flex: 1 }}>
-                      <span style={{ color: 'var(--text-muted)' }}>$</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={ing.cost}
-                        onChange={(e) => handleUpdateIngredient(ing.id, 'cost', e.target.value)}
-                        style={{ width: '100%', padding: '12px', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none' }}
-                      />
+                {activeRecipe.ingredients.map(ing => {
+                  // Find the matched warehouse item so we can display its unit (g, ml, etc.)
+                  const matchedWarehouseItem = inventoryItems?.find(inv => inv.name === ing.name);
+
+                  return (
+                    <div key={ing.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                      
+                      {/* 1. WAREHOUSE DROPDOWN */}
+                      <select
+                        value={ing.name}
+                        onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
+                        style={{ flex: 2, padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+                      >
+                        <option value="">-- Select from Warehouse --</option>
+                        {inventoryItems && inventoryItems.map(invItem => (
+                          <option key={invItem.id} value={invItem.name}>
+                            {invItem.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* 2. EXACT QUANTITY NEEDED */}
+                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', paddingRight: '10px' }}>
+                          <input
+                            type="number"
+                            placeholder="Qty"
+                            value={ing.qty || ''}
+                            onChange={(e) => handleUpdateIngredient(ing.id, 'qty', e.target.value)}
+                            style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none' }}
+                          />
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                            {matchedWarehouseItem ? matchedWarehouseItem.unit : '-'}
+                          </span>
+                        </div>
+
+                        {/* 3. AUTO-CALCULATED COST (LOCKED) */}
+                        <div style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                          <span style={{ marginRight: '4px' }}>$</span>
+                          {matchedWarehouseItem && ing.qty 
+                            ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0)).toFixed(2) 
+                            : '0.00'}
+                        </div>
+
+                        {/* DELETE BUTTON */}
+                        <button onClick={() => handleDeleteIngredient(ing.id)} style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
                     </div>
-                    <button onClick={() => handleDeleteIngredient(ing.id)} style={{ padding: '12px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

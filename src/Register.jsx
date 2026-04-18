@@ -44,6 +44,49 @@ function Register() {
     const savedId = localStorage.getItem('tinypos_activeTicketId');
     return savedId ? JSON.parse(savedId) : 1;
   });
+
+  const [recipes, setRecipes] = useState([]);
+
+  // --- MENU FETCH & OFFLINE CACHE ENGINE ---
+  useEffect(() => {
+    const fetchMenuAndRecipes = async () => {
+      try {
+        // 1. Fetch Menu
+        const { data: menuResp, error: menuErr } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
+        if (menuErr) throw menuErr;
+        
+        // 2. Fetch Recipes for BOM Lookups
+        const { data: recipeResp, error: recipeErr } = await supabase.from('recipes').select('*');
+        if (recipeErr) throw recipeErr;
+
+        setMenuData(menuResp.menu_data);
+        setRecipes(recipeResp);
+        setActiveCategory(Object.keys(menuResp.menu_data.categories)[0]);
+
+        localStorage.setItem('tinypos_cached_menu', JSON.stringify(menuResp.menu_data));
+        localStorage.setItem('tinypos_cached_recipes', JSON.stringify(recipeResp));
+
+      } catch {
+        console.warn("Cloud fetch failed. Searching for local backup...");
+        const cachedMenu = localStorage.getItem('tinypos_cached_menu');
+        const cachedRecipes = localStorage.getItem('tinypos_cached_recipes');
+        
+        if (cachedMenu) {
+          const parsedMenu = JSON.parse(cachedMenu);
+          setMenuData(parsedMenu);
+          setActiveCategory(Object.keys(parsedMenu.categories)[0]);
+        }
+        if (cachedRecipes) {
+          setRecipes(JSON.parse(cachedRecipes));
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchMenuAndRecipes();
+  }, []);
+
+
   // --- UPDATED: FULL SOURCE-OF-TRUTH SYNC ---
   const syncCloudTickets = async () => {
     if (!navigator.onLine) return;
@@ -198,23 +241,31 @@ function Register() {
   // --- UNIFIED BACKGROUND CLOUD SYNC ---
   useEffect(() => {
     const attemptSync = async () => {
-      // Don't try if we are offline or if the database queues are empty
+      // Don't try if we are offline
       if (!navigator.onLine) return;
-      if (syncQueue.length === 0 && expenseQueue.length === 0) return;
 
-      console.log("Wi-Fi connected! Attempting background sync...");
       try {
-        // Sync Sales
+        // 1. Sync Sales
         if (syncQueue.length > 0) {
           const { error: salesErr } = await supabase.from('sales').insert(syncQueue);
           if (!salesErr) {
             await db.syncQueue.clear();
           }
         }
-        // Sync Expenses
+        
+        // 2. Sync Expenses
         if (expenseQueue.length > 0) {
           const { error: expErr } = await supabase.from('expenses').insert(expenseQueue);
           if (!expErr) setExpenseQueue([]);
+        }
+
+        // 3. Sync Inventory Logs (MOVED INSIDE THE ASYNC FUNCTION!)
+        const pendingInventory = await db.inventory_logs.toArray();
+        if (pendingInventory.length > 0) {
+          const { error: invErr } = await supabase.from('inventory_logs').insert(pendingInventory);
+          if (!invErr) {
+            await db.inventory_logs.clear();
+          }
         }
       } catch (err) {
         console.error("Background sync failed:", err);
@@ -1324,20 +1375,55 @@ useEffect(() => {
     try {
       await db.sales.add({ ...currentSale, created_at: new Date().toISOString(), status: 'completed' });
 
-      // NEW: INVENTORY DEDUCTION LOGIC
+      // --- HYBRID INVENTORY DEDUCTION ENGINE ---
       const inventoryLogs = [];
+      
       activeTicket.items.forEach(item => {
-        if (item.inventoryRules && Array.isArray(item.inventoryRules)) {
-          item.inventoryRules.forEach(rule => {
-            inventoryLogs.push({
-              item: rule.name,
-              qty: parseFloat(rule.qty),
-              timestamp: new Date().toISOString(),
-              ticket_id: activeTicket.id
-            });
+        // 1. STANDARD ITEM: Direct Deduction (Make-to-Stock)
+        if (item.item_type === 'standard') {
+          inventoryLogs.push({
+            item_name: item.name,
+            qty_deducted: 1, 
+            deduction_type: 'sale_direct',
+            created_at: new Date().toISOString(),
+            ticket_id: activeTicket.id
           });
+        } 
+        // 2. RECIPE ITEM: BOM Backflushing (Make-to-Order)
+        else if (item.item_type === 'recipe') {
+          const recipeBOM = recipes.find(r => r.linked_menu_item === item.name);
+          
+          if (recipeBOM && Array.isArray(recipeBOM.ingredients)) {
+            recipeBOM.ingredients.forEach(ingredient => {
+              inventoryLogs.push({
+                item_name: ingredient.name,
+                qty_deducted: parseFloat(ingredient.qty), 
+                deduction_type: 'sale_backflush',
+                created_at: new Date().toISOString(),
+                ticket_id: activeTicket.id
+              });
+            });
+          }
         }
       });
+
+      // Commit to local Dexie database for offline resilience
+      if (inventoryLogs.length > 0) {
+        await db.inventory_logs.bulkAdd(inventoryLogs);
+      }
+      
+      if (!navigator.onLine) throw new Error("Device is offline");
+
+      // 3. Send to Cloud
+      const { error: salesError } = await supabase.from('sales').insert([currentSale]);
+      if (salesError) throw salesError;
+
+      if (inventoryLogs.length > 0) {
+         const { error: invError } = await supabase.from('inventory_logs').insert(inventoryLogs);
+         if (invError) console.error("Cloud inventory sync failed:", invError);
+         else await db.inventory_logs.clear(); // Clear local logs if cloud success
+      }
+
       if (inventoryLogs.length > 0) {
         await db.inventory_logs.bulkAdd(inventoryLogs);
       }
@@ -1517,8 +1603,7 @@ useEffect(() => {
 
       <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
 
-
-    </div>
+      </div>
     </PosContext.Provider>
   );
 }
