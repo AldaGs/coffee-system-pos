@@ -23,6 +23,11 @@ function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
 
+  // --- NEW: MANAGER PIN LOCK STATE ---
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+  const [adminPinInput, setAdminPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('analytics');
   const [menuData, setMenuData] = useState(null);
@@ -141,6 +146,24 @@ function Admin() {
     setIsAuthenticated(false);
   };
 
+  const handleBackToRegister = () => {
+    setIsAdminUnlocked(false); // Re-lock the admin dashboard
+    setAdminPinInput(''); // Clear the PIN input
+    navigate('/'); // Send them back to the register
+  };
+
+  // --- NEW: WIPE SESSION ON TAB CLOSE ---
+  useEffect(() => {
+    const handleTabClose = () => {
+      // This wipes the Supabase token from the browser's memory 
+      // ensuring the next time the app opens, it asks for a password.
+      supabase.auth.signOut();
+    };
+
+    window.addEventListener('beforeunload', handleTabClose);
+    return () => window.removeEventListener('beforeunload', handleTabClose);
+  }, []);
+
   // --- AUTHENTICATION LISTENER (For Offline Support & Persistence) ---
   useEffect(() => {
     // Check if an active session already exists in localStorage
@@ -223,6 +246,49 @@ function Admin() {
     };
     fetchData();
   }, [isAuthenticated]);
+
+  // --- NEW: KEYBOARD LISTENER FOR MANAGER PIN ---
+  useEffect(() => {
+    // Only listen if we are logged into Supabase but the Admin UI is still locked
+    if (!isAuthenticated || isAdminUnlocked) return;
+
+    const handleAdminKeyDown = (e) => {
+    if (!isAuthenticated || isAdminUnlocked) return;
+
+    // 1. Handle Numbers 0-9
+    if (e.key >= '0' && e.key <= '9') {
+      setPinError(false);
+      setAdminPinInput(prev => prev.length < 4 ? prev + e.key : prev);
+    }
+    // 2. Handle Backspace
+    else if (e.key === 'Backspace') {
+      setAdminPinInput(prev => prev.slice(0, -1));
+    }
+    // 3. Handle Enter (The "Unlock" Trigger)
+    else if (e.key === 'Enter') {
+      // NEW LOGIC: Check if ANY cashier is an Admin and matches this PIN
+      const isStaffAdmin = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === adminPinInput);
+      // Fallback: Check the Master PIN from General Settings
+      const isMasterPin = adminPinInput === generalSettings.pinCode;
+
+      if (isStaffAdmin || isMasterPin) {
+        setIsAdminUnlocked(true);
+        setPinError(false);
+      } else {
+        setPinError(true);
+        setAdminPinInput('');
+      }
+    }
+    // 4. Handle Escape (Exit to Register)
+    else if (e.key === 'Escape') {
+      handleBackToRegister();
+    }
+  };
+
+    window.addEventListener('keydown', handleAdminKeyDown);
+    return () => window.removeEventListener('keydown', handleAdminKeyDown);
+  }, [isAuthenticated, isAdminUnlocked, adminPinInput, generalSettings.pinCode]);
+
 
 // --- THEME INJECTION LOGIC (KEEPS ADMIN IN SYNC) ---
   useEffect(() => {
@@ -364,15 +430,26 @@ function Admin() {
     { id: 2, name: 'Barista 1', pin: '0000' }
   ];
 
-  const [newCashier, setNewCashier] = useState({ name: '', pin: '' });
+  const [newCashier, setNewCashier] = useState({ name: '', pin: '', isAdmin: false });
   const [editingCashier, setEditingCashier] = useState(null);
 
   // --- CASHIER FUNCTIONS ---
   const handleAddCashier = () => {
-    if (!newCashier.name || newCashier.pin.length !== 4) return window.confirm("Please enter a name and a exactly 4-digit PIN.");
-    const updatedCashiers = [...cashiers, { id: Date.now(), name: newCashier.name, pin: newCashier.pin }];
-    saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
-    setNewCashier({ name: '', pin: '' });
+    if (!newCashier.name || newCashier.pin.length !== 4) {
+      return showAlert("Invalid Info", "Please enter a name and a 4-digit PIN.");
+    }
+
+    const updatedMenu = { ...menuData };
+    const newEntry = {
+      id: Date.now(),
+      name: newCashier.name,
+      pin: newCashier.pin,
+      isAdmin: newCashier.isAdmin // <--- ADD THIS LINE
+    };
+
+    updatedMenu.cashiers.push(newEntry);
+    saveMenuToCloud(updatedMenu);
+    setNewCashier({ name: '', pin: '', isAdmin: false }); // Reset form
   };
 
   const handleDeleteCashier = (idToRemove) => {
@@ -384,8 +461,12 @@ function Admin() {
   };
 
   const handleSaveEditCashier = () => {
-    if (!editingCashier.name || editingCashier.pin.length !== 4) return window.confirm("Please enter a name and exactly 4 digits for the PIN.");
-    const updatedCashiers = cashiers.map(c => c.id === editingCashier.id ? editingCashier : c);
+    if (!editingCashier.name || editingCashier.pin.length !== 4) return showAlert("Error", "Check name and PIN.");
+    
+    const updatedCashiers = menuData.cashiers.map(c => 
+      c.id === editingCashier.id ? editingCashier : c // This keeps the isAdmin boolean!
+    );
+    
     saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
     setEditingCashier(null);
   };
@@ -743,6 +824,64 @@ function Admin() {
     setIsMobileMenuOpen(false);
   };
 
+  
+  if (isAuthenticated && !isAdminUnlocked) {
+    return (
+      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
+        <div className="fade-in" style={{ background: 'var(--bg-surface)', padding: '40px', borderRadius: '12px', width: '350px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', textAlign: 'center', border: pinError ? '2px solid #e74c3c' : '2px solid transparent' }}>
+          <h2 style={{ margin: '0 0 10px 0' }}>Admin Locked</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Type your PIN or use the keypad.</p>
+          
+          {/* VISUAL PIN DISPLAY */}
+          <div style={{ 
+            fontSize: '2rem', 
+            letterSpacing: '12px', 
+            marginBottom: '24px', 
+            fontWeight: 'bold', 
+            minHeight: '60px', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            background: 'var(--bg-main)',
+            borderRadius: '8px',
+            border: `1px solid ${pinError ? '#e74c3c' : 'var(--border)'}`,
+            color: pinError ? '#e74c3c' : 'var(--text-main)' 
+          }}>
+            {adminPinInput.replace(/./g, '●') || <span style={{opacity: 0.2, letterSpacing: 'normal', fontSize: '1rem'}}>••••</span>}
+          </div>
+
+          {/* NUMBER PAD */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
+              <button key={num} onClick={() => { setPinError(false); setAdminPinInput(prev => prev.length < 4 ? prev + num : prev); }} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>{num}</button>
+            ))}
+            <button onClick={handleBackToRegister} style={{ padding: '20px', fontSize: '1.2rem', background: 'rgba(231, 76, 60, 0.1)', border: 'none', borderRadius: '8px', cursor: 'pointer', color: '#e74c3c', fontWeight: 'bold' }}>✕</button>
+            <button onClick={() => { setPinError(false); setAdminPinInput(prev => prev.length < 4 ? prev + 0 : prev); }} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>0</button>
+            <button onClick={() => setAdminPinInput(prev => prev.slice(0, -1))} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>⌫</button>
+          </div>
+
+          <button 
+            onClick={() => {
+              const isStaffAdmin = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === adminPinInput);
+              const isMasterPin = adminPinInput === generalSettings.pinCode;
+
+              if (isStaffAdmin || isMasterPin) {
+                setIsAdminUnlocked(true);
+                setPinError(false);
+              } else {
+                setPinError(true);
+                setAdminPinInput('');
+              }
+            }} 
+            style={{ width: '100%', padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
+          >
+            Unlock Dashboard [Enter]
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="admin-layout">
 
@@ -774,7 +913,9 @@ function Admin() {
         </nav>
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#ccc', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Sign Out</button>
-          <button onClick={() => navigate('/')} style={{ width: '100%', padding: '12px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🔙 Back to Register</button>
+          
+          {/* SECURE EXIT BUTTON */}
+          <button onClick={handleBackToRegister} style={{ width: '100%', padding: '12px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🔙 Back to Register</button>
         </div>
       </aside>
 
@@ -881,7 +1022,6 @@ function Admin() {
         <Dialog uiDialog={uiDialog} closeDialog={closeDialog} />
 
         <EditDrinkModal editingDrink={editingDrink} setEditingDrink={setEditingDrink} menuData={menuData} toggleModifierForDrink={toggleModifierForDrink} />
-
       </main>
     </div>
   );
