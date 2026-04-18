@@ -375,24 +375,47 @@ function Admin() {
     }
   }, [menuData]);
 
-  // Saves the general POS settings (colors, locks)
-  const handleSaveGeneralSettings = () => {
-    // Safety check for PIN
-    if (!generalSettings.pinCode || generalSettings.pinCode.length < 4) {
-      return showAlert("Invalid PIN", "Please enter at least a 4-digit PIN code so you don't get locked out!");
+  const handleSaveGeneralSettings = async () => {
+    setIsSaving(true);
+    try {
+      // 1. Save to shop_settings.menu_data.posSettings (The Register's source of truth)
+      const updatedMenu = { ...menuData, posSettings: generalSettings };
+      const { error } = await supabase
+        .from('shop_settings')
+        .update({ menu_data: updatedMenu })
+        .eq('id', 1);
+      
+      if (error) throw error;
+
+      // Update local state so UI reflects changes immediately
+      setMenuData(updatedMenu);
+
+      // 2. Keep the legacy 'general_settings' table in sync just in case
+      await supabase
+        .from('general_settings')
+        .upsert({ id: 1, ...generalSettings });
+      
+      // 3. Sync to LocalStorage for the Favicon/Boot injector
+      if (generalSettings.appBootLogo) {
+        localStorage.setItem('tinypos_boot_logo', generalSettings.appBootLogo);
+        
+        // Immediate favicon update without refresh
+        let link = document.querySelector("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.head.appendChild(link);
+        }
+        link.href = generalSettings.appBootLogo;
+      }
+
+      showAlert("Success", "Settings saved and branding updated!");
+    } catch (err) {
+      console.error(err);
+      showAlert("Error", "Failed to save settings: " + err.message);
+    } finally {
+      setIsSaving(false);
     }
-
-    const updatedMenu = { ...menuData, posSettings: generalSettings };
-    saveMenuToCloud(updatedMenu);
-
-    // NEW: Save the colorful app logo to the iPad's local memory!
-    if (generalSettings.appBootLogo) {
-      localStorage.setItem('tinypos_boot_logo', generalSettings.appBootLogo);
-    } else {
-      localStorage.removeItem('tinypos_boot_logo'); 
-    }
-
-    showAlert("Success", "Settings saved! Changes will instantly apply.");
   };
 
   // Saves the custom loyalty settings to our JSON cloud object

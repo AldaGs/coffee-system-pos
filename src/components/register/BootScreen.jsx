@@ -1,11 +1,31 @@
-function BootScreen({ posSettings }) {
-  const bootLogo = localStorage.getItem('tinypos_boot_logo');
+function BootScreen({ logo, posSettings }) {
   return (
-    <div style={{ height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-main)' }}>
-      {bootLogo ? (<img src={bootLogo} alt="App Logo" className="pop-in" style={{ width: '140px', height: '140px', objectFit: 'contain', marginBottom: '24px' }} />) : (<div className="spinner" style={{ marginBottom: '24px' }}></div>)}
-      <h1 style={{ color: 'var(--text-main)', letterSpacing: '6px', textTransform: 'uppercase', margin: 0, fontSize: '1.5rem' }}>{posSettings.name || "TinyPOS"}</h1>
-      <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '0.9rem' }}>Starting system...</p>
+    <div className="boot-screen" style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column', 
+      justifyContent: 'center', 
+      alignItems: 'center', 
+      background: 'var(--bg-main)' 
+    }}>
+      <div className="boot-loader-content" style={{ textAlign: 'center' }}>
+        {/* NEW: Use base64 logo if exists, else fallback to emoji */}
+        {logo ? (
+          <img 
+            src={logo} 
+            alt="Boot Logo" 
+            style={{ width: '120px', height: '120px', objectFit: 'contain', marginBottom: '20px' }} 
+            className="pulse" 
+          />
+        ) : (
+          <div style={{ fontSize: '5rem', marginBottom: '20px' }}>☕</div>
+        )}
+        
+        <h2 style={{ color: 'var(--text-main)', margin: 0, fontSize: '1.8rem', fontWeight: '800' }}>{posSettings?.name || "Main Register"}</h2>
+        <p style={{ color: 'var(--text-muted)', marginTop: '8px', letterSpacing: '1px', textTransform: 'uppercase', fontSize: '0.8rem', fontWeight: 'bold' }}>Register Loading...</p>
+      </div>
     </div>
   );
 }
+
 export default BootScreen;

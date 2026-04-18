@@ -1556,14 +1556,14 @@ useEffect(() => {
 
   // --- THE NEW BRANDED BOOT SCREEN ---
   if (isLoading) {
-    return <BootScreen posSettings={posSettings} />;
+    return <BootScreen posSettings={posSettings} logo={posSettings.appBootLogo} />;
   }
 
   // --- THE UPGRADED LOCK & PIN ENGINE ---
   if (isLocked) {
     // If no one is selected, show your standard user list (LockScreen)
     if (!selectedProfile) {
-      return <LockScreen cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} />;
+      return <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} />;
     }
 
     // If a cashier IS selected, show the new standardized PIN Pad
