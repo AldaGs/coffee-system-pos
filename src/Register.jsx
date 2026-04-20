@@ -7,10 +7,10 @@ import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './contexts/DialogContext';
 import { useTheme } from './contexts/ThemeContext';
-
 import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
+import { processCheckout } from './services/checkoutService';
 
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
@@ -1349,163 +1349,19 @@ useEffect(() => {
 
   // Action 2: The actual finalization of the sale
   const handleConfirmPayment = async (paymentsArray) => {
+    
+    // 1. Call our decoupled backend service
+    const { localAnalyticsRecord, masterMethodString } = await processCheckout({
+      activeTicket,
+      cartTotal,
+      paymentsArray,
+      activeCashier,
+      recipes
+    });
 
-    // Determine the master string for backwards compatibility
-    const isSplit = paymentsArray.length > 1;
-    const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
-
-    // 1. Build the LOCAL Analytics Data (This powers your Admin Dashboard!)
-    const localAnalyticsRecord = {
-      ...activeTicket, // Copies all items and modifiers
-      total: cartTotal,
-      method: masterMethodString,
-      splits: isSplit ? paymentsArray : null, // The critical array
-      timestamp: new Date().toISOString(),
-      cashierId: activeCashier?.id || 'unknown',
-      cashier_name: activeCashier?.name || 'Unknown Cashier'
-    };
-
-    // 2. Build the CLOUD Data specifically matching your Supabase columns
-    const currentSale = {
-      total_amount: cartTotal,
-      payment_method: masterMethodString,
-      items_sold: activeTicket.items.map(item => item.name),
-      cashier_name: activeCashier?.name || 'Unknown Cashier'
-    };
-
-    // --- 1. PREPARE THE DATA ---
-    const finalizedSale = { ...currentSale, created_at: new Date().toISOString(), status: 'completed' };
-    const inventoryLogsToPush = [];
-
-    try {
-      // Immediately save to local Dexie so it shows up in your history instantly
-      await db.sales.add(finalizedSale);
-
-      // --- THE FIX: ALWAYS FETCH LOCAL INVENTORY FIRST (Lightning Fast & Works Offline) ---
-      const currentInventory = await db.inventory.toArray();
-      const timestamp = finalizedSale.created_at;
-
-      // --- 2. UPGRADED HYBRID INVENTORY DEDUCTION ENGINE ---
-      for (const item of activeTicket.items) {
-        
-        // ==========================================
-        // A. STANDARD ITEMS (Make-to-Stock)
-        // ==========================================
-        if (item.inventoryMode === "standard" && item.linkedWarehouseId) {
-          const warehouseItem = currentInventory.find(inv => String(inv.id) === String(item.linkedWarehouseId));
-          
-          if (warehouseItem) {
-            inventoryLogsToPush.push({ item_name: warehouseItem.name, qty_deducted: 1, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
-
-            // 1. INSTANT LOCAL UPDATE
-            const newStock = warehouseItem.current_stock - 1;
-            await db.inventory.update(warehouseItem.id, { current_stock: newStock });
-            warehouseItem.current_stock = newStock; // Update loop cache
-
-            // 2. BACKGROUND CLOUD UPDATE (No 'await' - does not block the checkout!)
-            if (navigator.onLine) supabase.from('inventory').update({ current_stock: newStock }).eq('id', warehouseItem.id).then();
-          }
-
-          // Process Additions on Standard Items
-          if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-            for (const mod of item.selectedModifiers) {
-              if (mod.deductionTarget && !mod.substitutionTarget) {
-                inventoryLogsToPush.push({ item_name: mod.deductionTarget, qty_deducted: 1, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
-                
-                const modItem = currentInventory.find(inv => inv.name === mod.deductionTarget);
-                if (modItem) {
-                  const newModStock = modItem.current_stock - 1;
-                  await db.inventory.update(modItem.id, { current_stock: newModStock }); // Instant local update
-                  modItem.current_stock = newModStock; 
-                  if (navigator.onLine) supabase.from('inventory').update({ current_stock: newModStock }).eq('id', modItem.id).then();
-                }
-              }
-            }
-          }
-        } 
-        
-        // ==========================================
-        // B. RECIPE ITEMS (Make-to-Order)
-        // ==========================================
-        else if (item.inventoryMode === "recipe" && item.linkedRecipeId) {
-          const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
-
-          if (recipe && recipe.ingredients) {
-            let cartBOM = recipe.ingredients.map(ing => ({ item_name: ing.name, qty: parseFloat(ing.qty) || 0 }));
-
-            if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-              item.selectedModifiers.forEach(mod => {
-                if (mod.deductionTarget && mod.substitutionTarget) {
-                  const targetName = mod.substitutionTarget.trim().toLowerCase();
-                  const baseIndex = cartBOM.findIndex(ing => ing.item_name.trim().toLowerCase() === targetName);
-                  if (baseIndex !== -1) {
-                    const baseQty = cartBOM[baseIndex].qty;
-                    cartBOM.splice(baseIndex, 1);
-                    cartBOM.push({ item_name: mod.deductionTarget, qty: baseQty });
-                  } else {
-                    cartBOM.push({ item_name: mod.deductionTarget, qty: 1 });
-                  }
-                } else if (mod.deductionTarget && !mod.substitutionTarget) {
-                  cartBOM.push({ item_name: mod.deductionTarget, qty: 1 });
-                }
-              });
-            }
-
-            for (const ing of cartBOM) {
-              if (ing.qty > 0) {
-                inventoryLogsToPush.push({ item_name: ing.item_name, qty_deducted: ing.qty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
-
-                const whItem = currentInventory.find(inv => inv.name === ing.item_name);
-                if (whItem) {
-                  const newStock = whItem.current_stock - ing.qty;
-                  
-                  // 1. INSTANT LOCAL UPDATE
-                  await db.inventory.update(whItem.id, { current_stock: newStock });
-                  whItem.current_stock = newStock; // Update loop cache
-                  
-                  // 2. BACKGROUND CLOUD UPDATE
-                  if (navigator.onLine) supabase.from('inventory').update({ current_stock: newStock }).eq('id', whItem.id).then();
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // --- 3. CLOUD SYNC ATTEMPT ---
-      if (!navigator.onLine) throw new Error("Device is offline");
-
-      // Strip the local Dexie ID from the sale
-      const { id: localId, ...cleanSale } = finalizedSale;
-      
-      const { error: salesError } = await supabase.from('sales').insert([cleanSale]);
-      if (salesError) throw salesError;
-
-      if (inventoryLogsToPush.length > 0) {
-        const { error: invError } = await supabase.from('inventory_logs').insert(inventoryLogsToPush);
-        if (invError) throw invError;
-      }
-
-      console.log("SALE COMPLETE & SAVED TO CLOUD INSTANTLY");
-
-    } catch (error) {
-      console.warn("Cloud save failed. Moving to offline queue.", error.message);
-      
-      // THE FIX: We must delete the 'id' property that Dexie secretly added to finalizedSale
-      // so it doesn't trigger a "Key Already Exists" error in the sync queue!
-      const { id: generatedId, ...safeOfflineSale } = finalizedSale;
-      
-      await db.syncQueue.add(safeOfflineSale);
-
-      if (inventoryLogsToPush.length > 0) {
-        await db.inventory_logs.bulkPut(inventoryLogsToPush);
-      }
-    } 
-
-    // 4. ALWAYS DO THIS (Whether online or offline)
+    // 2. Handle the UI Side Effects (React state, animations, resets)
     setOrderHistory([...orderHistory, localAnalyticsRecord]);
 
-    // Trigger the flying ticket animation!
     setSuccessTicket({
       name: activeTicket.name,
       items: activeTicket.items,
@@ -1514,7 +1370,7 @@ useEffect(() => {
     });
     setTimeout(() => setSuccessTicket(null), 2500);
 
-    handleCancelCheckout(); // Instantly reset split states
+    handleCancelCheckout(); 
     clearCurrentTicket();
   };
 
