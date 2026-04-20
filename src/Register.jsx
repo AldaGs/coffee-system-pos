@@ -8,6 +8,10 @@ import { PosContext } from './utils/PosContext';
 import { useDialog } from './contexts/DialogContext';
 import { useTheme } from './contexts/ThemeContext';
 
+import { useAuthStore } from './store/useAuthStore';
+import { useMenuStore } from './store/useMenuStore';
+import { useCartStore } from './store/useCartStore';
+
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
 import LockScreen from './components/register/LockScreen';
@@ -26,37 +30,30 @@ import Dialog from './components/shared/Dialog';
 
 function Register() {
   const navigate = useNavigate();
+
+  // --- ZUSTAND GLOBAL STORES ---
+  const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime, logout } = useAuthStore();
+  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, isLoading, setIsLoading, getPosSettings } = useMenuStore();
+  const { 
+    activeTicketId, setActiveTicketId, isCheckoutModalOpen, setIsCheckoutModalOpen,
+    splitMode, setSplitMode, splitPayments, setSplitPayments, nWays, setNWays,
+    customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState 
+  } = useCartStore();
+
+  const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
+
   const { showAlert, showConfirm } = useDialog();
   const { updateTheme } = useTheme();
-
-  // --- INSTANT OFFLINE STATE INITIALIZATION ---
-  const [menuData, setMenuData] = useState(() => {
-    const cachedMenu = localStorage.getItem('tinypos_cached_menu');
-    return cachedMenu ? JSON.parse(cachedMenu) : null;
-  });
-
-  const [isLoading, setIsLoading] = useState(true);
 
   // Refs to prevent Realtime re-subscription storms
   const activeTicketIdRef = useRef(null);
   const activeCashierRef = useRef(null);
   const sessionTimeRef = useRef(0);
 
-  const [activeCategory, setActiveCategory] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingItem, setPendingItem] = useState(null);
   const [successTicket, setSuccessTicket] = useState(null);
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
-
-  const [activeTicketId, setActiveTicketId] = useState(() => {
-    const savedId = localStorage.getItem('tinypos_activeTicketId');
-    return savedId ? JSON.parse(savedId) : 1;
-  });
-
-  const [recipes, setRecipes] = useState(() => {
-    const cachedRecipes = localStorage.getItem('tinypos_cached_recipes');
-    return cachedRecipes ? JSON.parse(cachedRecipes) : [];
-  });
 
   // --- MENU FETCH & OFFLINE CACHE ENGINE ---
   useEffect(() => {
@@ -366,11 +363,6 @@ function Register() {
     return localStorage.getItem('tinypos_lastResetDate') || new Date().toDateString();
   });
 
-
-  useEffect(() => {
-    localStorage.setItem('tinypos_activeTicketId', JSON.stringify(activeTicketId));
-  }, [activeTicketId]);
-
   // --- AUTO-RESET LOGIC ---
   useEffect(() => {
     // FIX: Read directly from menuData so we don't care about variable order!
@@ -396,19 +388,8 @@ function Register() {
     // FIX: Update the dependency array here too
   }, [menuData?.posSettings?.orderResetPolicy, lastResetDate]);
 
-  // --- NEW STATE: The Checkout & Split Payment Engine ---
-  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [splitMode, setSplitMode] = useState('full'); // 'full', 'even', 'product', 'custom'
-  const [splitPayments, setSplitPayments] = useState([]); // [{ amount: X, method: 'Y' }]
-  const [nWays, setNWays] = useState(2);
-  const [customVal, setCustomVal] = useState('');
-  const [paidProductIds, setPaidProductIds] = useState([]);
-
   // --- BOTTOM SHEET STATE ---
   const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
-
-  // --- NEW STATE: POS SETTINGS & SECURITY ---
-  const [isLocked, setIsLocked] = useState(true);
 
   // --- DEVICE IDENTITY & SESSION ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -420,11 +401,6 @@ function Register() {
     }
     return id;
   }, []);
-
-  const [sessionTime, setSessionTime] = useState(() => {
-    const saved = localStorage.getItem('tinypos_session_time');
-    return saved ? parseInt(saved) : 0;
-  });
 
   // --- SECURITY PIN CHALLENGE STATE ---
   const [pinChallenge, setPinChallenge] = useState({ isOpen: false, title: "", onAuthorized: null });
@@ -469,12 +445,6 @@ function Register() {
     { id: 1, name: 'Admin', pin: '1234' },
     { id: 2, name: 'Barista 1', pin: '0000' }
   ];
-
-  // We KEEP activeCashier in localStorage because whoever is logged into THIS specific iPad/Phone should stay logged in.
-  const [activeCashier, setActiveCashier] = useState(() => {
-    const saved = localStorage.getItem('tinypos_activeCashier');
-    return saved ? JSON.parse(saved) : cashiers[0];
-  });
 
   // Keep refs in sync (moved here to ensure state is initialized)
   useEffect(() => { activeTicketIdRef.current = activeTicketId; }, [activeTicketId]);
@@ -616,17 +586,6 @@ useEffect(() => {
   };
 }, [activeCashier, myDeviceId]); // Re-runs anytime the cashier changes
 
-  // Extract POS settings with safe fallbacks
-  const posSettings = menuData?.posSettings || {
-    name: "Main Register",
-    brandColor: "#2c3e50",
-    isDarkMode: false,
-    autoLockMinutes: .1,
-    pinCode: "1234",
-    enableCorte: true,
-    ticketVisibility: "open"
-  };
-
   // --- ORDER HISTORY (ANALYTICS LEDGER) ---
   const [orderHistory, setOrderHistory] = useState(() => {
     const saved = localStorage.getItem('tinypos_orderHistory');
@@ -685,10 +644,7 @@ useEffect(() => {
   // The function that ruthlessly kills the session
   const executeLockout = (reason) => {
     console.warn(`🔒 ${reason}`);
-    setIsLocked(true);
-    setActiveCashier(null);
-    localStorage.removeItem('tinypos_activeCashier');
-    localStorage.removeItem('tinypos_session_time');
+    logout(); // <-- This handles isLocked, activeCashier, sessionTime, AND localStorage all at once!
     showAlert("Access Revoked", reason);
   };
 
@@ -1388,12 +1344,7 @@ useEffect(() => {
   };
 
   const handleCancelCheckout = () => {
-    setIsCheckoutModalOpen(false);
-    setSplitMode('full');
-    setSplitPayments([]);
-    setNWays(2);
-    setCustomVal('');
-    setPaidProductIds([]);
+    resetCheckoutState();
   };
 
   // Action 2: The actual finalization of the sale

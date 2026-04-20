@@ -18,6 +18,7 @@ import EditDrinkModal from './components/admin/EditDrinkModal';
 import InventoryTab from './components/admin/InventoryTab.jsx';
 import { useDialog } from './contexts/DialogContext';
 import { useTheme } from './contexts/ThemeContext';
+import { useMenuStore } from './store/useMenuStore';
 
 
 function Admin() {
@@ -25,6 +26,9 @@ function Admin() {
 
   const { showAlert, showConfirm } = useDialog();
   const { updateTheme } = useTheme();
+
+  // --- ZUSTAND GLOBAL STORE ---
+  const { menuData, setMenuData, recipes, setRecipes } = useMenuStore();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -36,7 +40,6 @@ function Admin() {
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('analytics');
-  const [menuData, setMenuData] = useState(null);
   const [salesData, setSalesData] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
 
@@ -103,7 +106,6 @@ function Admin() {
   });
 
   // --- NEW: CALCULATOR & RECIPE BUILDER STATE ---
-  const [recipes, setRecipes] = useState([]);
   const [activeRecipe, setActiveRecipe] = useState(null);
 
   // --- READ ANALYTICS DATA ---
