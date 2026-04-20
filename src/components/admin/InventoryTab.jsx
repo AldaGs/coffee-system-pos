@@ -491,7 +491,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                     }} 
                     style={{ padding: '8px 16px', background: '#fdf3e8', color: '#e67e22', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginRight: '8px' }}
                   >
-                    📋 Audit
+                    Audit
                   </button>
 
                   <button 

@@ -5,6 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import './App.css';
 import { PosContext } from './utils/PosContext';
+import { useDialog } from './contexts/DialogContext';
+import { useTheme } from './contexts/ThemeContext';
 
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
@@ -20,11 +22,12 @@ import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
 import DiscountModal from './components/register/DiscountModal';
-
 import Dialog from './components/shared/Dialog';
 
 function Register() {
   const navigate = useNavigate();
+  const { showAlert, showConfirm } = useDialog();
+  const { updateTheme } = useTheme();
 
   // --- INSTANT OFFLINE STATE INITIALIZATION ---
   const [menuData, setMenuData] = useState(() => {
@@ -404,21 +407,6 @@ function Register() {
   // --- BOTTOM SHEET STATE ---
   const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
 
-  // --- UNIVERSAL CUSTOM DIALOG SYSTEM ---
-  const [uiDialog, setUiDialog] = useState({ isOpen: false, type: 'alert', title: '', message: '', onConfirm: null });
-
-  // Helper function for quick ALERTS
-  const showAlert = (title, message) => {
-    setUiDialog({ isOpen: true, type: 'alert', title, message, onConfirm: null });
-  };
-
-  // Helper function for quick CONFIRMATIONS
-  const showConfirm = (title, message, onConfirmAction) => {
-    setUiDialog({ isOpen: true, type: 'confirm', title, message, onConfirm: onConfirmAction });
-  };
-
-  const closeDialog = () => setUiDialog({ isOpen: false, type: 'alert', title: '', message: '', onConfirm: null });
-
   // --- NEW STATE: POS SETTINGS & SECURITY ---
   const [isLocked, setIsLocked] = useState(true);
 
@@ -776,30 +764,10 @@ useEffect(() => {
 
   // --- THEME INJECTION LOGIC ---
   useEffect(() => {
-    if (!menuData) return;
-
-    // 1. NEW: Update the Browser Tab Title!
-    const registerName = posSettings.name || "Main Register";
-    document.title = `${registerName} | TinyPOS`;
-
-
-    const favicon = document.querySelector("link[rel~='icon']");
-    if (favicon) {
-      // Use the boot logo, or fallback to the standard PWA icon if they haven't uploaded one
-      favicon.href = posSettings.appBootLogo || '/icon-192.png'; 
-    } 
-
-
-    // 2. Inject custom brand color
-    document.documentElement.style.setProperty('--brand-color', posSettings.brandColor);
-
-    // 3. Toggle Dark Mode class on the main body
-    if (posSettings.isDarkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-  }, [menuData, posSettings.name, posSettings.brandColor, posSettings.isDarkMode]);
+    if (posSettings) {
+      updateTheme(posSettings);
+    }    
+  }, [posSettings, updateTheme]);
 
   // --- MENU FETCH & OFFLINE CACHE ENGINE ---
   useEffect(() => {
@@ -1771,8 +1739,6 @@ useEffect(() => {
       />
 
       <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
-
-      <Dialog uiDialog={uiDialog} closeDialog={closeDialog} />
 
       <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} />
 

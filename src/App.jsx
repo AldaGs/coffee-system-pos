@@ -17,20 +17,6 @@ function App() {
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
-  // --- NEW: DYNAMIC FAVICON INJECTOR ---
-  useEffect(() => {
-    const bootLogo = localStorage.getItem('tinypos_boot_logo');
-    if (bootLogo) {
-      let link = document.querySelector("link[rel~='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = bootLogo;
-    }
-  }, []);
-
   // --- NEW: CHECK SUPABASE AUTH STATUS ---
   useEffect(() => {
     if (hasKeys && supabase) {

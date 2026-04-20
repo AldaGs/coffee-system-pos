@@ -16,10 +16,16 @@ import GeneralSettingsTab from './components/admin/GeneralSettingsTab';
 import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
 import InventoryTab from './components/admin/InventoryTab.jsx';
+import { useDialog } from './contexts/DialogContext';
+import { useTheme } from './contexts/ThemeContext';
 
 
 function Admin() {
   const navigate = useNavigate();
+
+  const { showAlert, showConfirm } = useDialog();
+  const { updateTheme } = useTheme();
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
 
@@ -56,25 +62,8 @@ function Admin() {
   });
   const [newModGroupName, setNewModGroupName] = useState("");
   const [newModOption, setNewModOption] = useState({ groupKey: "", name: "", price: "0", isTextInput: false });
-  // --- UNIVERSAL CUSTOM DIALOG SYSTEM ---
-  const [uiDialog, setUiDialog] = useState({ isOpen: false, type: 'alert', title: '', message: '', onConfirm: null });
-
-  // Helper function for quick ALERTS
-  const showAlert = (title, message) => {
-    setUiDialog({ isOpen: true, type: 'alert', title, message, onConfirm: null });
-  };
-
-  // Helper function for quick CONFIRMATIONS
-  const showConfirm = (title, message, onConfirmAction) => {
-    setUiDialog({ isOpen: true, type: 'confirm', title, message, onConfirm: onConfirmAction });
-  };
-
-  const closeDialog = () => setUiDialog({ isOpen: false, type: 'alert', title: '', message: '', onConfirm: null });
   const [editingDrink, setEditingDrink] = useState(null);
-
   const [timeFilter, setTimeFilter] = useState('all');
-
-  // --- NEW: AUTOMATED DISCOUNT RULES STATE ---
   const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
 
   // 1. Fetch Expenses (Gastos)
@@ -292,30 +281,10 @@ function Admin() {
 
 // --- THEME INJECTION LOGIC (KEEPS ADMIN IN SYNC) ---
   useEffect(() => {
-    if (!menuData) return;
-
-    // Extract settings safely
-    const settings = menuData.posSettings || { brandColor: "#2c3e50", isDarkMode: false, name: "Main Register" };
-
-    // 1. NEW: Update the Browser Tab Title!
-    document.title = `${settings.name} Admin | TinyPOS`;
-
-    const favicon = document.querySelector("link[rel~='icon']");
-    if (favicon) {
-      // Use the boot logo, or fallback to the standard PWA icon if they haven't uploaded one
-      favicon.href = settings.appBootLogo || '/icon-192.png'; 
+    if (menuData?.posSettings) {
+      updateTheme(menuData.posSettings);
     }
-
-    // 2. Inject custom brand color instantly
-    document.documentElement.style.setProperty('--brand-color', settings.brandColor);
-
-    // 3. Toggle Dark Mode class on the main body
-    if (settings.isDarkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
-    }
-  }, [menuData]);
+  }, [menuData, updateTheme]);
 
   const saveMenuToCloud = async (updatedMenu) => {
     setIsSaving(true);
@@ -364,22 +333,6 @@ function Admin() {
     saveMenuToCloud(updatedMenu);
     showAlert("Success", "Receipt settings & App Logo saved successfully!");
   };
-
-  // --- DYNAMIC FAVICON INJECTION ---
-  useEffect(() => {
-    // Try to get the logo from the cloud first, fallback to local storage
-    const savedLogo = menuData?.receiptSettings?.logo || localStorage.getItem('tinypos_boot_logo');
-    
-    if (savedLogo) {
-      let link = document.querySelector("link[rel~='icon']");
-      if (!link) {
-        link = document.createElement('link');
-        link.rel = 'icon';
-        document.head.appendChild(link);
-      }
-      link.href = savedLogo; 
-    }
-  }, [menuData]);
 
   const handleSaveGeneralSettings = async () => {
     setIsSaving(true);
@@ -1090,10 +1043,6 @@ function Admin() {
           />
         )}
         {/* --------------------------------- */}
-
-
-        {/* --- UNIVERSAL SYSTEM DIALOG (ALERTS & CONFIRMS) --- */}
-        <Dialog uiDialog={uiDialog} closeDialog={closeDialog} />
 
         <EditDrinkModal editingDrink={editingDrink} setEditingDrink={setEditingDrink} menuData={menuData} toggleModifierForDrink={toggleModifierForDrink} />
       </main>
