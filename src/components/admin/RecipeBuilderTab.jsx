@@ -25,6 +25,29 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
     }, 0);
   };
 
+// --- UPDATED: Bulletproof Link Checker ---
+  let linkedMenuItemName = null;
+  
+  if (activeRecipe && menuData && menuData.categories) {
+    // 1. Convert the categories object into an array so we can loop through it
+    const categoryList = Object.values(menuData.categories);
+
+    for (const category of categoryList) {
+      // 2. Safely grab the items (handling cases where category is the array itself or has an .items property)
+      const itemsArray = Array.isArray(category) ? category : (Array.isArray(category?.items) ? category.items : []);
+      
+      // 3. Force strings to guarantee a match
+      const foundItem = itemsArray.find(item => 
+        String(item?.linkedRecipeId) === String(activeRecipe.id)
+      );
+      
+      if (foundItem) {
+        linkedMenuItemName = foundItem.name;
+        break;
+      }
+    }
+  }
+
   return (
     <div className="admin-section fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
@@ -91,21 +114,24 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                 </div>
 
                 <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Link to POS Item (Optional)</label>
-                  <select
-                    value={activeRecipe.linked_menu_item || ""}
-                    onChange={(e) => setActiveRecipe({ ...activeRecipe, linked_menu_item: e.target.value })}
-                    style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-                  >
-                    <option value="">-- No Link --</option>
-                    {menuData?.categories && Object.entries(menuData.categories).map(([cat, items]) => (
-                      <optgroup key={cat} label={cat.toUpperCase()}>
-                        {items.map(item => (
-                          <option key={item.name} value={item.name}>{item.name}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                  {/* Replace the old dropdown with this Read-Only Badge */}
+                  <div style={{ flex: 1, minWidth: '250px' }}>
+                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>
+                      Menu Link Status
+                    </label>
+                    {linkedMenuItemName ? (
+                      <div style={{ padding: '12px', background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', borderRadius: '6px', border: '1px solid rgba(52, 152, 219, 0.3)', fontWeight: 'bold' }}>
+                        🔗 Linked to Menu Item: {linkedMenuItemName}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '12px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', borderRadius: '6px', border: '1px dashed rgba(231, 76, 60, 0.4)' }}>
+                        ⚠️ Not linked to any POS item yet
+                      </div>
+                    )}
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px', margin: '6px 0 0 0' }}>
+                      (Manage links in the Menu Editor tab)
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

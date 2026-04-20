@@ -1,5 +1,6 @@
 .pos-container {
   display: flex;
+  height: 100vh;
   height: 100dvh;
   width: 100vw;
 }
@@ -228,6 +229,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background: rgba(0, 0, 0, 0.5);
   /* Semi-transparent black background */
   display: flex;
@@ -408,6 +410,7 @@
   justify-content: center;
   align-items: center;
   height: 100vh;
+  height: 100dvh;
   background-color: var(--bg-main);
   color: var(--brand-color);
   font-family: system-ui, sans-serif;
@@ -416,7 +419,7 @@
 .spinner {
   width: 60px;
   height: 60px;
-  border: 6px solid var(--border);
+  border: 6px solid var(#f1f1f1);
   border-top: 6px solid var(--brand-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -667,6 +670,7 @@ body.dark-mode {
 .admin-layout {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   background-color: var(--bg-main);
   color: var(--text-main);
   font-family: system-ui;
@@ -878,4 +882,23 @@ body.dark-mode {
 .admin-overlay.open {
   display: block;
 }
+}
+
+/* --- INVENTORY ROW BUTTONS FIX --- */
+.row-action-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .row-action-buttons {
+    flex-direction: column; /* Stacks the buttons vertically on phones */
+    width: 100%;
+  }
+  
+  .row-action-buttons button {
+    width: 100%; /* Makes the buttons stretch the full width of the cell */
+    padding: 12px 16px !important; /* Makes them slightly taller for thumb-tapping */
+  }
 }

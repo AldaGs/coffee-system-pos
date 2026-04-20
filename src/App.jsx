@@ -73,7 +73,7 @@ function App() {
   // --- 1. THE API SETUP SCREEN (Only shows if no keys are found) ---
   if (!hasKeys) {
     return (
-      <div style={{ display: 'flex', height: '100vh', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
+      <div style={{ display: 'flex', height: '100dvh', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '500px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
           <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>TinyPOS Hardware Setup</h2>
           <form onSubmit={handleSaveKeys} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -97,11 +97,11 @@ function App() {
 
   // --- 2. NEW: THE DEVICE AUTHORIZATION SCREEN ---
   // If they have keys, but the device isn't logged into the Kiosk account, lock them out!
-  if (isCheckingSession) return <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#2c3e50', color: 'white' }}>Checking device authorization...</div>;
+  if (isCheckingSession) return <div style={{ height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#2c3e50', color: 'white' }}>Checking device authorization...</div>;
 
   if (!session) {
     return (
-      <div style={{ display: 'flex', height: '100vh', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
+      <div style={{ display: 'flex', height: '100dvh', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
           <div style={{ textAlign: 'center', fontSize: '3rem', marginBottom: '10px' }}>🔒</div>
           <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Device Locked</h2>

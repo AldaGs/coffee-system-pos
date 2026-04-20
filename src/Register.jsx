@@ -26,7 +26,12 @@ import Dialog from './components/shared/Dialog';
 function Register() {
   const navigate = useNavigate();
 
-  const [menuData, setMenuData] = useState(null);
+  // --- INSTANT OFFLINE STATE INITIALIZATION ---
+  const [menuData, setMenuData] = useState(() => {
+    const cachedMenu = localStorage.getItem('tinypos_cached_menu');
+    return cachedMenu ? JSON.parse(cachedMenu) : null;
+  });
+
   const [isLoading, setIsLoading] = useState(true);
 
   // Refs to prevent Realtime re-subscription storms
@@ -45,7 +50,10 @@ function Register() {
     return savedId ? JSON.parse(savedId) : 1;
   });
 
-  const [recipes, setRecipes] = useState([]);
+  const [recipes, setRecipes] = useState(() => {
+    const cachedRecipes = localStorage.getItem('tinypos_cached_recipes');
+    return cachedRecipes ? JSON.parse(cachedRecipes) : [];
+  });
 
   // --- MENU FETCH & OFFLINE CACHE ENGINE ---
   useEffect(() => {
@@ -774,6 +782,14 @@ useEffect(() => {
     const registerName = posSettings.name || "Main Register";
     document.title = `${registerName} | TinyPOS`;
 
+
+    const favicon = document.querySelector("link[rel~='icon']");
+    if (favicon) {
+      // Use the boot logo, or fallback to the standard PWA icon if they haven't uploaded one
+      favicon.href = posSettings.appBootLogo || '/icon-192.png'; 
+    } 
+
+
     // 2. Inject custom brand color
     document.documentElement.style.setProperty('--brand-color', posSettings.brandColor);
 
@@ -1225,12 +1241,26 @@ useEffect(() => {
   const sendFinalMessage = (phone, loyaltyData) => {
     if (!activeTicket) return;
 
-    // Build receipt text
-    let message = `☕ *${posSettings.name || 'TinyPOS'} Receipt*\n`;
+    // Grab the receipt settings from the cloud (with safe fallbacks)
+    const receiptSettings = menuData?.receiptSettings || {
+      header: posSettings.name || 'TinyPOS',
+      subheader: '',
+      footer: 'Thank you for your visit! ✨',
+      enableTaxBreakdown: false,
+      taxRate: 16
+    };
+
+    // 1. Build Receipt Header & Subheader
+    let message = `☕ *${receiptSettings.header}*\n`;
+    if (receiptSettings.subheader) {
+      message += `${receiptSettings.subheader}\n`;
+    }
+    message += `--------------------------\n`;
     message += `Order: ${activeTicket.name}\n`;
     message += `Date: ${new Date().toLocaleString()}\n`;
     message += `--------------------------\n`;
 
+    // 2. Build Items List
     activeTicket.items.forEach(item => {
       message += `• ${item.name} - $${item.basePrice.toFixed(2)}\n`;
       if (item.selectedModifiers && item.selectedModifiers.length > 0) {
@@ -1241,8 +1271,22 @@ useEffect(() => {
     });
 
     message += `--------------------------\n`;
+
+    // 3. Build Tax Breakdown (If Enabled)
+    if (receiptSettings.enableTaxBreakdown) {
+      const taxRate = receiptSettings.taxRate || 16;
+      const taxDecimal = taxRate / 100;
+      const baseSubtotal = cartTotal / (1 + taxDecimal);
+      const extractedTax = cartTotal - baseSubtotal;
+
+      message += `Subtotal: $${baseSubtotal.toFixed(2)}\n`;
+      message += `IVA (${taxRate}%): $${extractedTax.toFixed(2)}\n`;
+    }
+
+    // 4. Grand Total
     message += `*TOTAL: $${cartTotal.toFixed(2)}*\n`;
 
+    // 5. Loyalty Status
     if (loyaltyData) {
       message += `\n🌟 *Loyalty Status*\n`;
       message += `Visits: ${loyaltyData.visits} / ${loyaltyData.target}\n`;
@@ -1253,10 +1297,12 @@ useEffect(() => {
       }
     }
 
-    message += `\nThank you for your visit! ✨`;
+    // 6. Custom Footer
+    message += `\n${receiptSettings.footer}`;
 
+    // --- WHATSAPP ROUTING LOGIC ---
     const encodedMessage = encodeURIComponent(message);
-    const targetPhone = `52${phone}`; // Keeping your default MX country code
+    const targetPhone = `52${phone}`; // MX country code
 
     // Detect if the device is mobile (Phone/Tablet) or Desktop
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -1266,8 +1312,7 @@ useEffect(() => {
       ? `whatsapp://send?phone=${targetPhone}&text=${encodedMessage}`
       : `https://web.whatsapp.com/send?phone=${targetPhone}&text=${encodedMessage}`;
 
-    // For the native whatsapp:// scheme, window.open sometimes gets blocked by popup blockers if not direct.
-    // Assigning to window.location.href is often safer for custom URL schemes on mobile.
+    // Safely execute routing
     if (isMobile) {
       window.location.href = whatsappUrl;
     } else {
@@ -1417,107 +1462,106 @@ useEffect(() => {
       // Immediately save to local Dexie so it shows up in your history instantly
       await db.sales.add(finalizedSale);
 
-      // --- 2. HYBRID INVENTORY DEDUCTION ENGINE (CART BOM) ---
+      // --- THE FIX: ALWAYS FETCH LOCAL INVENTORY FIRST (Lightning Fast & Works Offline) ---
+      const currentInventory = await db.inventory.toArray();
       const timestamp = finalizedSale.created_at;
 
+      // --- 2. UPGRADED HYBRID INVENTORY DEDUCTION ENGINE ---
       for (const item of activeTicket.items) {
         
-        if (item.item_type === "standard") {
-          // A. STANDARD ITEMS (Make-to-Stock)
-          inventoryLogsToPush.push({
-            item_name: item.name,
-            qty_deducted: 1,
-            deduction_type: "sale",
-            created_at: timestamp,
-            ticket_id: activeTicket.id
-          });
+        // ==========================================
+        // A. STANDARD ITEMS (Make-to-Stock)
+        // ==========================================
+        if (item.inventoryMode === "standard" && item.linkedWarehouseId) {
+          const warehouseItem = currentInventory.find(inv => String(inv.id) === String(item.linkedWarehouseId));
+          
+          if (warehouseItem) {
+            inventoryLogsToPush.push({ item_name: warehouseItem.name, qty_deducted: 1, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
 
-          // Process Additions on Standard Items (e.g. adding a Plastic Cup to a Soda)
-          if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-            item.selectedModifiers.forEach(mod => {
-              if (mod.deductionTarget && !mod.substitutionTarget) {
-                inventoryLogsToPush.push({
-                  item_name: mod.deductionTarget,
-                  qty_deducted: 1,
-                  deduction_type: "sale",
-                  created_at: timestamp,
-                  ticket_id: activeTicket.id
-                });
-              }
-            });
+            // 1. INSTANT LOCAL UPDATE
+            const newStock = warehouseItem.current_stock - 1;
+            await db.inventory.update(warehouseItem.id, { current_stock: newStock });
+            warehouseItem.current_stock = newStock; // Update loop cache
+
+            // 2. BACKGROUND CLOUD UPDATE (No 'await' - does not block the checkout!)
+            if (navigator.onLine) supabase.from('inventory').update({ current_stock: newStock }).eq('id', warehouseItem.id).then();
           }
 
-        } else if (item.item_type === "recipe") {
-          // B. RECIPE ITEMS (Make-to-Order)
-          const recipe = recipes.find(r => r.linked_menu_item === item.name);
+          // Process Additions on Standard Items
+          if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+            for (const mod of item.selectedModifiers) {
+              if (mod.deductionTarget && !mod.substitutionTarget) {
+                inventoryLogsToPush.push({ item_name: mod.deductionTarget, qty_deducted: 1, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
+                
+                const modItem = currentInventory.find(inv => inv.name === mod.deductionTarget);
+                if (modItem) {
+                  const newModStock = modItem.current_stock - 1;
+                  await db.inventory.update(modItem.id, { current_stock: newModStock }); // Instant local update
+                  modItem.current_stock = newModStock; 
+                  if (navigator.onLine) supabase.from('inventory').update({ current_stock: newModStock }).eq('id', modItem.id).then();
+                }
+              }
+            }
+          }
+        } 
+        
+        // ==========================================
+        // B. RECIPE ITEMS (Make-to-Order)
+        // ==========================================
+        else if (item.inventoryMode === "recipe" && item.linkedRecipeId) {
+          const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
 
           if (recipe && recipe.ingredients) {
-            // Clone the base recipe into a temporary Cart BOM
-            let cartBOM = recipe.ingredients.map(ing => ({
-              item_name: ing.name,
-              qty: parseFloat(ing.qty) || 0
-            }));
+            let cartBOM = recipe.ingredients.map(ing => ({ item_name: ing.name, qty: parseFloat(ing.qty) || 0 }));
 
-            // Process Modifiers (Substitutions and Additions)
             if (item.selectedModifiers && item.selectedModifiers.length > 0) {
               item.selectedModifiers.forEach(mod => {
                 if (mod.deductionTarget && mod.substitutionTarget) {
-                  
-                  // THE SWAP (Substitution) - NOW BULLETPROOFED
                   const targetName = mod.substitutionTarget.trim().toLowerCase();
                   const baseIndex = cartBOM.findIndex(ing => ing.item_name.trim().toLowerCase() === targetName);
-
                   if (baseIndex !== -1) {
                     const baseQty = cartBOM[baseIndex].qty;
-                    cartBOM.splice(baseIndex, 1); // Remove old ingredient
-                    cartBOM.push({
-                      item_name: mod.deductionTarget,
-                      qty: baseQty // Inject new ingredient at exact same quantity
-                    });
+                    cartBOM.splice(baseIndex, 1);
+                    cartBOM.push({ item_name: mod.deductionTarget, qty: baseQty });
                   } else {
-                    // FALLBACK: If string didn't match, deduct 1 unit of new ingredient anyway
-                    cartBOM.push({
-                      item_name: mod.deductionTarget,
-                      qty: 1
-                    });
+                    cartBOM.push({ item_name: mod.deductionTarget, qty: 1 });
                   }
                 } else if (mod.deductionTarget && !mod.substitutionTarget) {
-                  // THE ADDITION (e.g., Extra Vanilla Syrup)
-                  cartBOM.push({
-                    item_name: mod.deductionTarget,
-                    qty: 1
-                  });
+                  cartBOM.push({ item_name: mod.deductionTarget, qty: 1 });
                 }
               });
             }
 
-            // Push the finalized, dynamically altered BOM to the deduction queue
-            cartBOM.forEach(ing => {
+            for (const ing of cartBOM) {
               if (ing.qty > 0) {
-                inventoryLogsToPush.push({
-                  item_name: ing.item_name,
-                  qty_deducted: ing.qty,
-                  deduction_type: "sale",
-                  created_at: timestamp,
-                  ticket_id: activeTicket.id
-                });
+                inventoryLogsToPush.push({ item_name: ing.item_name, qty_deducted: ing.qty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
+
+                const whItem = currentInventory.find(inv => inv.name === ing.item_name);
+                if (whItem) {
+                  const newStock = whItem.current_stock - ing.qty;
+                  
+                  // 1. INSTANT LOCAL UPDATE
+                  await db.inventory.update(whItem.id, { current_stock: newStock });
+                  whItem.current_stock = newStock; // Update loop cache
+                  
+                  // 2. BACKGROUND CLOUD UPDATE
+                  if (navigator.onLine) supabase.from('inventory').update({ current_stock: newStock }).eq('id', whItem.id).then();
+                }
               }
-            });
+            }
           }
         }
       }
 
-      // --- 3. INSTANT CLOUD SYNC ATTEMPT ---
-      // If we know we have no internet, skip directly to the catch block
+      // --- 3. CLOUD SYNC ATTEMPT ---
       if (!navigator.onLine) throw new Error("Device is offline");
 
-      // Strip the local Dexie ID from the sale to prevent the 400 Bad Request error
+      // Strip the local Dexie ID from the sale
       const { id: localId, ...cleanSale } = finalizedSale;
       
       const { error: salesError } = await supabase.from('sales').insert([cleanSale]);
       if (salesError) throw salesError;
 
-      // Push the clean inventory logs directly to the cloud
       if (inventoryLogsToPush.length > 0) {
         const { error: invError } = await supabase.from('inventory_logs').insert(inventoryLogsToPush);
         if (invError) throw invError;
@@ -1526,17 +1570,18 @@ useEffect(() => {
       console.log("SALE COMPLETE & SAVED TO CLOUD INSTANTLY");
 
     } catch (error) {
-      // --- 4. OFFLINE QUEUE FALLBACK ---
       console.warn("Cloud save failed. Moving to offline queue.", error.message);
       
-      // Put the sale in the sync queue for the background worker
-      await db.syncQueue.add(finalizedSale);
+      // THE FIX: We must delete the 'id' property that Dexie secretly added to finalizedSale
+      // so it doesn't trigger a "Key Already Exists" error in the sync queue!
+      const { id: generatedId, ...safeOfflineSale } = finalizedSale;
+      
+      await db.syncQueue.add(safeOfflineSale);
 
-      // Put the inventory logs in the Dexie queue for the background worker
       if (inventoryLogsToPush.length > 0) {
         await db.inventory_logs.bulkPut(inventoryLogsToPush);
       }
-    }
+    } 
 
     // 4. ALWAYS DO THIS (Whether online or offline)
     setOrderHistory([...orderHistory, localAnalyticsRecord]);
@@ -1568,7 +1613,7 @@ useEffect(() => {
 
     // If a cashier IS selected, show the new standardized PIN Pad
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
+      <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
         <div className={`fade-in ${phoneError ? 'shake' : ''}`} style={{ background: 'var(--bg-surface)', padding: '40px', borderRadius: '16px', width: '350px', boxShadow: '0 15px 35px rgba(0,0,0,0.2)', textAlign: 'center' }}>
           
           <div style={{ width: '64px', height: '64px', borderRadius: '32px', background: 'var(--brand-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold', margin: '0 auto 16px' }}>

@@ -300,6 +300,12 @@ function Admin() {
     // 1. NEW: Update the Browser Tab Title!
     document.title = `${settings.name} Admin | TinyPOS`;
 
+    const favicon = document.querySelector("link[rel~='icon']");
+    if (favicon) {
+      // Use the boot logo, or fallback to the standard PWA icon if they haven't uploaded one
+      favicon.href = settings.appBootLogo || '/icon-192.png'; 
+    }
+
     // 2. Inject custom brand color instantly
     document.documentElement.style.setProperty('--brand-color', settings.brandColor);
 
@@ -497,7 +503,36 @@ function Admin() {
 
   // Basic Menu/Modifier/Deletion Logic (Unchanged)
   const handleAddCategory = () => { if (!newCategoryName.trim()) return; const updatedMenu = { ...menuData }; updatedMenu.categories[newCategoryName] = []; saveMenuToCloud(updatedMenu); setNewCategoryName(""); };
-  const handleAddDrink = () => { if (!newItemForm.category || !newItemForm.name || !newItemForm.price) return window.confirm("Fill all fields."); const updatedMenu = { ...menuData }; const newDrink = { id: newItemForm.name.toLowerCase().replace(/\s+/g, '_'), name: newItemForm.name, basePrice: parseFloat(newItemForm.price), emoji: newItemForm.emoji, allowedModifiers: [] }; updatedMenu.categories[newItemForm.category].push(newDrink); saveMenuToCloud(updatedMenu); setNewItemForm({ ...newItemForm, name: "", price: "" }); };
+  const handleAddDrink = () => { 
+    // 1. Added 'return' so the function stops if fields are missing
+    if (!newItemForm.category || !newItemForm.name || !newItemForm.price) {
+      return showAlert("Missing Info", "Please fill out all required fields.");
+    }
+
+    const updatedMenu = { ...menuData }; 
+
+    const newDrink = { 
+      id: newItemForm.name.toLowerCase().replace(/\s+/g, '_'), 
+      name: newItemForm.name, 
+      basePrice: parseFloat(newItemForm.price), 
+      emoji: newItemForm.emoji || '',
+      allowedModifiers: [],
+      inventoryMode: newItemForm.inventoryMode || 'none',
+      linkedWarehouseId: newItemForm.linkedWarehouseId || '',
+      linkedRecipeId: newItemForm.linkedRecipeId || '' 
+    }; 
+      updatedMenu.categories[newItemForm.category].push(newDrink); 
+
+      saveMenuToCloud(updatedMenu); 
+      setNewItemForm({ ...newItemForm, 
+        name: "", 
+        price: "" ,
+        inventoryMode: 'none', 
+        linkedWarehouseId: '', 
+        linkedRecipeId: ''
+      }); 
+    };
+    
   const handleAddModifierGroup = () => { if (!newModGroupName.trim()) return; const groupKey = newModGroupName.toLowerCase().replace(/\s+/g, '_'); const updatedMenu = { ...menuData }; if (!updatedMenu.modifierGroups[groupKey]) { updatedMenu.modifierGroups[groupKey] = []; saveMenuToCloud(updatedMenu); } setNewModGroupName(""); };
 
   const handleAddModifierOption = () => {
@@ -809,7 +844,7 @@ function Admin() {
 
   if (!isAuthenticated) {
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
+      <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <h2 style={{ margin: 0, color: '#2c3e50' }}>Admin Login</h2>
@@ -850,7 +885,7 @@ function Admin() {
   
   if (isAuthenticated && !isAdminUnlocked) {
     return (
-      <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
+      <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
         <div className="fade-in" style={{ background: 'var(--bg-surface)', padding: '40px', borderRadius: '12px', width: '350px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', textAlign: 'center', border: pinError ? '2px solid #e74c3c' : '2px solid transparent' }}>
           <h2 style={{ margin: '0 0 10px 0' }}>Admin Locked</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Type your PIN or use the keypad.</p>
@@ -978,10 +1013,26 @@ function Admin() {
         )}
 
 
-          {/* 2. MENU EDITOR TAB */}
-        {activeTab === 'menu' && (
-          <MenuEditorTab menuData={menuData} newCategoryName={newCategoryName} setNewCategoryName={setNewCategoryName} handleAddCategory={handleAddCategory} newItemForm={newItemForm} setNewItemForm={setNewItemForm} handleAddDrink={handleAddDrink} handleDeleteCategory={handleDeleteCategory} handleDeleteDrink={handleDeleteDrink} setEditingDrink={setEditingDrink} saveMenuToCloud={saveMenuToCloud} />
-        )}
+          {/* Inside Admin.jsx */}
+          {activeTab === 'menu' && (
+            <MenuEditorTab 
+              menuData={menuData} 
+              newCategoryName={newCategoryName} 
+              setNewCategoryName={setNewCategoryName} 
+              handleAddCategory={handleAddCategory} 
+              newItemForm={newItemForm} 
+              setNewItemForm={setNewItemForm} 
+              handleAddDrink={handleAddDrink} 
+              handleDeleteCategory={handleDeleteCategory} 
+              handleDeleteDrink={handleDeleteDrink} 
+              setEditingDrink={setEditingDrink} 
+              saveMenuToCloud={saveMenuToCloud}
+              /* ADD THESE TWO LINES: */
+              recipes={recipes}
+              inventoryItems={inventoryItems}
+              showAlert={showAlert}
+            />
+          )}
 
         {/* 3. MODIFIER LIBRARY TAB */}
         {activeTab === 'modifiers' && (

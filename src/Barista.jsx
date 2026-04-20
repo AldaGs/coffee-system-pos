@@ -79,7 +79,7 @@ function Barista() {
   if (isLoading) return <div className="loader-container"><div className="spinner"></div></div>;
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#121212', minHeight: '100vh', color: 'white' }}>
+    <div style={{ padding: '20px', backgroundColor: '#121212', minHeight: '100dvh', color: 'white' }}>
       <h1 style={{ marginBottom: '20px', borderBottom: '2px solid #333', paddingBottom: '10px' }}>☕ Barista Queue</h1>
       
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>

@@ -1,7 +1,7 @@
 function BootScreen({ logo, posSettings }) {
   return (
     <div className="boot-screen" style={{ 
-      height: '100vh', 
+      height: '100dvh', 
       display: 'flex', 
       flexDirection: 'column', 
       justifyContent: 'center', 

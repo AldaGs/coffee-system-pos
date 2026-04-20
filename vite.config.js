@@ -9,6 +9,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      manifestFilename: 'manifest.webmanifest', // <-- ADD THIS LINE,
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
@@ -29,6 +30,12 @@ export default defineConfig({
             src: "icon-512.png",
             type: "image/png",
             sizes: "512x512"
+          },
+          {
+            src: 'icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable' // <-- THIS IS REQUIRED FOR THE INSTALL PROMPT
           }
         ]
       }
