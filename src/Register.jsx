@@ -12,6 +12,7 @@ import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
 import { processCheckout } from './services/checkoutService';
 import { attemptBackgroundSync } from './services/syncService'; 
+import { numeroALetras } from './utils/numeroALetras';
 
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
@@ -1076,9 +1077,15 @@ useEffect(() => {
       pushCommand(ESC_BOLD_ON);
       pushText(`TOTAL: $${total.toFixed(2)}\n`);
       pushCommand(ESC_BOLD_OFF);
+      
+      // ADD THIS NEW LINE TO THE PRINTER:
+      pushText(`${numeroALetras(total)}\n`);
+      
       pushText("--------------------------------\n");
       pushText(`${receiptSettings.footer}\n`);
       pushText("\n\n\n"); // Feed paper
+
+      
 
       // ==========================================
       // --- ROUTING: WHERE DOES THE BUFFER GO? ---
@@ -1137,7 +1144,7 @@ useEffect(() => {
     };
 
     // 1. Build Receipt Header & Subheader
-    let message = `☕ *${receiptSettings.header}*\n`;
+    let message = `*${receiptSettings.header}*\n`;
     if (receiptSettings.subheader) {
       message += `${receiptSettings.subheader}\n`;
     }
@@ -1148,7 +1155,7 @@ useEffect(() => {
 
     // 2. Build Items List
     activeTicket.items.forEach(item => {
-      message += `• ${item.name} - $${item.basePrice.toFixed(2)}\n`;
+      message += `${item.emoji} ${item.name} - $${item.basePrice.toFixed(2)}\n`;
       if (item.selectedModifiers && item.selectedModifiers.length > 0) {
         item.selectedModifiers.forEach(mod => {
           message += `  + ${mod.name} ($${mod.price.toFixed(2)})\n`;
@@ -1171,15 +1178,24 @@ useEffect(() => {
 
     // 4. Grand Total
     message += `*TOTAL: $${cartTotal.toFixed(2)}*\n`;
+    
+    // ADD THIS NEW LINE FOR WHATSAPP:
+    message += `_${numeroALetras(cartTotal)}_\n`;
 
-    // 5. Loyalty Status
+    // 5. Loyalty Status (Inside sendFinalMessage)
     if (loyaltyData) {
+      const targetItemLabel = (menuData?.loyaltySettings?.targetItem === 'any' || !menuData?.loyaltySettings?.targetItem) 
+        ? 'visits' 
+        : `${menuData.loyaltySettings.targetItem}s`;
+
       message += `\n🌟 *Loyalty Status*\n`;
-      message += `Visits: ${loyaltyData.visits} / ${loyaltyData.target}\n`;
+      message += `Total: ${loyaltyData.visits} / ${loyaltyData.target} ${targetItemLabel}\n`;
+      message += `(Earned today: +${loyaltyData.earnedToday})\n`;
+      
       if (loyaltyData.isRewardReady) {
         message += `🎉 REWARD READY: ${loyaltyData.reward}!\n`;
       } else {
-        message += `Next Reward: ${loyaltyData.target - (loyaltyData.visits % loyaltyData.target)} more visits!\n`;
+        message += `Next Reward: ${loyaltyData.target - (loyaltyData.visits % loyaltyData.target)} more ${targetItemLabel}!\n`;
       }
     }
 
@@ -1220,9 +1236,9 @@ useEffect(() => {
     sendFinalMessage(cleanPhone, null);
   };
 
-  // --- 3. THE LOYALTY CHECKOUT ---
+  // --- 3. THE LOYALTY CHECKOUT (UPGRADED ITEM TRACKER) ---
   const handleCheckLoyalty = async () => {
-    // FAIL-SAFE: Prevent checking if the program is paused or not explicitly activated
+    // FAIL-SAFE: Prevent checking if the program is paused
     const isLoyaltyActive = menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true";
     if (!isLoyaltyActive) {
       setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
@@ -1236,17 +1252,43 @@ useEffect(() => {
       return;
     }
 
-    const loyaltySettings = menuData?.loyaltySettings || { visitsRequired: 10, rewardDescription: "tu pr\u00F3xima bebida GRATIS" };
-    let currentVisits = 1;
+    const loyaltySettings = menuData?.loyaltySettings || { visitsRequired: 10, rewardDescription: "tu próxima bebida GRATIS", targetItem: "any" };
+    
+    // --- THE FIX: CALCULATE EARNED STARS BASED ON CART ITEMS & CAPS ---
+    let starsToEarn = 0;
+    const targetItem = loyaltySettings.targetItem || 'any';
+    const countMode = loyaltySettings.countMode || 'per_item'; // Default to accelerated
+
+    if (targetItem === 'any') {
+      starsToEarn = 1; // General Visit Rule is always 1 per ticket
+    } else {
+      // Specific Item Rule: Count how many times it appears in the active cart
+      activeTicket.items.forEach(item => {
+        if (item.name === targetItem) starsToEarn += 1;
+      });
+
+      // Apply the Admin's cap if "per_ticket" is selected
+      if (countMode === 'per_ticket' && starsToEarn > 0) {
+        starsToEarn = 1; 
+      }
+    }
+
+    // Stop if they aren't buying the required item!
+    if (starsToEarn === 0) {
+      setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
+      return showAlert("No Qualifying Items", `This order does not contain any "${targetItem}"s to earn loyalty stars.`);
+    }
+
+    let currentVisits = starsToEarn; // Default if new customer
 
     try {
       const { data: customer } = await supabase.from('customers').select('visits').eq('phone', cleanPhone).single();
-      if (customer) currentVisits = customer.visits + 1;
-
+      
       if (customer) {
+        currentVisits = customer.visits + starsToEarn;
         await supabase.from('customers').update({ visits: currentVisits }).eq('phone', cleanPhone);
       } else {
-        await supabase.from('customers').insert([{ phone: cleanPhone, visits: 1 }]);
+        await supabase.from('customers').insert([{ phone: cleanPhone, visits: starsToEarn }]);
       }
     } catch (err) {
       console.error("Loyalty error:", err);
@@ -1259,6 +1301,7 @@ useEffect(() => {
         visits: currentVisits,
         target: loyaltySettings.visitsRequired,
         reward: loyaltySettings.rewardDescription,
+        earnedToday: starsToEarn, // Pass this to the UI
         isRewardReady: currentVisits > 0 && (currentVisits % loyaltySettings.visitsRequired === 0)
       }
     }));
