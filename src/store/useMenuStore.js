@@ -11,6 +11,7 @@ export const useMenuStore = create((set, get) => ({
     const { menuData } = get();
     return menuData?.posSettings || {
       name: "Main Register",
+      language: "en",
       brandColor: "#2c3e50",
       isDarkMode: false,
       autoLockMinutes: 5,

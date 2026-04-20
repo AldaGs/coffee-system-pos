@@ -1,4 +1,10 @@
+import { useTranslation } from '../../hooks/useTranslation';
+
 function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogoUpload, handleSaveGeneralSettings }) {
+
+  const { t } = useTranslation();
+
+  
   return (
     <div>
       <h1 style={{ color: 'var(--text-main)' }}>General Settings</h1>
@@ -14,6 +20,19 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
             <input type="color" value={generalSettings.brandColor} onChange={(e) => setGeneralSettings({ ...generalSettings, brandColor: e.target.value })} style={{ width: '60px', height: '50px', border: 'none', cursor: 'pointer', padding: 0, borderRadius: '8px', overflow: 'hidden' }} />
             <span style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '1.1rem' }}>{generalSettings.brandColor.toUpperCase()}</span>
           </div>
+
+          {/* --- NEW LANGUAGE TOGGLE --- */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('settings.language')}</label>
+          <select 
+            value={generalSettings.language || 'en'} 
+            onChange={(e) => setGeneralSettings({ ...generalSettings, language: e.target.value })}
+            style={{ padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1.1rem' }}
+          >
+            <option value="en">English (US)</option>
+            <option value="es">Español (MX)</option>
+          </select>
+        </div>
 
           {/* --- NEW BRANDING SECTION --- */}
           <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>App Branding</h3>

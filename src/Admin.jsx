@@ -19,6 +19,7 @@ import InventoryTab from './components/admin/InventoryTab.jsx';
 import { useDialog } from './contexts/DialogContext';
 import { useTheme } from './contexts/ThemeContext';
 import { useMenuStore } from './store/useMenuStore';
+import { useTranslation } from './hooks/useTranslation';
 
 
 function Admin() {
@@ -29,6 +30,8 @@ function Admin() {
 
   // --- ZUSTAND GLOBAL STORE ---
   const { menuData, setMenuData, recipes, setRecipes } = useMenuStore();
+
+  const { t } = useTranslation();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -912,17 +915,17 @@ function Admin() {
           <button className="desktop-hidden" onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
         </div>
         <nav style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1 }}>
-          <button onClick={() => switchTab('analytics')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'analytics' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>📊 Analytics</button>
-          <button onClick={() => switchTab('orders')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'orders' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>📜 Receipt History</button>
-          <button onClick={() => switchTab('menu')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'menu' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🍴 Menu Editor</button>
-          <button onClick={() => switchTab('modifiers')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'modifiers' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🛠️ Modifier Library</button>
-          <button onClick={() => switchTab('receipt')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'receipt' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>📄 Receipt Settings</button>
-          <button onClick={() => switchTab('calculator')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'calculator' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🧮 Recipe Builder</button>
-          <button onClick={() => switchTab('inventory')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'inventory' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>📦 Inventory</button>
-          <button onClick={() => switchTab('loyalty')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'loyalty' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🎁 Loyalty Program</button>
-          <button onClick={() => switchTab('discounts')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'discounts' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>🏷️ Auto Discounts</button>
-          <button onClick={() => switchTab('team')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'team' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>👥 Team & PINs</button>
-          <button onClick={() => switchTab('settings')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'settings' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>⚙️ General Settings</button>
+          <button onClick={() => switchTab('analytics')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'analytics' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.analytics')}</button>
+          <button onClick={() => switchTab('orders')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'orders' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.orders')}</button>
+          <button onClick={() => switchTab('menu')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'menu' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.menu')}</button>
+          <button onClick={() => switchTab('modifiers')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'modifiers' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.modifiers')}</button>
+          <button onClick={() => switchTab('receipt')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'receipt' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.receipt')}</button>
+          <button onClick={() => switchTab('calculator')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'calculator' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.recipe')}</button>
+          <button onClick={() => switchTab('inventory')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'inventory' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.inventory')}</button>
+          <button onClick={() => switchTab('loyalty')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'loyalty' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.loyalty')}</button>
+          <button onClick={() => switchTab('discounts')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'discounts' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.promotions')}</button>
+          <button onClick={() => switchTab('team')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'team' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.team')}s</button>
+          <button onClick={() => switchTab('settings')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'settings' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.settings')}</button>
         </nav>
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#ccc', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Sign Out</button>

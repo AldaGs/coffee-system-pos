@@ -1,23 +1,21 @@
 import { useMemo } from 'react';
+import { useTranslation } from '../../hooks/useTranslation';
 
 function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems }) {
-  
+  const { t } = useTranslation();
+
   // --- 1. ALPHABETICAL INVENTORY SORTING ---
-  // Ensure the warehouse dropdown is always perfectly A-Z
   const sortedInventory = useMemo(() => {
     if (!inventoryItems) return [];
     return [...inventoryItems].sort((a, b) => a.name.localeCompare(b.name));
   }, [inventoryItems]);
 
-  // --- 2. GLOBAL DYNAMIC MATH ENGINE (UPGRADED FOR MANUAL ITEMS) ---
+  // --- 2. GLOBAL DYNAMIC MATH ENGINE ---
   const calculateLiveCost = (ingredients) => {
     return (ingredients || []).reduce((sum, ing) => {
-      // If it's a theoretical custom ingredient, use the manual cost
       if (ing.isManual) {
         return sum + (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0));
-      } 
-      // If it's a warehouse ingredient, pull the live unit_cost
-      else {
+      } else {
         const matchedItem = inventoryItems?.find(inv => inv.name === ing.name);
         const unitCost = matchedItem?.unit_cost || 0;
         return sum + (parseFloat(ing.qty || 0) * unitCost);
@@ -25,22 +23,12 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
     }, 0);
   };
 
-// --- UPDATED: Bulletproof Link Checker ---
   let linkedMenuItemName = null;
-  
   if (activeRecipe && menuData && menuData.categories) {
-    // 1. Convert the categories object into an array so we can loop through it
     const categoryList = Object.values(menuData.categories);
-
     for (const category of categoryList) {
-      // 2. Safely grab the items (handling cases where category is the array itself or has an .items property)
       const itemsArray = Array.isArray(category) ? category : (Array.isArray(category?.items) ? category.items : []);
-      
-      // 3. Force strings to guarantee a match
-      const foundItem = itemsArray.find(item => 
-        String(item?.linkedRecipeId) === String(activeRecipe.id)
-      );
-      
+      const foundItem = itemsArray.find(item => String(item?.linkedRecipeId) === String(activeRecipe.id));
       if (foundItem) {
         linkedMenuItemName = foundItem.name;
         break;
@@ -52,13 +40,13 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
     <div className="admin-section fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)' }}>Recipe & Profit Sandbox</h1>
-          <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0' }}>Engineer menus, test theoretical ingredients, and calculate live profit margins.</p>
+          <h1 style={{ margin: 0, color: 'var(--text-main)' }}>{t('recipe.title')}</h1>
+          <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0' }}>{t('recipe.subtitle')}</p>
         </div>
         <button
           onClick={handleCreateDraftRecipe}
           style={{ padding: '10px 20px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-          + Create New Recipe
+          {t('recipe.btnNew')}
         </button>
       </div>
 
@@ -66,18 +54,17 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
         {/* LEFT: SAVED RECIPES LIST */}
         <div style={{ flex: '0 0 300px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '70vh', overflowY: 'auto' }}>
-          <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Saved Recipes</h3>
+          <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>{t('recipe.savedTitle')}</h3>
 
           {recipes.length === 0 && !activeRecipe && (
-            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>No recipes saved yet.</p>
+            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center' }}>{t('recipe.noRecipes')}</p>
           )}
 
-          {/* Show draft if it exists */}
           {activeRecipe && activeRecipe.isDraft && (
             <button
               style={{ padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontWeight: 'bold' }}
             >
-              📝 {activeRecipe.name || "Draft"}
+              📝 {activeRecipe.name || t('recipe.draft')}
             </button>
           )}
 
@@ -103,10 +90,10 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
                 <div style={{ flex: 2, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Recipe Name</label>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('recipe.labelName')}</label>
                   <input
                     type="text"
-                    placeholder="e.g. Mocha 16oz"
+                    placeholder={t('recipe.placeholderName')}
                     value={activeRecipe.name}
                     onChange={(e) => setActiveRecipe({ ...activeRecipe, name: e.target.value })}
                     style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1.2rem', background: 'var(--bg-main)', color: 'var(--text-main)' }}
@@ -114,24 +101,21 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                 </div>
 
                 <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {/* Replace the old dropdown with this Read-Only Badge */}
-                  <div style={{ flex: 1, minWidth: '250px' }}>
-                    <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>
-                      Menu Link Status
-                    </label>
-                    {linkedMenuItemName ? (
-                      <div style={{ padding: '12px', background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', borderRadius: '6px', border: '1px solid rgba(52, 152, 219, 0.3)', fontWeight: 'bold' }}>
-                        🔗 Linked to Menu Item: {linkedMenuItemName}
-                      </div>
-                    ) : (
-                      <div style={{ padding: '12px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', borderRadius: '6px', border: '1px dashed rgba(231, 76, 60, 0.4)' }}>
-                        ⚠️ Not linked to any POS item yet
-                      </div>
-                    )}
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px', margin: '6px 0 0 0' }}>
-                      (Manage links in the Menu Editor tab)
-                    </p>
-                  </div>
+                  <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>
+                    {t('recipe.linkStatus')}
+                  </label>
+                  {linkedMenuItemName ? (
+                    <div style={{ padding: '12px', background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', borderRadius: '6px', border: '1px solid rgba(52, 152, 219, 0.3)', fontWeight: 'bold' }}>
+                      {t('recipe.linkedTo')} {linkedMenuItemName}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '12px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', borderRadius: '6px', border: '1px dashed rgba(231, 76, 60, 0.4)' }}>
+                      {t('recipe.notLinked')}
+                    </div>
+                  )}
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                    {t('recipe.manageLinks')}
+                  </p>
                 </div>
               </div>
             </div>
@@ -139,15 +123,15 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             {/* INGREDIENTS LIST */}
             <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
-                <h3 style={{ margin: 0, color: 'var(--text-main)' }}>Ingredients Breakdown (COGS)</h3>
+                <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{t('recipe.cogsTitle')}</h3>
                 <button onClick={handleAddIngredient} style={{ padding: '8px 16px', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', border: '1px solid #3498db', borderRadius: '20px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  + Add Row
+                  {t('recipe.btnAddRow')}
                 </button>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {(!activeRecipe.ingredients || activeRecipe.ingredients.length === 0) && (
-                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', margin: '20px 0' }}>Add your first ingredient to start calculating COGS.</p>
+                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', textAlign: 'center', margin: '20px 0' }}>{t('recipe.emptyIngredients')}</p>
                 )}
 
                 {activeRecipe.ingredients.map(ing => {
@@ -156,21 +140,17 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
                   return (
                     <div key={ing.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center', flexWrap: 'wrap', background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'transparent', padding: isManual ? '8px' : '0', borderRadius: '8px' }}>
-                      
-                      {/* 1. SOURCE TOGGLE (WAREHOUSE VS CUSTOM) */}
                       <button 
                         onClick={() => handleUpdateIngredient(ing.id, 'isManual', !isManual)}
                         style={{ padding: '10px', background: isManual ? '#9b59b6' : '#f39c12', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem', width: '110px' }}
-                        title="Toggle between Live Warehouse Item and Custom Theoretical Item"
                       >
-                        {isManual ? '✏️ Custom' : '📦 Live Inv.'}
+                        {isManual ? t('recipe.btnCustom') : t('recipe.btnLive')}
                       </button>
 
-                      {/* 2. NAME (DROPDOWN OR TEXT INPUT) */}
                       {isManual ? (
                         <input
                           type="text"
-                          placeholder="Theoretical Ingredient..."
+                          placeholder={t('recipe.placeholderTheoretical')}
                           value={ing.name || ''}
                           onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
                           style={{ flex: 2, minWidth: '150px', padding: '10px', borderRadius: '6px', border: '1px solid #9b59b6', background: 'var(--bg-main)', color: 'var(--text-main)' }}
@@ -181,20 +161,17 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                           onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
                           style={{ flex: 2, minWidth: '150px', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
                         >
-                          <option value="">-- Select from Warehouse --</option>
+                          <option value="">{t('recipe.selectWarehouse')}</option>
                           {sortedInventory.map(invItem => (
-                            <option key={invItem.id} value={invItem.name}>
-                              {invItem.name}
-                            </option>
+                            <option key={invItem.id} value={invItem.name}>{invItem.name}</option>
                           ))}
                         </select>
                       )}
 
-                      {/* 3. EXACT QUANTITY NEEDED */}
                       <div style={{ flex: 1, minWidth: '100px', display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: `1px solid ${isManual ? '#9b59b6' : 'var(--border)'}`, borderRadius: '6px', paddingRight: '10px' }}>
                         <input
                           type="number"
-                          placeholder="Qty"
+                          placeholder={t('recipe.qty')}
                           value={ing.qty || ''}
                           onChange={(e) => handleUpdateIngredient(ing.id, 'qty', e.target.value)}
                           style={{ width: '100%', padding: '10px', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none' }}
@@ -202,7 +179,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         {isManual ? (
                           <input 
                             type="text" 
-                            placeholder="Unit (g, ml)" 
+                            placeholder={t('recipe.unitPlaceholder')}
                             value={ing.manualUnit || ''} 
                             onChange={(e) => handleUpdateIngredient(ing.id, 'manualUnit', e.target.value)}
                             style={{ width: '60px', padding: '4px', fontSize: '0.8rem', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
@@ -214,10 +191,9 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         )}
                       </div>
 
-                      {/* 4. MANUAL COST INPUT (ONLY IF MANUAL) */}
                       {isManual && (
                         <div style={{ flex: 1, minWidth: '100px', display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '1px solid #9b59b6', borderRadius: '6px', paddingLeft: '10px' }}>
-                          <span style={{ color: '#9b59b6', fontSize: '0.9rem', fontWeight: 'bold' }}>$/Unit</span>
+                          <span style={{ color: '#9b59b6', fontSize: '0.9rem', fontWeight: 'bold' }}>{t('recipe.costPerUnit')}</span>
                           <input
                             type="number"
                             step="0.01"
@@ -229,7 +205,6 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         </div>
                       )}
 
-                      {/* 5. LIVE AUTO-CALCULATED COST (LOCKED) */}
                       <div style={{ flex: 1, minWidth: '80px', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', fontWeight: 'bold' }}>
                         <span style={{ marginRight: '4px' }}>$</span>
                         {isManual 
@@ -238,7 +213,6 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         }
                       </div>
 
-                      {/* DELETE BUTTON */}
                       <button onClick={() => handleDeleteIngredient(ing.id)} style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>✕</button>
                     </div>
                   );
@@ -248,11 +222,9 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
             {/* PROFIT ENGINE */}
             <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-
-              {/* LEFT OUTPUT */}
               <div style={{ flex: 1, minWidth: '250px', background: 'var(--bg-surface)', padding: '32px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', borderTop: '4px solid #2980b9' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
-                  <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Target Food Cost %</label>
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('recipe.targetFoodCost')}</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <input
                       type="range" min="10" max="60"
@@ -268,57 +240,51 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                   const liveTotalCost = calculateLiveCost(activeRecipe.ingredients);
                   const recommendedPrice = liveTotalCost > 0 ? liveTotalCost / ((activeRecipe.target_margin || 25) / 100) : 0;
                   const expectedProfit = recommendedPrice - liveTotalCost;
-                  
                   return (
                     <div style={{ textAlign: 'center' }}>
-                      <p style={{ color: 'var(--text-muted)', margin: '0 0 5px 0', textTransform: 'uppercase', fontSize: '0.8rem' }}>Total Ingredients COGS</p>
+                      <p style={{ color: 'var(--text-muted)', margin: '0 0 5px 0', textTransform: 'uppercase', fontSize: '0.8rem' }}>{t('recipe.totalCogs')}</p>
                       <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '16px' }}>${liveTotalCost.toFixed(2)}</div>
-
                       <div style={{ padding: '16px', background: 'rgba(46, 204, 113, 0.1)', borderRadius: '8px', border: '1px solid #27ae60' }}>
-                        <p style={{ color: '#27ae60', margin: '0 0 5px 0', fontWeight: 'bold' }}>Recommended Selling Price</p>
+                        <p style={{ color: '#27ae60', margin: '0 0 5px 0', fontWeight: 'bold' }}>{t('recipe.recPrice')}</p>
                         <div style={{ fontSize: '2.5rem', fontWeight: 'bold', color: '#27ae60' }}>${recommendedPrice.toFixed(2)}</div>
-                        <small style={{ color: '#27ae60' }}>Est. Profit: ${expectedProfit.toFixed(2)}</small>
+                        <small style={{ color: '#27ae60' }}>{t('recipe.estProfit')} ${expectedProfit.toFixed(2)}</small>
                       </div>
                     </div>
                   );
                 })()}
               </div>
 
-              {/* RIGHT: WHAT-IF NAPKIN MATH */}
+              {/* WHAT-IF NAPKIN MATH */}
               <div style={{ flex: 1, minWidth: '250px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                <h3 style={{ marginTop: 0, color: 'var(--text-main)' }}>"What-If" Analysis</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>Test a hypothetical menu price to see your margins.</p>
-
+                <h3 style={{ marginTop: 0, color: 'var(--text-main)' }}>{t('recipe.whatIfTitle')}</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>{t('recipe.whatIfSubtitle')}</p>
                 <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0 12px', marginBottom: '24px' }}>
                   <span style={{ fontSize: '1.2rem', color: 'var(--text-muted)' }}>$</span>
                   <input
-                    type="number" step="0.01" placeholder="My Custom Price..."
+                    type="number" step="0.01" placeholder={t('recipe.customPricePlaceholder')}
                     value={activeRecipe.custom_price || ""}
                     onChange={(e) => setActiveRecipe({ ...activeRecipe, custom_price: e.target.value })}
                     style={{ flex: 1, padding: '12px', border: 'none', background: 'transparent', fontSize: '1.2rem', color: 'var(--text-main)', outline: 'none' }}
                   />
                 </div>
-
                 {activeRecipe.custom_price && parseFloat(activeRecipe.custom_price) > 0 ? (() => {
                   const liveTotalCost = calculateLiveCost(activeRecipe.ingredients);
                   const customPrice = parseFloat(activeRecipe.custom_price);
-                  
                   const netProfit = customPrice - liveTotalCost;
                   const foodCostPercentage = liveTotalCost > 0 ? ((liveTotalCost / customPrice) * 100).toFixed(1) : 0;
                   const grossMarginPercentage = netProfit > 0 ? ((netProfit / customPrice) * 100).toFixed(1) : 0;
-
                   return (
                     <div style={{ background: netProfit >= 0 ? 'rgba(26, 188, 156, 0.1)' : 'rgba(231, 76, 60, 0.1)', padding: '16px', borderRadius: '8px', border: `1px solid ${netProfit >= 0 ? '#1abc9c' : '#e74c3c'}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', borderBottom: `1px dashed ${netProfit >= 0 ? '#1abc9c' : '#e74c3c'}`, paddingBottom: '8px' }}>
-                        <span style={{ color: 'var(--text-main)' }}>Net Profit per cup:</span>
+                        <span style={{ color: 'var(--text-main)' }}>{t('recipe.netProfitCup')}</span>
                         <span style={{ fontWeight: 'bold', fontSize: '1.2rem', color: netProfit >= 0 ? '#1abc9c' : '#e74c3c' }}>${netProfit.toFixed(2)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ color: 'var(--text-main)', fontSize: '0.9rem' }}>Gross Margin:</span>
+                        <span style={{ color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('recipe.grossMargin')}</span>
                         <span style={{ fontWeight: 'bold', color: 'var(--brand-color)', fontSize: '0.9rem' }}>{grossMarginPercentage}%</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Food Cost:</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t('recipe.foodCost')}</span>
                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{foodCostPercentage}%</span>
                       </div>
                     </div>
@@ -327,26 +293,24 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
               </div>
             </div>
 
-            {/* MASTER ACTIONS */}
             <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end', marginTop: '16px' }}>
               {!activeRecipe.isDraft && (
                 <button onClick={() => handleDeleteRecipe(activeRecipe.id)} style={{ padding: '16px 24px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: '2px solid #e74c3c', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  Delete Recipe
+                  {t('recipe.btnDelete')}
                 </button>
               )}
               <button onClick={handleSaveRecipeToCloud} style={{ padding: '16px 40px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem' }}>
-                💾 Save Recipe
+                {t('recipe.btnSave')}
               </button>
             </div>
           </div>
         ) : (
           <div style={{ flex: 1, minWidth: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-surface)', borderRadius: '12px', minHeight: '400px', border: '2px dashed var(--border)' }}>
             <p style={{ color: 'var(--text-muted)', fontSize: '1.2rem', textAlign: 'center' }}>
-              Select a recipe from the list<br />or create a new one to begin.
+              {t('recipe.selectPrompt')}
             </p>
           </div>
         )}
-
       </div>
     </div>
   );
