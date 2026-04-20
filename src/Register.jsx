@@ -11,6 +11,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
 import { processCheckout } from './services/checkoutService';
+import { attemptBackgroundSync } from './services/syncService'; 
 
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
@@ -247,61 +248,22 @@ function Register() {
     localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue));
   }, [expenseQueue, waQueue]);
 
-  // --- UNIFIED BACKGROUND CLOUD SYNC ---
+// --- UNIFIED BACKGROUND CLOUD SYNC ---
   useEffect(() => {
-    const attemptSync = async () => {
-      // Don't try if we are offline
-      if (!navigator.onLine) return;
+    // Wrap our service in a function so we can pass the React State modifiers
+    const runSync = () => attemptBackgroundSync(expenseQueue, () => setExpenseQueue([]));
 
-      try {
-        // 1. Sync Sales
-        if (syncQueue.length > 0) {
-          // THE FIX: Strip the local Dexie ID from the sales
-          const cleanSales = syncQueue.map(({ id, ...rest }) => rest);
-          
-          const { error: salesErr } = await supabase.from('sales').insert(cleanSales);
-          if (!salesErr) {
-            await db.syncQueue.clear();
-          } else {
-            console.error("Sales sync failed:", salesErr);
-          }
-        }
-        
-        // 2. Sync Expenses
-        if (expenseQueue.length > 0) {
-          // THE FIX: Strip the local ID from expenses just in case
-          const cleanExpenses = expenseQueue.map(({ id, ...rest }) => rest);
-          
-          const { error: expErr } = await supabase.from('expenses').insert(cleanExpenses);
-          if (!expErr) setExpenseQueue([]);
-        }
-
-        // 3. Sync Inventory Logs
-        const pendingInventory = await db.inventory_logs.toArray();
-        if (pendingInventory.length > 0) {
-          // THE FIX: Strip the local Dexie ID from the inventory logs
-          const cleanLogs = pendingInventory.map(({ id, ...rest }) => rest);
-          
-          const { error: invErr } = await supabase.from('inventory_logs').insert(cleanLogs);
-          if (!invErr) {
-            await db.inventory_logs.clear();
-          } else {
-            console.error("Inventory sync failed:", invErr);
-          }
-        }
-      } catch (err) {
-        console.error("Background sync failed:", err);
-      }
-    };
-
-    window.addEventListener('online', attemptSync);
-    const syncInterval = setInterval(attemptSync, 60000); // Try every 60s
+    // Listen for the internet coming back online
+    window.addEventListener('online', runSync);
+    
+    // And try automatically every 60 seconds
+    const syncInterval = setInterval(runSync, 60000); 
 
     return () => {
-      window.removeEventListener('online', attemptSync);
+      window.removeEventListener('online', runSync);
       clearInterval(syncInterval);
     };
-  }, [syncQueue, expenseQueue]);
+  }, [expenseQueue]);
 
   // --- CORTE DE CAJA (END OF SHIFT) STATES ---
   const [lastCorteTimestamp, setLastCorteTimestamp] = useState(() => {
