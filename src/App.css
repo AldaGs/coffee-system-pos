@@ -456,7 +456,7 @@
 
 /* By default, variables are set in :root (Light Mode) */
 :root {
-  --brand-color: #6905F2;
+  --brand-color: var(--brand-color);
   --bg-main: #f4f6f8;
   --bg-surface: #ffffff;
   --text-main: #111827;

@@ -49,7 +49,6 @@ function Admin() {
     price: '', 
     emoji: '☕' ,
     allowedModifiers: [],
-    color: "#3498db",
     item_type: "none",
 
     groupKey: "",
@@ -80,7 +79,7 @@ function Admin() {
   // --- NEW: GENERAL SETTINGS STATE ---
   const [generalSettings, setGeneralSettings] = useState({
     name: "Main Register",
-    brandColor: "#2c3e50",
+    brandColor: 'var(--brand-color)',
     isDarkMode: false,
     autoLockMinutes: 5,
     orderResetPolicy: "daily",
@@ -394,7 +393,7 @@ function Admin() {
   // --- CASHIER MANAGEMENT (NOW CLOUD SYNCED) ---
   const cashiers = menuData?.cashiers || [
     { id: 1, name: 'Admin', pin: '1234', isAdmin: true },
-    { id: 2, name: 'Barista 1', pin: '0000' , isAdmin: false}
+    { id: 2, name: 'Barista 1', pin: '0000'}
   ];
 
   const [newCashier, setNewCashier] = useState({ name: '', pin: '', isAdmin: false });
@@ -786,7 +785,7 @@ function Admin() {
       <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ margin: 0, color: '#2c3e50' }}>{t('admin.loginTitle')}</h2>
+            <h2 style={{ margin: 0, color: 'var(--bg-app)' }}>{t('admin.loginTitle')}</h2>
             <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}>✕</button>
           </div>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

@@ -12,10 +12,9 @@ export const useMenuStore = create((set, get) => ({
     return menuData?.posSettings || {
       name: "Main Register",
       language: "en",
-      brandColor: "#2c3e50",
+      brandColor: "var(--brand-color)",
       isDarkMode: false,
       autoLockMinutes: 5,
-      pinCode: "1234",
       enableCorte: true,
       ticketVisibility: "open"
     };
