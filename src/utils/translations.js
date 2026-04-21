@@ -64,6 +64,11 @@ export const translations = {
     "settings.title": "General Settings",
     "settings.language": "System Language",
     "settings.save": "💾 Save Settings",
+    "settings.resetTitle": "Reset Order Number",
+    "settings.resetConfirm": "Are you sure? This will force the next ticket to be Order #1.",
+    "settings.resetSuccess": "Success",
+    "settings.resetSuccessDesc": "Done! The next ticket will be #1.",
+    "settings.btnReset": "Force Reset to #1 Now",
 
     // --- Loyalty Tab ---
     "loyalty.title": "Loyalty Program",
@@ -595,6 +600,11 @@ export const translations = {
     "common.save": "Guardar",
     "common.cancel": "Cancelar",
     "common.delete": "Eliminar",
+    "settings.resetTitle": "Reiniciar Número de Orden",
+    "settings.resetConfirm": "¿Estás seguro? Esto forzará que el siguiente ticket sea el Orden #1.",
+    "settings.resetSuccess": "Éxito",
+    "settings.resetSuccessDesc": "¡Listo! El siguiente ticket será el #1.",
+    "settings.btnReset": "Forzar Reinicio a #1 Ahora",
     
     // --- Register UI ---
     "register.noActiveOrders": "Sin Órdenes Activas",

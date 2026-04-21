@@ -1,9 +1,11 @@
 import { useTranslation } from '../../hooks/useTranslation';
+import { useDialog } from '../../contexts/DialogContext';
+
 
 function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogoUpload, handleSaveGeneralSettings }) {
 
   const { t } = useTranslation();
-
+  const { showAlert, showConfirm } = useDialog();
   
   return (
     <div>
@@ -112,14 +114,27 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
           <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Manual Override</label>
           <button
             onClick={() => {
-              if (window.confirm("Are you sure? This will force the next ticket to be Order #1.")) {
-                localStorage.setItem('tinypos_nextOrderNum', 1);
-                window.confirm("Done! The next ticket will be #1.");
-              }
+              showConfirm(
+                t('settings.resetTitle'), 
+                t('settings.resetConfirm'), 
+                () => {
+                  localStorage.setItem('tinypos_nextOrderNum', 1);
+                  showAlert(t('settings.resetSuccess'), t('settings.resetSuccessDesc'));
+                }
+              );
             }}
-            style={{ padding: '12px', background: 'transparent', color: '#e74c3c', border: '2px solid #e74c3c', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', width: 'fit-content' }}
+            style={{ 
+              padding: '12px', 
+              background: 'transparent', 
+              color: '#e74c3c', 
+              border: '2px solid #e74c3c', 
+              borderRadius: '6px', 
+              cursor: 'pointer', 
+              fontWeight: 'bold', 
+              width: 'fit-content' 
+            }}
           >
-            Force Reset to #1 Now
+            {t('settings.btnReset')}
           </button>
         </div>
 

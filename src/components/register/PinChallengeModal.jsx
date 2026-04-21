@@ -13,8 +13,10 @@ function PinChallengeModal({ pinChallenge, setPinChallenge, challengePinAttempt,
       } else if (e.key === 'Backspace') {
         setChallengePinAttempt(prev => prev.slice(0, -1));
       } else if (e.key === 'Enter') {
+        e.preventDefault(); // 🛑 Kills the "Ghost Click" on background buttons
         if (challengePinAttempt.length === 4) handleChallengeSubmit();
       } else if (e.key === 'Escape') {
+        e.preventDefault(); // 🛑 Prevents background actions
         setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
         setChallengePinAttempt('');
       }
@@ -22,7 +24,7 @@ function PinChallengeModal({ pinChallenge, setPinChallenge, challengePinAttempt,
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pinChallenge.isOpen, challengePinAttempt]);
+  }, [pinChallenge.isOpen, challengePinAttempt, handleChallengeSubmit]);
 
   if (!pinChallenge.isOpen) return null;
 

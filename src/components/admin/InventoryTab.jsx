@@ -17,7 +17,6 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
-  // --- 1. RECEIVE NEW STOCK & LOG PURCHASE ---
   const handleAddItem = async () => {
     if (!newItem.name || newItem.current_stock === '' || newItem.total_cost === '') {
       return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc1'));
@@ -35,19 +34,21 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     };
 
     try {
+      // 1. Save to Inventory Table
       const { data, error } = await supabase.from('inventory').insert([itemToSave]).select();
       if (error) throw error;
 
+      // 2. FIXED: Save to Expenses Table using the correct column names
       const purchaseExpense = {
         amount: costVal,
-        category: 'Inventory Purchase',
-        description: `Restock: ${stockVal}${newItem.unit} of ${newItem.name}`,
-        timestamp: new Date().toISOString()
+        reason: `Inventory Purchase: ${newItem.name} (${stockVal}${newItem.unit})`, // Standardized to 'reason'
+        cashier_name: 'Inventory System' // Standardized to match Register schema
       };
 
       const { error: expenseError } = await supabase.from('expenses').insert([purchaseExpense]);
       if (expenseError) console.error("Failed to log purchase expense:", expenseError);
       
+      // 3. Update local states
       await db.inventory.put(data[0]);
       setInventoryItems([...inventoryItems, data[0]]);
       setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '' });

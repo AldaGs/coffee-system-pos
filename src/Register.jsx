@@ -138,6 +138,9 @@ function Register() {
         { event: '*', schema: 'public', table: 'active_tickets' },
         async (payload) => {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            if (payload.new.last_modified_by === myDeviceId) {
+              return;
+            }
             await db.active_tickets.put(payload.new);
           }
           else if (payload.eventType === 'DELETE') {
@@ -480,7 +483,7 @@ useEffect(() => {
   if (!isLocked && activeCashier && tickets.length > 0) {
      
      // Find all tickets belonging to this specific cashier
-     const myTickets = tickets.filter(t => t.cashierId === activeCashier.id);
+     const myTickets = tickets.filter(t => t.cashier_id === activeCashier.id);
      
      if (myTickets.length > 0) {
         // Sort them to find the newest one (highest ID)
@@ -740,7 +743,8 @@ useEffect(() => {
       id: newId,
       name: `${prefix} - #${currentNum}`,
       items: [],
-      cashierId: activeCashier?.id
+      cashier_id: activeCashier?.id,
+      last_modified_by: myDeviceId
     };
 
     // 1. Save locally
@@ -809,7 +813,11 @@ useEffect(() => {
       return;
     }
 
-    const newItem = { ...item, uniqueId: Date.now() + Math.random(), selectedModifiers: modifiers };
+    const newItem = { 
+      ...item, 
+      uniqueId: Date.now() + Math.random(), 
+      selectedModifiers: modifiers 
+    };
     const updatedItems = [...activeTicket.items, newItem];
 
     // 1. Update locally
@@ -817,7 +825,12 @@ useEffect(() => {
 
     // 2. NEW: Update cloud instantly
     if (navigator.onLine) {
-      supabase.from('active_tickets').update({ items: updatedItems }).eq('id', activeTicket.id).then();
+      supabase.from('active_tickets').update({ 
+        items: updatedItems,
+        last_modified_by: myDeviceId 
+      })
+      .eq('id', activeTicket.id)
+      .then();
     }
 
     setIsModalOpen(false);
@@ -834,7 +847,13 @@ useEffect(() => {
 
     // 2. NEW: Update cloud instantly
     if (navigator.onLine) {
-      supabase.from('active_tickets').update({ items: updatedItems }).eq('id', activeTicket.id).then();
+      supabase.from('active_tickets')
+        .update({ 
+          items: updatedItems, 
+          last_modified_by: myDeviceId // Mark this update as yours
+        })
+        .eq('id', activeTicket.id)
+        .then();
     }
   };
 
@@ -860,7 +879,7 @@ useEffect(() => {
 
     // Try to find another ticket that belongs to this cashier
     if (remainingTickets.length > 0) {
-      const nextVisible = remainingTickets.find(t => posSettings.ticketVisibility === 'open' || t.cashierId === activeCashier?.id);
+      const nextVisible = remainingTickets.find(t => posSettings.ticketVisibility === 'open' || t.cashier_id === activeCashier?.id);
       if (nextVisible) {
         setActiveTicketId(nextVisible.id);
       } else {
@@ -1174,6 +1193,8 @@ useEffect(() => {
       message += `IVA (${taxRate}%): $${extractedTax.toFixed(2)}\n`;
     }
 
+    message += `--------------------------\n`;
+
     // 4. Grand Total
     message += `*TOTAL: $${cartTotal.toFixed(2)}*\n`;
     
@@ -1182,6 +1203,8 @@ useEffect(() => {
 
     // 5. Loyalty Status (Inside sendFinalMessage)
     if (loyaltyData) {
+
+      message += `--------------------------\n`;
       const targetItemLabel = (menuData?.loyaltySettings?.targetItem === 'any' || !menuData?.loyaltySettings?.targetItem) 
         ? 'visits' 
         : `${menuData.loyaltySettings.targetItem}s`;
@@ -1196,6 +1219,8 @@ useEffect(() => {
         message += `${t('wa.nextReward')} ${loyaltyData.target - (loyaltyData.visits % loyaltyData.target)} ${t('wa.more')}!\n`;
       }
     }
+
+    message += `--------------------------\n`;
 
     // 6. Custom Footer
     message += `\n${receiptSettings.footer}`;
@@ -1437,7 +1462,7 @@ useEffect(() => {
   // --- TICKET FILTERING ENGINE ---
   // If isolated, only show tickets that belong to the logged-in cashier
   const visibleTickets = posSettings.ticketVisibility === 'isolated'
-    ? tickets.filter(t => t.cashierId === activeCashier?.id)
+    ? tickets.filter(t => t.cashier_id === activeCashier?.id)
     : tickets;
 
   // Grab the active ticket from the VISIBLE list, not the master list

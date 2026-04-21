@@ -62,12 +62,10 @@ function Admin() {
   const [editingDrink, setEditingDrink] = useState(null);
   const [timeFilter, setTimeFilter] = useState('all');
   const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
-
-  // 1. Fetch Expenses (Gastos)
-  const [expenses] = useState(() => {
-    const saved = localStorage.getItem('tinypos_expenses');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [expenses, setExpenses] = useState(() => {
+  const saved = localStorage.getItem('tinypos_expenses');
+  return saved ? JSON.parse(saved) : [];
+});
 
   // --- NEW: RECEIPT STATE ---
   const [receiptForm, setReceiptForm] = useState({
@@ -164,73 +162,64 @@ function Admin() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated) { setIsLoading(false); return; }
-    setIsLoading(true);
+  if (!isAuthenticated) { setIsLoading(false); return; }
+  setIsLoading(true);
 
-    const fetchData = async () => {
-      try {
-        const { data: menuSettings, error: menuError } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
-        if (menuError) throw menuError;
-        setMenuData(menuSettings.menu_data);
-        const firstCategory = Object.keys(menuSettings.menu_data.categories)[0];
-        if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
+  const fetchData = async () => {
+    try {
+      // 1. Fetch Menu Data
+      const { data: menuSettings, error: menuError } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
+      if (menuError) throw menuError;
+      setMenuData(menuSettings.menu_data);
+      
+      const firstCategory = Object.keys(menuSettings.menu_data.categories)[0];
+      if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
 
-        // Check if there are existing receipt settings in the cloud and load them!
-        if (menuSettings.menu_data.receiptSettings) {
-          setReceiptForm(menuSettings.menu_data.receiptSettings);
-        }
-
-        // Load General Settings if they exist in the cloud
-        if (menuSettings.menu_data.posSettings) {
-          setGeneralSettings(menuSettings.menu_data.posSettings);
-        }
-
-        // Load Loyalty Settings if they exist in the cloud
-        if (menuSettings.menu_data.loyaltySettings) {
-          setLoyaltyForm(menuSettings.menu_data.loyaltySettings);
-        }
-
-        const { data: salesHistory, error: salesError } = await supabase.from('sales').select('*');
-        if (salesError) throw salesError;
-        setSalesData(salesHistory);
-        if (salesHistory && salesHistory.length > 0) {
-           await db.sales.bulkPut(salesHistory);
-        }
-
-        // Load Advanced Recipes
-        const { data: recipesData, error: recipesError } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
-        if (recipesError) {
-          console.warn("Recipes fetch error (Have you run the SQL yet?):", recipesError.message);
-        } else if (recipesData) {
-          setRecipes(recipesData);
-        }
-
-        // --- EXISTING INVENTORY FETCH ---
-        const { data: invData, error: invError } = await supabase.from('inventory').select('*');
-        if (invError) {
-          console.warn("Inventory fetch error:", invError.message);
-        } else if (invData) {
-          setInventoryItems(invData);
-          await db.inventory.bulkPut(invData); // Cache it locally!
-        }
-
-        // --- ADD THIS NEW FETCH BLOCK FOR INVENTORY LOGS ---
-        const { data: logsData, error: logsError } = await supabase.from('inventory_logs').select('*');
-        if (logsError) {
-          console.warn("Inventory logs fetch error:", logsError.message);
-        } else if (logsData) {
-          setInventoryLogs(logsData);
-        }
-        // ----------------------------------------------------
-
-      } catch (error) {
-        console.error("Error fetching data:", error.message);
-      } finally {
-        setIsLoading(false);
+      // 2. NEW: Fetch All Expenses (General + Inventory Purchases)
+      const { data: expensesData, error: expensesError } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('created_at', { ascending: false }); // Show newest first
+      
+      if (!expensesError && expensesData) {
+        setExpenses(expensesData); 
+        // Sync back to localStorage so the Register tab sees them too
+        localStorage.setItem('tinypos_expenses', JSON.stringify(expensesData));
       }
-    };
-    fetchData();
-  }, [isAuthenticated]);
+
+      // 3. Load UI Settings (Receipt, General, Loyalty)
+      if (menuSettings.menu_data.receiptSettings) setReceiptForm(menuSettings.menu_data.receiptSettings);
+      if (menuSettings.menu_data.posSettings) setGeneralSettings(menuSettings.menu_data.posSettings);
+      if (menuSettings.menu_data.loyaltySettings) setLoyaltyForm(menuSettings.menu_data.loyaltySettings);
+
+      // 4. Fetch Sales History
+      const { data: salesHistory, error: salesError } = await supabase.from('sales').select('*');
+      if (!salesError && salesHistory) {
+        setSalesData(salesHistory);
+        await db.sales.bulkPut(salesHistory);
+      }
+
+      // 5. Fetch Recipes & Inventory
+      const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
+      if (recipesData) setRecipes(recipesData);
+
+      const { data: invData } = await supabase.from('inventory').select('*');
+      if (invData) {
+        setInventoryItems(invData);
+        await db.inventory.bulkPut(invData);
+      }
+
+      const { data: logsData } = await supabase.from('inventory_logs').select('*');
+      if (logsData) setInventoryLogs(logsData);
+
+    } catch (error) {
+      console.error("Error fetching data:", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  fetchData();
+}, [isAuthenticated]);
 
   // --- NEW: KEYBOARD LISTENER FOR MANAGER PIN ---
   useEffect(() => {
@@ -346,10 +335,11 @@ function Admin() {
       setMenuData(updatedMenu);
 
       // 2. Keep the legacy 'general_settings' table in sync just in case
-      await supabase
+      /*await supabase
         .from('general_settings')
         .upsert({ id: 1, ...generalSettings });
-      
+      */
+     
       // 3. Sync to LocalStorage for the Favicon/Boot injector
       if (generalSettings.appBootLogo) {
         localStorage.setItem('tinypos_boot_logo', generalSettings.appBootLogo);
@@ -610,15 +600,16 @@ function Admin() {
      }, 0);
   }, [filteredSales]);
 
-  // 2.5 Calculate Total Expenses & Net Profit
   const filteredExpenses = useMemo(() => {
     const now = new Date();
     return expenses.filter(exp => {
       if (timeFilter === 'all') return true;
       
-      const expDate = new Date(exp.timestamp);
+      // Check both potential date fields
+      const dateStr = exp.created_at || exp.timestamp; 
+      if (!dateStr) return false;
+      const expDate = new Date(dateStr);
 
-      // FIX 3: Strict calendar-day matching for Gastos
       if (timeFilter === 'today') {
         return expDate.toDateString() === now.toDateString();
       }
