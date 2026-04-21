@@ -1,4 +1,4 @@
-# ☕ TinyPOS: The Ultimate Coffee System (Frontend)
+# ☕ tinypos: BYOS Coffee System
 
 [![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/aldair/tinypos)
 [![React](https://img.shields.io/badge/frontend-React_19-61dafb.svg)](https://reactjs.org/)
