@@ -14,6 +14,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
       manifest: {
+      manifest: {
         short_name: "tinypos",
         name: "tinypos",
         start_url: "/",
@@ -21,17 +22,26 @@ export default defineConfig({
         theme_color: "#ffffff",
         background_color: "#ffffff",
         icons: [
+          // 1. Standard 192x192 (Required by Chrome)
           {
-            src: 'icon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'maskable' // <-- THIS IS REQUIRED FOR THE INSTALL PROMPT
+            src: 'icon-192x192.png', 
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any'
           },
+          // 2. Standard 512x512 (Required by Chrome)
           {
-          "src": "icon-512.png",
-          "sizes": "512x512",
-          "type": "image/png",
-          "purpose": "maskable"
+            src: 'icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          // 3. Maskable version for Android home screens
+          {
+            src: 'icon-512.png', // You can reuse the 512 image here
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       }
