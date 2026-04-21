@@ -1,6 +1,13 @@
 import { create } from 'zustand';
+// 1. Read the cache synchronously before creating the store
+const cachedMenuString = localStorage.getItem('tinypos_cached_menu');
+const initialMenuData = cachedMenuString ? JSON.parse(cachedMenuString) : null;
 
 export const useMenuStore = create((set, get) => ({
+
+  // 2. Start with the cached data instantly!
+  menuData: initialMenuData,
+  
   // THE FIX: Instantly load the offline cache on boot!
   menuData: JSON.parse(localStorage.getItem('tinypos_cached_menu')) || null,
   recipes: JSON.parse(localStorage.getItem('tinypos_cached_recipes')) || [],

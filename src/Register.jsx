@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
@@ -14,6 +15,7 @@ import { processCheckout } from './services/checkoutService';
 import { attemptBackgroundSync } from './services/syncService'; 
 import { numeroALetras } from './utils/numeroALetras';
 import { useTranslation } from './hooks/useTranslation';
+import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
@@ -436,29 +438,6 @@ function Register() {
   // Lock Screen temporary states
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [pinAttempt, setPinAttempt] = useState('');
-
-
-  // --- NEW: KEYBOARD SUPPORT FOR STAFF PIN ---
-  useEffect(() => {
-    // Only listen if the register is locked and a staff member is already selected
-    if (!isLocked || !selectedProfile) return;
-
-    const handleStaffKeyDown = (e) => {
-      if (e.key >= '0' && e.key <= '9') {
-        setPinAttempt(prev => prev.length < 4 ? prev + e.key : prev);
-      } else if (e.key === 'Backspace') {
-        setPinAttempt(prev => prev.slice(0, -1));
-      } else if (e.key === 'Enter') {
-        if (pinAttempt.length === 4) handleUnlockSubmit();
-      } else if (e.key === 'Escape') {
-        setPinAttempt('');
-        setSelectedProfile(null); // Return to user list
-      }
-    };
-
-    window.addEventListener('keydown', handleStaffKeyDown);
-    return () => window.removeEventListener('keydown', handleStaffKeyDown);
-  }, [isLocked, selectedProfile, pinAttempt]);
 
   // --- UNLOCK LOGIC & ENTER KEY ---
   const handleUnlockSubmit = () => {
@@ -1347,40 +1326,23 @@ useEffect(() => {
 
     // If a cashier IS selected, show the new standardized PIN Pad
     return (
-      <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
-        <div className={`fade-in ${phoneError ? 'shake' : ''}`} style={{ background: 'var(--bg-surface)', padding: '40px', borderRadius: '16px', width: '350px', boxShadow: '0 15px 35px rgba(0,0,0,0.2)', textAlign: 'center' }}>
-          
-          <div style={{ width: '64px', height: '64px', borderRadius: '32px', background: 'var(--brand-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold', margin: '0 auto 16px' }}>
-            {selectedProfile.name.charAt(0)}
-          </div>
-          <h2 style={{ margin: '0 0 5px 0' }}>{t('reg.loginHi')} {selectedProfile.name}</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>{t('reg.loginEnterPin')}</p>
-          
-          <div style={{ 
-            fontSize: '2.5rem', letterSpacing: '16px', marginBottom: '24px', fontWeight: 'bold', minHeight: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid var(--border)`, color: 'var(--text-main)' 
-          }}>
-            {pinAttempt.replace(/./g, '●') || <span style={{opacity: 0.2, letterSpacing: 'normal', fontSize: '1rem'}}>{t('reg.loginPinReq')}</span>}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-              <button key={num} onClick={() => setPinAttempt(prev => prev.length < 4 ? prev + num : prev)} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>{num}</button>
-            ))}
-            <button onClick={() => { setSelectedProfile(null); setPinAttempt(''); }} style={{ padding: '20px', fontSize: '1rem', background: 'rgba(231, 76, 60, 0.1)', border: 'none', borderRadius: '10px', cursor: 'pointer', color: '#e74c3c', fontWeight: 'bold' }}>{t('reg.btnBack')}</button>
-            <button onClick={() => setPinAttempt(prev => prev.length < 4 ? prev + 0 : prev)} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>0</button>
-            <button onClick={() => setPinAttempt(prev => prev.slice(0, -1))} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>⌫</button>
-          </div>
-
-          <button 
-            onClick={handleUnlockSubmit}
-            disabled={pinAttempt.length !== 4}
-            style={{ width: '100%', padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem', opacity: pinAttempt.length === 4 ? 1 : 0.5 }}
-          >
-            {t('reg.btnLogin')}
-          </button>
-        </div>
-      </div>
+      <SharedPinPad
+        variant="fullscreen"
+        avatarText={selectedProfile?.name?.charAt(0)}
+        title={`${t('reg.loginHi')} ${selectedProfile?.name}`}
+        subtitle={t('reg.loginEnterPin')}
+        pin={pinAttempt}
+        setPin={setPinAttempt}
+        error={phoneError}
+        setError={setPhoneError}
+        onSubmit={handleUnlockSubmit}
+        onCancel={() => { 
+          setSelectedProfile(null); 
+          setPinAttempt(''); 
+        }}
+        submitText={t('reg.btnLogin')}
+        submitIcon="lucide:log-in"
+      />
     );
   }
 
@@ -1514,7 +1476,15 @@ useEffect(() => {
 
       <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
 
-      <PinChallengeModal pinChallenge={pinChallenge} setPinChallenge={setPinChallenge} challengePinAttempt={challengePinAttempt} setChallengePinAttempt={setChallengePinAttempt} handleChallengeKeyDown={handleChallengeKeyDown} challengeError={challengeError} handleChallengeSubmit={handleChallengeSubmit} />
+      <PinChallengeModal 
+        pinChallenge={pinChallenge} 
+        setPinChallenge={setPinChallenge} 
+        challengePinAttempt={challengePinAttempt} 
+        setChallengePinAttempt={setChallengePinAttempt} 
+        challengeError={challengeError} 
+        setChallengeError={setChallengeError} /* <--- ADD THIS LINE! */
+        handleChallengeSubmit={handleChallengeSubmit} 
+      />
 
       <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 

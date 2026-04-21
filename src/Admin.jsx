@@ -1,8 +1,14 @@
+import { Icon } from '@iconify/react';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
+import { useDialog } from './contexts/DialogContext';
+import { useTheme } from './contexts/ThemeContext';
+import { useMenuStore } from './store/useMenuStore';
+import { useTranslation } from './hooks/useTranslation';
+
 import Dialog from './components/shared/Dialog';
 import AnalyticsTab from './components/admin/AnalyticsTab';
 import OrdersTab from './components/admin/OrdersTab';
@@ -16,11 +22,8 @@ import GeneralSettingsTab from './components/admin/GeneralSettingsTab';
 import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
 import InventoryTab from './components/admin/InventoryTab.jsx';
-import { useDialog } from './contexts/DialogContext';
-import { useTheme } from './contexts/ThemeContext';
-import { useMenuStore } from './store/useMenuStore';
-import { useTranslation } from './hooks/useTranslation';
-
+import BootScreen from './components/register/BootScreen';
+import SharedPinPad from './components/shared/SharedPinPad';
 import ExportKeysButton from './components/ExportKeysButton';
 import DisconnectButton from './components/DisconnectButton';
 
@@ -69,33 +72,57 @@ function Admin() {
   return saved ? JSON.parse(saved) : [];
 });
 
-  // --- NEW: RECEIPT STATE ---
-  const [receiptForm, setReceiptForm] = useState({
-    header: "TINY COFFEE BAR",
-    subheader: "Puebla, Mexico",
-    footer: "Thank you for your visit!",
-    logo: null, // This will hold our massive Base64 text string
-    enableTaxBreakdown: false, 
-    taxRate: 16 
+  // --- INSTANT RECEIPT SETTINGS ---
+  const [receiptForm, setReceiptForm] = useState(() => {
+    const defaultReceipt = { 
+      header: "TINY COFFEE BAR", 
+      subheader: "Puebla, Mexico", 
+      footer: "Thank you for your visit!", 
+      logo: null, 
+      enableTaxBreakdown: false, 
+      taxRate: 16 
+    };
+    const cached = localStorage.getItem('tinypos_cached_menu');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.receiptSettings) return { ...defaultReceipt, ...parsed.receiptSettings };
+    }
+    return defaultReceipt;
   });
 
-  // --- NEW: GENERAL SETTINGS STATE ---
-  const [generalSettings, setGeneralSettings] = useState({
-    name: "Main Register",
-    brandColor: 'var(--brand-color)',
-    isDarkMode: false,
-    autoLockMinutes: 5,
-    orderResetPolicy: "daily",
-    enableCorte: true,
-    ticketVisibility: "open",
-    printerSize: "80mm" 
+  // --- INSTANT GENERAL SETTINGS ---
+  const [generalSettings, setGeneralSettings] = useState(() => {
+    const defaultSettings = { 
+      name: "Main Register", 
+      brandColor: 'var(--brand-color)', 
+      isDarkMode: false, 
+      autoLockMinutes: 5, 
+      orderResetPolicy: "daily", 
+      enableCorte: false, 
+      ticketVisibility: "open", 
+      printerSize: "80mm" 
+    };
+    const cached = localStorage.getItem('tinypos_cached_menu');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.posSettings) return { ...defaultSettings, ...parsed.posSettings };
+    }
+    return defaultSettings;
   });
 
-  // --- NEW: LOYALTY SETTINGS STATE ---
-  const [loyaltyForm, setLoyaltyForm] = useState({
-    isActive: true, // NEW: Master switch
-    visitsRequired: 10,
-    rewardDescription: "tu pr\u00F3xima bebida GRATIS"
+  // --- INSTANT LOYALTY SETTINGS ---
+  const [loyaltyForm, setLoyaltyForm] = useState(() => {
+    const defaultLoyalty = { 
+      isActive: true, 
+      visitsRequired: 10, 
+      rewardDescription: "tu próxima bebida GRATIS" 
+    };
+    const cached = localStorage.getItem('tinypos_cached_menu');
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed.loyaltySettings) return { ...defaultLoyalty, ...parsed.loyaltySettings };
+    }
+    return defaultLoyalty;
   });
 
   // --- NEW: CALCULATOR & RECIPE BUILDER STATE ---
@@ -221,48 +248,6 @@ function Admin() {
   };
   fetchData();
 }, [isAuthenticated]);
-
-  // --- NEW: KEYBOARD LISTENER FOR MANAGER PIN ---
-  useEffect(() => {
-    // Only listen if we are logged into Supabase but the Admin UI is still locked
-    if (!isAuthenticated || isAdminUnlocked) return;
-
-    const handleAdminKeyDown = (e) => {
-    if (!isAuthenticated || isAdminUnlocked) return;
-
-    // 1. Handle Numbers 0-9
-    if (e.key >= '0' && e.key <= '9') {
-      setPinError(false);
-      setAdminPinInput(prev => prev.length < 4 ? prev + e.key : prev);
-    }
-    // 2. Handle Backspace
-    else if (e.key === 'Backspace') {
-      setAdminPinInput(prev => prev.slice(0, -1));
-    }
-    // 3. Handle Enter (The "Unlock" Trigger)
-    else if (e.key === 'Enter') {
-      // NEW LOGIC: Check if ANY cashier is an Admin and matches this PIN
-      const isStaffAdmin = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === adminPinInput);
-      // Fallback: Check the Master PIN from General Settings
-      const isMasterPin = adminPinInput === generalSettings.pinCode;
-
-      if (isStaffAdmin || isMasterPin) {
-        setIsAdminUnlocked(true);
-        setPinError(false);
-      } else {
-        setPinError(true);
-        setAdminPinInput('');
-      }
-    }
-    // 4. Handle Escape (Exit to Register)
-    else if (e.key === 'Escape') {
-      handleBackToRegister();
-    }
-  };
-
-    window.addEventListener('keydown', handleAdminKeyDown);
-    return () => window.removeEventListener('keydown', handleAdminKeyDown);
-  }, [isAuthenticated, isAdminUnlocked, adminPinInput, generalSettings.pinCode]);
 
 
 // --- THEME INJECTION LOGIC (KEEPS ADMIN IN SYNC) ---
@@ -785,23 +770,50 @@ function Admin() {
 
   if (!isAuthenticated) {
     return (
-      <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ margin: 0, color: 'var(--bg-app)' }}>{t('admin.loginTitle')}</h2>
-            <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}>✕</button>
+      <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
+        <div className="fade-in" style={{ background: 'var(--bg-surface)', padding: '48px', borderRadius: '32px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 60px rgba(0,0,0,0.1)', border: '1px solid var(--border)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+            <div style={{ width: '80px', height: '80px', background: 'var(--brand-color)', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px auto', boxShadow: '0 10px 20px rgba(52, 152, 219, 0.3)' }}>
+              <Icon icon="lucide:shield-lock" style={{ fontSize: '2.5rem', color: 'white' }} />
+            </div>
+            <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '900' }}>{t('admin.loginTitle')}</h2>
+            <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>{t('admin.loginSubtitle') || 'Access the administrative dashboard'}</p>
           </div>
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#666' }}>{t('admin.email')}</label>
-              <input type="email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1rem' }} />
+              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:mail" />
+                {t('admin.email')}
+              </label>
+              <input 
+                type="email" 
+                value={loginForm.email} 
+                onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} 
+                style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }} 
+                required
+              />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#666' }}>{t('admin.password')}</label>
-              <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1rem' }} />
+              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:key-round" />
+                {t('admin.password')}
+              </label>
+              <input 
+                type="password" 
+                value={loginForm.password} 
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} 
+                style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }} 
+                required
+              />
             </div>
-            <button type="submit" style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '8px' }}>
+            <button type="submit" style={{ padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '18px', cursor: 'pointer', fontWeight: '900', fontSize: '1.2rem', marginTop: '8px', boxShadow: '0 10px 25px rgba(52, 152, 219, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                <Icon icon="lucide:log-in" />
                 {t('admin.accessBtn')}
+            </button>
+            <button type="button" onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Icon icon="lucide:arrow-left" />
+              {t('admin.backToRegister') || 'Back to Register'}
             </button>
           </form>
         </div>
@@ -809,16 +821,9 @@ function Admin() {
     );
   }
 
- // --- LOADING SCREEN ---
+  // --- LOADING SCREEN ---
   if (isLoading) {
-    return (
-      <div className="loader-container">
-        <div className="spinner"></div>
-        <h1 style={{ letterSpacing: '2px', textTransform: 'uppercase' }}>
-          {t('admin.loading')}
-        </h1>
-      </div>
-    );
+    return <BootScreen posSettings={generalSettings} logo={generalSettings.appBootLogo} loadingText={t('admin.loading')} />;
   }
 
   const switchTab = (tab) => {
@@ -827,42 +832,32 @@ function Admin() {
   };
 
   
-  // --- PIN LOCK SCREEN ---
-  if (isAuthenticated && !isAdminUnlocked) {
+    if (isAuthenticated && !isAdminUnlocked) {
     return (
-      <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
-        <div className="fade-in" style={{ background: 'var(--bg-surface)', padding: '40px', borderRadius: '12px', width: '350px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', textAlign: 'center', border: pinError ? '2px solid #e74c3c' : '2px solid transparent' }}>
-          <h2 style={{ margin: '0 0 10px 0' }}>{t('admin.lockedTitle')}</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>{t('admin.lockedSubtitle')}</p>
-          
-          <div style={{ 
-            fontSize: '2rem', letterSpacing: '12px', marginBottom: '24px', fontWeight: 'bold', minHeight: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg-main)', borderRadius: '8px', border: `1px solid ${pinError ? '#e74c3c' : 'var(--border)'}`, color: pinError ? '#e74c3c' : 'var(--text-main)' 
-          }}>
-            {adminPinInput.replace(/./g, '●') || <span style={{opacity: 0.2, letterSpacing: 'normal', fontSize: '1rem'}}>••••</span>}
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-              <button key={num} onClick={() => { setPinError(false); setAdminPinInput(prev => prev.length < 4 ? prev + num : prev); }} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>{num}</button>
-            ))}
-            <button onClick={handleBackToRegister} style={{ padding: '20px', fontSize: '1.2rem', background: 'rgba(231, 76, 60, 0.1)', border: 'none', borderRadius: '8px', cursor: 'pointer', color: '#e74c3c', fontWeight: 'bold' }}>✕</button>
-            <button onClick={() => { setPinError(false); setAdminPinInput(prev => prev.length < 4 ? prev + 0 : prev); }} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>0</button>
-            <button onClick={() => setAdminPinInput(prev => prev.slice(0, -1))} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>⌫</button>
-          </div>
-
-          <button 
-            onClick={() => {
-              const isStaffAdmin = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === adminPinInput);
-              const isMasterPin = adminPinInput === generalSettings.pinCode;
-              if (isStaffAdmin || isMasterPin) { setIsAdminUnlocked(true); setPinError(false); } else { setPinError(true); setAdminPinInput(''); }
-            }} 
-            style={{ width: '100%', padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
-          >
-            {t('admin.unlockBtn')}
-          </button>
-        </div>
-      </div>
+      <SharedPinPad
+        variant="fullscreen"
+        icon="lucide:lock"
+        title={t('admin.lockedTitle')}
+        subtitle={t('admin.lockedSubtitle')}
+        pin={adminPinInput}
+        setPin={setAdminPinInput}
+        error={pinError}
+        setError={setPinError}
+        onCancel={handleBackToRegister}
+        submitText={t('admin.unlockBtn')}
+        submitIcon="lucide:unlock"
+        onSubmit={() => {
+          const isStaffAdmin = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === adminPinInput);
+          const isMasterPin = adminPinInput === generalSettings.pinCode;
+          if (isStaffAdmin || isMasterPin) { 
+            setIsAdminUnlocked(true); 
+            setPinError(false); 
+          } else { 
+            setPinError(true); 
+            setAdminPinInput(''); 
+          }
+        }}
+      />
     );
   }
 
@@ -872,35 +867,77 @@ function Admin() {
 
       <aside className={`admin-aside ${isMobileMenuOpen ? 'open' : ''}`}>
         <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{generalSettings.name} - POS </h2>
-          <button className="desktop-hidden" onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon icon="lucide:store" style={{ color: 'var(--brand-color)' }} />
+            <span>{generalSettings.name} | admin</span>
+          </h2>
+          <button className="desktop-hidden" onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer', display: 'flex' }}>
+            <Icon icon="lucide:x" />
+          </button>
         </div>
-        <nav style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1 }}>
-          <button onClick={() => switchTab('analytics')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'analytics' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.analytics')}</button>
-          <button onClick={() => switchTab('orders')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'orders' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.orders')}</button>
-          <button onClick={() => switchTab('menu')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'menu' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.menu')}</button>
-          <button onClick={() => switchTab('modifiers')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'modifiers' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.modifiers')}</button>
-          <button onClick={() => switchTab('receipt')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'receipt' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.receipt')}</button>
-          <button onClick={() => switchTab('calculator')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'calculator' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.recipe')}</button>
-          <button onClick={() => switchTab('inventory')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'inventory' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.inventory')}</button>
-          <button onClick={() => switchTab('loyalty')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'loyalty' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.loyalty')}</button>
-          <button onClick={() => switchTab('discounts')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'discounts' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.promotions')}</button>
-          <button onClick={() => switchTab('team')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'team' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.team')}s</button>
-          <button onClick={() => switchTab('settings')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'settings' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.settings')}</button>
+        <nav style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1, gap: '4px' }}>
+          {[
+            { id: 'analytics', icon: 'lucide:bar-chart-3', label: t('admin.analytics') },
+            { id: 'orders', icon: 'lucide:receipt', label: t('admin.orders') },
+            { id: 'menu', icon: 'lucide:coffee', label: t('admin.menu') },
+            { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
+            { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
+            { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe') },
+            { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory') },
+            { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty') },
+            { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions') },
+            { id: 'team', icon: 'lucide:users', label: t('admin.team') },
+            { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
+          ].map(tab => (
+            <button 
+              key={tab.id}
+              onClick={() => switchTab(tab.id)} 
+              style={{ 
+                padding: '12px 24px', 
+                textAlign: 'left', 
+                background: activeTab === tab.id ? 'rgba(255,255,255,0.15)' : 'transparent', 
+                border: 'none', 
+                color: 'white', 
+                cursor: 'pointer', 
+                fontSize: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                borderLeft: activeTab === tab.id ? '4px solid var(--brand-color)' : '4px solid transparent',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Icon icon={tab.icon} style={{ fontSize: '1.2rem', opacity: activeTab === tab.id ? 1 : 0.7 }} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </nav>
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#ccc', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t('admin.signOut')}</button>
-          <button onClick={handleBackToRegister} style={{ width: '100%', padding: '12px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t('admin.backToReg')}</button>
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#ccc', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <Icon icon="lucide:log-out" />
+            <span>{t('admin.signOut')}</span>
+          </button>
+          <button onClick={handleBackToRegister} style={{ width: '100%', padding: '12px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(231, 76, 60, 0.3)' }}>
+            <Icon icon="lucide:layout-dashboard" />
+            <span>{t('admin.backToReg')}</span>
+          </button>
         </div>
       </aside>
 
       <main className="admin-main">
-        <div className="desktop-hidden" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <button className="mobile-hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
-          <h2 style={{ margin: '0 0 0 16px', fontSize: '1.2rem', color: 'var(--text-main)' }}>{t('admin.title')}</h2>
+        <div className="desktop-hidden" style={{ display: 'flex', alignItems: 'center', marginBottom: '24px', gap: '16px' }}>
+          <button className="mobile-hamburger" onClick={() => setIsMobileMenuOpen(true)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', padding: '10px', borderRadius: '10px', display: 'flex' }}>
+            <Icon icon="lucide:menu" style={{ fontSize: '1.5rem', color: 'var(--text-main)' }} />
+          </button>
+          <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800', color: 'var(--text-main)' }}>{t('admin.title')}</h2>
         </div>
 
-        {isSaving && <div style={{ position: 'fixed', top: 20, right: 20, background: '#27ae60', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>{t('admin.saving')}</div>}
+        {isSaving && (
+          <div style={{ position: 'fixed', top: 20, right: 20, background: '#27ae60', color: 'white', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', zIndex: 100, boxShadow: '0 10px 25px rgba(39, 174, 96, 0.4)', display: 'flex', alignItems: 'center', gap: '10px', animation: 'slideInRight 0.3s ease' }}>
+            <Icon icon="lucide:check-circle" />
+            <span>{t('admin.saving')}</span>
+          </div>
+        )}
         
         {/* 1. ANALYTICS TAB */}
         {activeTab === 'analytics' && (

@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react';
 import { useState, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
@@ -245,112 +246,123 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   return (
     <div className="fade-in" style={{ maxWidth: '900px', margin: '0 auto', color: 'var(--text-main)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h2 style={{ margin: 0 }}>{t('inv.title')}</h2>
+        <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.8rem' }}>{t('inv.title')}</h2>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button 
             onClick={() => { setActiveView(activeView === 'transform' ? 'list' : 'transform'); setEditingItem(null); setAuditingItem(null); }}
-            style={{ padding: '10px 20px', background: activeView === 'transform' ? '#95a5a6' : '#e67e22', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+            style={{ padding: '12px 20px', background: activeView === 'transform' ? '#95a5a6' : '#e67e22', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(230, 126, 34, 0.2)' }}
           >
+            <Icon icon={activeView === 'transform' ? 'lucide:x' : 'lucide:flame'} />
             {activeView === 'transform' ? t('inv.btnCancel') : t('inv.btnRoast')}
           </button>
           <button 
             onClick={() => { setActiveView(activeView === 'add' ? 'list' : 'add'); setEditingItem(null); setAuditingItem(null); }}
-            style={{ padding: '10px 20px', background: activeView === 'add' ? '#95a5a6' : 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
+            style={{ padding: '12px 20px', background: activeView === 'add' ? '#95a5a6' : 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}
           >
+            <Icon icon={activeView === 'add' ? 'lucide:x' : 'lucide:plus'} />
             {activeView === 'add' ? t('inv.btnCancel') : t('inv.btnReceive')}
           </button>
         </div>
       </div>
       
       {activeView === 'add' && !editingItem && !auditingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '1px solid var(--border)' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '16px' }}>{t('inv.receiveTitle')}</h3>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div style={{ flex: 2, minWidth: '200px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.itemName')}</label>
-              <input type="text" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid var(--border)', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon icon="lucide:package-plus" style={{ color: 'var(--brand-color)' }} />
+            {t('inv.receiveTitle')}
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
+              <input type="text" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-            <div style={{ flex: 1, minWidth: '100px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.stockQty')}</label>
-              <input type="number" value={newItem.current_stock} onChange={e => setNewItem({...newItem, current_stock: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.stockQty')}</label>
+              <input type="number" value={newItem.current_stock} onChange={e => setNewItem({...newItem, current_stock: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-            <div style={{ flex: 1, minWidth: '100px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.unit')}</label>
-              <select value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.unit')}</label>
+              <select value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
                 <option value="g">{t('inv.unitG')}</option>
                 <option value="ml">{t('inv.unitMl')}</option>
                 <option value="units">{t('inv.unitPieces')}</option>
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: '120px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.totalCost')}</label>
-              <input type="number" placeholder={t('inv.invoiceTotal')} value={newItem.total_cost} onChange={e => setNewItem({...newItem, total_cost: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.totalCost')}</label>
+              <input type="number" placeholder={t('inv.invoiceTotal')} value={newItem.total_cost} onChange={e => setNewItem({...newItem, total_cost: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-            <button onClick={handleAddItem} style={{ padding: '12px 24px', background: '#2ecc71', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>{t('inv.btnSave')}</button>
+            <button onClick={handleAddItem} style={{ padding: '12px 24px', background: '#2ecc71', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(46, 204, 113, 0.2)' }}>{t('inv.btnSave')}</button>
           </div>
         </div>
       )}
 
       {activeView === 'transform' && !editingItem && !auditingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '2px solid #e67e22' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '16px', color: '#e67e22' }}>{t('inv.roastTitle')}</h3>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div style={{ flex: 2, minWidth: '180px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.rawMaterial')}</label>
-              <select value={transformForm.sourceItemId} onChange={e => setTransformForm({...transformForm, sourceItemId: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '2px solid #e67e22', boxShadow: '0 10px 20px rgba(230, 126, 34, 0.05)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#e67e22', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon icon="lucide:flame" />
+            {t('inv.roastTitle')}
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 2fr auto', gap: '16px', alignItems: 'flex-end' }}>
+            <div style={{ minWidth: '150px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.rawMaterial')}</label>
+              <select value={transformForm.sourceItemId} onChange={e => setTransformForm({...transformForm, sourceItemId: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
                 <option value="">{t('inv.selectOption')}</option>
                 {sortedItems.map(item => <option key={item.id} value={item.id}>{item.name} ({t('inv.has')} {item.current_stock}{item.unit})</option>)}
               </select>
             </div>
-            <div style={{ flex: 1, minWidth: '90px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.usedQty')}</label>
-              <input type="number" value={transformForm.amountUsed} onChange={e => setTransformForm({...transformForm, amountUsed: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.usedQty')}</label>
+              <input type="number" value={transformForm.amountUsed} onChange={e => setTransformForm({...transformForm, amountUsed: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-            <div style={{ flex: 1, minWidth: '90px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.shrink')}</label>
-              <input type="number" value={transformForm.shrinkagePerc} onChange={e => setTransformForm({...transformForm, shrinkagePerc: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.shrink')}</label>
+              <input type="number" value={transformForm.shrinkagePerc} onChange={e => setTransformForm({...transformForm, shrinkagePerc: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-            
-            <div style={{ flex: 1, minWidth: '90px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.opCost')}</label>
-              <input type="number" placeholder="e.g. 275" value={transformForm.operationalCost} onChange={e => setTransformForm({...transformForm, operationalCost: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.opCost')}</label>
+              <input type="number" placeholder="e.g. 275" value={transformForm.operationalCost} onChange={e => setTransformForm({...transformForm, operationalCost: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-
-            <div style={{ flex: 2, minWidth: '180px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.targetItem')}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.targetItem')}</label>
               <input 
                 type="text" 
                 list="inventory-names" 
                 placeholder={t('inv.typeNewOrSelect')} 
                 value={transformForm.targetItemName} 
                 onChange={e => setTransformForm({...transformForm, targetItemName: e.target.value})} 
-                style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} 
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} 
               />
               <datalist id="inventory-names">
                 {sortedItems.map(item => <option key={item.id} value={item.name} />)}
               </datalist>
             </div>
-            <button onClick={handleTransformStock} style={{ padding: '12px 24px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>{t('inv.btnProcess')}</button>
+            <button onClick={handleTransformStock} style={{ padding: '12px 24px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(230, 126, 34, 0.2)' }}>{t('inv.btnProcess')}</button>
           </div>
         </div>
       )}
 
       {/* --- EDIT ITEM UI --- */}
       {editingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '2px solid #3498db', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-             <h3 style={{ margin: 0, color: '#3498db' }}>{t('inv.editTitle')}</h3>
-             <button onClick={() => setEditingItem(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid var(--brand-color)', boxShadow: '0 10px 30px rgba(52, 152, 219, 0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+             <h3 style={{ margin: 0, color: 'var(--brand-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+               <Icon icon="lucide:edit-3" />
+               {t('inv.editTitle')}
+             </h3>
+             <button onClick={() => setEditingItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
+               <Icon icon="lucide:x" />
+             </button>
           </div>
           
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-            <div style={{ flex: 2, minWidth: '200px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.itemName')}</label>
-              <input type="text" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
+              <input type="text" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             
-            <div style={{ flex: 1, minWidth: '100px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold' }}>{t('inv.currentStock')}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.currentStock')}</label>
               <input type="number" value={editingItem.current_stock} onChange={e => {
                 const newStock = e.target.value;
                 const unitPrice = parseFloat(editingItem.unit_cost) || 0;
@@ -359,11 +371,11 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   current_stock: newStock,
                   total_cost: newStock === '' ? '' : (parseFloat(newStock) * unitPrice).toFixed(2)
                 })
-              }} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+              }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
 
-            <div style={{ flex: 1, minWidth: '120px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold', color: '#3498db' }}>{t('inv.unitCost')}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--brand-color)' }}>{t('inv.unitCost')}</label>
               <input type="number" step="0.0001" value={editingItem.unit_cost} onChange={e => {
                 const newUnit = e.target.value;
                 const stock = parseFloat(editingItem.current_stock) || 0;
@@ -372,34 +384,39 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   unit_cost: newUnit,
                   total_cost: newUnit === '' ? '' : (parseFloat(newUnit) * stock).toFixed(2)
                 });
-              }} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #3498db', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+              }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--brand-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
 
-            <button onClick={handleSaveEdit} style={{ padding: '12px 24px', background: '#3498db', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>{t('inv.btnUpdate')}</button>
+            <button onClick={handleSaveEdit} style={{ padding: '12px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}>{t('inv.btnUpdate')}</button>
           </div>
         </div>
       )}
 
       {/* --- NEW: AUDIT / WASTAGE UI --- */}
       {auditingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-             <h3 style={{ margin: 0, color: '#e74c3c' }}>{t('inv.auditTitle')}</h3>
-             <button onClick={() => setAuditingItem(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 10px 30px rgba(231, 76, 60, 0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+             <h3 style={{ margin: 0, color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+               <Icon icon="lucide:clipboard-check" />
+               {t('inv.auditTitle')}
+             </h3>
+             <button onClick={() => setAuditingItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
+               <Icon icon="lucide:x" />
+             </button>
           </div>
           
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', alignItems: 'start' }}>
             
-            <div style={{ flex: 1, minWidth: '150px', background: 'var(--bg-main)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border)' }}>
-              <p style={{ margin: '0 0 5px 0', fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>{t('inv.expectedStock')}</p>
-              <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{auditingItem.current_stock} <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }}>{auditingItem.unit}</span></div>
+            <div style={{ background: 'var(--bg-main)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)', textAlign: 'center' }}>
+              <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>{t('inv.expectedStock')}</p>
+              <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{auditingItem.current_stock} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>{auditingItem.unit}</span></div>
             </div>
 
-            <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ display: 'block', fontSize: '0.9rem', marginBottom: '8px', fontWeight: 'bold', color: '#e74c3c' }}>{t('inv.actualCount')}</label>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 'bold', color: '#e74c3c' }}>{t('inv.actualCount')}</label>
               <input type="number" autoFocus value={auditingItem.actualCount || ''} onChange={e => {
                 setAuditingItem({ ...auditingItem, actualCount: e.target.value })
-              }} style={{ width: '100%', padding: '16px', borderRadius: '8px', border: '2px solid #e74c3c', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold' }} />
+              }} style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '2px solid #e74c3c', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1.5rem', fontWeight: '800', textAlign: 'center', outline: 'none' }} />
             </div>
 
             {auditingItem.actualCount !== undefined && auditingItem.actualCount !== '' && (() => {
@@ -408,20 +425,20 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               const financialImpact = Math.abs(variance * (auditingItem.unit_cost || 0));
 
               return (
-                <div style={{ flex: 2, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1, padding: '16px', background: isLoss ? 'rgba(231,76,60,0.1)' : 'rgba(46,204,113,0.1)', borderRadius: '8px', border: `1px solid ${isLoss ? '#e74c3c' : '#2ecc71'}` }}>
-                      <p style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: isLoss ? '#e74c3c' : '#2ecc71', fontWeight: 'bold' }}>{t('inv.variance')}</p>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: isLoss ? '#e74c3c' : '#2ecc71' }}>{variance > 0 ? '+' : ''}{variance} {auditingItem.unit}</div>
+                    <div style={{ flex: 1, padding: '12px', background: isLoss ? 'rgba(231,76,60,0.05)' : 'rgba(46,204,113,0.05)', borderRadius: '12px', border: `1px solid ${isLoss ? 'rgba(231,76,60,0.2)' : 'rgba(46,204,113,0.2)'}`, textAlign: 'center' }}>
+                      <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: isLoss ? '#e74c3c' : '#2ecc71', fontWeight: 'bold' }}>{t('inv.variance')}</p>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: isLoss ? '#e74c3c' : '#2ecc71' }}>{variance > 0 ? '+' : ''}{variance} {auditingItem.unit}</div>
                     </div>
-                    <div style={{ flex: 1, padding: '16px', background: isLoss ? 'rgba(231,76,60,0.1)' : 'rgba(46,204,113,0.1)', borderRadius: '8px', border: `1px solid ${isLoss ? '#e74c3c' : '#2ecc71'}` }}>
-                      <p style={{ margin: '0 0 5px 0', fontSize: '0.85rem', color: isLoss ? '#e74c3c' : '#2ecc71', fontWeight: 'bold' }}>{t('inv.financialImpact')}</p>
-                      <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: isLoss ? '#e74c3c' : '#2ecc71' }}>{isLoss ? '-' : '+'}${financialImpact.toFixed(2)}</div>
+                    <div style={{ flex: 1, padding: '12px', background: isLoss ? 'rgba(231,76,60,0.05)' : 'rgba(46,204,113,0.05)', borderRadius: '12px', border: `1px solid ${isLoss ? 'rgba(231,76,60,0.2)' : 'rgba(46,204,113,0.2)'}`, textAlign: 'center' }}>
+                      <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: isLoss ? '#e74c3c' : '#2ecc71', fontWeight: 'bold' }}>{t('inv.financialImpact')}</p>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: isLoss ? '#e74c3c' : '#2ecc71' }}>{isLoss ? '-' : '+'}${financialImpact.toFixed(2)}</div>
                     </div>
                   </div>
 
                   {isLoss && (
-                    <select value={auditingItem.reason || 'waste'} onChange={e => setAuditingItem({...auditingItem, reason: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+                    <select value={auditingItem.reason || 'waste'} onChange={e => setAuditingItem({...auditingItem, reason: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
                       <option value="waste">{t('inv.reasonWaste')}</option>
                       <option value="expired">{t('inv.reasonExpired')}</option>
                       <option value="comp">{t('inv.reasonComp')}</option>
@@ -429,7 +446,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                     </select>
                   )}
                   
-                  <button onClick={handleSaveAudit} style={{ padding: '16px', background: isLoss ? '#e74c3c' : '#2ecc71', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1.1rem' }}>
+                  <button onClick={handleSaveAudit} style={{ padding: '16px', background: isLoss ? '#e74c3c' : '#2ecc71', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1.1rem', boxShadow: `0 8px 20px ${isLoss ? 'rgba(231, 76, 60, 0.2)' : 'rgba(46, 204, 113, 0.2)'}` }}>
                     {isLoss ? t('inv.btnConfirmLoss') : t('inv.btnConfirmAdj')}
                   </button>
                 </div>
@@ -441,72 +458,92 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       )}
 
       {/* --- INVENTORY LIST --- */}
-      <div style={{ background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--bg-surface)', borderRadius: '24px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead style={{ background: 'rgba(0,0,0,0.02)', textAlign: 'left' }}>
-            <tr>
-              <th onClick={() => handleSort('name')} style={{ padding: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none' }}>
-                {t('inv.thName')} {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+          <thead>
+            <tr style={{ background: 'var(--bg-main)' }}>
+              <th onClick={() => handleSort('name')} style={{ padding: '20px 24px', textAlign: 'left', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {t('inv.thName')}
+                  <Icon icon={sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? 'lucide:sort-asc' : 'lucide:sort-desc') : 'lucide:chevrons-up-down'} style={{ fontSize: '1rem' }} />
+                </div>
               </th>
-              <th onClick={() => handleSort('current_stock')} style={{ padding: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none' }}>
-                {t('inv.thStock')} {sortConfig.key === 'current_stock' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+              <th onClick={() => handleSort('current_stock')} style={{ padding: '20px 24px', textAlign: 'left', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {t('inv.thStock')}
+                  <Icon icon={sortConfig.key === 'current_stock' ? (sortConfig.direction === 'asc' ? 'lucide:sort-asc' : 'lucide:sort-desc') : 'lucide:chevrons-up-down'} style={{ fontSize: '1rem' }} />
+                </div>
               </th>
-              <th onClick={() => handleSort('unit_cost')} style={{ padding: '16px', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none' }}>
-                {t('inv.thCost')} {sortConfig.key === 'unit_cost' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+              <th onClick={() => handleSort('unit_cost')} style={{ padding: '20px 24px', textAlign: 'left', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {t('inv.thCost')}
+                  <Icon icon={sortConfig.key === 'unit_cost' ? (sortConfig.direction === 'asc' ? 'lucide:sort-asc' : 'lucide:sort-desc') : 'lucide:chevrons-up-down'} style={{ fontSize: '1rem' }} />
+                </div>
               </th>
-              <th style={{ padding: '16px', borderBottom: '2px solid var(--border)', textAlign: 'right' }}>{t('inv.thActions')}</th>
+              <th style={{ padding: '20px 24px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('inv.thActions')}</th>
             </tr>
           </thead>
           <tbody>
             {sortedItems.map(item => (
-              <tr key={item.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '16px', fontWeight: 'bold' }}>{item.name}</td>
-                <td style={{ padding: '16px' }}>
-                  <span style={{ fontSize: '1.1rem', color: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? '#e74c3c' : 'inherit' }}>
+              <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} className="hover-row">
+                <td style={{ padding: '20px 24px', fontWeight: '700', fontSize: '1rem' }}>{item.name}</td>
+                <td style={{ padding: '20px 24px' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)', borderRadius: '20px', color: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? '#e74c3c' : '#27ae60', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                    <Icon icon={item.current_stock < (item.unit === 'g' ? 2000 : 10) ? 'lucide:alert-circle' : 'lucide:check-circle'} />
                     {item.current_stock} {item.unit}
-                  </span>
+                  </div>
                 </td>
-                <td style={{ padding: '16px', color: 'var(--text-muted)' }}>
+                <td style={{ padding: '20px 24px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '1rem' }}>
                   ${Number(item.unit_cost || 0).toFixed(4)} / {item.unit}
                 </td>
-                <td style={{ padding: '16px', textAlign: 'right' }}>
-                  
-                  {/* NEW: AUDIT BUTTON */}
-                  <button 
-                    onClick={() => { 
-                      setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' }); 
-                      setEditingItem(null);
-                      setActiveView('list'); 
-                    }} 
-                    style={{ padding: '8px 16px', background: '#fdf3e8', color: '#e67e22', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginRight: '8px' }}
-                  >
-                    {t('inv.btnAudit')}
-                  </button>
+                <td style={{ padding: '20px 24px', textAlign: 'right' }}>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button 
+                      onClick={() => { 
+                        setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' }); 
+                        setEditingItem(null);
+                        setActiveView('list'); 
+                      }} 
+                      title={t('inv.btnAudit')}
+                      style={{ padding: '10px', background: 'var(--bg-main)', color: '#e67e22', border: '1px solid rgba(230, 126, 34, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
+                    >
+                      <Icon icon="lucide:clipboard-check" style={{ fontSize: '1.2rem' }} />
+                    </button>
 
-                  <button 
-                    onClick={() => { 
-                      setEditingItem({...item, total_cost: (item.current_stock * (item.unit_cost || 0)).toFixed(2)}); 
-                      setAuditingItem(null);
-                      setActiveView('list'); 
-                    }} 
-                    style={{ padding: '8px 16px', background: '#e8f4fd', color: '#2980b9', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', marginRight: '8px' }}
-                  >
-                    {t('inv.btnEdit')}
-                  </button>
-                  <button 
-                    onClick={() => handleDelete(item.id, item.name)} 
-                    style={{ padding: '8px 16px', background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    {t('inv.btnDelete')}
-                  </button>
+                    <button 
+                      onClick={() => { 
+                        setEditingItem({...item, total_cost: (item.current_stock * (item.unit_cost || 0)).toFixed(2)}); 
+                        setAuditingItem(null);
+                        setActiveView('list'); 
+                      }} 
+                      title={t('inv.btnEdit')}
+                      style={{ padding: '10px', background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid rgba(52, 152, 219, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
+                    >
+                      <Icon icon="lucide:edit-2" style={{ fontSize: '1.2rem' }} />
+                    </button>
+                    
+                    <button 
+                      onClick={() => handleDelete(item.id, item.name)} 
+                      title={t('inv.btnDelete')}
+                      style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: '1px solid rgba(231, 76, 60, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
+                    >
+                      <Icon icon="lucide:trash-2" style={{ fontSize: '1.2rem' }} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      
+      <style>{`
+        .hover-row:hover {
+          background: rgba(0,0,0,0.01);
+        }
+      `}</style>
     </div>
   );
 }
 
-export default InventoryTab;
+export default InventoryTab;

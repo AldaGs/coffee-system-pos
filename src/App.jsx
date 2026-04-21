@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react';
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Register from './Register';
@@ -80,28 +81,48 @@ if (!isInstalled && setupMode) {
   // --- GATE 2: THE DEVICE AUTHORIZATION SCREEN ---
   // If they have keys, but the device isn't logged into the Kiosk account, lock them out!
   if (isCheckingSession) {
-    return <div style={{ height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: "var(--bg-main)", color: 'white' }}>Checking device authorization...</div>;
+    return <div style={{ height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: "var(--bg-main)", color: 'var(--text-main)' }}>Checking device authorization...</div>;
   }
 
   if (!session) {
     return (
-      <div style={{ display: 'flex', height: '100dvh', backgroundColor: "var(--bg-app)", justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
-        <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-          <div style={{ textAlign: 'center', fontSize: '3rem', marginBottom: '10px' }}>🔒</div>
-          <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Device Locked</h2>
-          <p style={{ textAlign: 'center', color: '#666', marginBottom: '24px' }}>Authorize this device to connect to the store network.</p>
+      <div style={{ display: 'flex', height: '100dvh', backgroundColor: "var(--bg-app)", justifyContent: 'center', alignItems: 'center', fontFamily: 'var(--font-main, system-ui)', padding: '20px' }}>
+        <div className="fade-in" style={{ background: 'var(--bg-surface)', padding: '40px', borderRadius: '24px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', border: '1px solid var(--border)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+            <div style={{ width: '80px', height: '80px', background: 'rgba(52, 152, 219, 0.1)', color: 'var(--brand-color)', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 15px' }}>
+              <Icon icon="lucide:lock" />
+            </div>
+            <h2 style={{ margin: '0 0 8px 0', color: 'var(--text-main)', fontSize: '1.8rem', fontWeight: '800' }}>Device Locked</h2>
+            <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.95rem' }}>Authorize this device to connect to the store network.</p>
+          </div>
           
-          <form onSubmit={handleDeviceLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <form onSubmit={handleDeviceLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', color: '#333' }}>Hardware Email</label>
-              <input type="email" placeholder="register@tinycoffee.com" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1rem' }} />
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>Hardware Email</label>
+              <div style={{ position: 'relative' }}>
+                <Icon icon="lucide:mail" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input type="email" placeholder="register@tinycoffee.com" value={email} onChange={(e) => setEmail(e.target.value)} required style={{ width: '100%', padding: '12px 12px 12px 38px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', boxSizing: 'border-box' }} />
+              </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', color: '#333' }}>Hardware Password</label>
-              <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1rem' }} />
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>Hardware Password</label>
+              <div style={{ position: 'relative' }}>
+                <Icon icon="lucide:key" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: '100%', padding: '12px 12px 12px 38px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', boxSizing: 'border-box' }} />
+              </div>
             </div>
-            <button type="submit" disabled={isLoggingIn} style={{ padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '16px', fontSize: '1.1rem', opacity: isLoggingIn ? 0.7 : 1 }}>
-              {isLoggingIn ? 'Authenticating...' : 'Authorize Device'}
+            <button type="submit" disabled={isLoggingIn} style={{ padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px', fontSize: '1.1rem', opacity: isLoggingIn ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(52, 152, 219, 0.3)' }}>
+              {isLoggingIn ? (
+                <>
+                  <div className="spinner" style={{ width: '18px', height: '18px', borderWidth: '2px', borderTopColor: 'white' }}></div>
+                  <span>Authenticating...</span>
+                </>
+              ) : (
+                <>
+                  <Icon icon="lucide:shield-check" />
+                  <span>Authorize Device</span>
+                </>
+              )}
             </button>
           </form>
         </div>

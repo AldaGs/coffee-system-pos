@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../contexts/DialogContext';
 import ExportKeysButton from '../ExportKeysButton';
@@ -9,190 +10,266 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
   const { showAlert, showConfirm } = useDialog();
   
   return (
-    <div>
-      <h1 style={{ color: 'var(--text-main)' }}>General Settings</h1>
-      <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Customize the look, feel, and security of your POS terminal.</p>
-      <div style={{ background: 'var(--bg-main)', padding: '32px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Register Name</label>
-          <input type="text" value={generalSettings.name} onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} placeholder="e.g., Front Counter iPad" style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Primary Brand Color</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <input type="color" value={generalSettings.brandColor} onChange={(e) => setGeneralSettings({ ...generalSettings, brandColor: e.target.value })} style={{ width: '60px', height: '50px', border: 'none', cursor: 'pointer', padding: 0, borderRadius: '8px', overflow: 'hidden' }} />
-            <span style={{ fontFamily: 'monospace', color: 'var(--text-muted)', fontSize: '1.1rem' }}>{generalSettings.brandColor.toUpperCase()}</span>
-          </div>
-
-          {/* --- NEW LANGUAGE TOGGLE --- */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('settings.language')}</label>
-          <select 
-            value={generalSettings.language || 'en'} 
-            onChange={(e) => setGeneralSettings({ ...generalSettings, language: e.target.value })}
-            style={{ padding: '12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1.1rem' }}
-          >
-            <option value="en">English (US)</option>
-            <option value="es">Español (MX)</option>
-          </select>
-        </div>
-
-          {/* --- NEW BRANDING SECTION --- */}
-          <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>App Branding</h3>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>App Loading Screen Logo (Color PNG/JPG)</label>
-            <input type="file" accept="image/*" onChange={handleAppLogoUpload} style={{ padding: '8px', color: 'var(--text-main)' }} />
-            
-            {generalSettings.appBootLogo && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
-                <img 
-                  src={generalSettings.appBootLogo} 
-                  alt="App Boot Logo" 
-                  style={{ maxHeight: '100px', objectFit: 'contain', background: 'var(--bg-main)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }} 
-                />
-                <button 
-                  onClick={() => setGeneralSettings({ ...generalSettings, appBootLogo: null })} 
-                  style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#e74c3c', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold' }}
-                >
-                  Remove App Logo
-                </button>
-              </div>
-            )}
-            <small style={{ color: 'var(--text-muted)' }}>This logo is used strictly for the app's loading screen and browser tab. It will not be printed.</small>
-          </div>
-          {/* ----------------------------- */}
-
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Color Theme</label>
-          <select value={generalSettings.isDarkMode} onChange={(e) => setGeneralSettings({ ...generalSettings, isDarkMode: e.target.value === 'true' })} style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
-            <option value={false}>☀️ Light Mode</option>
-            <option value={true}>🌙 Dark Mode</option>
-          </select>
-        </div>
-        <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Security</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Auto-Lock Timer (Minutes)</label>
-          <input type="number" min="0" value={generalSettings.autoLockMinutes} onChange={(e) => setGeneralSettings({ ...generalSettings, autoLockMinutes: parseInt(e.target.value) || 0 })} style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
-          <small style={{ color: 'var(--text-muted)' }}>If the register is not touched for this many minutes, it will require a PIN. Set to 0 to turn off.</small>
-        </div>
-
-        <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Team Workflow</h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Ticket Visibility Mode</label>
-          <select
-            value={generalSettings.ticketVisibility || 'open'}
-            onChange={(e) => setGeneralSettings({ ...generalSettings, ticketVisibility: e.target.value })}
-            style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-          >
-            <option value="open">Open Floor (Everyone sees all active tickets)</option>
-            <option value="isolated">Isolated (Staff only see their own tickets)</option>
-          </select>
-          <small style={{ color: 'var(--text-muted)' }}>Isolated mode is great for traditional waiters who manage their own specific tables/orders.</small>
-        </div>
-
-        <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Order Numbers</h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Auto-Reset Frequency</label>
-          <select
-            value={generalSettings.orderResetPolicy || 'daily'}
-            onChange={(e) => setGeneralSettings({ ...generalSettings, orderResetPolicy: e.target.value })}
-            style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-          >
-            <option value="never">Never Reset (Count infinitely)</option>
-            <option value="daily">Daily (Resets to #1 every morning)</option>
-            <option value="weekly">Weekly (Resets every Monday)</option>
-            <option value="monthly">Monthly (Resets 1st of the month)</option>
-            <option value="yearly">Yearly (Resets Jan 1st)</option>
-          </select>
-          <small style={{ color: 'var(--text-muted)' }}>How often should the ticket numbers go back to Order #1?</small>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Manual Override</label>
-          <button
-            onClick={() => {
-              showConfirm(
-                t('settings.resetTitle'), 
-                t('settings.resetConfirm'), 
-                () => {
-                  localStorage.setItem('tinypos_nextOrderNum', 1);
-                  showAlert(t('settings.resetSuccess'), t('settings.resetSuccessDesc'));
-                }
-              );
-            }}
-            style={{ 
-              padding: '12px', 
-              background: 'transparent', 
-              color: '#e74c3c', 
-              border: '2px solid #e74c3c', 
-              borderRadius: '6px', 
-              cursor: 'pointer', 
-              fontWeight: 'bold', 
-              width: 'fit-content' 
-            }}
-          >
-            {t('settings.btnReset')}
-          </button>
-        </div>
-
-        <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Shift Management</h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Enable "Corte de Caja" (End of Shift)</label>
-          <select
-            value={generalSettings.enableCorte !== false}
-            onChange={(e) => setGeneralSettings({ ...generalSettings, enableCorte: e.target.value === 'true' })}
-            style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-          >
-            <option value={true}>Yes - Show the Corte button</option>
-            <option value={false}>No - Hide shift management</option>
-          </select>
-          <small style={{ color: 'var(--text-muted)' }}>Turn this off if the café does not reconcile the cash drawer per shift.</small>
-        </div>
-
-        <h3 style={{ marginTop: '16px', marginBottom: 0, borderBottom: '1px solid var(--border)', paddingBottom: '10px', color: 'var(--text-main)' }}>Hardware</h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Thermal Printer Size</label>
-          <select
-            value={generalSettings.printerSize || '80mm'}
-            onChange={(e) => setGeneralSettings({ ...generalSettings, printerSize: e.target.value })}
-            style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }}
-          >
-            <option value="80mm">Standard (80mm)</option>
-            <option value="58mm">Narrow (58mm)</option>
-          </select>
-          <small style={{ color: 'var(--text-muted)' }}>Adjusts the receipt layout to prevent text from being cut off on smaller printers.</small>
-        </div>
-
-        <button onClick={handleSaveGeneralSettings} style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '16px', fontSize: '1.1rem' }}>Save General Settings</button>
+    <div className="fade-in">
+      <div style={{ marginBottom: '32px' }}>
+        <h1 style={{ color: 'var(--text-main)', fontSize: '2rem', marginBottom: '8px', fontWeight: '800' }}>{t('settings.title')}</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>{t('settings.subtitle')}</p>
       </div>
 
-      {/* --- DEVICE MANAGEMENT SECTION --- */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px', alignItems: 'start' }}>
         
-        {/* The Exporter */}
-        <ExportKeysButton />
-
-        {/* The Danger Zone (Disconnect) */}
-        <div style={{ 
-          border: '2px solid #ff7675', 
-          padding: '24px', 
-          borderRadius: '12px', 
-          backgroundColor: '#fff0f0' 
-        }}>
-          <h3 style={{ marginTop: 0, color: '#d63031', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            ⚠️ Danger Zone
-          </h3>
-          <p style={{ color: '#d63031', fontSize: '0.95rem', marginBottom: '20px', lineHeight: '1.4' }}>
-            Disconnecting will instantly log this device out of the database and clear all local caches. You will need your <b>keys.tiny</b> file to reconnect it.
-          </p>
+        {/* --- LEFT COLUMN: CORE SETTINGS --- */}
+        <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
-          <DisconnectButton />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:terminal" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.registerName')}
+            </label>
+            <input type="text" value={generalSettings.name} onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} placeholder="e.g., Front Counter iPad" style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:palette" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.brandColor')}
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '8px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <input type="color" value={generalSettings.brandColor} onChange={(e) => setGeneralSettings({ ...generalSettings, brandColor: e.target.value })} style={{ width: '40px', height: '40px', border: 'none', cursor: 'pointer', padding: 0, borderRadius: '8px', overflow: 'hidden', background: 'none' }} />
+                <span style={{ fontFamily: 'monospace', color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 'bold' }}>{generalSettings.brandColor.toUpperCase()}</span>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:languages" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.language')}
+              </label>
+              <select 
+                value={generalSettings.language || 'en'} 
+                onChange={(e) => setGeneralSettings({ ...generalSettings, language: e.target.value })}
+                style={{ padding: '12px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', cursor: 'pointer', outline: 'none' }}
+              >
+                <option value="en">English (US)</option>
+                <option value="es">Español (MX)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:monitor" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.colorTheme')}
+            </label>
+            <select value={generalSettings.isDarkMode} onChange={(e) => setGeneralSettings({ ...generalSettings, isDarkMode: e.target.value === 'true' })} style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}>
+              <option value={false}>☀️ {t('settings.lightMode')}</option>
+              <option value={true}>🌙 {t('settings.darkMode')}</option>
+            </select>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Icon icon="lucide:image" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.appBranding')}
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.appLogo')}</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <label style={{ padding: '10px 20px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', color: 'var(--text-main)', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon icon="lucide:upload" />
+                  {t('common.upload')}
+                  <input type="file" accept="image/*" onChange={handleAppLogoUpload} style={{ display: 'none' }} />
+                </label>
+                {generalSettings.appBootLogo && (
+                  <button 
+                    onClick={() => setGeneralSettings({ ...generalSettings, appBootLogo: null })} 
+                    style={{ background: 'rgba(231, 76, 60, 0.1)', border: 'none', color: '#e74c3c', padding: '10px 15px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Icon icon="lucide:trash-2" />
+                    {t('settings.removeLogo')}
+                  </button>
+                )}
+              </div>
+              
+              {generalSettings.appBootLogo ? (
+                <div style={{ padding: '15px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px dashed var(--border)', textAlign: 'center' }}>
+                  <img 
+                    src={generalSettings.appBootLogo} 
+                    alt="App Boot Logo" 
+                    style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }} 
+                  />
+                </div>
+              ) : (
+                <div style={{ padding: '30px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px dashed var(--border)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  <Icon icon="lucide:image-plus" style={{ fontSize: '2rem', marginBottom: '8px', opacity: 0.3 }} />
+                  <div>No logo uploaded</div>
+                </div>
+              )}
+              <small style={{ color: 'var(--text-muted)', lineHeight: '1.4' }}>{t('settings.appLogoDesc')}</small>
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Icon icon="lucide:shield" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.security')}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.autoLock')}</label>
+              <div style={{ position: 'relative' }}>
+                <Icon icon="lucide:clock" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input type="number" min="0" value={generalSettings.autoLockMinutes} onChange={(e) => setGeneralSettings({ ...generalSettings, autoLockMinutes: parseInt(e.target.value) || 0 })} style={{ width: '100%', padding: '12px 12px 12px 38px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
+              <small style={{ color: 'var(--text-muted)' }}>{t('settings.autoLockDesc')}</small>
+            </div>
+          </div>
+        </div>
+
+        {/* --- RIGHT COLUMN: WORKFLOW & HARDWARE --- */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          
+          <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <h3 style={{ margin: '0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Icon icon="lucide:users" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.workflow')}
+            </h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.visibility')}</label>
+              <select
+                value={generalSettings.ticketVisibility || 'open'}
+                onChange={(e) => setGeneralSettings({ ...generalSettings, ticketVisibility: e.target.value })}
+                style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+              >
+                <option value="open">{t('settings.visibilityOpen')}</option>
+                <option value="isolated">{t('settings.visibilityIsolated')}</option>
+              </select>
+              <small style={{ color: 'var(--text-muted)' }}>{t('settings.visibilityDesc')}</small>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Icon icon="lucide:hash" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.orderNums')}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.resetPolicy')}</label>
+                <select
+                  value={generalSettings.orderResetPolicy || 'daily'}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, orderResetPolicy: e.target.value })}
+                  style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="never">{t('settings.resetNever')}</option>
+                  <option value="daily">{t('settings.resetDaily')}</option>
+                  <option value="weekly">{t('settings.resetWeekly')}</option>
+                  <option value="monthly">{t('settings.resetMonthly')}</option>
+                  <option value="yearly">{t('settings.resetYearly')}</option>
+                </select>
+                <small style={{ color: 'var(--text-muted)' }}>{t('settings.resetFreqDesc')}</small>
+                
+                <button
+                  onClick={() => {
+                    showConfirm(
+                      t('settings.resetTitle'), 
+                      t('settings.resetConfirm'), 
+                      () => {
+                        localStorage.setItem('tinypos_nextOrderNum', 1);
+                        showAlert(t('settings.resetSuccess'), t('settings.resetSuccessDesc'));
+                      }
+                    );
+                  }}
+                  style={{ 
+                    padding: '12px 20px', 
+                    background: 'transparent', 
+                    color: '#e74c3c', 
+                    border: '2px solid rgba(231, 76, 60, 0.3)', 
+                    borderRadius: '12px', 
+                    cursor: 'pointer', 
+                    fontWeight: 'bold', 
+                    fontSize: '0.9rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: 'fit-content',
+                    marginTop: '8px',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(231, 76, 60, 0.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <Icon icon="lucide:rotate-ccw" />
+                  {t('settings.btnReset')}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Icon icon="lucide:clipboard-check" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.shiftMgmt')}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.enableCorte')}</label>
+                <select
+                  value={generalSettings.enableCorte !== false}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, enableCorte: e.target.value === 'true' })}
+                  style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value={true}>{t('settings.corteYes')}</option>
+                  <option value={false}>{t('settings.corteNo')}</option>
+                </select>
+                <small style={{ color: 'var(--text-muted)' }}>{t('settings.corteDesc')}</small>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Icon icon="lucide:printer" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.hardware')}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.printerSize')}</label>
+                <select
+                  value={generalSettings.printerSize || '80mm'}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, printerSize: e.target.value })}
+                  style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value="80mm">{t('settings.printer80')}</option>
+                  <option value="58mm">{t('settings.printer58')}</option>
+                </select>
+                <small style={{ color: 'var(--text-muted)' }}>{t('settings.printerDesc')}</small>
+              </div>
+            </div>
+          </div>
+
+          {/* --- BOTTOM ACTIONS --- */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <button onClick={handleSaveGeneralSettings} style={{ padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+              <Icon icon="lucide:save" />
+              {t('settings.btnSave')}
+            </button>
+            
+            <ExportKeysButton />
+
+            <div style={{ 
+              border: '2px solid rgba(231, 76, 60, 0.2)', 
+              padding: '24px', 
+              borderRadius: '24px', 
+              backgroundColor: 'rgba(231, 76, 60, 0.05)' 
+            }}>
+              <h3 style={{ marginTop: 0, color: '#d63031', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:alert-triangle" />
+                {t('settings.dangerZone')}
+              </h3>
+              <p style={{ color: '#d63031', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
+                {t('settings.disconnectDesc')}
+              </p>
+              
+              <DisconnectButton />
+            </div>
+          </div>
         </div>
 
       </div>
