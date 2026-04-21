@@ -1,6 +1,7 @@
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../contexts/DialogContext';
-
+import ExportKeysButton from '../ExportKeysButton';
+import DisconnectButton from '../DisconnectButton';
 
 function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogoUpload, handleSaveGeneralSettings }) {
 
@@ -169,6 +170,31 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
         </div>
 
         <button onClick={handleSaveGeneralSettings} style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '16px', fontSize: '1.1rem' }}>Save General Settings</button>
+      </div>
+
+      {/* --- DEVICE MANAGEMENT SECTION --- */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '600px' }}>
+        
+        {/* The Exporter */}
+        <ExportKeysButton />
+
+        {/* The Danger Zone (Disconnect) */}
+        <div style={{ 
+          border: '2px solid #ff7675', 
+          padding: '24px', 
+          borderRadius: '12px', 
+          backgroundColor: '#fff0f0' 
+        }}>
+          <h3 style={{ marginTop: 0, color: '#d63031', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            ⚠️ Danger Zone
+          </h3>
+          <p style={{ color: '#d63031', fontSize: '0.95rem', marginBottom: '20px', lineHeight: '1.4' }}>
+            Disconnecting will instantly log this device out of the database and clear all local caches. You will need your <b>keys.tiny</b> file to reconnect it.
+          </p>
+          
+          <DisconnectButton />
+        </div>
+
       </div>
     </div>
   );

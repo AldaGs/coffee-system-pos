@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Register from './Register';
 import Admin from './Admin';
-import SetupScreen from './components/SetupScreen'; // Make sure this path matches where you saved it!
-
+import SetupScreen from './components/SetupScreen';
+import LandingPage from './components/LandingPage';
 import { supabase } from './supabaseClient'; 
 
 function App() {
@@ -13,12 +13,15 @@ function App() {
     !!localStorage.getItem('tinypos_supabase_url') && !!localStorage.getItem('tinypos_supabase_anon_key')
   );
 
+  const [wantsToSetup, setWantsToSetup] = useState(false);
+
   // --- 2. SECURE SESSION STATE ---
   const [session, setSession] = useState(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [setupMode, setSetupMode] = useState(null); // Will be 'new' or 'connect'
 
   // --- 3. CHECK SUPABASE AUTH STATUS ---
   useEffect(() => {
@@ -55,17 +58,24 @@ function App() {
   // --- RENDER PIPELINE ---
   // ==========================================
 
-  // --- GATE 1: THE INSTALLATION SCREEN ---
-  // If no keys are found, trap them in the Database Setup flow.
-  if (!isInstalled) {
-    return (
-      <SetupScreen onComplete={() => {
-        setIsInstalled(true);
-        // Force a hard reload so the Supabase client initializes with the new keys!
-        window.location.reload(); 
-      }} />
-    );
+  // --- GATE 0: THE LANDING PAGE ---
+  if (!isInstalled && !setupMode) {
+    return <LandingPage onSelectMode={(mode) => setSetupMode(mode)} />;
   }
+
+  // --- GATE 1: THE INSTALLATION SCREEN ---
+if (!isInstalled && setupMode) {
+  return (
+    <SetupScreen 
+      initialMode={setupMode} 
+      onBack={() => setSetupMode(null)}
+      onComplete={() => {
+        setIsInstalled(true);
+        window.location.reload(); 
+      }} 
+    />
+  );
+}
 
   // --- GATE 2: THE DEVICE AUTHORIZATION SCREEN ---
   // If they have keys, but the device isn't logged into the Kiosk account, lock them out!

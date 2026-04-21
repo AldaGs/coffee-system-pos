@@ -994,7 +994,7 @@ export const translations = {
     "lock.who": "¿Quién está usando la caja?",
     "lock.welcome": "Bienvenido,",
     "lock.enterPin": "Ingresa tu PIN de 4 dígitos",
-    "lock.btnBack": "Volver",
+    "lock.btnBack": "🔙",
     "lock.btnUnlock": "Desbloquear",
     
     // --- Menu Area ---

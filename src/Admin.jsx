@@ -21,6 +21,9 @@ import { useTheme } from './contexts/ThemeContext';
 import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
 
+import ExportKeysButton from './components/ExportKeysButton';
+import DisconnectButton from './components/DisconnectButton';
+
 
 function Admin() {
   const navigate = useNavigate();

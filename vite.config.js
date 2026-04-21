@@ -17,7 +17,7 @@ export default defineConfig({
         short_name: "tinypos",
         name: "tinypos",
         start_url: "/",
-        display: "standalone",
+        display: "fullscreen",
         theme_color: "#ffffff",
         background_color: "#ffffff",
         icons: [

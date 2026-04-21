@@ -421,7 +421,7 @@
   position: relative;
   height: 40px;
   width: 6px;
-  color: #ffffff;
+  color: var(--text-main);
   animation: paddles 0.75s ease-out infinite;
 }
 .spinner:before {
@@ -433,7 +433,7 @@
   top: 15px;
   width: 15px;
   height: 15px;
-  background-color: #ffffff;
+  background-color:var(--text-muted);
   box-shadow: 0 2px 12px rgb(29, 17, 0, 0.5);
   border-radius: 50%;
   animation: ballbounce 0.6s ease-out infinite;
