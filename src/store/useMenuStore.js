@@ -12,7 +12,7 @@ export const useMenuStore = create((set, get) => ({
     const defaults = {
       name: "Main Register",
       language: "en",
-      brandColor: "var(--brand-color)",
+      brandColor: 'var(--brand-color)',
       isDarkMode: false,
       autoLockMinutes: 5,
       enableCorte: true,

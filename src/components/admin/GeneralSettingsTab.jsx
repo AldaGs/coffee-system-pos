@@ -11,7 +11,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
     <div>
       <h1 style={{ color: 'var(--text-main)' }}>General Settings</h1>
       <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Customize the look, feel, and security of your POS terminal.</p>
-      <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{ background: 'var(--bg-main)', padding: '32px', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>Register Name</label>
           <input type="text" value={generalSettings.name} onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} placeholder="e.g., Front Counter iPad" style={{ padding: '12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
