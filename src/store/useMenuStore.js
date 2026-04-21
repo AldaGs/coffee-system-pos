@@ -9,15 +9,18 @@ export const useMenuStore = create((set, get) => ({
 
   getPosSettings: () => {
     const { menuData } = get();
-    return menuData?.posSettings || {
+    const defaults = {
       name: "Main Register",
       language: "en",
       brandColor: "var(--brand-color)",
       isDarkMode: false,
       autoLockMinutes: 5,
       enableCorte: true,
-      ticketVisibility: "open"
+      ticketVisibility: "open",
+      pinCode: "1234"
     };
+    if (!menuData?.posSettings) return defaults;
+    return { ...defaults, ...menuData.posSettings };
   },
 
   // Actions

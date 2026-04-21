@@ -186,9 +186,9 @@ function Admin() {
       }
 
       // 3. Load UI Settings (Receipt, General, Loyalty)
-      if (menuSettings.menu_data.receiptSettings) setReceiptForm(menuSettings.menu_data.receiptSettings);
-      if (menuSettings.menu_data.posSettings) setGeneralSettings(menuSettings.menu_data.posSettings);
-      if (menuSettings.menu_data.loyaltySettings) setLoyaltyForm(menuSettings.menu_data.loyaltySettings);
+      if (menuSettings.menu_data.receiptSettings) setReceiptForm(prev => ({ ...prev, ...menuSettings.menu_data.receiptSettings }));
+      if (menuSettings.menu_data.posSettings) setGeneralSettings(prev => ({ ...prev, ...menuSettings.menu_data.posSettings }));
+      if (menuSettings.menu_data.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...menuSettings.menu_data.loyaltySettings }));
 
       // 4. Fetch Sales History
       const { data: salesHistory, error: salesError } = await supabase.from('sales').select('*');

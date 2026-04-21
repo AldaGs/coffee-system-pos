@@ -94,7 +94,7 @@ export default async function handler(req, res) {
     INSERT INTO public.shop_settings (id, menu_data)
     VALUES (
       1, 
-      '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "TinyPOS", "pinCode": "1234"}}'::jsonb
+      '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "TinyPOS", "pinCode": "1234", "language": "en", "brandColor": "var(--brand-color)", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open"}, "receiptSettings": {"header": "TINY COFFEE BAR", "subheader": "Puebla, Mexico", "footer": "Thank you for your visit!", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": true, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
     )
     ON CONFLICT (id) DO NOTHING;
 
