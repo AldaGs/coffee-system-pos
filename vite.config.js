@@ -14,7 +14,6 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
       manifest: {
-      manifest: {
         short_name: "tinypos",
         name: "tinypos",
         start_url: "/",
