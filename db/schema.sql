@@ -83,3 +83,29 @@ VALUES (
   '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "TinyPOS", "pinCode": "1234"}}'::jsonb
 )
 ON CONFLICT (id) DO NOTHING;
+
+-- ==========================================
+-- ROW LEVEL SECURITY (RLS) & POLICIES
+-- ==========================================
+
+-- 1. Enable RLS on every table
+ALTER TABLE public.active_tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.inventory_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recipes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shop_settings ENABLE ROW LEVEL SECURITY;
+
+-- 2. Create Policies for Authenticated Hardware
+-- This ensures only devices that have logged in via the Device Auth Screen can access data.
+
+CREATE POLICY "Hardware can access active_tickets" ON public.active_tickets FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access customers" ON public.customers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access expenses" ON public.expenses FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access inventory" ON public.inventory FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access inventory_logs" ON public.inventory_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access recipes" ON public.recipes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access sales" ON public.sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access shop_settings" ON public.shop_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
