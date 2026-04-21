@@ -1,11 +1,12 @@
 import { useState, useRef } from 'react';
+import { Icon } from '@iconify/react';
 
 export default function SetupScreen({ initialMode, onBack, onComplete }) {
   const [isConnectingExisting, setIsConnectingExisting] = useState(initialMode === 'connect');
   const [formData, setFormData] = useState({ supabaseUrl: '', anonKey: '', connectionString: '' });
   const [loading, setLoading] = useState(false);
   const [customAlert, setCustomAlert] = useState({ show: false, message: '', type: '' });
-  
+
   const fileInputRef = useRef(null);
 
   const showAlert = (message, type = 'error') => {
@@ -34,16 +35,16 @@ export default function SetupScreen({ initialMode, onBack, onComplete }) {
       try {
         const decoded = atob(event.target.result); // Base64 decode
         const { url, key } = JSON.parse(decoded);
-        
-        if (!url || !key) throw new Error("File missing required data.");
+
+        if (!url || !key) throw new Error("El archivo no contiene los datos requeridos.");
 
         localStorage.setItem('tinypos_supabase_url', url.trim());
         localStorage.setItem('tinypos_supabase_anon_key', key.trim());
-        
-        showAlert("Store keys loaded successfully!", "success");
+
+        showAlert("¡Llaves cargadas con éxito!", "success");
         setTimeout(() => onComplete(), 1500);
       } catch (err) {
-        showAlert("Invalid keys.tiny file!", "error");
+        showAlert("¡Archivo keys.tiny inválido!", "error");
       }
     };
     reader.readAsText(file);
@@ -64,17 +65,17 @@ export default function SetupScreen({ initialMode, onBack, onComplete }) {
         });
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
-        
-        showAlert("TinyPOS Installed! Downloading keys...", "success");
+
+        showAlert("¡TinyPOS Instalado! Descargando llaves...", "success");
         exportKeysToFile(formData.supabaseUrl.trim(), formData.anonKey.trim());
       } else {
         // MODE 2: Manual Connect
-        showAlert("Device Connected to Database!", "success");
+        showAlert("¡Dispositivo Conectado a la Base de Datos!", "success");
       }
 
       localStorage.setItem('tinypos_supabase_url', formData.supabaseUrl.trim());
       localStorage.setItem('tinypos_supabase_anon_key', formData.anonKey.trim());
-      
+
       setTimeout(() => onComplete(), 1500);
     } catch (err) {
       showAlert(err.message, "error");
@@ -84,91 +85,106 @@ export default function SetupScreen({ initialMode, onBack, onComplete }) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100dvh', backgroundColor: "var(--bg-app)", justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', position: 'relative' }}>
-      
+    <div style={{ display: 'flex', height: '100dvh', backgroundColor: "var(--bg-app, #f8fafc)", justifyContent: 'center', alignItems: 'center', fontFamily: 'var(--font-main, system-ui)', position: 'relative' }}>
+
       {/* Alert Banner */}
       {customAlert.show && (
-        <div style={{
+        <div className="fade-in" style={{
           position: 'absolute', top: '40px', left: '50%', transform: 'translateX(-50%)',
           background: customAlert.type === 'success' ? '#27ae60' : '#e74c3c',
-          color: 'white', padding: '16px 24px', borderRadius: '8px', fontWeight: 'bold',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 1000
+          color: 'white', padding: '16px 24px', borderRadius: '12px', fontWeight: 'bold',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '10px'
         }}>
+          <Icon icon={customAlert.type === 'success' ? 'lucide:check-circle' : 'lucide:alert-circle'} />
           {customAlert.message}
         </div>
       )}
 
       {/* Back Button */}
-      <button 
-        onClick={onBack} 
-        style={{ 
-          position: 'absolute', 
-          top: '20px', 
-          left: '20px', 
-          background: 'rgba(255, 255, 255, 0.1)', 
-          border: '1px solid rgba(255, 255, 255, 0.2)', 
-          color: 'white', 
-          fontSize: '0.95rem', 
-          fontWeight: 'bold',
-          cursor: 'pointer', 
-          display: 'flex', 
-          alignItems: 'center', 
+      <button
+        onClick={onBack}
+        style={{
+          position: 'absolute',
+          top: '20px',
+          left: '20px',
+          background: 'white',
+          border: '1px solid #e2e8f0',
+          color: '#1a2a3a',
+          fontSize: '0.95rem',
+          fontWeight: '700',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
           gap: '8px',
-          padding: '8px 16px',
-          borderRadius: '20px',
-          backdropFilter: 'blur(4px)',
+          padding: '10px 20px',
+          borderRadius: '30px',
+          boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
           transition: 'all 0.2s ease'
         }}
-        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
-        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(-3px)'; e.currentTarget.style.background = '#f8fafc'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.background = 'white'; }}
       >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-        Back
+        <Icon icon="lucide:arrow-left" strokeWidth={3} />
+        Regresar
       </button>
 
-      <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '500px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-        
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <img src="/icon-192x192.png" alt="Logo" style={{ width: '80px', height: '80px', borderRadius: '16px', marginBottom: '10px' }} onError={(e) => e.target.style.display = 'none'} />
-          <h2 style={{ margin: '0', color: '#2c3e50' }}>{isConnectingExisting ? "Connect Device" : "Welcome to TinyPOS"}</h2>
+      <div className="fade-in" style={{ background: 'white', padding: '48px', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 60px rgba(0,0,0,0.1)', border: '1px solid #f1f5f9' }}>
+
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ width: '80px', height: '80px', background: 'var(--brand-color, #f28b05)', color: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 16px', boxShadow: '0 8px 20px rgba(52, 152, 219, 0.2)' }}>
+            <Icon icon="lucide:coffee" />
+          </div>
+          <h2 style={{ margin: '0', color: '#1a2a3a', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a TinyPOS"}</h2>
+          <p style={{ color: '#64748b', marginTop: '8px' }}>Configura tu terminal para comenzar.</p>
         </div>
 
         {/* KEYS.TINY UPLOAD BUTTON (Only in Connect Mode) */}
         {isConnectingExisting && (
-          <div style={{ marginBottom: '24px' }}>
+          <div style={{ marginBottom: '32px' }}>
             <input type="file" accept=".tiny" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} />
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={() => fileInputRef.current.click()}
-              style={{ width: '100%', padding: '16px', backgroundColor: '#f18407', color: '#2c3e50', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+              style={{ width: '100%', padding: '18px', backgroundColor: '#f1f5f9', color: '#1a2a3a', border: '2px dashed #cbd5e1', borderRadius: '14px', fontWeight: '800', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', transition: 'all 0.2s ease' }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--brand-color, #3498db)'; e.currentTarget.style.backgroundColor = '#eff6ff'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
             >
-              📁 Load keys.tiny File
+              <Icon icon="lucide:folder-open" />
+              Cargar archivo keys.tiny
             </button>
-            <div style={{ textAlign: 'center', margin: '16px 0', color: '#888', fontSize: '0.9rem' }}>— OR ENTER MANUALLY —</div>
+            <div style={{ textAlign: 'center', margin: '20px 0', color: '#94a3b8', fontSize: '0.85rem', fontWeight: '700', letterSpacing: '1px' }}>— O INGRESA MANUALMENTE —</div>
           </div>
         )}
-        
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontWeight: 'bold', color: '#333' }}>Supabase Project URL</label>
-            <input placeholder="https://xxxxxx.supabase.co" value={formData.supabaseUrl} onChange={e => setFormData({...formData, supabaseUrl: e.target.value})} required style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <label style={{ fontWeight: '800', color: '#334155', fontSize: '0.9rem' }}>URL del Proyecto Supabase</label>
+            <input placeholder="https://xxxxxx.supabase.co" value={formData.supabaseUrl} onChange={e => setFormData({ ...formData, supabaseUrl: e.target.value })} required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outlineColor: 'var(--brand-color, #3498db)' }} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontWeight: 'bold', color: '#333' }}>Supabase Anon Key</label>
-            <input type="password" value={formData.anonKey} onChange={e => setFormData({...formData, anonKey: e.target.value})} required style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <label style={{ fontWeight: '800', color: '#334155', fontSize: '0.9rem' }}>Clave Anon de Supabase</label>
+            <input placeholder="sb_publishable_xxx..." type="password" value={formData.anonKey} onChange={e => setFormData({ ...formData, anonKey: e.target.value })} required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outlineColor: 'var(--brand-color, #3498db)' }} />
           </div>
 
           {!isConnectingExisting && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', color: '#333' }}>Database Connection String</label>
-              <input type="password" value={formData.connectionString} onChange={e => setFormData({...formData, connectionString: e.target.value})} required style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc' }} />
+              <label style={{ fontWeight: '800', color: '#334155', fontSize: '0.9rem' }}>Cadena de Conexión (Postgres)</label>
+              <input type="password" placeholder="postgresql://postgres..." value={formData.connectionString} onChange={e => setFormData({ ...formData, connectionString: e.target.value })} required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outlineColor: 'var(--brand-color, #3498db)' }} />
             </div>
           )}
 
-          <button type="submit" disabled={loading} style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', marginTop: '8px', opacity: loading ? 0.7 : 1, fontSize: '1.1rem' }}>
-            {loading ? "Processing..." : (isConnectingExisting ? "Connect Manually" : "Initialize TinyPOS")}
+          <button type="submit" disabled={loading} style={{ padding: '18px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '14px', cursor: 'pointer', fontWeight: '800', marginTop: '12px', opacity: loading ? 0.7 : 1, fontSize: '1.15rem', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            {loading ? (
+              <>
+                <Icon icon="lucide:loader-2" className="spin" />
+                <span>Procesando...</span>
+              </>
+            ) : (
+              <>
+                <Icon icon={isConnectingExisting ? "lucide:link" : "lucide:rocket"} />
+                <span>{isConnectingExisting ? "Conectar Manualmente" : "Inicializar TinyPOS"}</span>
+              </>
+            )}
           </button>
         </form>
 

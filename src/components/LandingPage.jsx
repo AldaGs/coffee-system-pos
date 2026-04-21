@@ -1,72 +1,114 @@
 import React from 'react';
+import { Icon } from '@iconify/react';
 
 export default function LandingPage({ onSelectMode }) {
   return (
-    <div style={{ minHeight: '100dvh', backgroundColor: '#f8f9fa', fontFamily: 'system-ui', display: 'flex', flexDirection: 'column' }}>
-      
+    <div style={{ minHeight: '100dvh', backgroundColor: '#fdfdfd', fontFamily: 'var(--font-main, system-ui)', display: 'flex', flexDirection: 'column', color: '#2c3e50' }}>
+
       {/* NAVIGATION BAR */}
-      <nav style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 40px', alignItems: 'center', backgroundColor: 'white', borderBottom: '1px solid #eee' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <img src="/icon-192x192.png" alt="TinyPOS Logo" style={{ width: '32px', height: '32px', borderRadius: '8px' }} onError={(e) => e.target.style.display = 'none'} />
-          <h1 style={{ fontSize: '1.2rem', margin: 0, color: '#2c3e50', fontWeight: '800' }}>TinyPOS</h1>
+      <nav style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 5%', alignItems: 'center', backgroundColor: 'white', borderBottom: '1px solid #f0f0f0' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '38px', height: '38px', background: 'var(--brand-color, #f28b05)', color: 'white', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}>
+            <Icon icon="lucide:coffee" />
+          </div>
+          <h1 style={{ fontSize: '1.4rem', margin: 0, color: '#1a2a3a', fontWeight: '900', letterSpacing: '-0.5px' }}>tinypos</h1>
         </div>
-        
-        {/* GitHub Link added here */}
-        <a 
-          href="https://github.com/AldaGs/coffee-system-pos" 
-          target="_blank" 
+
+        <a
+          href="https://github.com/AldaGs/coffee-system-pos"
+          target="_blank"
           rel="noopener noreferrer"
-          style={{ color: '#2c3e50', textDecoration: 'none', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+          style={{ color: '#546e7a', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}
         >
-          <svg height="24" width="24" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-          </svg>
-          View Source
+          <Icon icon="mdi:github" fontSize="1.4rem" />
+          <span>Ver Fuente  </span>
         </a>
       </nav>
 
       {/* HERO SECTION */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '40px 20px', textAlign: 'center' }}>
-        <h2 style={{ fontSize: '3.5rem', color: '#2c3e50', marginBottom: '16px', maxWidth: '800px', lineHeight: '1.1', fontWeight: '800' }}>
-          The sovereign point of sale for small business.
-        </h2>
-        <p style={{ fontSize: '1.25rem', color: '#666', marginBottom: '40px', maxWidth: '600px', lineHeight: '1.6' }}>
-          No monthly fees. No cloud subscriptions. Own your data, connect your hardware, and run your shop on your terms.
-        </p>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px 5%', textAlign: 'center' }}>
+        <div className="fade-in" style={{ maxWidth: '900px' }}>
+          <h2 style={{ fontSize: '4rem', color: '#1a2a3a', marginBottom: '24px', lineHeight: '1.05', fontWeight: '900', letterSpacing: '-1px' }}>
+            El punto de venta autónomo para <span style={{ color: 'var(--brand-color, #f28b05)' }}>pequeños negocios.</span>
+          </h2>
+          <p style={{ fontSize: '1.35rem', color: '#546e7a', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px', lineHeight: '1.5' }}>
+            Sin mensualidades. Sin suscripciones en la nube. Sé dueño de tus datos, conecta tu hardware y gestiona tu negocio a tu manera.
+          </p>
 
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button 
-            onClick={() => onSelectMode('new')}
-            style={{ padding: '16px 32px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 12px rgba(39, 174, 96, 0.3)' }}
-          >
-            Create Your Store
-          </button>
-          
-          <button 
-            onClick={() => onSelectMode('connect')}
-            style={{ padding: '16px 32px', backgroundColor: 'transparent', color: '#2c3e50', border: '2px solid #2c3e50', borderRadius: '8px', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer' }}
-          >
-            Connect Existing Device
-          </button>
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              onClick={() => onSelectMode('new')}
+              style={{ padding: '18px 40px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '800', cursor: 'pointer', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.25)', transition: 'transform 0.2s ease' }}
+              onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+              onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+            >
+              Crear tu tienda
+            </button>
+
+            <button
+              onClick={() => onSelectMode('connect')}
+              style={{ padding: '18px 40px', backgroundColor: 'white', color: '#1a2a3a', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s ease' }}
+              onMouseEnter={(e) => { e.target.style.borderColor = '#1a2a3a'; e.target.style.backgroundColor = '#f8fafc'; }}
+              onMouseLeave={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.backgroundColor = 'white'; }}
+            >
+              Conectar dispositivo existente
+            </button>
+          </div>
         </div>
 
         {/* FEATURE HIGHLIGHTS */}
-        <div style={{ display: 'flex', gap: '40px', marginTop: '80px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '900px' }}>
-          <FeatureCard icon="🖨️" title="Hardware Ready" desc="Prints directly to your 58mm thermal printers without complex drivers." />
-          <FeatureCard icon="☁️" title="Bring Your Database" desc="Connects to your own free Supabase instance for ultimate data ownership." />
-          <FeatureCard icon="⚡" title="Offline Capable" desc="Keeps your line moving even when your local internet connection drops." />
+        <div style={{ display: 'flex', gap: '30px', marginTop: '100px', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '1100px' }}>
+          <FeatureCard
+            icon="lucide:printer"
+            color="#3498db"
+            title="Hardware listo"
+            desc="Imprime directamente en impresoras térmicas de 58mm sin controladores complejos."
+          />
+          <FeatureCard
+            icon="lucide:database"
+            color="#9b59b6"
+            title="Propiedad de los datos"
+            desc={
+              <>
+                Se conecta a tu propia instancia gratuita de <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" style={{ color: '#f28b05', fontWeight: 'bold', textDecoration: 'none' }}>Supabase</a> para un control total de tus datos.
+              </>
+            }
+          />
+          <FeatureCard
+            icon="lucide:zap"
+            color="#f1c40f"
+            title="Funciona sin internet"
+            desc="Mantén tu fila avanzando incluso si se cae tu conexión a internet."
+          />
         </div>
       </main>
+
+      <footer style={{ padding: '30px', textAlign: 'center', borderTop: '1px solid #f0f0f0', color: '#94a3b8', fontSize: '0.9rem' }}>
+        &copy; {new Date().getFullYear()} tinypos. Diseñado para comunidades de café artesanal.
+      </footer>
     </div>
   );
 }
 
-function FeatureCard({ icon, title, desc }) {
+function FeatureCard({ icon, title, desc, color }) {
   return (
-    <div style={{ flex: '1 1 250px', textAlign: 'center', padding: '20px' }}>
-      <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>{icon}</div>
-      <h3 style={{ fontSize: '1.2rem', color: '#2c3e50', marginBottom: '8px' }}>{title}</h3>
-      <p style={{ color: '#666', fontSize: '0.95rem', lineHeight: '1.5' }}>{desc}</p>
+    <div style={{ flex: '1 1 300px', textAlign: 'center', padding: '32px', background: 'white', borderRadius: '24px', border: '1px solid #f0f0f0', transition: 'all 0.3s ease' }}>
+      <div style={{
+        width: '64px',
+        height: '64px',
+        background: `${color}15`,
+        color: color,
+        borderRadius: '18px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '2rem',
+        margin: '0 auto 20px'
+      }}>
+        <Icon icon={icon} />
+      </div>
+      <h3 style={{ fontSize: '1.25rem', color: '#1a2a3a', marginBottom: '12px', fontWeight: '800' }}>{title}</h3>
+      <p style={{ color: '#546e7a', fontSize: '1rem', lineHeight: '1.6', margin: 0 }}>{desc}</p>
     </div>
   );
 }
