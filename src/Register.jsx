@@ -13,6 +13,7 @@ import { useCartStore } from './store/useCartStore';
 import { processCheckout } from './services/checkoutService';
 import { attemptBackgroundSync } from './services/syncService'; 
 import { numeroALetras } from './utils/numeroALetras';
+import { useTranslation } from './hooks/useTranslation';
 
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
@@ -32,7 +33,8 @@ import Dialog from './components/shared/Dialog';
 
 function Register() {
   const navigate = useNavigate();
-
+  const { t, lang } = useTranslation();
+  
   // --- ZUSTAND GLOBAL STORES ---
   const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime, logout } = useAuthStore();
   const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, isLoading, setIsLoading, getPosSettings } = useMenuStore();
@@ -169,7 +171,7 @@ function Register() {
   // --- SAVE EXPENSE LOGIC ---
   const handleSaveExpense = async () => {
     if (!expenseForm.amount || !expenseForm.reason) {
-      return showAlert("Missing Info", "Please enter both the amount and the reason for the expense.");
+      return showAlert(t('expense.errMissing'), t('expense.errDesc'));
     }
 
     const expenseAmount = parseFloat(expenseForm.amount);
@@ -181,7 +183,7 @@ function Register() {
       reason: expenseForm.reason,
       timestamp: new Date().toISOString(),
       cashierId: activeCashier?.id || 'unknown',
-      cashierName: activeCashier?.name || 'Unknown Cashier'
+      cashierName: activeCashier?.name || t('expense.unknownCashier')
     };
 
     // 2. Build the cloud record (For when you create the 'expenses' table in Supabase)
@@ -206,7 +208,7 @@ function Register() {
     setExpenses([...expenses, newExpense]);
     setIsExpenseModalOpen(false);
     setExpenseForm({ amount: '', reason: '' });
-    showAlert("Expense Recorded", `Successfully logged $${expenseAmount.toFixed(2)} out of the drawer for:\n${expenseForm.reason}`);
+    showAlert(t('expense.success'), `${t('expense.successDesc')} $${expenseAmount.toFixed(2)}:\n${expenseForm.reason}`);
   };
 
   // --- DISCOUNT STATE & LOGIC ---
@@ -281,28 +283,28 @@ function Register() {
 
     // Safety check to ensure they actually counted
     if (countedCash === "") {
-      return showAlert("Missing Count", "Please enter the physical cash counted in the drawer.");
+      return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc1')); // Reusing inventory strings or add new ones
     }
 
     // Determine the status string
-    let statusMsg = "Perfectly Balanced âš–ï¸";
-    if (difference > 0) statusMsg = `Over (Sobrante) by $${difference.toFixed(2)} â¬†ï¸`;
-    if (difference < 0) statusMsg = `Short (Faltante) by $${Math.abs(difference).toFixed(2)} â¬‡ï¸`;
+    let statusMsg = t('corte.balanced');
+    if (difference > 0) statusMsg = `${t('corte.over')} $${difference.toFixed(2)} ⬆️`;
+    if (difference < 0) statusMsg = `${t('corte.short')} $${Math.abs(difference).toFixed(2)} ⬇️`;
 
     const confirmMessage = `
-      SHIFT SUMMARY:
-      Total Tickets: ${shiftOrders.length}
-      Gross Revenue: $${shiftTotalRevenue.toFixed(2)}
-      Cash Expenses: $${shiftTotalExpenses.toFixed(2)}
+      ${t('corte.summary')}:
+      ${t('analytics.sales')}: ${shiftOrders.length}
+      ${t('corte.gross')}: $${shiftTotalRevenue.toFixed(2)}
+      ${t('corte.expenses')}: $${shiftTotalExpenses.toFixed(2)}
 
-      CASH RECONCILIATION:
-      Expected Cash: $${expectedCash.toFixed(2)}
-      Counted Cash: $${actualCash.toFixed(2)}
-      Result: ${statusMsg}
+      ${t('corte.cashRecon')}:
+      ${t('corte.expected')}: $${expectedCash.toFixed(2)}
+      ${t('corte.counted')}: $${actualCash.toFixed(2)}
+      ${t('corte.result')}: ${statusMsg}
 
-      Are you sure you want to close this shift? This will reset the register for the next cashier.`;
+      ${t('corte.closeConfirm')}`;
 
-          showConfirm("Confirm Corte de Caja", confirmMessage, () => {
+          showConfirm(t('corte.confirmTitle'), confirmMessage, () => {
             // 1. Mark the current exact time as the new baseline
             const newTimestamp = new Date().toISOString();
             setLastCorteTimestamp(newTimestamp);
@@ -312,7 +314,7 @@ function Register() {
             setIsCorteModalOpen(false);
             setCountedCash("");
 
-            showAlert("Shift Closed", "The Corte de Caja was successful. The register is ready for the next shift.");
+            showAlert(t('corte.successTitle'), t('corte.successDesc'));
           });
         };
 
@@ -876,11 +878,7 @@ useEffect(() => {
       return;
     }
 
-    showConfirm(
-      "Void Ticket",
-      `Are you sure you want to completely void "${activeTicket.name}"? This cannot be undone.`,
-      () => clearCurrentTicket()
-    );
+    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => clearCurrentTicket());
   };
 
 
@@ -1028,8 +1026,8 @@ useEffect(() => {
       pushCommand(ESC_BOLD_OFF);
       pushText(`${receiptSettings.subheader}\n`);
       pushText("--------------------------------\n");
-      pushText(`Ticket: ${ticket.name}\n`);
-      pushText(`Date: ${new Date().toLocaleString()}\n`);
+      pushText(`${t('receipt.ticket')} ${ticket.name}\n`);
+      pushText(`${t('receipt.date')} ${new Date().toLocaleString(lang === 'es' ? 'es-MX' : 'en-US')}\n`);
       pushText("--------------------------------\n");
 
       pushCommand(ESC_ALIGN_LEFT);
@@ -1054,9 +1052,9 @@ useEffect(() => {
 
       // --- DISCOUNTS ---
       if (rawSubtotal > total) {
-        pushRow("Subtotal", `$${rawSubtotal.toFixed(2)}`);
+        pushRow(t('analytics.grossRevenue'), `$${rawSubtotal.toFixed(2)}`);
         const discountAmt = rawSubtotal - total;
-        pushRow("Discount", `-$${discountAmt.toFixed(2)}`);
+        pushRow(t('disc.title'), `-$${(rawSubtotal - total).toFixed(2)}`);
         pushText("--------------------------------\n");
       }
 
@@ -1126,7 +1124,7 @@ useEffect(() => {
 
     } catch (err) {
       console.error("Printing failed:", err);
-      showAlert("Printer Error", "Could not connect to the printer.");
+      showAlert(t('receipt.printerErr'), t('receipt.printerErrDesc'));
     }
   };
 
@@ -1149,8 +1147,8 @@ useEffect(() => {
       message += `${receiptSettings.subheader}\n`;
     }
     message += `--------------------------\n`;
-    message += `Order: ${activeTicket.name}\n`;
-    message += `Date: ${new Date().toLocaleString()}\n`;
+    message += `${t('wa.order')} ${activeTicket.name}\n`;
+    message += `${t('wa.date')} ${new Date().toLocaleString(lang === 'es' ? 'es-MX' : 'en-US')}\n`;
     message += `--------------------------\n`;
 
     // 2. Build Items List
@@ -1188,14 +1186,14 @@ useEffect(() => {
         ? 'visits' 
         : `${menuData.loyaltySettings.targetItem}s`;
 
-      message += `\n🌟 *Loyalty Status*\n`;
-      message += `Total: ${loyaltyData.visits} / ${loyaltyData.target} ${targetItemLabel}\n`;
-      message += `(Earned today: +${loyaltyData.earnedToday})\n`;
+      message += `\n🌟 *${t('wa.loyaltyTitle')}*\n`;
+      message += `${t('analytics.filterAll')}: ${loyaltyData.visits} / ${loyaltyData.target}\n`;
+      message += `(${t('wa.earnedToday')} +${loyaltyData.earnedToday})\n`;
       
       if (loyaltyData.isRewardReady) {
-        message += `🎉 REWARD READY: ${loyaltyData.reward}!\n`;
+        message += `🎉 ${t('wa.rewardReady')} ${loyaltyData.reward}!\n`;
       } else {
-        message += `Next Reward: ${loyaltyData.target - (loyaltyData.visits % loyaltyData.target)} more ${targetItemLabel}!\n`;
+        message += `${t('wa.nextReward')} ${loyaltyData.target - (loyaltyData.visits % loyaltyData.target)} ${t('wa.more')}!\n`;
       }
     }
 
@@ -1242,7 +1240,7 @@ useEffect(() => {
     const isLoyaltyActive = menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true";
     if (!isLoyaltyActive) {
       setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
-      return showAlert("Program Paused", "No current promotions active");
+      return showAlert(t('loyalty.paused'), t('loyalty.noPromos'));
     }
 
     const cleanPhone = loyaltyModal.phone.replace(/\D/g, '');
@@ -1276,7 +1274,7 @@ useEffect(() => {
     // Stop if they aren't buying the required item!
     if (starsToEarn === 0) {
       setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
-      return showAlert("No Qualifying Items", `This order does not contain any "${targetItem}"s to earn loyalty stars.`);
+      return showAlert(t('loyalty.noQualify'), t('loyalty.noQualifyDesc'));
     }
 
     let currentVisits = starsToEarn; // Default if new customer
@@ -1323,7 +1321,7 @@ useEffect(() => {
   };
 
   const handleVoidPartialPayments = () => {
-    showConfirm("Void Partial Payments", "This will completely erase the payment history for this ticket. Are you sure you want to proceed if cash was already taken?", async () => {
+    showConfirm(t('checkout.voidPartialTitle'), t('checkout.voidPartialDesc'), async () => {
       if (activeTicket) await db.active_tickets.update(activeTicket.id, { savedSplitPayments: [], savedPaidProductIds: [], savedSplitMode: null, savedNWays: 2 });
       setSplitPayments([]);
       setPaidProductIds([]);
@@ -1399,21 +1397,21 @@ useEffect(() => {
           <div style={{ width: '64px', height: '64px', borderRadius: '32px', background: 'var(--brand-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold', margin: '0 auto 16px' }}>
             {selectedProfile.name.charAt(0)}
           </div>
-          <h2 style={{ margin: '0 0 5px 0' }}>Hi, {selectedProfile.name}</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Enter your 4-digit PIN</p>
+          <h2 style={{ margin: '0 0 5px 0' }}>{t('reg.loginHi')} {selectedProfile.name}</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>{t('reg.loginEnterPin')}</p>
           
           <div style={{ 
             fontSize: '2.5rem', letterSpacing: '16px', marginBottom: '24px', fontWeight: 'bold', minHeight: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: 'var(--bg-main)', borderRadius: '12px', border: `1px solid var(--border)`, color: 'var(--text-main)' 
           }}>
-            {pinAttempt.replace(/./g, '●') || <span style={{opacity: 0.2, letterSpacing: 'normal', fontSize: '1rem'}}>PIN REQUIRED</span>}
+            {pinAttempt.replace(/./g, '●') || <span style={{opacity: 0.2, letterSpacing: 'normal', fontSize: '1rem'}}>{t('reg.loginPinReq')}</span>}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
               <button key={num} onClick={() => setPinAttempt(prev => prev.length < 4 ? prev + num : prev)} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>{num}</button>
             ))}
-            <button onClick={() => { setSelectedProfile(null); setPinAttempt(''); }} style={{ padding: '20px', fontSize: '1rem', background: 'rgba(231, 76, 60, 0.1)', border: 'none', borderRadius: '10px', cursor: 'pointer', color: '#e74c3c', fontWeight: 'bold' }}>BACK</button>
+            <button onClick={() => { setSelectedProfile(null); setPinAttempt(''); }} style={{ padding: '20px', fontSize: '1rem', background: 'rgba(231, 76, 60, 0.1)', border: 'none', borderRadius: '10px', cursor: 'pointer', color: '#e74c3c', fontWeight: 'bold' }}>{t('reg.btnBack')}</button>
             <button onClick={() => setPinAttempt(prev => prev.length < 4 ? prev + 0 : prev)} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>0</button>
             <button onClick={() => setPinAttempt(prev => prev.slice(0, -1))} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>⌫</button>
           </div>
@@ -1423,14 +1421,14 @@ useEffect(() => {
             disabled={pinAttempt.length !== 4}
             style={{ width: '100%', padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.2rem', opacity: pinAttempt.length === 4 ? 1 : 0.5 }}
           >
-            Login
+            {t('reg.btnLogin')}
           </button>
         </div>
       </div>
     );
   }
 
-  if (!menuData) return <div>Error: Menu data is missing.</div>;
+  if (!menuData) return <div>{t('reg.errMissingMenu')}</div>;
 
   // Calculate total offline burdens for the UI badge
   const totalOfflineRecords = syncQueue.length + expenseQueue.length + waQueue.length;

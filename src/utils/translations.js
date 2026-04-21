@@ -328,7 +328,64 @@ export const translations = {
     "team.badgeAdmin": "ADMIN",
     "team.pinLabel": "PIN: ****",
 
+    // --- Register Hub ---
+    "reg.errMissingMenu": "Error: Menu data is missing.",
+    "reg.errNoTicket": "No Active Order",
+    "reg.errNoTicketDesc": "Please click '+ Start New Ticket' before adding items.",
+    "reg.voidTitle": "Void Ticket",
+    "reg.voidDesc": "Are you sure you want to completely void this ticket? This cannot be undone.",
+    "reg.loginHi": "Hi,",
+    "reg.loginEnterPin": "Enter your 4-digit PIN",
+    "reg.loginPinReq": "PIN REQUIRED",
+    "reg.btnBack": "BACK",
+    "reg.btnLogin": "Login",
+    "reg.accessRevoked": "Access Revoked",
 
+    // --- Expenses (Gastos) ---
+    "expense.errMissing": "Missing Info",
+    "expense.errDesc": "Please enter both the amount and the reason for the expense.",
+    "expense.success": "Expense Recorded",
+    "expense.successDesc": "Successfully logged out of the drawer for:",
+    "expense.unknownCashier": "Unknown Cashier",
+
+    // --- Corte de Caja ---
+    "corte.balanced": "Perfectly Balanced ⚖️",
+    "corte.over": "Over (Sobrante) by",
+    "corte.short": "Short (Faltante) by",
+    "corte.confirmTitle": "Confirm Corte de Caja",
+    "corte.summary": "SHIFT SUMMARY",
+    "corte.gross": "Gross Revenue",
+    "corte.expenses": "Cash Expenses",
+    "corte.cashRecon": "CASH RECONCILIATION",
+    "corte.expected": "Expected Cash",
+    "corte.counted": "Counted Cash",
+    "corte.result": "Result",
+    "corte.closeConfirm": "Are you sure you want to close this shift? This will reset the register for the next cashier.",
+    "corte.successTitle": "Shift Closed",
+    "corte.successDesc": "The Corte de Caja was successful. The register is ready for the next shift.",
+
+    // --- Receipt & WhatsApp ---
+    "receipt.ticket": "Ticket:",
+    "receipt.date": "Date:",
+    "receipt.unsupported": "Unsupported Device",
+    "receipt.unsupportedDesc": "Direct printing is only supported on Windows/Mac via Chrome, or Android via the RawBT app.",
+    "receipt.printerErr": "Printer Error",
+    "receipt.printerErrDesc": "Could not connect to the printer.",
+    "wa.order": "Order:",
+    "wa.date": "Date:",
+    "wa.loyaltyTitle": "Loyalty Status",
+    "wa.earnedToday": "Earned today:",
+    "wa.rewardReady": "REWARD READY:",
+    "wa.nextReward": "Next Reward:",
+    "wa.more": "more",
+
+    // --- Loyalty & Checkout Logic ---
+    "loyalty.paused": "Program Paused",
+    "loyalty.noPromos": "No current promotions active",
+    "loyalty.noQualify": "No Qualifying Items",
+    "loyalty.noQualifyDesc": "This order does not contain any qualifying items to earn loyalty stars.",
+    "checkout.voidPartialTitle": "Void Partial Payments",
+    "checkout.voidPartialDesc": "This will completely erase the payment history for this ticket. Are you sure you want to proceed if cash was already taken?"
   },
   es: {
     // --- General ---
@@ -658,5 +715,64 @@ export const translations = {
     "team.btnRemove": "Eliminar",
     "team.badgeAdmin": "ADMIN",
     "team.pinLabel": "PIN: ****",
+
+    // --- Register Hub ---
+    "reg.errMissingMenu": "Error: Los datos del menú no están disponibles.",
+    "reg.errNoTicket": "Sin Orden Activa",
+    "reg.errNoTicketDesc": "Por favor haz clic en '+ Nueva Orden' antes de agregar artículos.",
+    "reg.voidTitle": "Anular Orden",
+    "reg.voidDesc": "¿Estás seguro de que quieres anular esta orden? Esto no se puede deshacer.",
+    "reg.loginHi": "Hola,",
+    "reg.loginEnterPin": "Ingresa tu PIN de 4 dígitos",
+    "reg.loginPinReq": "PIN REQUERIDO",
+    "reg.btnBack": "VOLVER",
+    "reg.btnLogin": "Ingresar",
+    "reg.accessRevoked": "Acceso Revocado",
+
+    // --- Expenses (Gastos) ---
+    "expense.errMissing": "Falta Información",
+    "expense.errDesc": "Por favor ingresa tanto el monto como el motivo del gasto.",
+    "expense.success": "Gasto Registrado",
+    "expense.successDesc": "Se registró correctamente la salida de caja por:",
+    "expense.unknownCashier": "Cajero Desconocido",
+
+    // --- Corte de Caja ---
+    "corte.balanced": "Perfectamente Balanceado ⚖️",
+    "corte.over": "Sobrante de",
+    "corte.short": "Faltante de",
+    "corte.confirmTitle": "Confirmar Corte de Caja",
+    "corte.summary": "RESUMEN DE TURNO",
+    "corte.gross": "Ingresos Brutos",
+    "corte.expenses": "Gastos en Efectivo",
+    "corte.cashRecon": "RECONCILIACIÓN DE EFECTIVO",
+    "corte.expected": "Efectivo Esperado",
+    "corte.counted": "Efectivo Contado",
+    "corte.result": "Resultado",
+    "corte.closeConfirm": "¿Estás seguro de que deseas cerrar turno? Esto reiniciará la caja para el siguiente cajero.",
+    "corte.successTitle": "Turno Cerrado",
+    "corte.successDesc": "El Corte de Caja fue exitoso. La caja está lista para el siguiente turno.",
+
+    // --- Receipt & WhatsApp ---
+    "receipt.ticket": "Ticket:",
+    "receipt.date": "Fecha:",
+    "receipt.unsupported": "Dispositivo No Compatible",
+    "receipt.unsupportedDesc": "La impresión directa solo funciona en Windows/Mac vía Chrome, o en Android vía RawBT.",
+    "receipt.printerErr": "Error de Impresora",
+    "receipt.printerErrDesc": "No se pudo conectar con la impresora.",
+    "wa.order": "Orden:",
+    "wa.date": "Fecha:",
+    "wa.loyaltyTitle": "Lealtad",
+    "wa.earnedToday": "Ganadas hoy:",
+    "wa.rewardReady": "¡RECOMPENSA LISTA!:",
+    "wa.nextReward": "Siguiente Recompensa:",
+    "wa.more": "más",
+
+    // --- Loyalty & Checkout Logic ---
+    "loyalty.paused": "Programa Pausado",
+    "loyalty.noPromos": "No hay promociones activas por ahora",
+    "loyalty.noQualify": "Sin Artículos Calificables",
+    "loyalty.noQualifyDesc": "Esta orden no contiene artículos que sumen estrellas de lealtad.",
+    "checkout.voidPartialTitle": "Anular Pagos Parciales",
+    "checkout.voidPartialDesc": "Esto borrará el historial de pagos de este ticket. ¿Estás seguro de proceder si ya recibiste efectivo?"
   }
 };
