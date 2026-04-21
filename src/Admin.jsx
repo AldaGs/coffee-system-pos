@@ -394,7 +394,7 @@ function Admin() {
   // --- CASHIER MANAGEMENT (NOW CLOUD SYNCED) ---
   const cashiers = menuData?.cashiers || [
     { id: 1, name: 'Admin', pin: '1234', isAdmin: true },
-    { id: 2, name: 'Barista 1', pin: '0000' }
+    { id: 2, name: 'Barista 1', pin: '0000' , isAdmin: false}
   ];
 
   const [newCashier, setNewCashier] = useState({ name: '', pin: '', isAdmin: false });
