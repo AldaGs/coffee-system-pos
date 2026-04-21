@@ -362,11 +362,12 @@ function Register() {
   // --- DEVICE IDENTITY & SESSION ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const myDeviceId = useMemo(() => {
-    let id = sessionStorage.getItem('tinypos_device_id');
+    let id = sessionStorage.getItem('tinypos_device_id') || localStorage.getItem('tinypos_device_id');
     if (!id) {
       id = Math.random().toString(36).substring(2, 15);
       localStorage.setItem('tinypos_device_id', id);
     }
+    sessionStorage.setItem('tinypos_device_id', id);
     return id;
   }, []);
 
@@ -455,7 +456,18 @@ function Register() {
   const handleUnlockSubmit = () => {
     if (!selectedProfile) return;
 
-    if (pinAttempt === selectedProfile.pin) {
+    // 1. Does it match the selected profile's own PIN?
+    const isProfileMatch = pinAttempt === selectedProfile.pin;
+    
+    // 2. Does it match ANY profile marked as isAdmin?
+    const isStaffAdmin = (menuData?.cashiers || []).some(
+      c => c.isAdmin === true && c.pin === pinAttempt
+    );
+
+    // 3. Does it match the Master PIN in General Settings?
+    const isMasterPin = pinAttempt === posSettings.pinCode;
+
+    if (isProfileMatch || isStaffAdmin || isMasterPin) {
       setIsLocked(false);
       setActiveCashier(selectedProfile);
       localStorage.setItem('tinypos_activeCashier', JSON.stringify(selectedProfile));
@@ -499,64 +511,7 @@ useEffect(() => {
   }
 }, [isLocked, activeCashier]); // This runs exactly once when you unlock the screen
 
-// --- PRESENCE & SECURITY (Active Lockout System) ---
-useEffect(() => {
-  if (!activeCashier) return;
 
-  // 1. Configure the channel to allow two-way broadcasting
-  const channel = supabase.channel('cashier-presence', {
-    config: { 
-      presence: { key: myDeviceId },
-      broadcast: { ack: true } 
-    },
-  });
-
-  channel
-    // 2. THE EAR: Listen for incoming kill commands
-    .on('broadcast', { event: 'force-kick' }, (payload) => {
-      const { incomingCashierId, incomingDeviceId } = payload.payload;
-      
-      // If the broadcast is for my logged-in cashier, but it came from a DIFFERENT device -> Lockout
-      if (incomingCashierId === activeCashier.id && incomingDeviceId !== myDeviceId) {
-        console.warn(`🔒 Session terminated by device: ${incomingDeviceId}`);
-        setIsLocked(true);
-        // Optional: clear the active screen state if you want them to fully start over
-      }
-    })
-    // 3. THE EYE: Passive tracking (mostly for your console debugging)
-    .on('presence', { event: 'sync' }, () => {
-      const state = channel.presenceState();
-      console.log("Tracking Presence:", state);
-    })
-    // 4. THE CONNECTION
-    .subscribe(async (status) => {
-      console.log(`Presence Status (${activeCashier.name}):`, status);
-      
-      if (status === 'SUBSCRIBED') {
-        // Announce our presence to the room
-        await channel.track({ 
-          cashierId: activeCashier.id, 
-          deviceId: myDeviceId,
-          loginAt: new Date().toISOString()
-        });
-
-        // THE WEAPON: Instantly fire the kick command to any older devices
-        await channel.send({
-          type: 'broadcast',
-          event: 'force-kick',
-          payload: { 
-            incomingCashierId: activeCashier.id, 
-            incomingDeviceId: myDeviceId 
-          }
-        });
-      }
-    });
-
-  // Cleanup on unmount or when cashier logs out
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [activeCashier, myDeviceId]); // Re-runs anytime the cashier changes
 
   // --- ORDER HISTORY (ANALYTICS LEDGER) ---
   const [orderHistory, setOrderHistory] = useState(() => {
@@ -697,43 +652,7 @@ useEffect(() => {
     }    
   }, [posSettings, updateTheme]);
 
-  // --- MENU FETCH & OFFLINE CACHE ENGINE ---
-  useEffect(() => {
-    const fetchMenu = async () => {
-      try {
-        // 1. Try to fetch the live menu from the cloud
-        const { data, error } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
-        if (error) throw error;
 
-        // 2. Success! Load it into the app
-        setMenuData(data.menu_data);
-        const firstCategory = Object.keys(data.menu_data.categories)[0];
-        setActiveCategory(firstCategory);
-
-        // 3. Secretly save a backup copy to the iPad's hard drive!
-        localStorage.setItem('tinypos_cached_menu', JSON.stringify(data.menu_data));
-
-      } catch {
-        console.warn("Cloud menu fetch failed. Searching for local backup...");
-
-        // 4. OFFLINE FALLBACK: Grab the backup if the internet is dead
-        const cachedMenu = localStorage.getItem('tinypos_cached_menu');
-        if (cachedMenu) {
-          const parsedMenu = JSON.parse(cachedMenu);
-          setMenuData(parsedMenu);
-          const firstCategory = Object.keys(parsedMenu.categories)[0];
-          setActiveCategory(firstCategory);
-          console.log("Success! Loaded menu from local offline cache.");
-        } else {
-          // If they have literally never connected to the internet on this device before:
-          console.error("FATAL: No internet and no cached menu found.");
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchMenu();
-  }, []);
 
 
   const handleNewTicket = async () => {
