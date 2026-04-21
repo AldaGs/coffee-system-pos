@@ -1357,7 +1357,7 @@ useEffect(() => {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
-              <button key={num} onClick={() => setPinAttempt(prev => prev.length < 4 ? prev + num : prev)} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>{num}</button>
+              <button key={num} onClick={() => setPinAttempt(prev => prev.length < 4 ? prev + num : prev)} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>{num}</button>
             ))}
             <button onClick={() => { setSelectedProfile(null); setPinAttempt(''); }} style={{ padding: '20px', fontSize: '1rem', background: 'rgba(231, 76, 60, 0.1)', border: 'none', borderRadius: '10px', cursor: 'pointer', color: '#e74c3c', fontWeight: 'bold' }}>{t('reg.btnBack')}</button>
             <button onClick={() => setPinAttempt(prev => prev.length < 4 ? prev + 0 : prev)} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>0</button>

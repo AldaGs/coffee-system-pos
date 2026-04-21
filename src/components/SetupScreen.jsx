@@ -57,7 +57,7 @@ export default function SetupScreen({ onComplete }) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100dvh', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', position: 'relative' }}>
+    <div style={{ display: 'flex', height: '100dvh', backgroundColor: 'var(--bg-app)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', position: 'relative' }}>
       
       {/* --- CUSTOM ALERT BANNER --- */}
       {customAlert.show && (
@@ -78,7 +78,7 @@ export default function SetupScreen({ onComplete }) {
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           {/* Change "/logo.png" to match whatever your actual image file is named in your public folder */}
           <img 
-            src="/icon-192x192.png" 
+            src="/icon.svg" 
             alt="TinyPOS Logo" 
             style={{ width: '80px', height: '80px', objectFit: 'contain', borderRadius: '16px', marginBottom: '10px' }} 
             onError={(e) => e.target.style.display = 'none'} // Hides the broken image icon if the file isn't found

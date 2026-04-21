@@ -3,7 +3,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 function BootScreen({ logo, posSettings }) {
   const { t } = useTranslation();
   const brandName = posSettings?.name || "Main Register";
-  const backgroundColor = posSettings?.backgroundColor || "#274563";
+  const backgroundColor = posSettings?.backgroundColor || "var(--bg-app)";
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', width: '100vw', backgroundColor: backgroundColor, justifyContent: 'center', alignItems: 'center', color: 'white', fontFamily: 'system-ui' }}>

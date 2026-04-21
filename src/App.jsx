@@ -70,12 +70,12 @@ function App() {
   // --- GATE 2: THE DEVICE AUTHORIZATION SCREEN ---
   // If they have keys, but the device isn't logged into the Kiosk account, lock them out!
   if (isCheckingSession) {
-    return <div style={{ height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#2c3e50', color: 'white' }}>Checking device authorization...</div>;
+    return <div style={{ height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: "var(--bg-main)", color: 'white' }}>Checking device authorization...</div>;
   }
 
   if (!session) {
     return (
-      <div style={{ display: 'flex', height: '100dvh', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
+      <div style={{ display: 'flex', height: '100dvh', backgroundColor: "var(--bg-app)", justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
           <div style={{ textAlign: 'center', fontSize: '3rem', marginBottom: '10px' }}>🔒</div>
           <h2 style={{ textAlign: 'center', marginBottom: '10px' }}>Device Locked</h2>
