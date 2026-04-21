@@ -11,6 +11,8 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@iconify-icons/lucide": "^1.2.135",
+    "@iconify-icons/mdi": "^1.2.48",
     "@iconify/react": "^6.0.2",
     "@supabase/supabase-js": "2.49.7",
     "dexie": "^4.4.2",

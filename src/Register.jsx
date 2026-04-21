@@ -12,7 +12,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
 import { processCheckout } from './services/checkoutService';
-import { attemptBackgroundSync } from './services/syncService'; 
+import { attemptBackgroundSync } from './services/syncService';
 import { numeroALetras } from './utils/numeroALetras';
 import { useTranslation } from './hooks/useTranslation';
 import SharedPinPad from './components/shared/SharedPinPad';
@@ -36,14 +36,14 @@ import Dialog from './components/shared/Dialog';
 function Register() {
   const navigate = useNavigate();
   const { t, lang } = useTranslation();
-  
+
   // --- ZUSTAND GLOBAL STORES ---
   const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime, logout } = useAuthStore();
   const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, isLoading, setIsLoading, getPosSettings } = useMenuStore();
-  const { 
+  const {
     activeTicketId, setActiveTicketId, isCheckoutModalOpen, setIsCheckoutModalOpen,
     splitMode, setSplitMode, splitPayments, setSplitPayments, nWays, setNWays,
-    customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState 
+    customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState
   } = useCartStore();
 
   const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
@@ -68,7 +68,7 @@ function Register() {
         // 1. Fetch Menu
         const { data: menuResp, error: menuErr } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
         if (menuErr) throw menuErr;
-        
+
         // 2. Fetch Recipes for BOM Lookups
         const { data: recipeResp, error: recipeErr } = await supabase.from('recipes').select('*');
         if (recipeErr) throw recipeErr;
@@ -88,11 +88,11 @@ function Register() {
         console.warn("Cloud fetch failed. Searching for local backup...");
         const cachedMenu = localStorage.getItem('tinypos_cached_menu');
         const cachedRecipes = localStorage.getItem('tinypos_cached_recipes');
-        
+
         if (cachedMenu) {
           const parsedMenu = JSON.parse(cachedMenu);
           setMenuData(parsedMenu);
-          
+
           // SAFE ACTIVE CATEGORY ASSIGNMENT FOR CACHE
           const safeCachedCategories = parsedMenu?.categories || {};
           const cachedCategoryNames = Object.keys(safeCachedCategories);
@@ -264,16 +264,16 @@ function Register() {
     localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue));
   }, [expenseQueue, waQueue]);
 
-// --- UNIFIED BACKGROUND CLOUD SYNC ---
+  // --- UNIFIED BACKGROUND CLOUD SYNC ---
   useEffect(() => {
     // Wrap our service in a function so we can pass the React State modifiers
     const runSync = () => attemptBackgroundSync(expenseQueue, () => setExpenseQueue([]));
 
     // Listen for the internet coming back online
     window.addEventListener('online', runSync);
-    
+
     // And try automatically every 60 seconds
-    const syncInterval = setInterval(runSync, 60000); 
+    const syncInterval = setInterval(runSync, 60000);
 
     return () => {
       window.removeEventListener('online', runSync);
@@ -317,19 +317,19 @@ function Register() {
 
       ${t('corte.closeConfirm')}`;
 
-          showConfirm(t('corte.confirmTitle'), confirmMessage, () => {
-            // 1. Mark the current exact time as the new baseline
-            const newTimestamp = new Date().toISOString();
-            setLastCorteTimestamp(newTimestamp);
-            localStorage.setItem('tinypos_last_corte', newTimestamp);
+    showConfirm(t('corte.confirmTitle'), confirmMessage, () => {
+      // 1. Mark the current exact time as the new baseline
+      const newTimestamp = new Date().toISOString();
+      setLastCorteTimestamp(newTimestamp);
+      localStorage.setItem('tinypos_last_corte', newTimestamp);
 
-            // 2. Reset the modal
-            setIsCorteModalOpen(false);
-            setCountedCash("");
+      // 2. Reset the modal
+      setIsCorteModalOpen(false);
+      setCountedCash("");
 
-            showAlert(t('corte.successTitle'), t('corte.successDesc'));
-          });
-        };
+      showAlert(t('corte.successTitle'), t('corte.successDesc'));
+    });
+  };
 
   // --- ORDER NUMBER ENGINE ---
   const [nextOrderNum, setNextOrderNum] = useState(() => {
@@ -394,7 +394,7 @@ function Register() {
   const handleChallengeSubmit = () => {
     // 1. Is it the currently logged-in cashier's PIN?
     const isCashierMatch = challengePinAttempt === activeCashier?.pin;
-    
+
     // 2. NEW: Does this PIN belong to ANY profile where isAdmin is true?
     // This completely ignores the trapped posSettings.pinCode!
     const isStaffAdmin = (menuData?.cashiers || []).some(
@@ -445,7 +445,7 @@ function Register() {
 
     // 1. Does it match the selected profile's own PIN?
     const isProfileMatch = pinAttempt === selectedProfile.pin;
-    
+
     // 2. Does it match ANY profile marked as isAdmin?
     const isStaffAdmin = (menuData?.cashiers || []).some(
       c => c.isAdmin === true && c.pin === pinAttempt
@@ -481,22 +481,22 @@ function Register() {
   };
 
   // --- CONTEXT RESTORATION (Snap to current data on login) ---
-useEffect(() => {
-  // If the screen just unlocked, and we know who the cashier is
-  if (!isLocked && activeCashier && tickets.length > 0) {
-     
-     // Find all tickets belonging to this specific cashier
-     const myTickets = tickets.filter(t => t.cashier_id === activeCashier.id);
-     
-     if (myTickets.length > 0) {
+  useEffect(() => {
+    // If the screen just unlocked, and we know who the cashier is
+    if (!isLocked && activeCashier && tickets.length > 0) {
+
+      // Find all tickets belonging to this specific cashier
+      const myTickets = tickets.filter(t => t.cashier_id === activeCashier.id);
+
+      if (myTickets.length > 0) {
         // Sort them to find the newest one (highest ID)
         const newestTicket = myTickets.sort((a, b) => b.id - a.id)[0];
-        
+
         // Snap the UI to that ticket immediately
         setActiveTicketId(newestTicket.id);
-     }
-  }
-}, [isLocked, activeCashier]); // This runs exactly once when you unlock the screen
+      }
+    }
+  }, [isLocked, activeCashier]); // This runs exactly once when you unlock the screen
 
 
 
@@ -543,67 +543,67 @@ useEffect(() => {
     };
   }, [menuData, isLocked, posSettings.autoLockMinutes]);
 
-// --- PRESENCE & SECURITY (Active Lockout System) ---
-useEffect(() => {
-  // Don't connect if we are already locked out or offline
-  if (!supabase || !navigator.onLine || !activeCashier || isLocked) return;
+  // --- PRESENCE & SECURITY (Active Lockout System) ---
+  useEffect(() => {
+    // Don't connect if we are already locked out or offline
+    if (!supabase || !navigator.onLine || !activeCashier || isLocked) return;
 
-  const channel = supabase.channel('cashier-presence', {
-    config: { 
-      presence: { key: myDeviceId },
-      broadcast: { ack: true } 
-    },
-  });
-
-  // The function that ruthlessly kills the session
-  const executeLockout = (reason) => {
-    console.warn(`🔒 ${reason}`);
-    logout(); // <-- This handles isLocked, activeCashier, sessionTime, AND localStorage all at once!
-    showAlert("Access Revoked", reason);
-  };
-
-  channel
-    // 1. THE EAR: Listen for the kill command from new devices
-    .on('broadcast', { event: 'force-kick' }, (payload) => {
-      const { incomingCashierId, incomingDeviceId } = payload.payload;
-      
-      // If the login is for my profile, but from a different device -> Lockout!
-      if (incomingCashierId === activeCashierRef.current?.id && incomingDeviceId !== myDeviceId) {
-        executeLockout("Session terminated by a new login on another device.");
-      }
-    })
-    // 2. THE EYE: Passive tracking (optional, but good for debugging)
-    .on('presence', { event: 'sync' }, () => {
-      console.log("Active Devices:", Object.keys(channel.presenceState()).length);
-    })
-    // 3. THE WEAPON: Connect and fire!
-    .subscribe((status) => { // <-- Removed 'async' here
-      console.log(`Presence Status (${activeCashierRef.current?.name}):`, status);
-      
-      if (status === 'SUBSCRIBED') {
-        
-        // 1. SHOOT FIRST: Instantly fire the kick command (No 'await')
-        channel.send({
-          type: 'broadcast',
-          event: 'force-kick',
-          payload: { 
-            incomingCashierId: activeCashierRef.current.id, 
-            incomingDeviceId: myDeviceId 
-          }
-        });
-
-        // 2. TRACK LATER: Let presence sync in the background (No 'await')
-        channel.track({ 
-          cashierId: activeCashierRef.current.id, 
-          deviceId: myDeviceId 
-        });
-      }
+    const channel = supabase.channel('cashier-presence', {
+      config: {
+        presence: { key: myDeviceId },
+        broadcast: { ack: true }
+      },
     });
 
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, [activeCashier?.id, isLocked, myDeviceId]);
+    // The function that ruthlessly kills the session
+    const executeLockout = (reason) => {
+      console.warn(`🔒 ${reason}`);
+      logout(); // <-- This handles isLocked, activeCashier, sessionTime, AND localStorage all at once!
+      showAlert("Access Revoked", reason);
+    };
+
+    channel
+      // 1. THE EAR: Listen for the kill command from new devices
+      .on('broadcast', { event: 'force-kick' }, (payload) => {
+        const { incomingCashierId, incomingDeviceId } = payload.payload;
+
+        // If the login is for my profile, but from a different device -> Lockout!
+        if (incomingCashierId === activeCashierRef.current?.id && incomingDeviceId !== myDeviceId) {
+          executeLockout("Session terminated by a new login on another device.");
+        }
+      })
+      // 2. THE EYE: Passive tracking (optional, but good for debugging)
+      .on('presence', { event: 'sync' }, () => {
+        console.log("Active Devices:", Object.keys(channel.presenceState()).length);
+      })
+      // 3. THE WEAPON: Connect and fire!
+      .subscribe((status) => { // <-- Removed 'async' here
+        console.log(`Presence Status (${activeCashierRef.current?.name}):`, status);
+
+        if (status === 'SUBSCRIBED') {
+
+          // 1. SHOOT FIRST: Instantly fire the kick command (No 'await')
+          channel.send({
+            type: 'broadcast',
+            event: 'force-kick',
+            payload: {
+              incomingCashierId: activeCashierRef.current.id,
+              incomingDeviceId: myDeviceId
+            }
+          });
+
+          // 2. TRACK LATER: Let presence sync in the background (No 'await')
+          channel.track({
+            cashierId: activeCashierRef.current.id,
+            deviceId: myDeviceId
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeCashier?.id, isLocked, myDeviceId]);
 
   // --- SHIFT CALCULATIONS ---
   // 1. Filter data to ONLY include things that happened after the last Corte
@@ -636,7 +636,7 @@ useEffect(() => {
   useEffect(() => {
     if (posSettings) {
       updateTheme(posSettings);
-    }    
+    }
   }, [posSettings, updateTheme]);
 
 
@@ -723,10 +723,10 @@ useEffect(() => {
       return;
     }
 
-    const newItem = { 
-      ...item, 
-      uniqueId: Date.now() + Math.random(), 
-      selectedModifiers: modifiers 
+    const newItem = {
+      ...item,
+      uniqueId: Date.now() + Math.random(),
+      selectedModifiers: modifiers
     };
     const updatedItems = [...activeTicket.items, newItem];
 
@@ -735,12 +735,12 @@ useEffect(() => {
 
     // 2. NEW: Update cloud instantly
     if (navigator.onLine) {
-      supabase.from('active_tickets').update({ 
+      supabase.from('active_tickets').update({
         items: updatedItems,
-        last_modified_by: myDeviceId 
+        last_modified_by: myDeviceId
       })
-      .eq('id', activeTicket.id)
-      .then();
+        .eq('id', activeTicket.id)
+        .then();
     }
 
     setIsModalOpen(false);
@@ -758,8 +758,8 @@ useEffect(() => {
     // 2. NEW: Update cloud instantly
     if (navigator.onLine) {
       supabase.from('active_tickets')
-        .update({ 
-          items: updatedItems, 
+        .update({
+          items: updatedItems,
           last_modified_by: myDeviceId // Mark this update as yours
         })
         .eq('id', activeTicket.id)
@@ -1004,15 +1004,15 @@ useEffect(() => {
       pushCommand(ESC_BOLD_ON);
       pushText(`TOTAL: $${total.toFixed(2)}\n`);
       pushCommand(ESC_BOLD_OFF);
-      
+
       // ADD THIS NEW LINE TO THE PRINTER:
       pushText(`${numeroALetras(total)}\n`);
-      
+
       pushText("--------------------------------\n");
       pushText(`${receiptSettings.footer}\n`);
       pushText("\n\n\n"); // Feed paper
 
-      
+
 
       // ==========================================
       // --- ROUTING: WHERE DOES THE BUFFER GO? ---
@@ -1107,7 +1107,7 @@ useEffect(() => {
 
     // 4. Grand Total
     message += `*TOTAL: $${cartTotal.toFixed(2)}*\n`;
-    
+
     // ADD THIS NEW LINE FOR WHATSAPP:
     message += `_${numeroALetras(cartTotal)}_\n`;
 
@@ -1115,14 +1115,14 @@ useEffect(() => {
     if (loyaltyData) {
 
       message += `--------------------------\n`;
-      const targetItemLabel = (menuData?.loyaltySettings?.targetItem === 'any' || !menuData?.loyaltySettings?.targetItem) 
-        ? 'visits' 
+      const targetItemLabel = (menuData?.loyaltySettings?.targetItem === 'any' || !menuData?.loyaltySettings?.targetItem)
+        ? 'visits'
         : `${menuData.loyaltySettings.targetItem}s`;
 
       message += `\n🌟 *${t('wa.loyaltyTitle')}*\n`;
       message += `${t('analytics.filterAll')}: ${loyaltyData.visits} / ${loyaltyData.target}\n`;
       message += `(${t('wa.earnedToday')} +${loyaltyData.earnedToday})\n`;
-      
+
       if (loyaltyData.isRewardReady) {
         message += `🎉 ${t('wa.rewardReady')} ${loyaltyData.reward}!\n`;
       } else {
@@ -1143,7 +1143,7 @@ useEffect(() => {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     // Route to native app on mobile, or web.whatsapp on PC
-    const whatsappUrl = isMobile 
+    const whatsappUrl = isMobile
       ? `whatsapp://send?phone=${targetPhone}&text=${encodedMessage}`
       : `https://web.whatsapp.com/send?phone=${targetPhone}&text=${encodedMessage}`;
 
@@ -1153,7 +1153,7 @@ useEffect(() => {
     } else {
       window.open(whatsappUrl, '_blank');
     }
-    
+
     setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
   };
 
@@ -1186,7 +1186,7 @@ useEffect(() => {
     }
 
     const loyaltySettings = menuData?.loyaltySettings || { visitsRequired: 10, rewardDescription: "tu próxima bebida GRATIS", targetItem: "any" };
-    
+
     // --- THE FIX: CALCULATE EARNED STARS BASED ON CART ITEMS & CAPS ---
     let starsToEarn = 0;
     const targetItem = loyaltySettings.targetItem || 'any';
@@ -1202,7 +1202,7 @@ useEffect(() => {
 
       // Apply the Admin's cap if "per_ticket" is selected
       if (countMode === 'per_ticket' && starsToEarn > 0) {
-        starsToEarn = 1; 
+        starsToEarn = 1;
       }
     }
 
@@ -1216,7 +1216,7 @@ useEffect(() => {
 
     try {
       const { data: customer } = await supabase.from('customers').select('visits').eq('phone', cleanPhone).single();
-      
+
       if (customer) {
         currentVisits = customer.visits + starsToEarn;
         await supabase.from('customers').update({ visits: currentVisits }).eq('phone', cleanPhone);
@@ -1287,7 +1287,7 @@ useEffect(() => {
 
   // Action 2: The actual finalization of the sale
   const handleConfirmPayment = async (paymentsArray) => {
-    
+
     // 1. Call our decoupled backend service
     const { localAnalyticsRecord, masterMethodString } = await processCheckout({
       activeTicket,
@@ -1308,7 +1308,7 @@ useEffect(() => {
     });
     setTimeout(() => setSuccessTicket(null), 2500);
 
-    handleCancelCheckout(); 
+    handleCancelCheckout();
     clearCurrentTicket();
   };
 
@@ -1336,9 +1336,9 @@ useEffect(() => {
         error={phoneError}
         setError={setPhoneError}
         onSubmit={handleUnlockSubmit}
-        onCancel={() => { 
-          setSelectedProfile(null); 
-          setPinAttempt(''); 
+        onCancel={() => {
+          setSelectedProfile(null);
+          setPinAttempt('');
         }}
         submitText={t('reg.btnLogin')}
         submitIcon="lucide:log-in"
@@ -1426,69 +1426,69 @@ useEffect(() => {
 
   // Bundle global state for the context wormhole
   const posState = {
-    cartTotal, activeTicket, menuData, posSettings, activeCashier, 
-    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets, 
+    cartTotal, activeTicket, menuData, posSettings, activeCashier,
+    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
     showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
-    activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal, 
+    activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
-    handleNewTicket, handleWheelScroll, handleRemoveItem, 
+    handleNewTicket, handleWheelScroll, handleRemoveItem,
     handleOpenCheckout, handleCancelTicket, printRawReceipt,
-    
+
     // --- NEW: ModifierModal Data & Functions ---
-    pendingItem, 
-    handleToggleModifier, 
-    handleTextModifierChange, 
+    pendingItem,
+    handleToggleModifier,
+    handleTextModifierChange,
     addToTicket
   };
 
   return (
     <PosContext.Provider value={posState}>
-    <div className="pos-container">
-      <MenuArea 
-        activeCategory={activeCategory} 
-        setActiveCategory={setActiveCategory} 
-        isMobileMenuOpen={isMobileMenuOpen} 
-        setIsMobileMenuOpen={setIsMobileMenuOpen} 
-        setIsSyncModalOpen={setIsSyncModalOpen} 
-        setIsExpenseModalOpen={setIsExpenseModalOpen} 
-        setIsCorteModalOpen={setIsCorteModalOpen} 
-      />
+      <div className="pos-container">
+        <MenuArea
+          activeCategory={activeCategory}
+          setActiveCategory={setActiveCategory}
+          isMobileMenuOpen={isMobileMenuOpen}
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          setIsSyncModalOpen={setIsSyncModalOpen}
+          setIsExpenseModalOpen={setIsExpenseModalOpen}
+          setIsCorteModalOpen={setIsCorteModalOpen}
+        />
 
-      <TicketArea 
-        isActionSheetOpen={isActionSheetOpen} 
-        setIsActionSheetOpen={setIsActionSheetOpen} 
-        setIsDiscountModalOpen={setIsDiscountModalOpen} 
-        setLoyaltyModal={setLoyaltyModal} 
-      />
+        <TicketArea
+          isActionSheetOpen={isActionSheetOpen}
+          setIsActionSheetOpen={setIsActionSheetOpen}
+          setIsDiscountModalOpen={setIsDiscountModalOpen}
+          setLoyaltyModal={setLoyaltyModal}
+        />
 
-      <ModifierModal 
-        isModalOpen={isModalOpen} 
-        setIsModalOpen={setIsModalOpen} 
-      />
+        <ModifierModal
+          isModalOpen={isModalOpen}
+          setIsModalOpen={setIsModalOpen}
+        />
 
-      <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
+        <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
 
-      <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} />
+        <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} />
 
-      <FlyingReceipt successTicket={successTicket} />
+        <FlyingReceipt successTicket={successTicket} />
 
-      <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} />
+        <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} />
 
-      <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
+        <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
 
-      <PinChallengeModal 
-        pinChallenge={pinChallenge} 
-        setPinChallenge={setPinChallenge} 
-        challengePinAttempt={challengePinAttempt} 
-        setChallengePinAttempt={setChallengePinAttempt} 
-        challengeError={challengeError} 
-        setChallengeError={setChallengeError} /* <--- ADD THIS LINE! */
-        handleChallengeSubmit={handleChallengeSubmit} 
-      />
+        <PinChallengeModal
+          pinChallenge={pinChallenge}
+          setPinChallenge={setPinChallenge}
+          challengePinAttempt={challengePinAttempt}
+          setChallengePinAttempt={setChallengePinAttempt}
+          challengeError={challengeError}
+          setChallengeError={setChallengeError} /* <--- ADD THIS LINE! */
+          handleChallengeSubmit={handleChallengeSubmit}
+        />
 
-      <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
+        <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 
-      <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
+        <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
 
       </div>
     </PosContext.Provider>

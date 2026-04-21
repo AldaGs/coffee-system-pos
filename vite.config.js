@@ -47,14 +47,14 @@ export default defineConfig({
             sizes: "1024x1024",
             type: "image/png",
             form_factor: "wide",
-            label: "TinyPOS Desktop"
+            label: "tinypos Desktop"
           },
           {
             src: "screenshot-mobile.png",
             sizes: "1024x1024",
             type: "image/png",
             form_factor: "narrow",
-            label: "TinyPOS Mobile"
+            label: "tinypos Mobile"
           }
         ]
       }

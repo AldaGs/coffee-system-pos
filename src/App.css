@@ -1,9 +1,24 @@
 .pos-container {
   display: flex;
-  height: 100vh;
-  height: 100dvh;
-  width: 100vw;
+  height: 100%;
+  width: 100%;
+  transform: none;
+  overflow: hidden;
+  /* Prevent scrollbars */
 }
+
+@media (min-width: 1024px) {
+  .pos-container {
+    transform: scale(1.5);
+    transform-origin: top center;
+    width: 66.666% !important;
+    margin: 0 auto;
+    min-height: 66.666dvh !important;
+  }
+}
+
+
+
 
 /* --- Menu Area (Left Side) --- */
 .menu-area {
@@ -11,7 +26,8 @@
   padding: 24px;
   display: flex;
   flex-direction: column;
-  min-width: 0; /* CRITICAL: Prevents long menu bars from pushing the ticket area off-screen horizontally! */
+  min-width: 0;
+  /* CRITICAL: Prevents long menu bars from pushing the ticket area off-screen horizontally! */
   min-height: 0;
 }
 
@@ -62,8 +78,10 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 16px;
-  flex: 1; /* Pushes to bottom */
-  overflow-y: auto; /* Internal scroll lock */
+  flex: 1;
+  /* Pushes to bottom */
+  overflow-y: auto;
+  /* Internal scroll lock */
   min-height: 0;
   padding-bottom: 30px;
 }
@@ -122,11 +140,15 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   background: var(--bg-surface);
-  flex-shrink: 0; /* Ensures mobile doesn't crush the tabs container */
-  scroll-behavior: smooth; /* Makes the wheel scroll feel less jumpy */
+  flex-shrink: 0;
+  /* Ensures mobile doesn't crush the tabs container */
+  scroll-behavior: smooth;
+  /* Makes the wheel scroll feel less jumpy */
 }
 
-.ticket-tabs-container::-webkit-scrollbar { display: none; }
+.ticket-tabs-container::-webkit-scrollbar {
+  display: none;
+}
 
 .ticket-tab {
   padding: 8px 16px;
@@ -139,11 +161,13 @@
   font-weight: bold;
   flex-shrink: 0;
 }
+
 .ticket-tab.active {
   background: var(--brand-light);
   color: var(--brand-color);
   border: 1px solid var(--brand-color);
 }
+
 .new-ticket-btn {
   padding: 8px 16px;
   background: transparent;
@@ -424,6 +448,7 @@
   color: var(--text-main);
   animation: paddles 0.75s ease-out infinite;
 }
+
 .spinner:before {
   content: "";
   position: absolute;
@@ -433,26 +458,49 @@
   top: 15px;
   width: 15px;
   height: 15px;
-  background-color:var(--text-muted);
+  background-color: var(--text-muted);
   box-shadow: 0 2px 12px rgb(29, 17, 0, 0.5);
   border-radius: 50%;
   animation: ballbounce 0.6s ease-out infinite;
 }
 
 @keyframes paddles {
-  0% { box-shadow: -35px -10px, 35px 10px}
-  50% { box-shadow: -35px 8px, 35px -10px }
-  100% { box-shadow: -35px -10px, 35px 10px}
+  0% {
+    box-shadow: -35px -10px, 35px 10px
+  }
+
+  50% {
+    box-shadow: -35px 8px, 35px -10px
+  }
+
+  100% {
+    box-shadow: -35px -10px, 35px 10px
+  }
 }
+
 @keyframes ballbounce {
-  0% { transform: translateX(-30px) scale(1, 1.2) }
-  25% { transform: scale(1.2, 1) }
-  50% { transform: translateX(15px) scale(1, 1.2) }
-  75% { transform: scale(1.2, 1) }
-  100% { transform: translateX(-30px) }
+  0% {
+    transform: translateX(-30px) scale(1, 1.2)
+  }
+
+  25% {
+    transform: scale(1.2, 1)
+  }
+
+  50% {
+    transform: translateX(15px) scale(1, 1.2)
+  }
+
+  75% {
+    transform: scale(1.2, 1)
+  }
+
+  100% {
+    transform: translateX(-30px)
+  }
 }
-      
-      
+
+
 
 /* By default, variables are set in :root (Light Mode) */
 :root {
@@ -772,12 +820,15 @@ body.dark-mode {
   transform: translateY(100%);
   margin: 0 auto;
   max-width: 500px;
-  max-height: 85vh; /* Prevents it from going off the very top edge */
-  overflow-y: auto; /* CRITICAL: Enables internal scrolling for many buttons! */
+  max-height: 85vh;
+  /* Prevents it from going off the very top edge */
+  overflow-y: auto;
+  /* CRITICAL: Enables internal scrolling for many buttons! */
   background: var(--bg-surface);
   border-radius: 24px 24px 0 0;
   padding: 24px;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom)); /* Fixed iOS bottom overlap */
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  /* Fixed iOS bottom overlap */
   box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
   z-index: 1060;
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1);
@@ -822,84 +873,84 @@ body.dark-mode {
 
   /* Stack vertically instead of side-by-side */
 
-.menu-area {
-  flex: 1;
-  height: auto;
-  padding: 8px;
-}
+  .menu-area {
+    flex: 1;
+    height: auto;
+    padding: 8px;
+  }
 
 
 
-.menu-grid {
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
+  .menu-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
 
-.ticket-area {
-  width: 100%;
-  flex: 1;
-  height: auto;
-  min-height: auto;
-  border-left: none;
-  border-top: 2px solid var(--border);
-}
+  .ticket-area {
+    width: 100%;
+    flex: 1;
+    height: auto;
+    min-height: auto;
+    border-left: none;
+    border-top: 2px solid var(--border);
+  }
 
-.ticket-items {
-  min-height: 250px;
-}
+  .ticket-items {
+    min-height: 250px;
+  }
 
-/* Make items highly compact for 3-column view */
-.item-btn {
-  height: 85px;
-  padding: 6px;
-}
+  /* Make items highly compact for 3-column view */
+  .item-btn {
+    height: 85px;
+    padding: 6px;
+  }
 
-.item-name {
-  font-size: 0.9rem;
-}
+  .item-name {
+    font-size: 0.9rem;
+  }
 
-.ticket-header {
-  padding: 12px;
-}
+  .ticket-header {
+    padding: 12px;
+  }
 
-.ticket-footer {
-  padding: 12px;
-}
+  .ticket-footer {
+    padding: 12px;
+  }
 
-/* Stack checkout buttons so they don't get squished */
-.checkout-actions {
-  flex-direction: row;
-  flex-wrap: wrap;
-}
+  /* Stack checkout buttons so they don't get squished */
+  .checkout-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
 
-.checkout-actions button {
-  flex: 1 1 45%;
-  /* Buttons take up half the width to form a nice grid */
-  font-size: 1rem;
-  padding: 12px;
-}
+  .checkout-actions button {
+    flex: 1 1 45%;
+    /* Buttons take up half the width to form a nice grid */
+    font-size: 1rem;
+    padding: 12px;
+  }
 
-/* Admin Mobile Layout */
+  /* Admin Mobile Layout */
 
-.admin-main {
-  padding: 16px;
-}
+  .admin-main {
+    padding: 16px;
+  }
 
-.admin-aside {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100vh;
-  transform: translateX(-100%);
-}
+  .admin-aside {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    transform: translateX(-100%);
+  }
 
-.admin-aside.open {
-  transform: translateX(0);
-}
+  .admin-aside.open {
+    transform: translateX(0);
+  }
 
-.admin-overlay.open {
-  display: block;
-}
+  .admin-overlay.open {
+    display: block;
+  }
 }
 
 /* --- INVENTORY ROW BUTTONS FIX --- */
@@ -911,12 +962,15 @@ body.dark-mode {
 
 @media (max-width: 768px) {
   .row-action-buttons {
-    flex-direction: column; /* Stacks the buttons vertically on phones */
+    flex-direction: column;
+    /* Stacks the buttons vertically on phones */
     width: 100%;
   }
-  
+
   .row-action-buttons button {
-    width: 100%; /* Makes the buttons stretch the full width of the cell */
-    padding: 12px 16px !important; /* Makes them slightly taller for thumb-tapping */
+    width: 100%;
+    /* Makes the buttons stretch the full width of the cell */
+    padding: 12px 16px !important;
+    /* Makes them slightly taller for thumb-tapping */
   }
 }

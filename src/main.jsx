@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './utils/icons' // Pre-load icons for offline use
 import App from './App.jsx'
 import { DialogProvider } from './contexts/DialogContext.jsx'
 import { ThemeProvider } from './contexts/ThemeContext.jsx'

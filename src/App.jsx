@@ -5,7 +5,7 @@ import Register from './Register';
 import Admin from './Admin';
 import SetupScreen from './components/SetupScreen';
 import LandingPage from './components/LandingPage';
-import { supabase } from './supabaseClient'; 
+import { supabase } from './supabaseClient';
 
 function App() {
   // --- 1. NEW: CHECK FOR INSTALLATION ---
@@ -48,7 +48,7 @@ function App() {
     e.preventDefault();
     setIsLoggingIn(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    
+
     if (error) {
       alert("Device Authorization Failed: " + error.message);
     }
@@ -65,18 +65,18 @@ function App() {
   }
 
   // --- GATE 1: THE INSTALLATION SCREEN ---
-if (!isInstalled && setupMode) {
-  return (
-    <SetupScreen 
-      initialMode={setupMode} 
-      onBack={() => setSetupMode(null)}
-      onComplete={() => {
-        setIsInstalled(true);
-        window.location.reload(); 
-      }} 
-    />
-  );
-}
+  if (!isInstalled && setupMode) {
+    return (
+      <SetupScreen
+        initialMode={setupMode}
+        onBack={() => setSetupMode(null)}
+        onComplete={() => {
+          setIsInstalled(true);
+          window.location.reload();
+        }}
+      />
+    );
+  }
 
   // --- GATE 2: THE DEVICE AUTHORIZATION SCREEN ---
   // If they have keys, but the device isn't logged into the Kiosk account, lock them out!
@@ -95,7 +95,7 @@ if (!isInstalled && setupMode) {
             <h2 style={{ margin: '0 0 8px 0', color: 'var(--text-main)', fontSize: '1.8rem', fontWeight: '800' }}>Dispositivo Bloqueado</h2>
             <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.95rem' }}>Autoriza este dispositivo para conectarlo a la red de la tienda.</p>
           </div>
-          
+
           <form onSubmit={handleDeviceLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>Correo del Hardware</label>
@@ -111,10 +111,9 @@ if (!isInstalled && setupMode) {
                 <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required style={{ width: '100%', padding: '12px 12px 12px 38px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', boxSizing: 'border-box' }} />
               </div>
             </div>
-            <button type="submit" disabled={isLoggingIn} style={{ padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px', fontSize: '1.1rem', opacity: isLoggingIn ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(52, 152, 219, 0.3)' }}>
+            <button type="submit" disabled={isLoggingIn} style={{ padding: '18px', background: '#f28b05', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', marginTop: '10px', fontSize: '1.1rem', opacity: isLoggingIn ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(52, 152, 219, 0.3)' }}>
               {isLoggingIn ? (
                 <>
-                  <div className="spinner" style={{ width: '18px', height: '18px', borderWidth: '2px', borderTopColor: 'white' }}></div>
                   <span>Autenticando...</span>
                 </>
               ) : (

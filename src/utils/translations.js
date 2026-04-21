@@ -621,7 +621,7 @@ export const translations = {
     // --- Admin PIN Lock ---
     "admin.lockedTitle": "Admin Bloqueado",
     "admin.lockedSubtitle": "Ingresa tu PIN o usa el teclado.",
-    "admin.unlockBtn": "Desbloquear Panel",
+    "admin.unlockBtn": "Desbloquear Panel [Enter]",
 
     // --- Admin Sidebar Nav ---
     "admin.analytics": "Analíticas",
@@ -964,7 +964,7 @@ export const translations = {
     // --- Recipe Builder Tab ---
     "recipe.title": "Simulador de Recetas y Utilidad",
     "recipe.subtitle": "Diseña tu menú, prueba ingredientes teóricos y calcula márgenes de ganancia en vivo.",
-    "recipe.btnNew": "+ Crear Nueva Receta",
+    "recipe.btnNew": "Crear Nueva Receta",
     "recipe.savedTitle": "Recetas Guardadas",
     "recipe.noRecipes": "Aún no hay recetas guardadas.",
     "recipe.draft": "Borrador",

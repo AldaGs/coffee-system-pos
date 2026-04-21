@@ -3,7 +3,15 @@ import { Icon } from '@iconify/react';
 
 export default function LandingPage({ onSelectMode }) {
   return (
-    <div style={{ minHeight: '100dvh', backgroundColor: '#fdfdfd', fontFamily: 'var(--font-main, system-ui)', display: 'flex', flexDirection: 'column', color: '#2c3e50' }}>
+    <div style={{
+      minHeight: '100dvh',
+      backgroundColor: '#fdfdfd',
+      fontFamily: 'var(--font-main, system-ui)',
+      display: 'flex',
+      flexDirection: 'column',
+      color: '#2c3e50',
+      overflowY: 'auto'
+    }}>
 
       {/* NAVIGATION BAR */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 5%', alignItems: 'center', backgroundColor: 'white', borderBottom: '1px solid #f0f0f0' }}>
