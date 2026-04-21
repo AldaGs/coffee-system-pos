@@ -83,11 +83,10 @@ function Admin() {
     brandColor: "#2c3e50",
     isDarkMode: false,
     autoLockMinutes: 5,
-    pinCode: "1234",
     orderResetPolicy: "daily",
     enableCorte: true,
     ticketVisibility: "open",
-    printerSize: "80mm" // <-- ADD THIS LINE
+    printerSize: "80mm" 
   });
 
   // --- NEW: LOYALTY SETTINGS STATE ---
@@ -339,7 +338,7 @@ function Admin() {
         .from('general_settings')
         .upsert({ id: 1, ...generalSettings });
       */
-     
+
       // 3. Sync to LocalStorage for the Favicon/Boot injector
       if (generalSettings.appBootLogo) {
         localStorage.setItem('tinypos_boot_logo', generalSettings.appBootLogo);
@@ -394,7 +393,7 @@ function Admin() {
 
   // --- CASHIER MANAGEMENT (NOW CLOUD SYNCED) ---
   const cashiers = menuData?.cashiers || [
-    { id: 1, name: 'Admin', pin: '1234' },
+    { id: 1, name: 'Admin', pin: '1234', isAdmin: true },
     { id: 2, name: 'Barista 1', pin: '0000' }
   ];
 
@@ -924,7 +923,7 @@ function Admin() {
         
               {/* 1.5 RECEIPT HISTORY / REFUNDS TAB */}
         {activeTab === 'orders' && (
-          <OrdersTab dexieSales={dexieSales} generalSettings={generalSettings} />
+          <OrdersTab dexieSales={dexieSales} generalSettings={generalSettings} menuData={menuData} />
         )}
 
 

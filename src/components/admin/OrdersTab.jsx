@@ -2,7 +2,7 @@ import { db } from '../../db';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function OrdersTab({ dexieSales, generalSettings }) {
+function OrdersTab({ dexieSales, generalSettings, menuData }) {
   const { t, lang } = useTranslation();
 
   return (
@@ -52,7 +52,10 @@ function OrdersTab({ dexieSales, generalSettings }) {
               <button 
                 onClick={() => {
                   const typedPin = window.prompt(t('orders.promptPin'));
-                  if (typedPin !== generalSettings.pinCode) return alert(t('orders.alertInvalidPin'));
+                  const isMasterMatch = typedPin === generalSettings.pinCode;
+                  const isStaffAdminMatch = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === typedPin);
+                  
+                  if (!isMasterMatch && !isStaffAdminMatch) return alert(t('orders.alertInvalidPin'));
                   
                   const refundAmtRaw = window.prompt(t('orders.promptAmt'));
                   if (!refundAmtRaw) return;

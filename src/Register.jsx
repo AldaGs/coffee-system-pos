@@ -380,19 +380,23 @@ function Register() {
     setPinChallenge({ isOpen: true, title, onAuthorized: onAuthorizedAction });
   };
 
-  // Logic to verify the PIN
   const handleChallengeSubmit = () => {
-    // Allow if it matches the current Cashier's PIN OR the master Admin PIN
+    // 1. Is it the currently logged-in cashier's PIN?
     const isCashierMatch = challengePinAttempt === activeCashier?.pin;
-    const isAdminMatch = challengePinAttempt === posSettings.pinCode;
+    
+    // 2. NEW: Does this PIN belong to ANY profile where isAdmin is true?
+    // This completely ignores the trapped posSettings.pinCode!
+    const isStaffAdmin = (menuData?.cashiers || []).some(
+      cashier => cashier.isAdmin === true && cashier.pin === challengePinAttempt
+    );
 
-    if (isCashierMatch || isAdminMatch) {
+    if (isCashierMatch || isStaffAdmin) {
       // Success: Clear the challenge and run the intercepted action
       setChallengePinAttempt('');
       setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
       if (pinChallenge.onAuthorized) pinChallenge.onAuthorized();
     } else {
-      // Fail: Trigger the exact same shake animation you built for the Lock Screen
+      // Fail: Trigger the shake animation
       setChallengeError(true);
       setTimeout(() => setChallengeError(false), 500);
       setChallengePinAttempt('');
