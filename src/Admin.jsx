@@ -24,33 +24,24 @@ import { useTranslation } from './hooks/useTranslation';
 
 function Admin() {
   const navigate = useNavigate();
-
   const { showAlert, showConfirm } = useDialog();
   const { updateTheme } = useTheme();
-
   // --- ZUSTAND GLOBAL STORE ---
   const { menuData, setMenuData, recipes, setRecipes } = useMenuStore();
-
   const { t } = useTranslation();
-
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-
   // --- NEW: MANAGER PIN LOCK STATE ---
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [adminPinInput, setAdminPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
-
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('analytics');
   const [salesData, setSalesData] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
-
   const [inventoryLogs, setInventoryLogs] = useState([]);
-
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newItemForm, setNewItemForm] = useState({ 
     category: '', 
@@ -805,31 +796,34 @@ function Admin() {
       <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: '#2c3e50', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '12px', width: '400px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-            <h2 style={{ margin: 0, color: '#2c3e50' }}>Admin Login</h2>
+            <h2 style={{ margin: 0, color: '#2c3e50' }}>{t('admin.loginTitle')}</h2>
             <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer' }}>✕</button>
           </div>
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#666' }}>Email Address</label>
+              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#666' }}>{t('admin.email')}</label>
               <input type="email" value={loginForm.email} onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1rem' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#666' }}>Password</label>
+              <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: '#666' }}>{t('admin.password')}</label>
               <input type="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', fontSize: '1rem' }} />
             </div>
-            <button type="submit" style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '8px' }}>Access Dashboard</button>
+            <button type="submit" style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '8px' }}>
+                {t('admin.accessBtn')}
+            </button>
           </form>
         </div>
       </div>
     );
   }
 
+ // --- LOADING SCREEN ---
   if (isLoading) {
     return (
       <div className="loader-container">
         <div className="spinner"></div>
         <h1 style={{ letterSpacing: '2px', textTransform: 'uppercase' }}>
-          Loading Admin
+          {t('admin.loading')}
         </h1>
       </div>
     );
@@ -841,32 +835,21 @@ function Admin() {
   };
 
   
+  // --- PIN LOCK SCREEN ---
   if (isAuthenticated && !isAdminUnlocked) {
     return (
       <div style={{ display: 'flex', height: '100dvh', width: '100vw', backgroundColor: 'var(--bg-main)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)' }}>
         <div className="fade-in" style={{ background: 'var(--bg-surface)', padding: '40px', borderRadius: '12px', width: '350px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', textAlign: 'center', border: pinError ? '2px solid #e74c3c' : '2px solid transparent' }}>
-          <h2 style={{ margin: '0 0 10px 0' }}>Admin Locked</h2>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>Type your PIN or use the keypad.</p>
+          <h2 style={{ margin: '0 0 10px 0' }}>{t('admin.lockedTitle')}</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>{t('admin.lockedSubtitle')}</p>
           
-          {/* VISUAL PIN DISPLAY */}
           <div style={{ 
-            fontSize: '2rem', 
-            letterSpacing: '12px', 
-            marginBottom: '24px', 
-            fontWeight: 'bold', 
-            minHeight: '60px', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            background: 'var(--bg-main)',
-            borderRadius: '8px',
-            border: `1px solid ${pinError ? '#e74c3c' : 'var(--border)'}`,
-            color: pinError ? '#e74c3c' : 'var(--text-main)' 
+            fontSize: '2rem', letterSpacing: '12px', marginBottom: '24px', fontWeight: 'bold', minHeight: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'var(--bg-main)', borderRadius: '8px', border: `1px solid ${pinError ? '#e74c3c' : 'var(--border)'}`, color: pinError ? '#e74c3c' : 'var(--text-main)' 
           }}>
             {adminPinInput.replace(/./g, '●') || <span style={{opacity: 0.2, letterSpacing: 'normal', fontSize: '1rem'}}>••••</span>}
           </div>
 
-          {/* NUMBER PAD */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => (
               <button key={num} onClick={() => { setPinError(false); setAdminPinInput(prev => prev.length < 4 ? prev + num : prev); }} style={{ padding: '20px', fontSize: '1.5rem', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold' }}>{num}</button>
@@ -880,18 +863,11 @@ function Admin() {
             onClick={() => {
               const isStaffAdmin = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === adminPinInput);
               const isMasterPin = adminPinInput === generalSettings.pinCode;
-
-              if (isStaffAdmin || isMasterPin) {
-                setIsAdminUnlocked(true);
-                setPinError(false);
-              } else {
-                setPinError(true);
-                setAdminPinInput('');
-              }
+              if (isStaffAdmin || isMasterPin) { setIsAdminUnlocked(true); setPinError(false); } else { setPinError(true); setAdminPinInput(''); }
             }} 
             style={{ width: '100%', padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}
           >
-            Unlock Dashboard [Enter]
+            {t('admin.unlockBtn')}
           </button>
         </div>
       </div>
@@ -900,18 +876,11 @@ function Admin() {
 
   return (
     <div className="admin-layout">
+      <div className={`admin-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)}></div>
 
-      {/* --- MOBILE OVERLAY --- */}
-      <div
-        className={`admin-overlay ${isMobileMenuOpen ? 'open' : ''}`}
-        onClick={() => setIsMobileMenuOpen(false)}
-      ></div>
-
-      {/* --- SIDEBAR --- */}
-      {/* UPDATED: Background is now var(--brand-color) */}
       <aside className={`admin-aside ${isMobileMenuOpen ? 'open' : ''}`}>
         <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{generalSettings.name} - POS <p>Admin</p></h2>
+          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{generalSettings.name} - POS </h2>
           <button className="desktop-hidden" onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
         </div>
         <nav style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1 }}>
@@ -928,22 +897,19 @@ function Admin() {
           <button onClick={() => switchTab('settings')} style={{ padding: '16px 24px', textAlign: 'left', background: activeTab === 'settings' ? 'rgba(255,255,255,0.1)' : 'transparent', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1.1rem' }}>{t('admin.settings')}</button>
         </nav>
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#ccc', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Sign Out</button>
-          
-          {/* SECURE EXIT BUTTON */}
-          <button onClick={handleBackToRegister} style={{ width: '100%', padding: '12px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>🔙 Back to Register</button>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#ccc', border: '1px solid #ccc', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t('admin.signOut')}</button>
+          <button onClick={handleBackToRegister} style={{ width: '100%', padding: '12px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>{t('admin.backToReg')}</button>
         </div>
       </aside>
 
-      {/* --- MAIN CONTENT --- */}
       <main className="admin-main">
         <div className="desktop-hidden" style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
           <button className="mobile-hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
-          <h2 style={{ margin: '0 0 0 16px', fontSize: '1.2rem', color: 'var(--text-main)' }}>Admin Dashboard</h2>
+          <h2 style={{ margin: '0 0 0 16px', fontSize: '1.2rem', color: 'var(--text-main)' }}>{t('admin.title')}</h2>
         </div>
 
-        {isSaving && <div style={{ position: 'fixed', top: 20, right: 20, background: '#27ae60', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>Saving to Cloud...</div>}
-
+        {isSaving && <div style={{ position: 'fixed', top: 20, right: 20, background: '#27ae60', color: 'white', padding: '10px 20px', borderRadius: '8px', fontWeight: 'bold', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>{t('admin.saving')}</div>}
+        
         {/* 1. ANALYTICS TAB */}
         {activeTab === 'analytics' && (
           <AnalyticsTab 

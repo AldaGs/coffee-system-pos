@@ -1,5 +1,37 @@
 export const translations = {
   en: {
+
+    // --- Admin General ---
+    "admin.title": "Admin Dashboard",
+    "admin.loading": "Loading Admin...",
+    "admin.saving": "Saving to Cloud...",
+    "admin.signOut": "Sign Out",
+    "admin.backToReg": "🔙 Back to Register",
+    
+    // --- Admin Login ---
+    "admin.loginTitle": "Admin Login",
+    "admin.email": "Email Address",
+    "admin.password": "Password",
+    "admin.accessBtn": "Access Dashboard",
+
+    // --- Admin PIN Lock ---
+    "admin.lockedTitle": "Admin Locked",
+    "admin.lockedSubtitle": "Type your PIN or use the keypad.",
+    "admin.unlockBtn": "Unlock Dashboard [Enter]",
+
+    // --- Admin Sidebar Nav ---
+    "admin.analytics": "Analytics",
+    "admin.orders": "Orders",
+    "admin.menu": "Menu Editor",
+    "admin.modifiers": "Modifiers",
+    "admin.receipt": "Receipts",
+    "admin.recipe": "Recipes",
+    "admin.inventory": "Inventory",
+    "admin.loyalty": "Loyalty",
+    "admin.promotions": "Discounts",
+    "admin.team": "Team",
+    "admin.settings": "Settings",
+
     // --- General ---
     "common.save": "Save",
     "common.cancel": "Cancel",
@@ -385,9 +417,180 @@ export const translations = {
     "loyalty.noQualify": "No Qualifying Items",
     "loyalty.noQualifyDesc": "This order does not contain any qualifying items to earn loyalty stars.",
     "checkout.voidPartialTitle": "Void Partial Payments",
-    "checkout.voidPartialDesc": "This will completely erase the payment history for this ticket. Are you sure you want to proceed if cash was already taken?"
+    "checkout.voidPartialDesc": "This will completely erase the payment history for this ticket. Are you sure you want to proceed if cash was already taken?",
+
+    // --- Boot & Lock Screens ---
+    "boot.loading": "Loading Terminal...",
+    "boot.syncing": "Syncing menu data...",
+    "lock.who": "Who is using the register?",
+    "lock.welcome": "Welcome,",
+    "lock.enterPin": "Enter your 4-digit PIN",
+    "lock.btnBack": "Back",
+    "lock.btnUnlock": "Unlock",
+    
+    // --- Menu Area ---
+    "menuArea.gasto": "💸 Gasto",
+    "menuArea.corte": "📊 Corte",
+    "menuArea.lock": "🔒 Lock",
+    "menuArea.admin": "⚙️ Admin",
+    "menuArea.noActivity": "No Activity",
+    "menuArea.noActivityDesc": "There are no sales or expenses to report for this shift yet.",
+    "menuArea.pendingCashWarn": "Pending Cash Warning",
+    "menuArea.pendingCashDesc": "There are open tickets with 'Saved Partial Payments' in Cash. This physical cash is currently in your drawer but is NOT counted in the Corte report until those tickets are finalized. Close shift anyway?",
+    "menuArea.authGasto": "Authorize Gasto",
+    "menuArea.authCorte": "Authorize Corte de Caja",
+
+    // --- Checkout Modal ---
+    "check.title": "Payment Checkout",
+    "check.totalDue": "Total Due",
+    "check.paid": "Paid",
+    "check.remaining": "Remaining",
+    "check.modeRemaining": "💰 Remaining",
+    "check.modeEven": "👥 Even By N",
+    "check.modeProduct": "🛍️ By Prod.",
+    "check.modeCustom": "🔢 Custom",
+    "check.cash": "💵 Cash",
+    "check.card": "💳 Card",
+    "check.transfer": "📱 Transfer",
+    "check.evenSubtitle": "Divide the remaining balance evenly.",
+    "check.people": "Remaining People:",
+    "check.perPerson": "due per person",
+    "check.prodSubtitle": "Select an item to pay for it independently.",
+    "check.prodPaid": "✅ Paid",
+    "check.customSubtitle": "Enter partial amount:",
+    "check.paymentLog": "Payment Log",
+    "check.btnSave": "💾 Save & Hide",
+    "check.btnVoid": "🗑️ Void",
+    "check.btnClose": "Close Checkout",
+    "check.alertInvalid": "Please enter a valid amount.",
+
+    // --- Corte Modal ---
+    "corte.modalTitle": "Corte de Caja",
+    "corte.breakdown": "Shift Breakdown",
+    "corte.cashSales": "Cash Sales:",
+    "corte.cardSales": "Card Sales:",
+    "corte.transferSales": "Transfer Sales:",
+    "corte.cashExpenses": "Cash Expenses:",
+    "corte.expectedInDrawer": "Expected Cash in Drawer:",
+    "corte.actualLabel": "Actual Cash Counted ($)",
+    "corte.actualPlaceholder": "How much physical money is there?",
+    "corte.btnCloseShift": "Close Shift",
+
+    // --- Discount Modal (Register) ---
+    "discModal.title": "Apply Discount",
+    "discModal.perc": "% Percentage",
+    "discModal.flat": "$ Flat Amount",
+    "discModal.labelPerc": "Discount Percentage (%)",
+    "discModal.labelFlat": "Discount Amount ($)",
+    "discModal.placePerc": "e.g., 10",
+    "discModal.placeFlat": "e.g., 5.00",
+    "discModal.btnRemove": "Remove",
+    "discModal.btnApply": "Apply",
+
+    // --- Expense Modal ---
+    "exp.title": "Record Expense (Gasto)",
+    "exp.subtitle": "Log money taken out of the cash drawer to keep your register balanced.",
+    "exp.amount": "Amount ($)",
+    "exp.reason": "Reason / Vendor",
+    "exp.reasonPlaceholder": "e.g., Ice, Milk, Tips",
+    "exp.btnWithdraw": "Withdraw Cash",
+
+    // --- Flying Receipt ---
+    "fly.paid": "PAID",
+    "fly.total": "TOTAL",
+    "fly.method": "Method:",
+
+    // --- Loyalty Modal ---
+    "loy.title": "Loyalty Rewards",
+    "loy.checkPhone": "Enter customer's WhatsApp number to check their status.",
+    "loy.sendPhone": "Enter customer's WhatsApp number to send receipt.",
+    "loy.placeholder": "222 123 4567",
+    "loy.btnCheck": "Check Loyalty Status",
+    "loy.btnSendOnly": "Send Receipt Only (Do Not Track)",
+    "loy.btnSendNormal": "Send Receipt",
+    "loy.rewardReady": "REWARD READY!",
+    "loy.tellCustomer": "Tell the customer:",
+    "loy.rewardMsg": "This is your visit #{{num}}! You get {{reward}} today!",
+    "loy.visitLabel": "Visit #",
+    "loy.statusMsg": "You have {{num}} visits! You only need {{needed}} more for {{reward}}.",
+    "loy.btnSendWA": "📱 Send WhatsApp Receipt",
+
+    // --- PIN Challenge Modal ---
+    "pin.managerReq": "Enter Manager PIN",
+    "pin.required": "REQUIRED",
+    "pin.btnCancel": "CANCEL",
+    "pin.btnVerify": "Verify [Enter]",
+
+    // --- Sync Status Modal ---
+    "sync.title": "System Status",
+    "sync.offlineTitle": "You are currently offline.",
+    "sync.offlineDesc": "Don't worry! You can keep ringing up orders and logging expenses. Everything is saved safely on this device.",
+    "sync.onlineTitle": "Internet Connected!",
+    "sync.onlineDesc": "We are currently uploading your saved data to the cloud.",
+    "sync.pending": "Pending Uploads:",
+    "sync.tickets": "Sales Tickets",
+    "sync.expenses": "Gastos (Expenses)",
+    "sync.wa": "WhatsApp Receipts",
+    "sync.btnClose": "Close",
+
+    // --- Ticket Area ---
+    "ticket.noOrders": "No Active Orders",
+    "ticket.noOrdersDesc": "You don't have any open tickets right now.",
+    "ticket.btnStart": "+ Start New Ticket",
+    "ticket.empty": "Cart is empty",
+    "ticket.subtotal": "Subtotal",
+    "ticket.auto": "⭐ Auto:",
+    "ticket.discount": "Discount",
+    "ticket.total": "Total",
+    "ticket.btnPay": "Pay & Close",
+    "ticket.options": "Ticket Options",
+    "ticket.btnVoid": "Void Ticket",
+    "ticket.btnDiscount": "% Discount",
+    "ticket.btnPrint": "🖨️ Print",
+    "ticket.btnWA": "📱 WhatsApp",
+    "ticket.authDiscount": "Authorize Discount",
+
+    // --- Modifier Modal ---
+    "modModal.customize": "Customize:",
+    "modModal.typeHere": "Type here...",
+    "modModal.btnCancel": "Cancel",
+    "modModal.btnAdd": "Add to Ticket",
+
+    // --- Toast Notifications ---
+    "toast.success": "Success"
   },
   es: {
+    // --- Admin General ---
+    "admin.title": "Panel de Administración",
+    "admin.loading": "Cargando Admin...",
+    "admin.saving": "Guardando en la nube...",
+    "admin.signOut": "Cerrar Sesión",
+    "admin.backToReg": "🔙 Volver a la Caja",
+
+    // --- Admin Login ---
+    "admin.loginTitle": "Acceso Admin",
+    "admin.email": "Correo Electrónico",
+    "admin.password": "Contraseña",
+    "admin.accessBtn": "Entrar al Panel",
+
+    // --- Admin PIN Lock ---
+    "admin.lockedTitle": "Admin Bloqueado",
+    "admin.lockedSubtitle": "Ingresa tu PIN o usa el teclado.",
+    "admin.unlockBtn": "Desbloquear Panel [Enter]",
+
+    // --- Admin Sidebar Nav ---
+    "admin.analytics": "Analíticas",
+    "admin.orders": "Ventas",
+    "admin.menu": "Editar Menú",
+    "admin.modifiers": "Modificadores",
+    "admin.receipt": "Tickets",
+    "admin.recipe": "Recetas",
+    "admin.inventory": "Inventario",
+    "admin.loyalty": "Lealtad",
+    "admin.promotions": "Promociones",
+    "admin.team": "Equipo",
+    "admin.settings": "Ajustes",
+
     // --- General ---
     "common.save": "Guardar",
     "common.cancel": "Cancelar",
@@ -773,6 +976,146 @@ export const translations = {
     "loyalty.noQualify": "Sin Artículos Calificables",
     "loyalty.noQualifyDesc": "Esta orden no contiene artículos que sumen estrellas de lealtad.",
     "checkout.voidPartialTitle": "Anular Pagos Parciales",
-    "checkout.voidPartialDesc": "Esto borrará el historial de pagos de este ticket. ¿Estás seguro de proceder si ya recibiste efectivo?"
+    "checkout.voidPartialDesc": "Esto borrará el historial de pagos de este ticket. ¿Estás seguro de proceder si ya recibiste efectivo?",
+
+    // --- Boot & Lock Screens ---
+    "boot.loading": "Cargando Terminal...",
+    "boot.syncing": "Sincronizando datos del menú...",
+    "lock.who": "¿Quién está usando la caja?",
+    "lock.welcome": "Bienvenido,",
+    "lock.enterPin": "Ingresa tu PIN de 4 dígitos",
+    "lock.btnBack": "Volver",
+    "lock.btnUnlock": "Desbloquear",
+    
+    // --- Menu Area ---
+    "menuArea.gasto": "💸 Gasto",
+    "menuArea.corte": "📊 Corte",
+    "menuArea.lock": "🔒 Bloquear",
+    "menuArea.admin": "⚙️ Admin",
+    "menuArea.noActivity": "Sin Actividad",
+    "menuArea.noActivityDesc": "No hay ventas ni gastos registrados en este turno aún.",
+    "menuArea.pendingCashWarn": "Advertencia: Efectivo Pendiente",
+    "menuArea.pendingCashDesc": "Hay tickets abiertos con Pagos Parciales en Efectivo. Este efectivo físico ya está en tu caja pero NO se contará en el Corte hasta que esos tickets sean finalizados. ¿Deseas cerrar el turno de todos modos?",
+    "menuArea.authGasto": "Autorizar Gasto",
+    "menuArea.authCorte": "Autorizar Corte de Caja",
+
+    // --- Checkout Modal ---
+    "check.title": "Pago de la Cuenta",
+    "check.totalDue": "Total a Pagar",
+    "check.paid": "Pagado",
+    "check.remaining": "Restante",
+    "check.modeRemaining": "💰 Restante",
+    "check.modeEven": "👥 Dividir N",
+    "check.modeProduct": "🛍️ Por Prod.",
+    "check.modeCustom": "🔢 Otro",
+    "check.cash": "💵 Efectivo",
+    "check.card": "💳 Tarjeta",
+    "check.transfer": "📱 Transferencia",
+    "check.evenSubtitle": "Divide el saldo restante en partes iguales.",
+    "check.people": "Personas Restantes:",
+    "check.perPerson": "por persona",
+    "check.prodSubtitle": "Selecciona un artículo para pagarlo por separado.",
+    "check.prodPaid": "✅ Pagado",
+    "check.customSubtitle": "Ingresa el monto parcial:",
+    "check.paymentLog": "Historial de Pagos",
+    "check.btnSave": "💾 Guardar y Salir",
+    "check.btnVoid": "🗑️ Anular",
+    "check.btnClose": "Cerrar Caja",
+    "check.alertInvalid": "Por favor ingresa un monto válido.",
+
+    // --- Corte Modal ---
+    "corte.modalTitle": "Corte de Caja",
+    "corte.breakdown": "Desglose del Turno",
+    "corte.cashSales": "Ventas Efectivo:",
+    "corte.cardSales": "Ventas Tarjeta:",
+    "corte.transferSales": "Ventas Transferencia:",
+    "corte.cashExpenses": "Gastos Efectivo:",
+    "corte.expectedInDrawer": "Efectivo Esperado en Caja:",
+    "corte.actualLabel": "Efectivo Físico Contado ($)",
+    "corte.actualPlaceholder": "¿Cuánto dinero físico hay en caja?",
+    "corte.btnCloseShift": "Cerrar Turno",
+
+    // --- Discount Modal (Register) ---
+    "discModal.title": "Aplicar Descuento",
+    "discModal.perc": "% Porcentaje",
+    "discModal.flat": "$ Monto Fijo",
+    "discModal.labelPerc": "Porcentaje de Descuento (%)",
+    "discModal.labelFlat": "Monto de Descuento ($)",
+    "discModal.placePerc": "ej., 10",
+    "discModal.placeFlat": "ej., 5.00",
+    "discModal.btnRemove": "Quitar",
+    "discModal.btnApply": "Aplicar",
+
+    // --- Expense Modal ---
+    "exp.title": "Registrar Gasto",
+    "exp.subtitle": "Registra el dinero retirado de la caja para mantener el balance del cajón.",
+    "exp.amount": "Monto ($)",
+    "exp.reason": "Motivo / Proveedor",
+    "exp.reasonPlaceholder": "ej., Hielo, Leche, Propinas",
+    "exp.btnWithdraw": "Retirar Efectivo",
+
+    // --- Flying Receipt ---
+    "fly.paid": "PAGADO",
+    "fly.total": "TOTAL",
+    "fly.method": "Método:",
+
+    // --- Loyalty Modal ---
+    "loy.title": "Recompensas de Lealtad",
+    "loy.checkPhone": "Ingresa el WhatsApp del cliente para ver su estado.",
+    "loy.sendPhone": "Ingresa el WhatsApp del cliente para enviar el ticket.",
+    "loy.placeholder": "222 123 4567",
+    "loy.btnCheck": "Consultar Puntos",
+    "loy.btnSendOnly": "Solo enviar ticket (Sin puntos)",
+    "loy.btnSendNormal": "Enviar Ticket",
+    "loy.rewardReady": "¡RECOMPENSA LISTA!",
+    "loy.tellCustomer": "Dile al cliente:",
+    "loy.rewardMsg": "¡Esta es tu visita #{{num}}! ¡Hoy te toca {{reward}}!",
+    "loy.visitLabel": "Visita #",
+    "loy.statusMsg": "¡Tienes {{num}} visitas! Solo te faltan {{needed}} para {{reward}}.",
+    "loy.btnSendWA": "📱 Enviar Ticket por WhatsApp",
+
+    // --- PIN Challenge Modal ---
+    "pin.managerReq": "Ingresa PIN de Gerente",
+    "pin.required": "REQUERIDO",
+    "pin.btnCancel": "CANCELAR",
+    "pin.btnVerify": "Verificar [Enter]",
+
+    // --- Sync Status Modal ---
+    "sync.title": "Estado del Sistema",
+    "sync.offlineTitle": "No tienes conexión a internet.",
+    "sync.offlineDesc": "¡No te preocupes! Puedes seguir tomando órdenes y registrando gastos. Todo se guarda seguro en este dispositivo.",
+    "sync.onlineTitle": "¡Conexión Exitosa!",
+    "sync.onlineDesc": "Estamos sincronizando tus datos locales con la nube ahora mismo.",
+    "sync.pending": "Cargas Pendientes:",
+    "sync.tickets": "Tickets de Venta",
+    "sync.expenses": "Gastos en Efectivo",
+    "sync.wa": "Recibos de WhatsApp",
+    "sync.btnClose": "Cerrar",
+
+    // --- Ticket Area ---
+    "ticket.noOrders": "Sin Órdenes Activas",
+    "ticket.noOrdersDesc": "No tienes tickets abiertos en este momento.",
+    "ticket.btnStart": "+ Nueva Orden",
+    "ticket.empty": "El carrito está vacío",
+    "ticket.subtotal": "Subtotal",
+    "ticket.auto": "⭐ Auto:",
+    "ticket.discount": "Descuento",
+    "ticket.total": "Total",
+    "ticket.btnPay": "Cobrar y Cerrar",
+    "ticket.options": "Opciones del Ticket",
+    "ticket.btnVoid": "Anular Ticket",
+    "ticket.btnDiscount": "% Descuento",
+    "ticket.btnPrint": "🖨️ Imprimir",
+    "ticket.btnWA": "📱 WhatsApp",
+    "ticket.authDiscount": "Autorizar Descuento",
+
+    // --- Modifier Modal ---
+    "modModal.customize": "Personalizar:",
+    "modModal.typeHere": "Escribe aquí...",
+    "modModal.btnCancel": "Cancelar",
+    "modModal.btnAdd": "Agregar a la Orden",
+
+    // --- Toast Notifications ---
+    "toast.success": "Éxito"
   }
 };

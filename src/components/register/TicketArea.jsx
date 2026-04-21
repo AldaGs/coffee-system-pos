@@ -1,12 +1,12 @@
 import { usePos } from '../../utils/PosContext';
+import { useTranslation } from '../../hooks/useTranslation';
 
 function TicketArea({ 
-  // ONLY these 4 local UI props stay here
   isActionSheetOpen, setIsActionSheetOpen, 
   setIsDiscountModalOpen, setLoyaltyModal 
 }) {
+  const { t } = useTranslation();
 
-  // 🔥 Pull all the cart logic and math from Context!
   const { 
     activeTicketId, setActiveTicketId, visibleTickets, handleNewTicket, 
     handleWheelScroll, activeTicket, cartSubtotal, cartTotal, 
@@ -17,29 +17,107 @@ function TicketArea({
   
   return (
     <aside className="ticket-area">
-      <div className="ticket-tabs-container" onWheel={handleWheelScroll}>{visibleTickets.map(ticket => (<button key={ticket.id} onClick={() => setActiveTicketId(ticket.id)} className={`ticket-tab ${activeTicketId === ticket.id ? 'active' : ''}`}>{ticket.name}</button>))}<button className="new-ticket-btn" onClick={handleNewTicket}>+</button></div>
+      <div className="ticket-tabs-container" onWheel={handleWheelScroll}>
+        {visibleTickets.map(ticket => (
+          <button key={ticket.id} onClick={() => setActiveTicketId(ticket.id)} className={`ticket-tab ${activeTicketId === ticket.id ? 'active' : ''}`}>
+            {ticket.name}
+          </button>
+        ))}
+        <button className="new-ticket-btn" onClick={handleNewTicket}>+</button>
+      </div>
+
       {!activeTicket ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}><h3 style={{ marginBottom: '10px' }}>No Active Orders</h3><p style={{ marginBottom: '20px' }}>You don't have any open tickets right now.</p><button onClick={handleNewTicket} style={{ padding: '12px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>+ Start New Ticket</button></div>
-      ) : (<>
-        <ul className="ticket-items">{activeTicket.items.length === 0 ? (<li className="empty-cart">Cart is empty</li>) : (activeTicket.items.map(item => (<li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}><div className="item-row"><div><span>{item.emoji || '•'} {item.name}</span><span style={{ marginLeft: '10px' }}>${item.basePrice}</span></div><button className="delete-item-btn" onClick={() => handleRemoveItem(item.uniqueId)}>✕</button></div>{item.selectedModifiers.map(mod => (<div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}><span>+ {mod.name}{mod.textValue && (<strong style={{ color: 'var(--text-main)', marginLeft: '4px' }}>: "{mod.textValue}"</strong>)}</span><span>{mod.price > 0 ? `$${mod.price.toFixed(2)}` : ''}</span></div>))}</li>)))}</ul>
-        <div className="ticket-footer">
-          <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}><span>Subtotal</span><span>${cartSubtotal.toFixed(2)}</span></div>
-          {autoDiscountAmount > 0 && (<div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#27ae60' }}><span>⭐ Auto: {activeAutoRuleName}</span><span>-${autoDiscountAmount.toFixed(2)}</span></div>)}
-          {activeTicket.discount && (<div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#e74c3c' }}><span>Discount ({activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : `$${activeTicket.discount.value}`})</span><span>-${manualDiscountAmount.toFixed(2)}</span></div>)}
-          {activeTicket.discount && (<div className="total-row" style={{ marginBottom: '16px', fontSize: '1.5rem', color: 'var(--text-main)' }}><span>Total</span><span>${cartTotal.toFixed(2)}</span></div>)}
-          <div className="checkout-actions"><button className="options-btn" onClick={() => setIsActionSheetOpen(true)} disabled={activeTicket.items.length === 0} style={{ flex: '0 0 auto', width: '60px', padding: '16px 0', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: activeTicket.items.length === 0 ? 0.5 : 1, cursor: activeTicket.items.length === 0 ? 'not-allowed' : 'pointer' }}>⚙️</button><button className="charge-btn" onClick={handleOpenCheckout} disabled={activeTicket.items.length === 0} style={{ flex: 1 }}>Pay & Close</button></div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', padding: '20px', textAlign: 'center' }}>
+          <h3 style={{ marginBottom: '10px' }}>{t('ticket.noOrders')}</h3>
+          <p style={{ marginBottom: '20px' }}>{t('ticket.noOrdersDesc')}</p>
+          <button onClick={handleNewTicket} style={{ padding: '12px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
+            {t('ticket.btnStart')}
+          </button>
         </div>
-        <div className={`bottom-sheet-overlay ${isActionSheetOpen ? 'open' : ''}`} onClick={() => setIsActionSheetOpen(false)}></div>
-        <div className={`bottom-sheet ${isActionSheetOpen ? 'open' : ''}`}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}><h3 style={{ margin: 0, color: 'var(--text-main)' }}>Ticket Options</h3><button onClick={() => setIsActionSheetOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', cursor: 'pointer' }}>×</button></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button className="cancel-btn" onClick={() => { setIsActionSheetOpen(false); handleCancelTicket(); }} style={{ flex: 1, padding: '16px', fontSize: '1.1rem' }}>Void Ticket</button>
-            <button onClick={() => { setIsActionSheetOpen(false); requirePin("Authorize Discount", () => setIsDiscountModalOpen(true)); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>% Discount</button>
-            <div style={{ display: 'flex', gap: '12px' }}><button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>🖨️ Print</button><button style={{ flex: 1, padding: '16px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); setLoyaltyModal({ isOpen: true, step: 'phone', phone: '', data: null }); }}>📱 WhatsApp</button></div>
+      ) : (
+        <>
+          <ul className="ticket-items">
+            {activeTicket.items.length === 0 ? (
+              <li className="empty-cart">{t('ticket.empty')}</li>
+            ) : (
+              activeTicket.items.map(item => (
+                <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                  <div className="item-row">
+                    <div>
+                      <span>{item.emoji || '•'} {item.name}</span>
+                      <span style={{ marginLeft: '10px' }}>${item.basePrice}</span>
+                    </div>
+                    <button className="delete-item-btn" onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
+                  </div>
+                  {item.selectedModifiers.map(mod => (
+                    <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>
+                      <span>+ {mod.name}{mod.textValue && (<strong style={{ color: 'var(--text-main)', marginLeft: '4px' }}>: "{mod.textValue}"</strong>)}</span>
+                      <span>{mod.price > 0 ? `$${mod.price.toFixed(2)}` : ''}</span>
+                    </div>
+                  ))}
+                </li>
+              ))
+            )}
+          </ul>
+
+          <div className="ticket-footer">
+            <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
+              <span>{t('ticket.subtotal')}</span>
+              <span>${cartSubtotal.toFixed(2)}</span>
+            </div>
+            {autoDiscountAmount > 0 && (
+              <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#27ae60' }}>
+                <span>{t('ticket.auto')} {activeAutoRuleName}</span>
+                <span>-${autoDiscountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {activeTicket.discount && (
+              <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#e74c3c' }}>
+                <span>{t('ticket.discount')} ({activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : `$${activeTicket.discount.value}`})</span>
+                <span>-${manualDiscountAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {(activeTicket.discount || autoDiscountAmount > 0) && (
+              <div className="total-row" style={{ marginBottom: '16px', fontSize: '1.5rem', color: 'var(--text-main)' }}>
+                <span>{t('ticket.total')}</span>
+                <span>${cartTotal.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="checkout-actions">
+              <button className="options-btn" onClick={() => setIsActionSheetOpen(true)} disabled={activeTicket.items.length === 0} style={{ flex: '0 0 auto', width: '60px', padding: '16px 0', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: activeTicket.items.length === 0 ? 0.5 : 1, cursor: activeTicket.items.length === 0 ? 'not-allowed' : 'pointer' }}>⚙️</button>
+              <button className="charge-btn" onClick={handleOpenCheckout} disabled={activeTicket.items.length === 0} style={{ flex: 1 }}>
+                {t('ticket.btnPay')}
+              </button>
+            </div>
           </div>
-        </div>
-      </>)}
+
+          <div className={`bottom-sheet-overlay ${isActionSheetOpen ? 'open' : ''}`} onClick={() => setIsActionSheetOpen(false)}></div>
+          <div className={`bottom-sheet ${isActionSheetOpen ? 'open' : ''}`}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{t('ticket.options')}</h3>
+              <button onClick={() => setIsActionSheetOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button className="cancel-btn" onClick={() => { setIsActionSheetOpen(false); handleCancelTicket(); }} style={{ flex: 1, padding: '16px', fontSize: '1.1rem' }}>
+                {t('ticket.btnVoid')}
+              </button>
+              <button onClick={() => { setIsActionSheetOpen(false); requirePin(t('ticket.authDiscount'), () => setIsDiscountModalOpen(true)); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                {t('ticket.btnDiscount')}
+              </button>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>
+                  {t('ticket.btnPrint')}
+                </button>
+                <button style={{ flex: 1, padding: '16px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); setLoyaltyModal({ isOpen: true, step: 'phone', phone: '', data: null }); }}>
+                  {t('ticket.btnWA')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </aside>
   );
 }
+
 export default TicketArea;

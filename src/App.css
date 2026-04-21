@@ -528,12 +528,12 @@ body.dark-mode {
     opacity: 0;
   }
 
-  30% {
+  20% {
     transform: translate(-50%, 0);
     opacity: 1;
   }
 
-  60% {
+  80% {
     transform: translate(-50%, 0px);
     opacity: 1;
   }
@@ -556,7 +556,7 @@ body.dark-mode {
   width: 320px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
   font-family: 'Courier New', Courier, monospace;
-  animation: receipt-fly-up 1.5s cubic-bezier(0.2, 0.65, 0.45, 1) forwards;
+  animation: receipt-fly-up 2s cubic-bezier(0.2, 0.65, 0.45, 1) forwards;
   z-index: 9999;
   /* Crucial: Prevents the receipt from blocking the cashier's clicks! */
   pointer-events: none;

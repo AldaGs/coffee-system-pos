@@ -1,5 +1,7 @@
-function BootScreen({ logo, posSettings }) {
+import { useTranslation } from '../../hooks/useTranslation';
 
+function BootScreen({ logo, posSettings }) {
+  const { t } = useTranslation();
   const brandName = posSettings?.name || "Main Register";
   const backgroundColor = posSettings?.backgroundColor || "#274563";
 
@@ -19,6 +21,7 @@ function BootScreen({ logo, posSettings }) {
       </h1>
 
       <div className="spinner" style={{ borderTopColor: 'white' }}></div>
+      <p style={{ marginTop: '20px', fontSize: '1.2rem', opacity: 0.8 }}>{t('boot.loading')}</p>
     </div>
   );
 }
