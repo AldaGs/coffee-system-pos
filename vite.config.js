@@ -18,14 +18,20 @@ export default defineConfig({
         name: "tinypos",
         start_url: "/",
         display: "standalone",
-        theme_color: "#f28b05",
-        background_color: "#f4f6f8",
+        theme_color: "#ffffff",
+        background_color: "#ffffff",
         icons: [
           {
             src: 'icon.svg',
             sizes: 'any',
             type: 'image/svg+xml',
-            purpose: 'any maskable' // <-- THIS IS REQUIRED FOR THE INSTALL PROMPT
+            purpose: 'maskable' // <-- THIS IS REQUIRED FOR THE INSTALL PROMPT
+          },
+          {
+          "src": "icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "maskable"
           }
         ]
       }

@@ -73,7 +73,11 @@ function Register() {
 
         setMenuData(menuResp.menu_data);
         setRecipes(recipeResp);
-        setActiveCategory(Object.keys(menuResp.menu_data.categories)[0]);
+
+        // SAFE ACTIVE CATEGORY ASSIGNMENT
+        const safeCategories = menuResp.menu_data?.categories || {};
+        const categoryNames = Object.keys(safeCategories);
+        setActiveCategory(categoryNames.length > 0 ? categoryNames[0] : null);
 
         localStorage.setItem('tinypos_cached_menu', JSON.stringify(menuResp.menu_data));
         localStorage.setItem('tinypos_cached_recipes', JSON.stringify(recipeResp));
@@ -86,7 +90,11 @@ function Register() {
         if (cachedMenu) {
           const parsedMenu = JSON.parse(cachedMenu);
           setMenuData(parsedMenu);
-          setActiveCategory(Object.keys(parsedMenu.categories)[0]);
+          
+          // SAFE ACTIVE CATEGORY ASSIGNMENT FOR CACHE
+          const safeCachedCategories = parsedMenu?.categories || {};
+          const cachedCategoryNames = Object.keys(safeCachedCategories);
+          setActiveCategory(cachedCategoryNames.length > 0 ? cachedCategoryNames[0] : null);
         }
         if (cachedRecipes) {
           setRecipes(JSON.parse(cachedRecipes));

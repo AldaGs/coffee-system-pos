@@ -69,20 +69,41 @@ function MenuArea({
       </div>
 
       <div className="category-tabs">
-        {Object.keys(menuData.categories).map(category => (
-          <button key={category} onClick={() => setActiveCategory(category)} className={`tab-btn ${activeCategory === category ? 'active' : ''}`}>
+        {Object.keys(menuData?.categories || {}).map(category => (
+          <button 
+            key={category} 
+            onClick={() => setActiveCategory(category)} 
+            className={`tab-btn ${activeCategory === category ? 'active' : ''}`}
+          >
             {category}
           </button>
         ))}
       </div>
       
       <div className="menu-grid">
-        {menuData.categories[activeCategory].map(item => (
-          <button key={item.id} onClick={() => handleItemClick(item)} className="item-btn">
-            <span className="item-name">{item.emoji || ''} {item.name}</span>
-            <span className="item-price">${item.basePrice}</span>
-          </button>
-        ))}
+        {(() => {
+          // 1. Safe access with fallbacks
+          const safeCategories = menuData?.categories || {};
+          const currentProducts = safeCategories[activeCategory] || [];
+
+          // 2. Check if there are actually any categories at all
+          if (Object.keys(safeCategories).length === 0) {
+            return (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#888', gridColumn: '1 / -1' }}>
+                <h3>No menu items found.</h3>
+                <p>Head over to the Admin dashboard to create your first category!</p>
+              </div>
+            );
+          }
+
+          // 3. If it's safe, map your exact product buttons!
+          return currentProducts.map(item => (
+            <button key={item.id} onClick={() => handleItemClick(item)} className="item-btn">
+              <span className="item-name">{item.emoji || ''} {item.name}</span>
+              <span className="item-price">${item.basePrice}</span>
+            </button>
+          ));
+        })()}
       </div>
     </main>
   );
