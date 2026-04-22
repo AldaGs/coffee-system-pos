@@ -19,13 +19,15 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
   const handleAddItem = async () => {
-    if (!newItem.name || newItem.current_stock === '' || newItem.total_cost === '') {
+    // 1. Removed total_cost from the strict validation
+    if (!newItem.name || newItem.current_stock === '') {
       return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc1'));
     }
 
     const stockVal = parseFloat(newItem.current_stock);
-    const costVal = parseFloat(newItem.total_cost);
-    const calculatedUnitCost = costVal / stockVal;
+    // 2. Safely fallback to 0 if left blank
+    const costVal = newItem.total_cost === '' ? 0 : parseFloat(newItem.total_cost);
+    const calculatedUnitCost = stockVal > 0 ? (costVal / stockVal) : 0;
 
     const itemToSave = {
       name: newItem.name,
@@ -35,27 +37,26 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     };
 
     try {
-      // 1. Save to Inventory Table
       const { data, error } = await supabase.from('inventory').insert([itemToSave]).select();
       if (error) throw error;
 
-      // 2. FIXED: Save to Expenses Table using the correct column names
-      const purchaseExpense = {
-        amount: costVal,
-        reason: `Inventory Purchase: ${newItem.name} (${stockVal}${newItem.unit})`, // Standardized to 'reason'
-        cashier_name: 'Inventory System' // Standardized to match Register schema
-      };
-
-      const { error: expenseError } = await supabase.from('expenses').insert([purchaseExpense]);
-      if (expenseError) console.error("Failed to log purchase expense:", expenseError);
+      // 3. ONLY create an expense if they actually entered a cost > 0
+      if (costVal > 0) {
+        const purchaseExpense = {
+          amount: costVal,
+          reason: `Inventory Purchase: ${newItem.name} (${stockVal}${newItem.unit})`,
+          cashier_name: 'Inventory System' 
+        };
+        const { error: expenseError } = await supabase.from('expenses').insert([purchaseExpense]);
+        if (expenseError) console.error("Failed to log purchase expense:", expenseError);
+      }
       
-      // 3. Update local states
       await db.inventory.put(data[0]);
       setInventoryItems([...inventoryItems, data[0]]);
       setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '' });
       setActiveView('list');
       
-      showAlert(t('inv.alertSuccess'), `${itemToSave.name} ${t('inv.added')} ${t('inv.at')} $${calculatedUnitCost.toFixed(4)}/${itemToSave.unit}.`);
+      showAlert(t('inv.alertSuccess'), `${itemToSave.name} ${t('inv.added')}`);
     } catch (err) {
       showAlert(t('inv.alertError'), t('inv.alertErrorDesc1'));
     }
@@ -138,7 +139,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   // --- 3. EDIT EXISTING STOCK ---
   const handleSaveEdit = async () => {
-    if (!editingItem.name || editingItem.current_stock === '' || editingItem.unit_cost === '') {
+    // 1. Removed unit_cost from the strict validation
+    if (!editingItem.name || editingItem.current_stock === '') {
       return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc3'));
     }
 
@@ -147,7 +149,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         name: editingItem.name,
         current_stock: parseFloat(editingItem.current_stock),
         unit: editingItem.unit,
-        unit_cost: parseFloat(editingItem.unit_cost)
+        // 2. Safely fallback to 0 if left blank
+        unit_cost: editingItem.unit_cost === '' ? 0 : parseFloat(editingItem.unit_cost)
       };
 
       const { data, error } = await supabase.from('inventory').update(payload).eq('id', editingItem.id).select();
@@ -546,4 +549,4 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   );
 }
 
-export default InventoryTab;
+export default InventoryTab;

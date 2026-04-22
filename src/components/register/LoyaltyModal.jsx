@@ -1,3 +1,4 @@
+import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
 function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoyalty, handleGuestReceipt, phoneError, sendFinalMessage }) {
@@ -21,7 +22,12 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
       <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, color: 'var(--text-main)' }}>{t('loy.title')}</h2>
-          <button onClick={() => setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null })} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+          <button 
+            onClick={() => setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null })} 
+            style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Icon icon="lucide:x" />
+          </button>
         </div>
 
         {loyaltyModal.step === 'phone' && (
@@ -57,10 +63,12 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
         {loyaltyModal.step === 'result' && loyaltyModal.data && (
           <div>
             {loyaltyModal.data.isRewardReady ? (
-              <div style={{ background: '#fff0f5', border: '2px solid #ff69b4', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
-                <h1 style={{ margin: '0 0 10px 0', fontSize: '3rem' }}>🎉</h1>
+              <div style={{ background: 'rgba(255, 20, 147, 0.05)', border: '2px solid #ff1493', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
+                <div style={{ marginBottom: '10px' }}>
+                  <Icon icon="lucide:party-popper" style={{ fontSize: '3rem', color: '#ff1493' }} />
+                </div>
                 <h2 style={{ color: '#ff1493', margin: '0 0 10px 0' }}>{t('loy.rewardReady')}</h2>
-                <p style={{ fontSize: '1.1rem', color: '#333', margin: 0 }}>
+                <p style={{ fontSize: '1.1rem', color: 'var(--text-main)', margin: 0 }}>
                   <strong>{t('loy.tellCustomer')}</strong><br />
                   {t('loy.rewardMsg').replace('{{num}}', loyaltyModal.data.visits).replace('{{reward}}', loyaltyModal.data.reward)}
                 </p>
@@ -68,7 +76,11 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
             ) : (
               <div style={{ background: 'var(--bg-main)', border: '2px solid var(--border)', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
                 <h2 style={{ color: 'var(--brand-color)', margin: '0 0 10px 0' }}>{t('loy.visitLabel')}{loyaltyModal.data.visits}</h2>
-                <div style={{ fontSize: '1.5rem', margin: '10px 0' }}>{"⭐".repeat(loyaltyModal.data.visits % loyaltyModal.data.target || loyaltyModal.data.target)}</div>
+                <div style={{ fontSize: '1.5rem', margin: '10px 0', display: 'flex', justifyContent: 'center', gap: '5px' }}>
+                  {[...Array(loyaltyModal.data.visits % loyaltyModal.data.target || loyaltyModal.data.target)].map((_, i) => (
+                    <Icon key={i} icon="lucide:star" style={{ color: '#f1c40f' }} />
+                  ))}
+                </div>
                 <p style={{ fontSize: '1.1rem', color: 'var(--text-main)', margin: 0 }}>
                   <strong>{t('loy.tellCustomer')}</strong><br />
                   {t('loy.statusMsg')
@@ -79,6 +91,7 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
               </div>
             )}
             <button onClick={() => sendFinalMessage(loyaltyModal.phone.replace(/\D/g, ''), loyaltyModal.data)} style={{ width: '100%', padding: '15px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              <Icon icon="mdi:whatsapp" style={{ fontSize: '1.4rem' }} />
               {t('loy.btnSendWA')}
             </button>
           </div>

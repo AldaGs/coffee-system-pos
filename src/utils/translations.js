@@ -130,6 +130,14 @@ export const translations = {
     "loyalty.dangerZone": "Danger Zone",
     "loyalty.resetDesc": "Starting a brand new promotion? You can wipe all current customer stars back to zero.",
     "loyalty.resetButton": "Reset All Customer Stars",
+    "loyalty.customerList": "Customer Directory",
+    "loyalty.loading": "Loading customers...",
+    "loyalty.noCustomers": "No customers have earned stars yet.",
+    "loyalty.thPhone": "Phone Number",
+    "loyalty.thStars": "Total Stars",
+    "loyalty.thStatus": "Status",
+    "loyalty.rewardReadyBadge": "Reward Ready",
+    "loyalty.moreToGo": "more to go",
 
     // --- Inventory Tab ---
     "inv.title": "Warehouse Inventory",
@@ -739,6 +747,14 @@ export const translations = {
     "loyalty.dangerZone": "Zona de Peligro",
     "loyalty.resetDesc": "¿Vas a iniciar una nueva promoción? Puedes borrar todas las estrellas actuales.",
     "loyalty.resetButton": "Reiniciar Todas las Estrellas",
+    "loyalty.customerList": "Directorio de Clientes",
+    "loyalty.loading": "Cargando clientes...",
+    "loyalty.noCustomers": "Ningún cliente ha ganado estrellas todavía.",
+    "loyalty.thPhone": "Número de Teléfono",
+    "loyalty.thStars": "Estrellas Totales",
+    "loyalty.thStatus": "Estado",
+    "loyalty.rewardReadyBadge": "Recompensa Lista",
+    "loyalty.moreToGo": "más para ganar",
 
     // --- Inventory Tab ---
     "inv.title": "Inventario de Almacén",

@@ -61,6 +61,7 @@ import packageCheck from '@iconify-icons/lucide/package-check';
 import packagePlus from '@iconify-icons/lucide/package-plus';
 import packageSearch from '@iconify-icons/lucide/package-search';
 import palette from '@iconify-icons/lucide/palette';
+import partyPopper from '@iconify-icons/lucide/party-popper';
 import pause from '@iconify-icons/lucide/pause';
 import pencilLine from '@iconify-icons/lucide/pencil-line';
 import percent from '@iconify-icons/lucide/percent';
@@ -107,6 +108,7 @@ import zap from '@iconify-icons/lucide/zap';
 
 // MDI ICONS
 import github from '@iconify-icons/mdi/github';
+import whatsapp from '@iconify-icons/mdi/whatsapp';
 
 const icons = {
   'lucide:activity': activity,
@@ -169,6 +171,7 @@ const icons = {
   'lucide:package-plus': packagePlus,
   'lucide:package-search': packageSearch,
   'lucide:palette': palette,
+  'lucide:party-popper': partyPopper,
   'lucide:pause': pause,
   'lucide:pencil-line': pencilLine,
   'lucide:percent': percent,
@@ -215,6 +218,7 @@ const icons = {
   'lucide:x-circle': xCircle,
   'lucide:zap': zap,
   'mdi:github': github,
+  'mdi:whatsapp': whatsapp,
 };
 
 // Register icons with Iconify
