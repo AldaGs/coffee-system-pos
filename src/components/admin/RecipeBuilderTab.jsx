@@ -39,7 +39,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
   return (
     <div className="admin-section fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+      <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('recipe.title')}</h1>
           <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0', fontSize: '1.1rem' }}>{t('recipe.subtitle')}</p>
@@ -52,10 +52,10 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+      <div className="admin-grid-responsive" style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
 
         {/* LEFT: SAVED RECIPES LIST */}
-        <div style={{ flex: '0 0 320px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '75vh', overflowY: 'auto', border: '1px solid var(--border)' }}>
+        <div style={{ flex: '1 1 320px', background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '75vh', overflowY: 'auto', border: '1px solid var(--border)' }}>
           <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: '16px', color: 'var(--text-main)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:book-open" style={{ color: 'var(--brand-color)' }} />
             {t('recipe.savedTitle')}
@@ -93,10 +93,10 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
         {/* RIGHT: DYNAMIC BUILDER */}
         {activeRecipe ? (
-          <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <div style={{ flex: '3 1 500px', minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             {/* TOP HEADER SETTINGS */}
-            <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--border)' }}>
+            <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--border)' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '24px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -136,8 +136,8 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             </div>
 
             {/* INGREDIENTS LIST */}
-            <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+            <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Icon icon="lucide:list-ordered" style={{ color: 'var(--brand-color)' }} />
                   {t('recipe.cogsTitle')}
@@ -161,35 +161,37 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                   const matchedWarehouseItem = !isManual ? inventoryItems?.find(inv => inv.name === ing.name) : null;
 
                   return (
-                    <div key={ing.id} style={{ display: 'grid', gridTemplateColumns: 'auto 2fr 1.5fr 1fr 1fr auto', gap: '12px', alignItems: 'center', background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-main)', padding: '12px', borderRadius: '16px', border: `1px solid ${isManual ? 'rgba(155, 89, 182, 0.2)' : 'var(--border)'}` }}>
-                      <button 
-                        onClick={() => handleUpdateIngredient(ing.id, 'isManual', !isManual)}
-                        title={isManual ? 'Switch to Live Inventory' : 'Switch to Manual Cost'}
-                        style={{ padding: '10px', background: isManual ? '#9b59b6' : 'var(--bg-surface)', color: isManual ? 'white' : 'var(--text-muted)', border: isManual ? 'none' : '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
-                      >
-                        <Icon icon={isManual ? 'lucide:database-backup' : 'lucide:database'} />
-                      </button>
-
-                      {isManual ? (
-                        <input
-                          type="text"
-                          placeholder={t('recipe.placeholderTheoretical')}
-                          value={ing.name || ''}
-                          onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #9b59b6', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
-                        />
-                      ) : (
-                        <select
-                          value={ing.name}
-                          onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                    <div key={ing.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '12px', alignItems: 'center', background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-main)', padding: '12px', borderRadius: '16px', border: `1px solid ${isManual ? 'rgba(155, 89, 182, 0.2)' : 'var(--border)'}` }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          onClick={() => handleUpdateIngredient(ing.id, 'isManual', !isManual)}
+                          title={isManual ? 'Switch to Live Inventory' : 'Switch to Manual Cost'}
+                          style={{ padding: '10px', background: isManual ? '#9b59b6' : 'var(--bg-surface)', color: isManual ? 'white' : 'var(--text-muted)', border: isManual ? 'none' : '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
                         >
-                          <option value="">{t('recipe.selectWarehouse')}</option>
-                          {sortedInventory.map(invItem => (
-                            <option key={invItem.id} value={invItem.name}>{invItem.name}</option>
-                          ))}
-                        </select>
-                      )}
+                          <Icon icon={isManual ? 'lucide:database-backup' : 'lucide:database'} />
+                        </button>
+
+                        {isManual ? (
+                          <input
+                            type="text"
+                            placeholder={t('recipe.placeholderTheoretical')}
+                            value={ing.name || ''}
+                            onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
+                            style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid #9b59b6', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
+                          />
+                        ) : (
+                          <select
+                            value={ing.name}
+                            onChange={(e) => handleUpdateIngredient(ing.id, 'name', e.target.value)}
+                            style={{ flex: 1, padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                          >
+                            <option value="">{t('recipe.selectWarehouse')}</option>
+                            {sortedInventory.map(invItem => (
+                              <option key={invItem.id} value={invItem.name}>{invItem.name}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: `1px solid ${isManual ? '#9b59b6' : 'var(--border)'}`, borderRadius: '10px', overflow: 'hidden' }}>
                         <input
@@ -201,10 +203,10 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         />
                         <div style={{ padding: '0 10px', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold', background: 'rgba(0,0,0,0.03)', height: '100%', display: 'flex', alignItems: 'center' }}>
                           {isManual ? (
-                            <input 
-                              type="text" 
+                            <input
+                              type="text"
                               placeholder="unit"
-                              value={ing.manualUnit || ''} 
+                              value={ing.manualUnit || ''}
                               onChange={(e) => handleUpdateIngredient(ing.id, 'manualUnit', e.target.value)}
                               style={{ width: '40px', fontSize: '0.8rem', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none', textAlign: 'center' }}
                             />
@@ -232,17 +234,19 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         </div>
                       )}
 
-                      <div style={{ padding: '12px', borderRadius: '10px', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'right', fontWeight: '900', border: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>$</span>
-                        {isManual 
-                          ? (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0)).toFixed(2)
-                          : (matchedWarehouseItem && ing.qty ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0)).toFixed(2) : '0.00')
-                        }
-                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'right', fontWeight: '900', border: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>$</span>
+                          {isManual
+                            ? (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0)).toFixed(2)
+                            : (matchedWarehouseItem && ing.qty ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0)).toFixed(2) : '0.00')
+                          }
+                        </div>
 
-                      <button onClick={() => handleDeleteIngredient(ing.id)} style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: 'none', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}>
-                        <Icon icon="lucide:trash-2" />
-                      </button>
+                        <button onClick={() => handleDeleteIngredient(ing.id)} style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: 'none', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}>
+                          <Icon icon="lucide:trash-2" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -251,12 +255,12 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
             {/* PROFIT ENGINE */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-              <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #3498db' }}>
+              <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #3498db' }}>
                 <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
                   <Icon icon="lucide:target" style={{ color: '#3498db' }} />
                   {t('recipe.targetFoodCost')}
                 </h3>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '32px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)' }}>{activeRecipe.target_margin || 25}%</span>
@@ -279,7 +283,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         <p style={{ color: 'var(--text-muted)', margin: '0 0 4px 0', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: 'bold' }}>{t('recipe.totalCogs')}</p>
                         <div style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-main)' }}>${liveTotalCost.toFixed(2)}</div>
                       </div>
-                      
+
                       <div style={{ padding: '24px', background: 'rgba(46, 204, 113, 0.05)', borderRadius: '16px', border: '1px solid rgba(46, 204, 113, 0.2)', textAlign: 'center' }}>
                         <p style={{ color: '#27ae60', margin: '0 0 4px 0', fontWeight: '800', fontSize: '0.85rem' }}>{t('recipe.recPrice')}</p>
                         <div style={{ fontSize: '3rem', fontWeight: '900', color: '#27ae60', letterSpacing: '-1px' }}>${recommendedPrice.toFixed(2)}</div>
@@ -294,14 +298,14 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
               </div>
 
               {/* WHAT-IF NAPKIN MATH */}
-              <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+              <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
                 <h3 style={{ marginTop: 0, marginBottom: '8px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
                   <Icon icon="lucide:calculator" style={{ color: 'var(--brand-color)' }} />
                   {t('recipe.whatIfTitle')}
                 </h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '24px' }}>{t('recipe.whatIfSubtitle')}</p>
-                
-                <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '2px solid var(--border)', borderRadius: '16px', padding: '0 16px', marginBottom: '24px', focusWithin: { borderColor: 'var(--brand-color)' } }}>
+
+                <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-main)', border: '2px solid var(--border)', borderRadius: '16px', padding: '0 16px', marginBottom: '24px' }}>
                   <span style={{ fontSize: '1.5rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>$</span>
                   <input
                     type="number" step="0.01" placeholder={t('recipe.customPricePlaceholder')}
@@ -310,7 +314,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                     style={{ flex: 1, padding: '16px', border: 'none', background: 'transparent', fontSize: '1.5rem', color: 'var(--text-main)', outline: 'none', fontWeight: '900' }}
                   />
                 </div>
-                
+
                 {activeRecipe.custom_price && parseFloat(activeRecipe.custom_price) > 0 ? (() => {
                   const liveTotalCost = calculateLiveCost(activeRecipe.ingredients);
                   const customPrice = parseFloat(activeRecipe.custom_price);
@@ -345,21 +349,21 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <div style={{ display: 'flex', gap: '16px', justifyContent: 'flex-end', marginTop: '16px', flexWrap: 'wrap' }}>
               {!activeRecipe.isDraft && (
-                <button onClick={() => handleDeleteRecipe(activeRecipe.id)} style={{ padding: '16px 24px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: '2px solid rgba(231, 76, 60, 0.2)', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                <button onClick={() => handleDeleteRecipe(activeRecipe.id)} style={{ flex: '1', padding: '16px 24px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: '2px solid rgba(231, 76, 60, 0.2)', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
                   <Icon icon="lucide:trash-2" />
                   {t('recipe.btnDelete')}
                 </button>
               )}
-              <button onClick={handleSaveRecipeToCloud} style={{ padding: '16px 48px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)' }}>
+              <button onClick={handleSaveRecipeToCloud} style={{ flex: '2', minWidth: '200px', padding: '16px 48px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)' }}>
                 <Icon icon="lucide:save" />
                 {t('recipe.btnSave')}
               </button>
             </div>
           </div>
         ) : (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-surface)', borderRadius: '24px', minHeight: '500px', border: '2px dashed var(--border)', color: 'var(--text-muted)', gap: '16px' }}>
+          <div style={{ flex: '1', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-surface)', borderRadius: 'var(--admin-card-radius)', minHeight: '500px', border: '2px dashed var(--border)', color: 'var(--text-muted)', gap: '16px', padding: 'var(--admin-padding)' }}>
             <div style={{ background: 'var(--bg-main)', padding: '24px', borderRadius: '50%', boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
               <Icon icon="lucide:chef-hat" style={{ fontSize: '4rem', opacity: 0.2 }} />
             </div>

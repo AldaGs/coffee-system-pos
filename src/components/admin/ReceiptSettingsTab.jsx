@@ -6,15 +6,15 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
 
   return (
     <div className="admin-section fade-in">
-      <div style={{ marginBottom: '40px' }}>
+      <div className="admin-section-header" style={{ marginBottom: '40px' }}>
         <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('receipt.title')}</h1>
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('receipt.subtitle')}</p>
       </div>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
-        
-        <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
+
+      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
+
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:image" style={{ color: 'var(--brand-color)' }} />
@@ -64,7 +64,7 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
               <Icon icon="lucide:percent" style={{ color: 'var(--brand-color)' }} />
               {t('receipt.taxSection')}
             </h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('receipt.enableTaxLabel')}</label>
@@ -94,7 +94,7 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
         </div>
 
         {/* LIVE PREVIEW SECTION */}
-        <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', height: 'fit-content' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', height: 'fit-content' }}>
           <h3 style={{ marginTop: 0, alignSelf: 'flex-start', width: '100%', borderBottom: '1px solid var(--border)', paddingBottom: '16px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800', marginBottom: '24px' }}>
             <Icon icon="lucide:eye" style={{ color: 'var(--brand-color)' }} />
             {t('receipt.previewTitle')}

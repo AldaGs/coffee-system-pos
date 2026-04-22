@@ -17,37 +17,37 @@ function ModifierLibraryTab({
 
   return (
     <div className="admin-section fade-in">
-      <div style={{ marginBottom: '40px' }}>
+      <div className="admin-section-header" style={{ marginBottom: '40px' }}>
         <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('mods.title')}</h1>
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('mods.subtitle')}</p>
       </div>
       
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
+      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
         
         {/* LEFT COLUMN - CREATION FORMS */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
-          <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
             <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
               <Icon icon="lucide:layers" style={{ color: 'var(--brand-color)' }} />
               {t('mods.createGroup')}
             </h3>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <input 
                 type="text" 
                 placeholder={t('mods.placeholderGroup')} 
                 value={newModGroupName} 
                 onChange={(e) => setNewModGroupName(e.target.value)} 
-                style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} 
+                style={{ flex: 1, minWidth: '200px', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} 
               />
-              <button onClick={handleAddModifierGroup} style={{ padding: '14px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(52, 152, 219, 0.2)' }}>
+              <button onClick={handleAddModifierGroup} style={{ flex: '1 0 auto', padding: '14px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(52, 152, 219, 0.2)' }}>
                 <Icon icon="lucide:plus" />
                 {t('mods.btnCreate')}
               </button>
             </div>
           </div>
 
-          <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
             <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
               <Icon icon="lucide:list-plus" style={{ color: 'var(--brand-color)' }} />
               {t('mods.addOption')}
@@ -132,7 +132,7 @@ function ModifierLibraryTab({
         </div>
 
         {/* RIGHT COLUMN - RENDERED GROUPS */}
-        <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
           <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
             <Icon icon="lucide:layout-grid" style={{ color: 'var(--brand-color)' }} />
             {t('mods.globalGroups')}
@@ -156,9 +156,9 @@ function ModifierLibraryTab({
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {menuData.modifierGroups[groupKey].map(opt => (
-                        <div key={opt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div key={opt.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: '150px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                               <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{opt.name}</span>
                               {opt.isTextInput ? (
                                 <span style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', padding: '4px 10px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', border: '1px solid rgba(52, 152, 219, 0.2)' }}>
@@ -171,7 +171,7 @@ function ModifierLibraryTab({
                             
                             {/* INVENTORY BADGE UI */}
                             {(opt.deductionTarget || opt.substitutionTarget) && (
-                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
                                 <Icon icon="lucide:refresh-cw" style={{ fontSize: '0.9rem' }} />
                                 <span>
                                   {opt.substitutionTarget ? `${t('mods.swaps')} [${opt.substitutionTarget}] ${t('mods.for')} ` : `${t('mods.consumes')} `} 

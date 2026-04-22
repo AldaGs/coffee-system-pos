@@ -351,12 +351,14 @@ function Admin() {
 
   // Saves the custom loyalty settings to our JSON cloud object
   const handleSaveLoyalty = () => {
-    if (loyaltyForm.visitsRequired < 1) return window.confirm("Visits required must be at least 1.");
-    if (!loyaltyForm.rewardDescription.trim()) return window.confirm("Please describe the reward.");
+    if (loyaltyForm.isActive) {
+      if (loyaltyForm.visitsRequired < 1) return showAlert(t('common.error'), "Visits required must be at least 1.");
+      if (!loyaltyForm.rewardDescription || !loyaltyForm.rewardDescription.trim()) return showAlert(t('common.error'), "Please describe the reward.");
+    }
 
     const updatedMenu = { ...menuData, loyaltySettings: loyaltyForm };
     saveMenuToCloud(updatedMenu);
-    showAlert("Success", "Loyalty program settings saved successfully!");
+    showAlert(t('common.success'), "Loyalty program settings saved successfully!");
   };
 
   // --- DANGER ZONE: RESET ALL CUSTOMER STARS ---
