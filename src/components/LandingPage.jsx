@@ -4,13 +4,14 @@ import { Icon } from '@iconify/react';
 export default function LandingPage({ onSelectMode }) {
   return (
     <div style={{
-      minHeight: '100dvh',
+      height: '100dvh',
       backgroundColor: '#fdfdfd',
       fontFamily: 'var(--font-main, system-ui)',
       display: 'flex',
       flexDirection: 'column',
       color: '#2c3e50',
-      overflowY: 'auto'
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch'
     }}>
 
       {/* NAVIGATION BAR */}

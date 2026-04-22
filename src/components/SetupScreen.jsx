@@ -85,7 +85,17 @@ export default function SetupScreen({ initialMode, onBack, onComplete }) {
   };
 
   return (
-    <div style={{ display: 'flex', height: '100dvh', backgroundColor: "var(--bg-app, #f8fafc)", justifyContent: 'center', alignItems: 'center', fontFamily: 'var(--font-main, system-ui)', position: 'relative' }}>
+    <div style={{
+      display: 'flex',
+      height: '100dvh',
+      backgroundColor: "var(--bg-app, #f8fafc)",
+      justifyContent: 'center',
+      alignItems: 'center',
+      fontFamily: 'var(--font-main, system-ui)',
+      position: 'relative',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch'
+    }}>
 
       {/* Alert Banner */}
       {customAlert.show && (

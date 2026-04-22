@@ -4,7 +4,7 @@ function LockScreen({ posSettings, cashiers, selectedProfile, setSelectedProfile
   const { t } = useTranslation();
 
   return (
-    <div style={{ height: '100dvh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+    <div style={{ height: '100dvh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <h1 style={{ color: 'var(--brand-color)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '2px', fontSize: '1rem' }}>{posSettings?.name || "Register"}</h1>
       <h2 style={{ color: 'var(--text-main)', marginBottom: '40px', marginTop: 0 }}>{t('lock.who')}</h2>
       
