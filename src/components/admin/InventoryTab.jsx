@@ -248,7 +248,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   return (
     <div className="fade-in" style={{ maxWidth: '900px', margin: '0 auto', color: 'var(--text-main)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.8rem' }}>{t('inv.title')}</h2>
         <div style={{ display: 'flex', gap: '12px' }}>
           <button 
@@ -269,12 +269,12 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       </div>
       
       {activeView === 'add' && !editingItem && !auditingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid var(--border)', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--border)', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:package-plus" style={{ color: 'var(--brand-color)' }} />
             {t('inv.receiveTitle')}
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
               <input type="text" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
@@ -301,12 +301,12 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       )}
 
       {activeView === 'transform' && !editingItem && !auditingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '2px solid #e67e22', boxShadow: '0 10px 20px rgba(230, 126, 34, 0.05)' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #e67e22', boxShadow: '0 10px 20px rgba(230, 126, 34, 0.05)' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#e67e22', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:flame" />
             {t('inv.roastTitle')}
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 2fr auto', gap: '16px', alignItems: 'flex-end' }}>
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 2fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div style={{ minWidth: '150px' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.rawMaterial')}</label>
               <select value={transformForm.sourceItemId} onChange={e => setTransformForm({...transformForm, sourceItemId: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
@@ -347,7 +347,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       {/* --- EDIT ITEM UI --- */}
       {editingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '1px solid var(--brand-color)', boxShadow: '0 10px 30px rgba(52, 152, 219, 0.1)' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--brand-color)', boxShadow: '0 10px 30px rgba(52, 152, 219, 0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
              <h3 style={{ margin: 0, color: 'var(--brand-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                <Icon icon="lucide:edit-3" />
@@ -358,7 +358,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
              </button>
           </div>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
               <input type="text" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
@@ -397,7 +397,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       {/* --- NEW: AUDIT / WASTAGE UI --- */}
       {auditingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '20px', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 10px 30px rgba(231, 76, 60, 0.1)' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 10px 30px rgba(231, 76, 60, 0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
              <h3 style={{ margin: 0, color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '8px' }}>
                <Icon icon="lucide:clipboard-check" />
@@ -429,7 +429,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'flex', gap: '12px' }}>
+                  <div className="mobile-flex-stack" style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ flex: 1, padding: '12px', background: isLoss ? 'rgba(231,76,60,0.05)' : 'rgba(46,204,113,0.05)', borderRadius: '12px', border: `1px solid ${isLoss ? 'rgba(231,76,60,0.2)' : 'rgba(46,204,113,0.2)'}`, textAlign: 'center' }}>
                       <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: isLoss ? '#e74c3c' : '#2ecc71', fontWeight: 'bold' }}>{t('inv.variance')}</p>
                       <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: isLoss ? '#e74c3c' : '#2ecc71' }}>{variance > 0 ? '+' : ''}{variance} {auditingItem.unit}</div>
@@ -461,8 +461,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       )}
 
       {/* --- INVENTORY LIST --- */}
-      <div style={{ background: 'var(--bg-surface)', borderRadius: '24px', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+        <table className="card-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: 'var(--bg-main)' }}>
               <th onClick={() => handleSort('name')} style={{ padding: '20px 24px', textAlign: 'left', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
@@ -489,17 +489,17 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           <tbody>
             {sortedItems.map(item => (
               <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} className="hover-row">
-                <td style={{ padding: '20px 24px', fontWeight: '700', fontSize: '1rem' }}>{item.name}</td>
-                <td style={{ padding: '20px 24px' }}>
+                <td data-label={t('inv.thName')} style={{ padding: '20px 24px', fontWeight: '700', fontSize: '1rem' }}>{item.name}</td>
+                <td data-label={t('inv.thStock')} style={{ padding: '20px 24px' }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)', borderRadius: '20px', color: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? '#e74c3c' : '#27ae60', fontWeight: 'bold', fontSize: '0.95rem' }}>
                     <Icon icon={item.current_stock < (item.unit === 'g' ? 2000 : 10) ? 'lucide:alert-circle' : 'lucide:check-circle'} />
                     {item.current_stock} {item.unit}
                   </div>
                 </td>
-                <td style={{ padding: '20px 24px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '1rem' }}>
+                <td data-label={t('inv.thCost')} style={{ padding: '20px 24px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '1rem' }}>
                   ${Number(item.unit_cost || 0).toFixed(4)} / {item.unit}
                 </td>
-                <td style={{ padding: '20px 24px', textAlign: 'right' }}>
+                <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <button 
                       onClick={() => { 

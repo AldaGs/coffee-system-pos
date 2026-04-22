@@ -11,30 +11,30 @@ function MenuEditorTab({
 
   return (
     <div className="admin-section fade-in">
-      <div style={{ marginBottom: '40px' }}>
+      <div className="admin-section-header" style={{ marginBottom: '40px' }}>
         <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('menu.title')}</h1>
-        <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('menu.subtitle') || 'Configure your items and categories'}</p>
+        <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('menu.subtitle')}</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
+      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
           
           {/* CATEGORY SECTION */}
-          <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
             <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
               <Icon icon="lucide:folder-plus" style={{ color: 'var(--brand-color)' }} />
               {t('menu.addCategory')}
             </h3>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <input 
                 type="text" 
                 placeholder={t('menu.placeholderCat')} 
                 value={newCategoryName} 
                 onChange={(e) => setNewCategoryName(e.target.value)} 
-                style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} 
+                style={{ flex: 1, minWidth: '150px', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} 
               />
-              <button onClick={handleAddCategory} style={{ padding: '14px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(52, 152, 219, 0.2)' }}>
+              <button onClick={handleAddCategory} style={{ flex: '1', minWidth: '120px', padding: '14px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(52, 152, 219, 0.2)' }}>
                 <Icon icon="lucide:plus" />
                 {t('menu.btnAdd')}
               </button>
@@ -42,7 +42,7 @@ function MenuEditorTab({
           </div>
 
           {/* ITEM SECTION */}
-          <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
             <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
               <Icon icon="lucide:plus-square" style={{ color: 'var(--brand-color)' }} />
               {t('menu.addItem')}
@@ -59,7 +59,7 @@ function MenuEditorTab({
                 </select>
               </div>
               
-              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Icon</label>
                   <input 
@@ -166,13 +166,13 @@ function MenuEditorTab({
         </div>
 
         {/* PREVIEW SECTION */}
-        <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
           <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
             <Icon icon="lucide:layout-panel-left" style={{ color: 'var(--brand-color)' }} />
             {t('menu.livePreview')}
           </h3>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {Object.keys(menuData.categories).map(category => (
               <div key={category} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)' }}>
@@ -189,8 +189,8 @@ function MenuEditorTab({
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {menuData.categories[category].map(item => (
-                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', flexWrap: 'wrap', gap: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1', minWidth: '200px' }}>
                             <div style={{ fontSize: '1.5rem', background: 'var(--bg-main)', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                               {item.emoji || '•'}
                             </div>
@@ -209,7 +209,7 @@ function MenuEditorTab({
                               </div>
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                             <button onClick={() => setEditingDrink({ categoryName: category, drink: item })} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Icon icon="lucide:settings-2" />
                               {t('menu.btnEditMods')}

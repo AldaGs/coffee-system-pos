@@ -39,7 +39,7 @@ export const translations = {
 
     // --- Register UI ---
     "register.noActiveOrders": "No Active Orders",
-    "register.startNew": "+ Start New Ticket",
+    "register.startNew": "Start New Ticket",
     "register.payAndClose": "Pay & Close",
     "register.subtotal": "Subtotal",
     "register.total": "Total",
@@ -143,7 +143,7 @@ export const translations = {
     "inv.title": "Warehouse Inventory",
     "inv.btnCancel": "Cancel",
     "inv.btnRoast": "Roast / Transform",
-    "inv.btnReceive": "+ Receive Stock",
+    "inv.btnReceive": "Receive Stock",
     "inv.receiveTitle": "Receive Delivery",
     "inv.itemName": "Item Name",
     "inv.stockQty": "Stock Qty",
@@ -251,7 +251,11 @@ export const translations = {
     "disc.targetCart": "The Entire Order",
     "disc.targetItem": "A Specific Item",
     "disc.selectItem": "Select an Item...",
-    "disc.btnAdd": "+ Add Rule",
+    "disc.selectItemPlaceholder": "Choose an item...",
+    "disc.labelName": "Rule Name",
+    "disc.labelType": "Value Type",
+    "disc.labelValue": "Discount Value",
+    "disc.btnAdd": "Add Rule",
     "disc.alertError": "Error",
     "disc.alertErrorDesc": "Please fill all fields.",
     "disc.alertSuccess": "Success",
@@ -300,6 +304,10 @@ export const translations = {
     "menu.badgeRecipe": "Recipe Based",
     "menu.badgeStandard": "Standard Item",
     "menu.badgeUntracked": "Untracked",
+    "menu.subtitle":"Configure your items and categories",
+    "menu.labelCategory":"Category",
+    "menu.labelName":"Name",
+    "menu.labelPrice":"Price",
 
     // --- Modifier Library Tab ---
     "mods.title": "Modifier Library",
@@ -341,6 +349,7 @@ export const translations = {
     "orders.keywordAll": "ALL",
     "orders.alertInvalidAmt": "Invalid amount.",
     "orders.alertOverload": "Cannot refund more than ticket total.",
+    "orders.subtitle": "View and manage past transactions",
 
     // --- Receipt Settings Tab ---
     "receipt.title": "Receipt Settings",
@@ -363,7 +372,7 @@ export const translations = {
     // --- Recipe Builder Tab ---
     "recipe.title": "Recipe & Profit Sandbox",
     "recipe.subtitle": "Engineer menus, test theoretical ingredients, and calculate live profit margins.",
-    "recipe.btnNew": "+ Create New Recipe",
+    "recipe.btnNew": "Create New Recipe",
     "recipe.savedTitle": "Saved Recipes",
     "recipe.noRecipes": "No recipes saved yet.",
     "recipe.draft": "Draft",
@@ -374,7 +383,7 @@ export const translations = {
     "recipe.notLinked": "Not linked to any POS item yet",
     "recipe.manageLinks": "(Manage links in the Menu Editor tab)",
     "recipe.cogsTitle": "Ingredients Breakdown (COGS)",
-    "recipe.btnAddRow": "+ Add Row",
+    "recipe.btnAddRow": "Add Row",
     "recipe.emptyIngredients": "Add your first ingredient to start calculating COGS.",
     "recipe.btnCustom": "Custom",
     "recipe.btnLive": "Live Inv.",
@@ -404,7 +413,7 @@ export const translations = {
     "team.placeholderName": "Name",
     "team.placeholderPin": "PIN",
     "team.isAdmin": "Is Admin?",
-    "team.btnAdd": "+ Add Profile",
+    "team.btnAdd": "Add Profile",
     "team.btnCancel": "Cancel",
     "team.btnSave": "Save",
     "team.adminAccess": "Admin Access",
@@ -412,6 +421,8 @@ export const translations = {
     "team.btnRemove": "Remove",
     "team.badgeAdmin": "ADMIN",
     "team.pinLabel": "PIN: ****",
+    "team.labelName": "Name",
+    "team.labelPin": "PIN",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Menu data is missing.",
@@ -589,7 +600,7 @@ export const translations = {
     // --- Ticket Area ---
     "ticket.noOrders": "No Active Orders",
     "ticket.noOrdersDesc": "You don't have any open tickets right now.",
-    "ticket.btnStart": "+ Start New Ticket",
+    "ticket.btnStart": "Start New Ticket",
     "ticket.empty": "Cart is empty",
     "ticket.subtotal": "Subtotal",
     "ticket.auto": "Auto:",
@@ -656,7 +667,7 @@ export const translations = {
 
     // --- Register UI ---
     "register.noActiveOrders": "Sin Órdenes Activas",
-    "register.startNew": "+ Nuevo Ticket",
+    "register.startNew": "Nuevo Ticket",
     "register.payAndClose": "Cobrar y Cerrar",
     "register.subtotal": "Subtotal",
     "register.total": "Total",
@@ -760,7 +771,7 @@ export const translations = {
     "inv.title": "Inventario de Almacén",
     "inv.btnCancel": "Cancelar",
     "inv.btnRoast": "Tostar / Transformar",
-    "inv.btnReceive": "+ Recibir Mercancía",
+    "inv.btnReceive": "Recibir Mercancía",
     "inv.receiveTitle": "Recibir Entrega",
     "inv.itemName": "Nombre del Artículo",
     "inv.stockQty": "Cantidad",
@@ -868,7 +879,11 @@ export const translations = {
     "disc.targetCart": "A Toda la Orden",
     "disc.targetItem": "A un Artículo Específico",
     "disc.selectItem": "Selecciona un artículo...",
-    "disc.btnAdd": "+ Agregar Regla",
+    "disc.selectItemPlaceholder": "Elige un artículo...",
+    "disc.labelName": "Nombre de la Regla",
+    "disc.labelType": "Tipo de Valor",
+    "disc.labelValue": "Valor del Descuento",
+    "disc.btnAdd": "Agregar Regla",
     "disc.alertError": "Error",
     "disc.alertErrorDesc": "Por favor llena todos los campos.",
     "disc.alertSuccess": "Éxito",
@@ -917,6 +932,10 @@ export const translations = {
     "menu.badgeRecipe": "Basado en Receta",
     "menu.badgeStandard": "Artículo Estándar",
     "menu.badgeUntracked": "Sin Rastrear",
+    "menu.subtitle":"Configura tus productos y categorias",
+    "menu.labelCategory":"Categoría",
+    "menu.labelName":"Nombre",
+    "menu.labelPrice":"Precio",
 
     // --- Modifier Library Tab ---
     "mods.title": "Biblioteca de Modificadores",
@@ -958,6 +977,7 @@ export const translations = {
     "orders.keywordAll": "TODO",
     "orders.alertInvalidAmt": "Monto inválido.",
     "orders.alertOverload": "No se puede reembolsar más que el total del ticket.",
+    "orders.subtitle": "Ve y administra tus tracciones pasadas",
 
     // --- Receipt Settings Tab ---
     "receipt.title": "Configuración de Recibos",
@@ -991,7 +1011,7 @@ export const translations = {
     "recipe.notLinked": "No vinculado a ningún artículo aún",
     "recipe.manageLinks": "(Gestiona los vínculos en la pestaña Editor de Menú)",
     "recipe.cogsTitle": "Desglose de Ingredientes (COGS)",
-    "recipe.btnAddRow": "+ Agregar Fila",
+    "recipe.btnAddRow": "Agregar Fila",
     "recipe.emptyIngredients": "Agrega tu primer ingrediente para empezar a calcular costos.",
     "recipe.btnCustom": "Manual",
     "recipe.btnLive": "Inventario",
@@ -1021,7 +1041,7 @@ export const translations = {
     "team.placeholderName": "Nombre",
     "team.placeholderPin": "PIN",
     "team.isAdmin": "¿Es Admin?",
-    "team.btnAdd": "+ Agregar Perfil",
+    "team.btnAdd": "Agregar Perfil",
     "team.btnCancel": "Cancelar",
     "team.btnSave": "Guardar",
     "team.adminAccess": "Acceso Admin",
@@ -1029,6 +1049,8 @@ export const translations = {
     "team.btnRemove": "Eliminar",
     "team.badgeAdmin": "ADMIN",
     "team.pinLabel": "PIN: ****",
+    "team.labelName": "Nombre",
+    "team.labelPin": "PIN",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Los datos del menú no están disponibles.",
@@ -1206,7 +1228,7 @@ export const translations = {
     // --- Ticket Area ---
     "ticket.noOrders": "Sin Órdenes Activas",
     "ticket.noOrdersDesc": "No tienes tickets abiertos en este momento.",
-    "ticket.btnStart": "+ Nueva Orden",
+    "ticket.btnStart": "Nueva Orden",
     "ticket.empty": "El carrito está vacío",
     "ticket.subtotal": "Subtotal",
     "ticket.auto": "Auto:",

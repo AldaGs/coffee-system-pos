@@ -17,7 +17,7 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editin
           <Icon icon="lucide:user-plus" style={{ color: 'var(--brand-color)' }} />
           {t('team.addMember')}
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto auto', gap: '16px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('team.labelName') || 'Full Name'}</label>
             <input 
@@ -36,7 +36,7 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editin
               placeholder="••••" 
               value={newCashier.pin} 
               onChange={(e) => setNewCashier({ ...newCashier, pin: e.target.value.replace(/\D/g, '') })} 
-              style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'center', letterSpacing: '8px', fontSize: '1.2rem', outline: 'none' }} 
+              style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'center', letterSpacing: '8px', fontSize: '0.85rem', outline: 'none' }} 
             />
           </div>
           
@@ -53,9 +53,9 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editin
       </div>
 
       {/* STAFF LIST */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '10px' }}>
         {cashiers.map(cashier => (
-          <div key={cashier.id} style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}>
+          <div key={cashier.id} style={{ background: 'var(--bg-surface)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(0,0,0,0.02)', transition: 'all 0.2s' }}>
             
             {editingCashier && editingCashier.id === cashier.id ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} className="fade-in">

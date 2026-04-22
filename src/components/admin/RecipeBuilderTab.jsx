@@ -93,7 +93,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
         {/* RIGHT: DYNAMIC BUILDER */}
         {activeRecipe ? (
-          <div style={{ flex: 1, minWidth: '400px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+          <div style={{ flex: 1, minWidth: '200px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             {/* TOP HEADER SETTINGS */}
             <div style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '24px', border: '1px solid var(--border)' }}>
@@ -359,7 +359,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             </div>
           </div>
         ) : (
-          <div style={{ flex: 1, minWidth: '400px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-surface)', borderRadius: '24px', minHeight: '500px', border: '2px dashed var(--border)', color: 'var(--text-muted)', gap: '16px' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--bg-surface)', borderRadius: '24px', minHeight: '500px', border: '2px dashed var(--border)', color: 'var(--text-muted)', gap: '16px' }}>
             <div style={{ background: 'var(--bg-main)', padding: '24px', borderRadius: '50%', boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
               <Icon icon="lucide:chef-hat" style={{ fontSize: '4rem', opacity: 0.2 }} />
             </div>
@@ -373,4 +373,4 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
   );
 }
 
-export default RecipeBuilderTab;
+export default RecipeBuilderTab;
