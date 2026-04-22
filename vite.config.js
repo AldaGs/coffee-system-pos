@@ -11,6 +11,8 @@ export default defineConfig({
       injectRegister: 'auto',
       manifestFilename: 'manifest.webmanifest',
       workbox: {
+        clientsClaim: true, // Takes control of the client immediately
+        skipWaiting: true,   // Forces the new Service Worker to activate immediately
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
       manifest: {
