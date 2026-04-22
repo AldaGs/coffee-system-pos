@@ -112,17 +112,17 @@ export default async function handler(req, res) {
     ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.shop_settings ENABLE ROW LEVEL SECURITY;
 
-    -- 2. Create Policies for Authenticated Hardware
-    -- This ensures only devices that have logged in via the Device Auth Screen can access data.
+    -- 2. Create Policies for POS Hardware
+    -- This allows the Register to function using the anonymous key and the Cashier PIN system.
 
-    CREATE POLICY "Hardware can access active_tickets" ON public.active_tickets FOR ALL TO authenticated USING (true) WITH CHECK (true);
-    CREATE POLICY "Hardware can access customers" ON public.customers FOR ALL TO authenticated USING (true) WITH CHECK (true);
-    CREATE POLICY "Hardware can access expenses" ON public.expenses FOR ALL TO authenticated USING (true) WITH CHECK (true);
-    CREATE POLICY "Hardware can access inventory" ON public.inventory FOR ALL TO authenticated USING (true) WITH CHECK (true);
-    CREATE POLICY "Hardware can access inventory_logs" ON public.inventory_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
-    CREATE POLICY "Hardware can access recipes" ON public.recipes FOR ALL TO authenticated USING (true) WITH CHECK (true);
-    CREATE POLICY "Hardware can access sales" ON public.sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
-    CREATE POLICY "Hardware can access shop_settings" ON public.shop_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access active_tickets" ON public.active_tickets FOR ALL TO public USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access customers" ON public.customers FOR ALL TO public USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access expenses" ON public.expenses FOR ALL TO public USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access inventory" ON public.inventory FOR ALL TO public USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access inventory_logs" ON public.inventory_logs FOR ALL TO public USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access recipes" ON public.recipes FOR ALL TO public USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access sales" ON public.sales FOR ALL TO public USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access shop_settings" ON public.shop_settings FOR ALL TO public USING (true) WITH CHECK (true);
   `;
 
   try {
