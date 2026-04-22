@@ -13,12 +13,13 @@ export default defineConfig({
       workbox: {
         clientsClaim: true, // Takes control of the client immediately
         skipWaiting: true,   // Forces the new Service Worker to activate immediately
+        cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
       manifest: {
-        short_name: "TinyPOS",
-        name: "TinyPOS - Professional Coffee System",
-        description: "A fast and reliable point of sale system for modern coffee shops.",
+        short_name: "tinypos",
+        name: "tinypos - Professional Coffee System",
+        description: "Un punto de venta rápido y confiable para negocios modernos",
         start_url: "/",
         display: "fullscreen",
         theme_color: "#ffffff",
