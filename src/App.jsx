@@ -7,6 +7,7 @@ import SetupScreen from './components/SetupScreen';
 import LandingPage from './components/LandingPage';
 import SupabaseGuide from './components/SupabaseGuide';
 import { supabase } from './supabaseClient';
+import UpdateNotification from './components/shared/UpdateNotification';
 
 function App() {
   // --- 1. NEW: CHECK FOR INSTALLATION ---
@@ -144,6 +145,7 @@ function App() {
   // Only shows if keys exist AND device is authenticated.
   return (
     <BrowserRouter>
+    <UpdateNotification />
       <Routes>
         <Route path="/" element={<Register />} />
         <Route path="/admin" element={<Admin />} />
