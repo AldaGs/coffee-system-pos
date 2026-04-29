@@ -119,7 +119,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
       </main>
 
       <footer style={{ padding: '30px', textAlign: 'center', borderTop: '1px solid #f0f0f0', color: '#94a3b8', fontSize: '0.9rem' }}>
-        &copy; {new Date().getFullYear()} tinypos. Diseñado para comunidades de café artesanal.
+        &copy; {new Date().getFullYear()} tinypos. Diseñado por Aldair Gonzalez Sanchez.
       </footer>
     </div>
   );

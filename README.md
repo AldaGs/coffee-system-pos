@@ -70,13 +70,18 @@ TinyPOS features a **One-Click Installation** API for Supabase.
       "connectionString": "postgresql://postgres:[PASSWORD]@db.[PROJECT-ID].supabase.co:5432/postgres"
     }
     ```
-3.  **Action:** This will automatically create all tables, seed initial settings, and enable **Row Level Security (RLS)** policies for your terminal hardware.
+3.  **Action:** This will automatically create all tables, seed initial settings, and enable **Row Level Security (RLS)** policies scoped to `authenticated`.
+4.  **Prerequisite:** Before the device can sync, create at least one Supabase Auth user (**Authentication → Users → Add user** in the Supabase dashboard). The Device Authorization screen will sign in with these credentials on first boot.
 
 ---
 
 ## 🗄️ Supabase Database Schema (Manual Setup)
 
-If you prefer manual setup, run this SQL in your Supabase Editor. Note the use of `BY DEFAULT AS IDENTITY` for easier terminal synchronization.
+If you prefer manual setup:
+
+1.  **Create a hardware Auth user.** In your Supabase project, go to **Authentication → Users → Add user** and create one (e.g. `register@yourshop.com`). The Device Authorization screen on first boot will sign in with these credentials. RLS policies below are scoped to `authenticated`, so the device cannot read or write any data until this sign-in completes — the public anon key alone is not sufficient.
+2.  **Run the SQL below** in your Supabase SQL Editor. Note the use of `BY DEFAULT AS IDENTITY` for easier terminal synchronization.
+3.  **Existing installs:** if you ran an earlier version of this schema or `/api/install` before this change, your policies were created as `TO public` and are world-readable via the anon key. Apply [`db/migrations/001_lock_down_rls.sql`](db/migrations/001_lock_down_rls.sql) once to drop and recreate them as `TO authenticated`.
 
 ```sql
 -- 1. TABLES
