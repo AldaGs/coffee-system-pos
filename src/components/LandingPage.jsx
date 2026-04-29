@@ -1,7 +1,7 @@
 import React from 'react';
 import { Icon } from '@iconify/react';
 
-export default function LandingPage({ onSelectMode }) {
+export default function LandingPage({ onSelectMode, onShowGuide }) {
   return (
     <div style={{
       height: '100dvh',
@@ -63,6 +63,28 @@ export default function LandingPage({ onSelectMode }) {
               Conectar dispositivo existente
             </button>
           </div>
+
+        {/* --- ADD THIS SECONDARY LINK --- */}
+          <button 
+            onClick={onShowGuide}
+            style={{
+              background: 'none', border: 'none', color: '#546e7a',
+              fontSize: '1.05rem', fontWeight: '600', cursor: 'pointer',
+              display: 'inline-flex', alignItems: 'center', gap: '8px',
+              textDecoration: 'underline', textUnderlineOffset: '4px',
+              paddingTop:"20px",flexDirection: 'column'
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection:"row" , alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
+              <Icon icon="lucide:book-open" />
+              <span style={{ textDecoration: 'underline', textUnderlineOffset: '4px' }}>
+                ¿Cómo funciona la base de datos gratuita?
+              </span>
+            </div>
+            <span style={{ fontSize: '0.95rem', color: '#94a3b8', fontWeight: '500' }}>
+              Lee la guía.
+            </span>
+          </button>
         </div>
 
         {/* FEATURE HIGHLIGHTS */}

@@ -304,10 +304,10 @@ export const translations = {
     "menu.badgeRecipe": "Recipe Based",
     "menu.badgeStandard": "Standard Item",
     "menu.badgeUntracked": "Untracked",
-    "menu.subtitle":"Configure your items and categories",
-    "menu.labelCategory":"Category",
-    "menu.labelName":"Name",
-    "menu.labelPrice":"Price",
+    "menu.subtitle": "Configure your items and categories",
+    "menu.labelCategory": "Category",
+    "menu.labelName": "Name",
+    "menu.labelPrice": "Price",
 
     // --- Modifier Library Tab ---
     "mods.title": "Modifier Library",
@@ -423,6 +423,13 @@ export const translations = {
     "team.pinLabel": "PIN: ****",
     "team.labelName": "Name",
     "team.labelPin": "PIN",
+    "team.pinHelp": "Set 4-digit PIN",
+    "team.addTitle": "Add Team Member",
+    "team.labelRole": "Role",
+    "team.colActions": "Actions",
+    "team.badgeAdmin": "ADMIN",
+    "team.badgeUser": "User",
+    "team.listTitle": "Team",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Menu data is missing.",
@@ -436,6 +443,8 @@ export const translations = {
     "reg.btnBack": "BACK",
     "reg.btnLogin": "Login",
     "reg.accessRevoked": "Access Revoked",
+    "reg.navWarningTitle": "Navigation Blocked",
+    "reg.navWarningDesc": "Please use the app's internal buttons to navigate instead of the browser's back button.",
 
     // --- Expenses (Gastos) ---
     "expense.errMissing": "Missing Info",
@@ -932,10 +941,10 @@ export const translations = {
     "menu.badgeRecipe": "Basado en Receta",
     "menu.badgeStandard": "Artículo Estándar",
     "menu.badgeUntracked": "Sin Rastrear",
-    "menu.subtitle":"Configura tus productos y categorias",
-    "menu.labelCategory":"Categoría",
-    "menu.labelName":"Nombre",
-    "menu.labelPrice":"Precio",
+    "menu.subtitle": "Configura tus productos y categorias",
+    "menu.labelCategory": "Categoría",
+    "menu.labelName": "Nombre",
+    "menu.labelPrice": "Precio",
 
     // --- Modifier Library Tab ---
     "mods.title": "Biblioteca de Modificadores",
@@ -1048,9 +1057,15 @@ export const translations = {
     "team.btnEdit": "Editar",
     "team.btnRemove": "Eliminar",
     "team.badgeAdmin": "ADMIN",
+    "team.badgeUser": "Usuario",
+    "team.listTitle": "Equipo",
     "team.pinLabel": "PIN: ****",
     "team.labelName": "Nombre",
     "team.labelPin": "PIN",
+    "team.pinHelp": "Ingresa tu PIN de 4 dígitos",
+    "team.addTitle": "Agregar Miembro al Equipo",
+    "team.labelRole": "Rol",
+    "team.colActions": "Acciones",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Los datos del menú no están disponibles.",
@@ -1064,6 +1079,8 @@ export const translations = {
     "reg.btnBack": "VOLVER",
     "reg.btnLogin": "Ingresar",
     "reg.accessRevoked": "Acceso Revocado",
+    "reg.navWarningTitle": "Navegación Bloqueada",
+    "reg.navWarningDesc": "Por favor use los botones internos de la aplicación para navegar en lugar del botón 'Atrás' del navegador.",
 
     // --- Expenses (Gastos) ---
     "expense.errMissing": "Falta Información",

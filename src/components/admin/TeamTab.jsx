@@ -25,7 +25,7 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editin
               <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('team.labelName')}</label>
               <input
                 type="text"
-                placeholder="e.g., John Doe"
+                placeholder={t('team.labelName')}
                 value={newCashier.name}
                 onChange={(e) => setNewCashier({ ...newCashier, name: e.target.value })}
                 style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
@@ -39,7 +39,7 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editin
                 <input
                   type="password"
                   maxLength="4"
-                  placeholder="4 digits"
+                  placeholder={t('team.labelPin')}
                   value={newCashier.pin}
                   onChange={(e) => setNewCashier({ ...newCashier, pin: e.target.value.replace(/\D/g, '') })}
                   style={{ width: '100%', padding: '14px 14px 14px 42px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', letterSpacing: '8px', fontSize: '1.2rem', boxSizing: 'border-box' }}
@@ -73,8 +73,8 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editin
             <table className="card-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead style={{ background: 'var(--bg-main)', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
                 <tr>
-                  <th style={{ padding: '16px' }}>{t('team.colName')}</th>
-                  <th style={{ padding: '16px' }}>{t('team.colRole') || 'Role'}</th>
+                  <th style={{ padding: '16px' }}>{t('team.labelName')}</th>
+                  <th style={{ padding: '16px' }}>{t('team.labelRole') || 'Role'}</th>
                   <th style={{ padding: '16px', textAlign: 'right' }}>{t('team.colActions')}</th>
                 </tr>
               </thead>
@@ -100,7 +100,7 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editin
                         color: member.isAdmin ? '#9b59b6' : '#3498db',
                         border: `1px solid ${member.isAdmin ? 'rgba(155, 89, 182, 0.2)' : 'rgba(52, 152, 219, 0.2)'}`
                       }}>
-                        {member.isAdmin ? t('team.roleAdmin') : t('team.roleWaiter')}
+                        {member.isAdmin ? t('team.badgeAdmin') : t('team.badgeUser')}
                       </span>
                     </td>
                     <td style={{ padding: '16px', textAlign: 'right' }} data-label={t('team.colActions')}>

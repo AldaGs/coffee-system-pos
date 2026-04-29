@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Icon } from '@iconify/react';
 
-export default function SetupScreen({ initialMode, onBack, onComplete }) {
+export default function SetupScreen({ initialMode, onBack, onComplete, onShowGuide }) {
   const [isConnectingExisting, setIsConnectingExisting] = useState(initialMode === 'connect');
   const [formData, setFormData] = useState({ supabaseUrl: '', anonKey: '', connectionString: '' });
   const [loading, setLoading] = useState(false);
@@ -147,6 +147,35 @@ export default function SetupScreen({ initialMode, onBack, onComplete }) {
           <h2 style={{ margin: '0', color: '#1a2a3a', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a TinyPOS"}</h2>
           <p style={{ color: '#64748b', marginTop: '8px' }}>Configura tu terminal para comenzar.</p>
         </div>
+
+        {/* --- HELP BANNER --- */}
+        {!isConnectingExisting && (
+          <button 
+            type="button"
+            onClick={onShowGuide}
+            style={{ 
+              width: '100%', padding: '16px', marginBottom: '24px',
+              backgroundColor: '#eff6ff', color: '#2980b9', 
+              border: '1px solid #bfdbfe', borderRadius: '12px', 
+              fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer',
+              display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px',
+              transition: 'background-color 0.2s ease', flexDirection:"column"
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dbeafe'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
+          >
+            
+            <div style={{ display: 'flex', flexDirection:"row" , alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
+              <Icon icon="lucide:help-circle" fontSize="1.2rem" />
+              <span>
+                ¿Dónde obtengo estos datos?
+              </span>
+            </div>
+            <span>
+              Ver guía paso a paso
+            </span>
+          </button>
+        )}
 
         {/* KEYS.TINY UPLOAD BUTTON (Only in Connect Mode) */}
         {isConnectingExisting && (

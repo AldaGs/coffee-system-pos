@@ -5,6 +5,7 @@ import Register from './Register';
 import Admin from './Admin';
 import SetupScreen from './components/SetupScreen';
 import LandingPage from './components/LandingPage';
+import SupabaseGuide from './components/SupabaseGuide';
 import { supabase } from './supabaseClient';
 
 function App() {
@@ -15,6 +16,7 @@ function App() {
   );
 
   const [wantsToSetup, setWantsToSetup] = useState(false);
+  const [showGuide, setShowGuide] = useState(false); 
 
   // --- 2. SECURE SESSION STATE ---
   const [session, setSession] = useState(null);
@@ -59,9 +61,17 @@ function App() {
   // --- RENDER PIPELINE ---
   // ==========================================
 
+  // --- NEW GATE: THE GUIDE ---
+  if (showGuide) {
+    return <SupabaseGuide onBack={() => setShowGuide(false)} />;
+  }
+
   // --- GATE 0: THE LANDING PAGE ---
   if (!isInstalled && !setupMode) {
-    return <LandingPage onSelectMode={(mode) => setSetupMode(mode)} />;
+    return <LandingPage 
+      onSelectMode={(mode) => setSetupMode(mode)} 
+      onShowGuide={() => setShowGuide(true)}
+    />;
   }
 
   // --- GATE 1: THE INSTALLATION SCREEN ---
@@ -74,6 +84,7 @@ function App() {
           setIsInstalled(true);
           window.location.reload();
         }}
+        onShowGuide={() => setShowGuide(true)}
       />
     );
   }

@@ -1082,4 +1082,106 @@ body.dark-mode {
     align-items: stretch !important;
     gap: 12px !important;
   }
+
+  .mobile-cart-fab {
+  display: none !important;
+  }
+/* ... this is the end of your Admin Form Grid stuff ... */
+  .mobile-flex-stack {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+} /* <-- THIS BRACKET IS CRITICAL: It closes your previous mobile media query! */
+
+
+/* =========================================
+   DESKTOP DEFAULTS (iPad & PC)
+   (Must be OUTSIDE of media queries!)
+   ========================================= */
+.desktop-hidden,
+.mobile-cart-fab {
+  display: none !important;
+}
+
+
+/* =========================================
+   MOBILE OVERRIDES (< 768px)
+   ========================================= */
+@media (max-width: 768px) {
+  
+  /* Show mobile elements */
+  .desktop-hidden {
+    display: flex !important;
+  }
+
+  /* Style the FAB */
+  .mobile-cart-fab {
+    display: flex !important; 
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--brand-color, #1a1a1a);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 16px 32px;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    z-index: 90;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* The Dark Backdrop Overlay */
+  .ticket-overlay {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(4px);
+    z-index: 95;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  
+  .ticket-overlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* The Bottom Sheet Drawer */
+  .ticket-area {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 85vh; /* Takes up 85% of the screen when open */
+    border-left: none;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
+    z-index: 100;
+    
+    /* The Slide Animation */
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .ticket-area.open {
+    transform: translateY(0);
+  }
+
+  .cart-badge {
+    background: #e74c3c;
+    color: white;
+    font-size: 0.8rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+  }
 }
