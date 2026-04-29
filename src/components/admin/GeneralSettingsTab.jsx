@@ -26,22 +26,23 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
               <Icon icon="lucide:terminal" style={{ color: 'var(--brand-color)' }} />
               {t('settings.registerName')}
             </label>
-            <input type="text" value={generalSettings.name} onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} placeholder="e.g., Front Counter iPad" style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+            <input type="text" value={generalSettings.name} onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} placeholder="e.g., Front Counter iPad" style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {/* FIX: Changed from Grid to Flex + mobile-flex-stack class */}
+          <div className="mobile-flex-stack" style={{ display: 'flex', gap: '20px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Icon icon="lucide:palette" style={{ color: 'var(--brand-color)' }} />
                 {t('settings.brandColor')}
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '8px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '8px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%', boxSizing: 'border-box' }}>
                 <input type="color" value={generalSettings.brandColor} onChange={(e) => setGeneralSettings({ ...generalSettings, brandColor: e.target.value })} style={{ width: '40px', height: '40px', border: 'none', cursor: 'pointer', padding: 0, borderRadius: '8px', overflow: 'hidden', background: 'none' }} />
                 <span style={{ fontFamily: 'monospace', color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 'bold' }}>{generalSettings.brandColor.toUpperCase()}</span>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Icon icon="lucide:languages" style={{ color: 'var(--brand-color)' }} />
                 {t('settings.language')}
@@ -49,7 +50,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
               <select 
                 value={generalSettings.language || 'en'} 
                 onChange={(e) => setGeneralSettings({ ...generalSettings, language: e.target.value })}
-                style={{ padding: '12px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', cursor: 'pointer', outline: 'none' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '12px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', cursor: 'pointer', outline: 'none' }}
               >
                 <option value="en">English (US)</option>
                 <option value="es">Español (MX)</option>
@@ -62,7 +63,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
               <Icon icon="lucide:monitor" style={{ color: 'var(--brand-color)' }} />
               {t('settings.colorTheme')}
             </label>
-            <select value={generalSettings.isDarkMode} onChange={(e) => setGeneralSettings({ ...generalSettings, isDarkMode: e.target.value === 'true' })} style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}>
+            <select value={generalSettings.isDarkMode} onChange={(e) => setGeneralSettings({ ...generalSettings, isDarkMode: e.target.value === 'true' })} style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', cursor: 'pointer', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}>
               <option value={false}>☀️ {t('settings.lightMode')}</option>
               <option value={true}>🌙 {t('settings.darkMode')}</option>
             </select>
@@ -141,7 +142,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
               <select
                 value={generalSettings.ticketVisibility || 'open'}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, ticketVisibility: e.target.value })}
-                style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
               >
                 <option value="open">{t('settings.visibilityOpen')}</option>
                 <option value="isolated">{t('settings.visibilityIsolated')}</option>
@@ -159,7 +160,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
                 <select
                   value={generalSettings.orderResetPolicy || 'daily'}
                   onChange={(e) => setGeneralSettings({ ...generalSettings, orderResetPolicy: e.target.value })}
-                  style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
                 >
                   <option value="never">{t('settings.resetNever')}</option>
                   <option value="daily">{t('settings.resetDaily')}</option>
@@ -215,7 +216,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
                 <select
                   value={generalSettings.enableCorte !== false}
                   onChange={(e) => setGeneralSettings({ ...generalSettings, enableCorte: e.target.value === 'true' })}
-                  style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
                 >
                   <option value={true}>{t('settings.corteYes')}</option>
                   <option value={false}>{t('settings.corteNo')}</option>
@@ -234,7 +235,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
                 <select
                   value={generalSettings.printerSize || '80mm'}
                   onChange={(e) => setGeneralSettings({ ...generalSettings, printerSize: e.target.value })}
-                  style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
                 >
                   <option value="80mm">{t('settings.printer80')}</option>
                   <option value="58mm">{t('settings.printer58')}</option>
@@ -246,7 +247,7 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
 
           {/* --- BOTTOM ACTIONS --- */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <button onClick={handleSaveGeneralSettings} style={{ padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+            <button onClick={handleSaveGeneralSettings} style={{ width: '100%', boxSizing: 'border-box', padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
               <Icon icon="lucide:save" />
               {t('settings.btnSave')}
             </button>
