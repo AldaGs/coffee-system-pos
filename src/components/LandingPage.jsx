@@ -17,8 +17,12 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
       {/* NAVIGATION BAR */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 5%', alignItems: 'center', backgroundColor: 'white', borderBottom: '1px solid #f0f0f0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '38px', height: '38px', background: 'var(--brand-color, #f28b05)', color: 'white', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}>
-            <Icon icon="lucide:coffee" />
+          <div style={{ width: '38px', height: '38px', background: '#ffffff', color: 'white', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
+            <img 
+              src="/icon.svg" 
+              alt="tinypos" 
+              style={{width: '54px', height: '54px', borderRadius: '10px'}} 
+            />
           </div>
           <h1 style={{ fontSize: '1.4rem', margin: 0, color: '#1a2a3a', fontWeight: '900', letterSpacing: '-0.5px' }}>tinypos</h1>
         </div>
@@ -72,7 +76,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
               fontSize: '1.05rem', fontWeight: '600', cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', gap: '8px',
               textDecoration: 'underline', textUnderlineOffset: '4px',
-              paddingTop:"20px",flexDirection: 'column'
+              paddingTop:"20px", flexDirection: 'column'
             }}
           >
             <div style={{ display: 'flex', flexDirection:"row" , alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>

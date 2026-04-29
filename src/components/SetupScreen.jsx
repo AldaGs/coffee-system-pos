@@ -141,8 +141,12 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       <div className="fade-in" style={{ background: 'white', padding: '48px', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 60px rgba(0,0,0,0.1)', border: '1px solid #f1f5f9' }}>
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ width: '80px', height: '80px', background: 'var(--brand-color, #f28b05)', color: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 16px', boxShadow: '0 8px 20px rgba(52, 152, 219, 0.2)' }}>
-            <Icon icon="lucide:coffee" />
+          <div style={{ width: '80px', height: '80px', background: 'var(--brand-color, #ffffff)', color: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 16px' }}>
+            <img 
+              src="/icon.svg" 
+              alt="tinypos" 
+              style={{width: '80px', height: '80px', borderRadius: '10px'}} 
+            />
           </div>
           <h2 style={{ margin: '0', color: '#1a2a3a', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a TinyPOS"}</h2>
           <p style={{ color: '#64748b', marginTop: '8px' }}>Configura tu terminal para comenzar.</p>

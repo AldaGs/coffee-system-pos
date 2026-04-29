@@ -1184,4 +1184,9 @@ body.dark-mode {
     padding: 2px 8px;
     border-radius: 20px;
   }
+
+  .force-white {
+    /* This specific combination turns any colored image completely white */
+    filter: brightness(0) invert(1); 
+  }
 }

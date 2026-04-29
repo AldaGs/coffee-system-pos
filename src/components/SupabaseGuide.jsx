@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@iconify/react';
 
-// ─── Design tokens matching TinyPOS LandingPage ───────────────────────────────
+// ─── Design tokens matching tinypos LandingPage ───────────────────────────────
 const C = {
   brand:      '#f28b05',
   brandLight: '#fff7ed',
@@ -247,18 +247,30 @@ const STEPS = [
         </p>
 
         <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>🖥️</span>
-          <strong>[ Captura de pantalla: supabase.com → botón "Start your project" ]</strong>
-          <br />Ve a <strong>supabase.com</strong> y haz clic en <em>"Start your project"</em>
+            <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+        <img 
+            src="/step-1.jpg" 
+            alt="Paso 1 Supabase" 
+            style={{ width: '100%', height: 'auto', display: 'block' }} 
+        />
+            </div>
         </div>
+        <p style={{ fontSize: '0.85rem', color: C.muted, textAlign: 'center', marginBottom: '24px' }}>
+        Ve a <strong>supabase.com</strong> y haz clic en <em>"Start your project"</em>
+        </p>
 
         <Callout type="tip" icon="lucide:info">
           Puedes registrarte con tu cuenta de Google o GitHub — no necesitas crear una contraseña nueva.
         </Callout>
 
         <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>📧</span>
-          <strong>[ Captura: pantalla de confirmación de correo ]</strong>
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+        <img 
+            src="/step-2.jpg" 
+            alt="Paso 2 Supabase" 
+            style={{ width: '100%', height: 'auto', display: 'block' }} 
+        />
+        </div>
           <br />Supabase te enviará un correo de confirmación. <strong>Ábrelo y haz clic en el enlace</strong> antes de continuar.
         </div>
 
@@ -282,9 +294,14 @@ const STEPS = [
         </p>
 
         <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>➕</span>
-          <strong>[ Captura: dashboard de Supabase → "New project" ]</strong>
-          <br />En el panel principal, haz clic en <em>"New project"</em>
+            <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                <img 
+                    src="/step-3.jpg" 
+                    alt="Paso 3 Supabase" 
+                    style={{ width: '100%', height: 'auto', display: 'block' }} 
+                />
+            </div>
+            <br />En el panel principal, haz clic en <em>"New project"</em>
         </div>
 
         <p style={{ ...styles.stepDesc, marginBottom: 12 }}>Llena el formulario así:</p>
@@ -293,7 +310,7 @@ const STEPS = [
           <span style={styles.codeLabel}>Ejemplo</span>
           <span style={{ color: '#94a3b8' }}>Nombre del proyecto:</span>  <span style={{ color: '#f9c74f' }}>mi-cafeteria</span>{'\n'}
           <span style={{ color: '#94a3b8' }}>Contraseña de base de datos:</span> <span style={{ color: '#f9c74f' }}>algo seguro — guárdala</span>{'\n'}
-          <span style={{ color: '#94a3b8' }}>Región:</span>  <span style={{ color: '#f9c74f' }}>us-east-1</span> <span style={{ color: '#64748b' }}>(la más cercana a México)</span>
+          <span style={{ color: '#94a3b8' }}>Región:</span>  <span style={{ color: '#f9c74f' }}>East US (Ohio)</span> <span style={{ color: '#64748b' }}>(la más cercana a México)</span>
         </div>
 
         <Callout type="warn" icon="lucide:key">
@@ -302,9 +319,14 @@ const STEPS = [
         </Callout>
 
         <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>⏳</span>
-          <strong>[ Captura: barra de progreso "Setting up your project" ]</strong>
-          <br />El proyecto tarda ~1 minuto en crearse. Espera a que la barra llegue al 100%.
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                <img 
+                    src="/step-4.jpg" 
+                    alt="Paso 4 Supabase" 
+                    style={{ width: '100%', height: 'auto', display: 'block' }} 
+                />
+            </div>
+          <br />El proyecto tarda ~1 minuto en crearse. Espera a que la que termine la configuración.
         </div>
       </>
     ),
@@ -317,13 +339,18 @@ const STEPS = [
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Este usuario es la "llave maestra" de tu TinyPOS. Solo necesitas uno. 
+          Este usuario es la "llave maestra" de tu tinypos. Solo necesitas uno. 
           Úsalo para acceder al panel de administración desde cualquier dispositivo.
         </p>
 
         <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>👤</span>
-          <strong>[ Captura: menú lateral → Authentication → Users → "Invite user" ]</strong>
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                <img 
+                    src="/step-5.jpg" 
+                    alt="Paso 5 Supabase" 
+                    style={{ width: '100%', height: 'auto', display: 'block' }} 
+                />
+            </div>
           <br />En el menú izquierdo: <strong>Authentication → Users → Add user</strong>
         </div>
 
@@ -340,7 +367,7 @@ const STEPS = [
 
         <Callout type="warn" icon="lucide:alert-triangle">
           <strong>Anota este correo y contraseña.</strong> Los necesitarás cada vez que 
-          quieras acceder al panel de administración de TinyPOS.
+          quieras acceder al panel de administración de tinypos.
         </Callout>
       </>
     ),
@@ -353,17 +380,22 @@ const STEPS = [
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Las "llaves" son dos códigos que le dicen a TinyPOS dónde está tu base de datos 
+          Las "llaves" son dos códigos que le dicen a tinypos dónde está tu base de datos 
           y cómo conectarse. Son como la dirección y la contraseña de tu casa.
         </p>
 
         <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>⚙️</span>
-          <strong>[ Captura: menú lateral → Project Settings → API ]</strong>
-          <br />En el menú izquierdo: <strong>Project Settings → API</strong>
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                <img 
+                    src="/step-6.jpg" 
+                    alt="Paso 6 Supabase" 
+                    style={{ width: '100%', height: 'auto', display: 'block' }} 
+                />
+            </div>
+          <br />Regresa a la página principal <strong>Da clik en COPY para acceder a tus llaves</strong>
         </div>
 
-        <p style={{ ...styles.stepDesc, marginBottom: 10 }}>Necesitas copiar <strong>dos valores</strong>:</p>
+        <p style={{ ...styles.stepDesc, marginBottom: 10 }}>Necesitas copiar <strong>tres valores</strong>:</p>
 
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`,
@@ -381,44 +413,54 @@ const STEPS = [
           <div style={{ padding: '14px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <span style={{ fontSize: '1.3rem', marginTop: 2 }}>2️⃣</span>
             <div>
-              <div style={{ fontWeight: 800, marginBottom: 4 }}>anon / public key</div>
+              <div style={{ fontWeight: 800, marginBottom: 4 }}>Publishable key</div>
               <div style={{ fontSize: '0.8rem', color: C.muted, lineHeight: 1.6 }}>
-                Una cadena larga que empieza con <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>eyJ...</code>. 
-                Es segura compartirla — TinyPOS la necesita para conectarse.
+                <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>sb_publishable_xxx...</code> 
+                Es segura compartirla — tinypos la necesita para conectarse.
               </div>
             </div>
           </div>
         </div>
-
-        <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>📋</span>
-          <strong>[ Captura: sección API Keys con los campos marcados ]</strong>
-          <br />Copia ambos valores con el botón <em>"Copy"</em> que aparece junto a cada uno.
-        </div>
-
         <Callout type="tip" icon="lucide:info">
           La <strong>service_role key</strong> que aparece abajo NO la necesitas aquí. 
           Ignórala — esa tiene permisos totales y no debe usarse en el frontend.
         </Callout>
+
+        <div style={styles.screenshotBox}>
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                <img 
+                    src="/step-7.jpg" 
+                    alt="Paso 7 Supabase" 
+                    style={{ width: '100%', height: 'auto', display: 'block' }} 
+                />
+            </div>
+          <br />Click en CONNECT (1). Direct (2). <em>TRANSATION POOLER</em> (3) y copia la llave que aparece (4). 
+          <br/>Sustituye <em>[YOUR-PASSWORD]</em> por la contraseña de tu cuenta de Supabase.
+        </div>
       </>
     ),
   },
   {
     num: 5,
-    title: 'Conecta TinyPOS a tu base de datos',
+    title: 'Conecta tinypos a tu base de datos',
     color: '#27ae60',
     icon: 'lucide:link',
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Ya tienes todo. Ahora solo pegas tus llaves en TinyPOS y el sistema 
+          Ya tienes todo. Ahora solo pegas tus llaves en tinypos y el sistema 
           crea todas las tablas necesarias automáticamente — sin tocar código.
         </p>
 
         <div style={styles.screenshotBox}>
-          <span style={styles.screenshotIcon}>🚀</span>
-          <strong>[ Captura: pantalla de Setup de TinyPOS con los campos ]</strong>
-          <br />En TinyPOS, selecciona <em>"Crear tu tienda"</em> y pega los valores.
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                <img 
+                    src="/step-8.jpg" 
+                    alt="Paso 8 Supabase" 
+                    style={{ width: '100%', height: 'auto', display: 'block' }} 
+                />
+            </div>
+          <br />En tinypos, selecciona <em>"Crear tu tienda"</em> y pega los valores.
         </div>
 
         <div style={{
@@ -427,7 +469,7 @@ const STEPS = [
         }}>
           <div style={{ fontWeight: 800, marginBottom: 10, color: C.green, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Icon icon="lucide:check-circle" />
-            ¿Qué hace TinyPOS automáticamente?
+            ¿Qué hace tinypos automáticamente?
           </div>
           <ul style={{ paddingLeft: 18, fontSize: '0.84rem', lineHeight: 2, color: C.text }}>
             <li>Crea todas las tablas (ventas, menú, inventario, clientes…)</li>
@@ -531,8 +573,12 @@ export default function SupabaseGuide({ onBack }) {
       {/* Nav */}
       <nav style={styles.nav}>
         <a href="/" style={styles.navLogo}>
-          <div style={styles.navLogoIcon}>
-            <Icon icon="lucide:coffee" />
+          <div style={{background:"#ffffff"}}>
+            <img 
+              src="/icon.svg" 
+              alt="tinypos" 
+              style={{width: '54px', height: '54px', borderRadius: '10px'}} 
+            />
           </div>
           <span style={styles.navLogoText}>tinypos</span>
         </a>
@@ -582,7 +628,7 @@ export default function SupabaseGuide({ onBack }) {
           <p style={styles.sectionDesc}>
             La mayoría de los sistemas de punto de venta te cobran mensualidad 
             y guardan tu información en sus servidores — tú no tienes control. 
-            Con TinyPOS, <strong>tu información vive en tu propia base de datos</strong>, 
+            Con tinypos, <strong>tu información vive en tu propia base de datos</strong>, 
             gratis, para siempre.
           </p>
 
@@ -590,7 +636,7 @@ export default function SupabaseGuide({ onBack }) {
             {[
               { icon: 'lucide:dollar-sign', color: C.green, title: 'Costo real: $0', desc: 'El plan gratuito de Supabase es suficiente para cualquier negocio pequeño por años.' },
               { icon: 'lucide:database', color: C.blue, title: 'Tus datos, tu control', desc: 'Nadie más puede ver o vender la información de tus clientes y ventas.' },
-              { icon: 'lucide:wifi-off', color: C.brand, title: 'Funciona sin internet', desc: 'TinyPOS guarda todo localmente. Supabase es el respaldo en la nube.' },
+              { icon: 'lucide:wifi-off', color: C.brand, title: 'Funciona sin internet', desc: 'tinypos guarda todo localmente. Supabase es el respaldo en la nube.' },
             ].map((item, i) => (
               <div key={i} style={{
                 background: C.surface, border: `1px solid ${C.border}`,
@@ -652,23 +698,23 @@ export default function SupabaseGuide({ onBack }) {
           {[
             {
               q: '¿Necesito saber programar?',
-              a: 'No. Todo lo que necesitas es crear una cuenta en Supabase y copiar dos códigos. TinyPOS hace el resto automáticamente.',
+              a: 'No. Todo lo que necesitas es crear una cuenta en Supabase y copiar dos códigos. tinypos hace el resto automáticamente.',
             },
             {
               q: '¿Qué pasa si pierdo mis llaves?',
-              a: 'Puedes encontrarlas de nuevo en cualquier momento en supabase.com → tu proyecto → Project Settings → API. También puedes exportarlas desde TinyPOS con el botón "Exportar llaves".',
+              a: 'Puedes encontrarlas de nuevo en cualquier momento en supabase.com → tu proyecto → Project Settings → API. También puedes exportarlas desde tinypos con el botón "Exportar llaves".',
             },
             {
-              q: '¿Puedo usar TinyPOS en varias tablets?',
+              q: '¿Puedo usar tinypos en varias tablets?',
               a: 'Sí. Guarda el archivo keys.tiny que se descarga al instalar. En cada dispositivo adicional, elige "Conectar dispositivo existente" y sube ese archivo.',
             },
             {
               q: '¿Mis datos están seguros?',
-              a: 'Sí. Supabase usa cifrado en tránsito y en reposo. Además, TinyPOS configura automáticamente las reglas de seguridad para que solo tus dispositivos autorizados puedan acceder.',
+              a: 'Sí. Supabase usa cifrado en tránsito y en reposo. Además, tinypos configura automáticamente las reglas de seguridad para que solo tus dispositivos autorizados puedan acceder.',
             },
             {
               q: '¿Qué pasa cuando mi base de datos se pausa?',
-              a: 'TinyPOS sigue funcionando — guarda todo localmente. Cuando reactives tu base de datos en supabase.com, todo se sincroniza automáticamente en el fondo.',
+              a: 'tinypos sigue funcionando — guarda todo localmente. Cuando reactives tu base de datos en supabase.com, todo se sincroniza automáticamente en el fondo.',
             },
           ].map((item, i) => (
             <FAQItem key={i} q={item.q} a={item.a} />
@@ -677,10 +723,15 @@ export default function SupabaseGuide({ onBack }) {
 
         {/* CTA */}
         <div style={styles.ctaBox}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>☕</div>
+          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}><img 
+              src="/icon.svg" 
+              alt="tinypos" 
+              style={{width: '80px', height: '80px', borderRadius: '10px'}} 
+            />
+          </div>
           <h2 style={styles.ctaTitle}>¿Todo listo?</h2>
           <p style={styles.ctaDesc}>
-            Ya tienes todo lo que necesitas. Regresa a TinyPOS y pega tus llaves.
+            Ya tienes todo lo que necesitas. Regresa a tinypos y pega tus llaves.
           </p>
           <button
             style={styles.btnPrimary}
@@ -689,7 +740,7 @@ export default function SupabaseGuide({ onBack }) {
             onClick={onBack}
           >
             <Icon icon="lucide:rocket" />
-            Volver a TinyPOS
+            Volver a tinypos
           </button>
         </div>
 
