@@ -1413,34 +1413,37 @@ function Register() {
     return total + itemCost;
   }, 0) : 0;
 
-  // 2. Scan for AUTOMATED rules
+  // 2. Scan for AUTOMATED rules (only when Advanced Mode is on)
   let autoDiscountAmount = 0;
   let activeAutoRuleName = ""; // We track this to show it on the receipt!
-  const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
 
-  if (activeRules.length > 0 && cartSubtotal > 0) {
-    activeRules.forEach(rule => {
-      // Rule Type A: Applies to the Entire Order
-      if (rule.targetType === 'cart') {
-        const ruleValue = rule.type === 'percentage' ? cartSubtotal * (rule.value / 100) : rule.value;
-        autoDiscountAmount += ruleValue;
-        activeAutoRuleName = rule.name;
-      }
-      // Rule Type B: Applies ONLY to specific items
-      else if (rule.targetType === 'item') {
-        activeTicket.items.forEach(item => {
-          if (item.name === rule.targetValue) {
-            // Figure out the item's cost (base + mods) to calculate percentage accurately
-            let itemCost = item.basePrice;
-            item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
+  if (posSettings?.isAdvancedMode) {
+    const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
 
-            const ruleValue = rule.type === 'percentage' ? itemCost * (rule.value / 100) : rule.value;
-            autoDiscountAmount += ruleValue;
-            activeAutoRuleName = rule.name;
-          }
-        });
-      }
-    });
+    if (activeRules.length > 0 && cartSubtotal > 0) {
+      activeRules.forEach(rule => {
+        // Rule Type A: Applies to the Entire Order
+        if (rule.targetType === 'cart') {
+          const ruleValue = rule.type === 'percentage' ? cartSubtotal * (rule.value / 100) : rule.value;
+          autoDiscountAmount += ruleValue;
+          activeAutoRuleName = rule.name;
+        }
+        // Rule Type B: Applies ONLY to specific items
+        else if (rule.targetType === 'item') {
+          activeTicket.items.forEach(item => {
+            if (item.name === rule.targetValue) {
+              // Figure out the item's cost (base + mods) to calculate percentage accurately
+              let itemCost = item.basePrice;
+              item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
+
+              const ruleValue = rule.type === 'percentage' ? itemCost * (rule.value / 100) : rule.value;
+              autoDiscountAmount += ruleValue;
+              activeAutoRuleName = rule.name;
+            }
+          });
+        }
+      });
+    }
   }
 
   // 3. Scan for MANUAL Manager Overrides
@@ -1523,7 +1526,7 @@ function Register() {
 
         <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
 
-        <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} />
+        <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
 
         <FlyingReceipt successTicket={successTicket} />
 

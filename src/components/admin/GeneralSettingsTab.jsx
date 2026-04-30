@@ -1,14 +1,83 @@
+import { useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../contexts/DialogContext';
 import ExportKeysButton from '../ExportKeysButton';
 import DisconnectButton from '../DisconnectButton';
+import SharedPinPad from '../shared/SharedPinPad';
 
-function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogoUpload, handleSaveGeneralSettings }) {
+function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogoUpload, handleSaveGeneralSettings, menuData, saveMenuToCloud, setLoyaltyForm }) {
 
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useDialog();
-  
+
+  const [pinChallenge, setPinChallenge] = useState({ isOpen: false, onAuthorized: null });
+  const [pinAttempt, setPinAttempt] = useState('');
+  const [pinError, setPinError] = useState(false);
+
+  const closePinChallenge = () => {
+    setPinChallenge({ isOpen: false, onAuthorized: null });
+    setPinAttempt('');
+    setPinError(false);
+  };
+
+  const handlePinSubmit = () => {
+    const isMasterPin = pinAttempt === generalSettings.pinCode;
+    const isStaffAdmin = (menuData?.cashiers || []).some(
+      c => c.isAdmin === true && c.pin === pinAttempt
+    );
+    if (isMasterPin || isStaffAdmin) {
+      const action = pinChallenge.onAuthorized;
+      closePinChallenge();
+      if (action) action();
+    } else {
+      setPinError(true);
+      setTimeout(() => setPinError(false), 500);
+      setPinAttempt('');
+    }
+  };
+
+  const handleAdvancedModeToggle = () => {
+    const next = !generalSettings.isAdvancedMode;
+
+    const applyChange = (alsoDeactivate) => {
+      setPinChallenge({
+        isOpen: true,
+        onAuthorized: () => {
+          setGeneralSettings({ ...generalSettings, isAdvancedMode: next });
+          if (alsoDeactivate && menuData) {
+            const updatedMenu = {
+              ...menuData,
+              loyaltySettings: { ...(menuData.loyaltySettings || {}), isActive: false },
+              discountRules: (menuData.discountRules || []).map(r => ({ ...r, isActive: false })),
+            };
+            saveMenuToCloud(updatedMenu);
+            if (setLoyaltyForm) setLoyaltyForm(prev => ({ ...prev, isActive: false }));
+          }
+        },
+      });
+    };
+
+    if (next === false) {
+      const loyaltyOn = !!menuData?.loyaltySettings?.isActive;
+      const activeRules = (menuData?.discountRules || []).filter(r => r.isActive);
+      if (loyaltyOn || activeRules.length > 0) {
+        const lines = [];
+        if (loyaltyOn) lines.push('• ' + t('settings.willDisableLoyalty'));
+        if (activeRules.length > 0) lines.push('• ' + t('settings.willDisableRules').replace('{{n}}', activeRules.length));
+        showConfirm(
+          t('settings.liteWarnTitle'),
+          t('settings.liteWarnDesc') + '\n\n' + lines.join('\n'),
+          () => applyChange(true)
+        );
+        return;
+      }
+    }
+    applyChange(false);
+  };
+
+  const isAdvancedOn = generalSettings.isAdvancedMode === true;
+
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: '32px' }}>
@@ -150,6 +219,59 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
               <small style={{ color: 'var(--text-muted)' }}>{t('settings.visibilityDesc')}</small>
             </div>
 
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:zap" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.advancedMode')}
+              </label>
+              <button
+                type="button"
+                onClick={handleAdvancedModeToggle}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 16px',
+                  background: 'var(--bg-main)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  color: 'var(--text-main)',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                }}
+              >
+                <span>{isAdvancedOn ? 'ON' : 'OFF'}</span>
+                <span
+                  aria-hidden
+                  style={{
+                    width: '44px',
+                    height: '24px',
+                    borderRadius: '12px',
+                    background: isAdvancedOn ? 'var(--brand-color)' : 'var(--border)',
+                    position: 'relative',
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: '2px',
+                      left: isAdvancedOn ? '22px' : '2px',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '50%',
+                      background: 'white',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      transition: 'left 0.2s',
+                    }}
+                  />
+                </span>
+              </button>
+              <small style={{ color: 'var(--text-muted)' }}>{t('settings.advancedModeDesc')}</small>
+            </div>
+
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Icon icon="lucide:hash" style={{ color: 'var(--brand-color)' }} />
@@ -274,6 +396,23 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
         </div>
 
       </div>
+
+      {pinChallenge.isOpen && (
+        <SharedPinPad
+          variant="modal"
+          icon="lucide:shield-alert"
+          title={t('settings.advancedPinTitle')}
+          subtitle={t('pin.managerReq')}
+          pin={pinAttempt}
+          setPin={setPinAttempt}
+          error={pinError}
+          setError={setPinError}
+          onSubmit={handlePinSubmit}
+          onCancel={closePinChallenge}
+          submitText={t('pin.btnVerify')}
+          submitIcon="lucide:check-circle"
+        />
+      )}
     </div>
   );
 }

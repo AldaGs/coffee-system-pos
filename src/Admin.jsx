@@ -884,13 +884,13 @@ function Admin() {
             { id: 'menu', icon: 'lucide:coffee', label: t('admin.menu') },
             { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
             { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
-            { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe') },
-            { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory') },
-            { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty') },
-            { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions') },
+            { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
+            { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
+            { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
+            { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
             { id: 'team', icon: 'lucide:users', label: t('admin.team') },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
-          ].map(tab => (
+          ].filter(tab => !tab.advancedOnly || generalSettings.isAdvancedMode === true).map(tab => (
             <button 
               key={tab.id}
               onClick={() => switchTab(tab.id)} 
@@ -1027,7 +1027,7 @@ function Admin() {
 
         {/* 5. GENERAL SETTINGS TAB */}
         {activeTab === 'settings' && (
-          <GeneralSettingsTab generalSettings={generalSettings} setGeneralSettings={setGeneralSettings} handleAppLogoUpload={handleAppLogoUpload} handleSaveGeneralSettings={handleSaveGeneralSettings} />
+          <GeneralSettingsTab generalSettings={generalSettings} setGeneralSettings={setGeneralSettings} handleAppLogoUpload={handleAppLogoUpload} handleSaveGeneralSettings={handleSaveGeneralSettings} menuData={menuData} saveMenuToCloud={saveMenuToCloud} setLoyaltyForm={setLoyaltyForm} />
         )}
 
         {/* 6. RECIPE BUILDER TAB */}

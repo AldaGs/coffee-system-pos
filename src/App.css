@@ -463,7 +463,7 @@
 .spinner {
   width: 48px;
   height: 48px;
-  border: 5px solid var(--text-main);
+  border: 5px solid var(--brand-color);
   border-bottom-color: transparent;
   border-radius: 50%;
   display: inline-block;

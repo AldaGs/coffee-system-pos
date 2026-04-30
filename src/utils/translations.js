@@ -109,6 +109,13 @@ export const translations = {
     "settings.resetSuccess": "Success",
     "settings.resetSuccessDesc": "Done! The next ticket will be #1.",
     "settings.btnReset": "Force Reset to #1 Now",
+    "settings.advancedMode": "Advanced Mode",
+    "settings.advancedModeDesc": "Off = Lite Mode. Hides Inventory, Discount Rules, Cortes de Caja, and Gastos. Toggling requires a PIN.",
+    "settings.advancedPinTitle": "Confirm Mode Change",
+    "settings.liteWarnTitle": "Switch to Lite Mode?",
+    "settings.liteWarnDesc": "Lite Mode will also turn off the following currently-active features:",
+    "settings.willDisableLoyalty": "Loyalty Program will be disabled",
+    "settings.willDisableRules": "{{n}} active discount rule(s) will be disabled",
 
     // --- Loyalty Tab ---
     "loyalty.title": "Loyalty Program",
@@ -575,6 +582,7 @@ export const translations = {
 
     // --- Loyalty Modal ---
     "loy.title": "Loyalty Rewards",
+    "loy.titleLite": "Send Receipt by WhatsApp",
     "loy.checkPhone": "Enter customer's WhatsApp number to check their status.",
     "loy.sendPhone": "Enter customer's WhatsApp number to send receipt.",
     "loy.placeholder": "222 123 4567",
@@ -746,6 +754,13 @@ export const translations = {
     "settings.resetSuccess": "Éxito",
     "settings.resetSuccessDesc": "¡Listo! El siguiente ticket será el #1.",
     "settings.btnReset": "Forzar Reinicio a #1 Ahora",
+    "settings.advancedMode": "Modo Avanzado",
+    "settings.advancedModeDesc": "Desactivado = Modo Lite. Oculta Inventario, Reglas de Descuento, Cortes de Caja y Gastos. Cambiarlo requiere un PIN.",
+    "settings.advancedPinTitle": "Confirmar Cambio de Modo",
+    "settings.liteWarnTitle": "¿Cambiar a Modo Lite?",
+    "settings.liteWarnDesc": "El Modo Lite también desactivará las siguientes funciones que están activas actualmente:",
+    "settings.willDisableLoyalty": "Se desactivará el Programa de Lealtad",
+    "settings.willDisableRules": "Se desactivarán {{n}} regla(s) de descuento activas",
 
     // --- Loyalty Tab ---
     "loyalty.title": "Programa de Lealtad",
@@ -1211,6 +1226,7 @@ export const translations = {
 
     // --- Loyalty Modal ---
     "loy.title": "Recompensas de Lealtad",
+    "loy.titleLite": "Enviar Recibo por WhatsApp",
     "loy.checkPhone": "Ingresa el WhatsApp del cliente para ver su estado.",
     "loy.sendPhone": "Ingresa el WhatsApp del cliente para enviar el ticket.",
     "loy.placeholder": "222 123 4567",

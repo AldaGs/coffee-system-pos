@@ -19,7 +19,7 @@ function BootScreen({ logo, posSettings, loadingText }) {
       )}
 
       {/* 2. Show the Custom Register Name */}
-      <h1 style={{ letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 16px 0', color: 'var(--text-main)', fontWeight: '900', fontSize: '1.5rem' }}>
+      <h1 style={{ letterSpacing: '2px', textTransform: 'uppercase', margin: '0 0 16px 0', color: 'var(--brand-color)', fontWeight: '900', fontSize: '1.5rem' }}>
         {brandName}
       </h1>
 

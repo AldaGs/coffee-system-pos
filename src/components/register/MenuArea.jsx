@@ -36,11 +36,13 @@ function MenuArea({
               👤 {activeCashier?.name}
             </span>
             
-            <button onClick={() => { requirePin(t('menuArea.authGasto'), () => setIsExpenseModalOpen(true)); setIsMobileMenuOpen(false); }} style={{ padding: '8px 16px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {t('menuArea.gasto')}
-            </button>
-            
-            {posSettings.enableCorte !== false && (
+            {posSettings?.isAdvancedMode && (
+              <button onClick={() => { requirePin(t('menuArea.authGasto'), () => setIsExpenseModalOpen(true)); setIsMobileMenuOpen(false); }} style={{ padding: '8px 16px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {t('menuArea.gasto')}
+              </button>
+            )}
+
+            {posSettings?.isAdvancedMode && posSettings.enableCorte !== false && (
               <button onClick={() => { 
                 setIsMobileMenuOpen(false); 
                 if (shiftOrders.length === 0 && shiftExpenses.length === 0) { 

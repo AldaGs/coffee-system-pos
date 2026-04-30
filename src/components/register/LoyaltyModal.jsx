@@ -1,15 +1,16 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoyalty, handleGuestReceipt, phoneError, sendFinalMessage }) {
+function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoyalty, handleGuestReceipt, phoneError, sendFinalMessage, isAdvancedMode }) {
   const { t } = useTranslation();
 
   if (!loyaltyModal.isOpen) return null;
   const isLoyaltyActive = menuData?.loyaltySettings?.isActive === true || menuData?.loyaltySettings?.isActive === "true";
+  const effectiveLoyaltyActive = isAdvancedMode && isLoyaltyActive;
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') {
-      if (isLoyaltyActive) {
+      if (effectiveLoyaltyActive) {
         handleCheckLoyalty();
       } else {
         handleGuestReceipt();
@@ -21,7 +22,7 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
     <div className="modal-overlay">
       <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, color: 'var(--text-main)' }}>{t('loy.title')}</h2>
+          <h2 style={{ margin: 0, color: 'var(--text-main)' }}>{isAdvancedMode ? t('loy.title') : t('loy.titleLite')}</h2>
           <button 
             onClick={() => setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null })} 
             style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -33,7 +34,7 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
         {loyaltyModal.step === 'phone' && (
           <div>
             <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>
-              {isLoyaltyActive ? t('loy.checkPhone') : t('loy.sendPhone')}
+              {effectiveLoyaltyActive ? t('loy.checkPhone') : t('loy.sendPhone')}
             </p>
             
             <input 
@@ -48,13 +49,13 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
             />
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {isLoyaltyActive && (
+              {effectiveLoyaltyActive && (
                 <button onClick={handleCheckLoyalty} style={{ width: '100%', padding: '15px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
                   {t('loy.btnCheck')}
                 </button>
               )}
-              <button onClick={handleGuestReceipt} style={{ width: '100%', padding: '15px', background: isLoyaltyActive ? 'transparent' : '#25D366', color: isLoyaltyActive ? 'var(--text-muted)' : 'white', border: isLoyaltyActive ? '1px solid var(--border)' : 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
-                {isLoyaltyActive ? t('loy.btnSendOnly') : t('loy.btnSendNormal')}
+              <button onClick={handleGuestReceipt} style={{ width: '100%', padding: '15px', background: effectiveLoyaltyActive ? 'transparent' : '#25D366', color: effectiveLoyaltyActive ? 'var(--text-muted)' : 'white', border: effectiveLoyaltyActive ? '1px solid var(--border)' : 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                {effectiveLoyaltyActive ? t('loy.btnSendOnly') : t('loy.btnSendNormal')}
               </button>
             </div>
           </div>
