@@ -232,6 +232,56 @@ const styles = {
 };
 
 // ─── Step data ────────────────────────────────────────────────────────────────
+function ZoomableImg({ src, alt }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <img
+        src={src}
+        alt={alt}
+        onClick={() => setOpen(true)}
+        style={{ width: '100%', height: 'auto', display: 'block', cursor: 'zoom-in' }}
+      />
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.92)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16, cursor: 'zoom-out',
+            overflow: 'auto', WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          <img
+            src={src}
+            alt={alt}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 'none', width: 'auto', height: 'auto',
+              maxHeight: 'none', display: 'block',
+              touchAction: 'pinch-zoom',
+            }}
+          />
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Cerrar"
+            style={{
+              position: 'fixed', top: 16, right: 16,
+              width: 40, height: 40, borderRadius: '50%',
+              border: 'none', background: 'rgba(255,255,255,0.95)',
+              color: '#1a2a3a', fontSize: '1.2rem', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Icon icon="lucide:x" />
+          </button>
+        </div>
+      )}
+    </>
+  );
+}
+
 const STEPS = [
   {
     num: 1,
@@ -248,11 +298,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
             <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-        <img 
-            src="/step-1.jpg" 
-            alt="Paso 1 Supabase" 
-            style={{ width: '100%', height: 'auto', display: 'block' }} 
-        />
+        <ZoomableImg src="/step-1.jpg" alt="Paso 1 Supabase" />
             </div>
         </div>
         <p style={{ fontSize: '0.85rem', color: C.muted, textAlign: 'center', marginBottom: '24px' }}>
@@ -265,11 +311,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-        <img 
-            src="/step-2.jpg" 
-            alt="Paso 2 Supabase" 
-            style={{ width: '100%', height: 'auto', display: 'block' }} 
-        />
+        <ZoomableImg src="/step-2.jpg" alt="Paso 2 Supabase" />
         </div>
           <br />Supabase te enviará un correo de confirmación. <strong>Ábrelo y haz clic en el enlace</strong> antes de continuar.
         </div>
@@ -295,11 +337,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
             <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <img 
-                    src="/step-3.jpg" 
-                    alt="Paso 3 Supabase" 
-                    style={{ width: '100%', height: 'auto', display: 'block' }} 
-                />
+                <ZoomableImg src="/step-3.jpg" alt="Paso 3 Supabase" />
             </div>
             <br />En el panel principal, haz clic en <em>"New project"</em>
         </div>
@@ -320,11 +358,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <img 
-                    src="/step-4.jpg" 
-                    alt="Paso 4 Supabase" 
-                    style={{ width: '100%', height: 'auto', display: 'block' }} 
-                />
+                <ZoomableImg src="/step-4.jpg" alt="Paso 4 Supabase" />
             </div>
           <br />El proyecto tarda ~1 minuto en crearse. Espera a que la que termine la configuración.
         </div>
@@ -345,11 +379,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <img 
-                    src="/step-5.jpg" 
-                    alt="Paso 5 Supabase" 
-                    style={{ width: '100%', height: 'auto', display: 'block' }} 
-                />
+                <ZoomableImg src="/step-5.jpg" alt="Paso 5 Supabase" />
             </div>
           <br />En el menú izquierdo: <strong>Authentication → Users → Add user</strong>
         </div>
@@ -386,11 +416,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <img 
-                    src="/step-6.jpg" 
-                    alt="Paso 6 Supabase" 
-                    style={{ width: '100%', height: 'auto', display: 'block' }} 
-                />
+                <ZoomableImg src="/step-6.jpg" alt="Paso 6 Supabase" />
             </div>
           <br />Regresa a la página principal <strong>Da clik en COPY para acceder a tus llaves</strong>
         </div>
@@ -428,11 +454,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <img 
-                    src="/step-7.jpg" 
-                    alt="Paso 7 Supabase" 
-                    style={{ width: '100%', height: 'auto', display: 'block' }} 
-                />
+                <ZoomableImg src="/step-7.jpg" alt="Paso 7 Supabase" />
             </div>
           <br />Click en CONNECT (1). Direct (2). <em>TRANSATION POOLER</em> (3) y copia la llave que aparece (4). 
           <br/>Sustituye <em>[YOUR-PASSWORD]</em> por la contraseña de tu cuenta de Supabase.
@@ -454,11 +476,7 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <img 
-                    src="/step-8.jpg" 
-                    alt="Paso 8 Supabase" 
-                    style={{ width: '100%', height: 'auto', display: 'block' }} 
-                />
+                <ZoomableImg src="/step-8.jpg" alt="Paso 8 Supabase" />
             </div>
           <br />En tinypos, selecciona <em>"Crear tu tienda"</em> y pega los valores.
         </div>
