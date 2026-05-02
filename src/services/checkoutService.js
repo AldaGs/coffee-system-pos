@@ -44,13 +44,13 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
       // A. STANDARD ITEMS (Make-to-Stock)
       // ==========================================
       if (item.inventoryMode === "standard" && item.linkedWarehouseId) {
+        const itemQty = item.qty || 1;
         const warehouseItem = currentInventory.find(inv => String(inv.id) === String(item.linkedWarehouseId));
-        
-        if (warehouseItem) {
-          inventoryLogsToPush.push({ item_name: warehouseItem.name, qty_deducted: 1, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
 
-          // Instant local update & Background cloud update
-          const newStock = warehouseItem.current_stock - 1;
+        if (warehouseItem) {
+          inventoryLogsToPush.push({ item_name: warehouseItem.name, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
+
+          const newStock = warehouseItem.current_stock - itemQty;
           await db.inventory.update(warehouseItem.id, { current_stock: newStock });
           warehouseItem.current_stock = newStock;
           if (navigator.onLine) supabase.from('inventory').update({ current_stock: newStock }).eq('id', warehouseItem.id).then();
@@ -60,13 +60,13 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         if (item.selectedModifiers && item.selectedModifiers.length > 0) {
           for (const mod of item.selectedModifiers) {
             if (mod.deductionTarget && !mod.substitutionTarget) {
-              inventoryLogsToPush.push({ item_name: mod.deductionTarget, qty_deducted: 1, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
-              
+              inventoryLogsToPush.push({ item_name: mod.deductionTarget, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
+
               const modItem = currentInventory.find(inv => inv.name === mod.deductionTarget);
               if (modItem) {
-                const newModStock = modItem.current_stock - 1;
+                const newModStock = modItem.current_stock - itemQty;
                 await db.inventory.update(modItem.id, { current_stock: newModStock });
-                modItem.current_stock = newModStock; 
+                modItem.current_stock = newModStock;
                 if (navigator.onLine) supabase.from('inventory').update({ current_stock: newModStock }).eq('id', modItem.id).then();
               }
             }
@@ -81,7 +81,8 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
 
         if (recipe && recipe.ingredients) {
-          let cartBOM = recipe.ingredients.map(ing => ({ item_name: ing.name, qty: parseFloat(ing.qty) || 0 }));
+          const itemQty = item.qty || 1;
+          let cartBOM = recipe.ingredients.map(ing => ({ item_name: ing.name, qty: (parseFloat(ing.qty) || 0) * itemQty }));
 
           if (item.selectedModifiers && item.selectedModifiers.length > 0) {
             item.selectedModifiers.forEach(mod => {

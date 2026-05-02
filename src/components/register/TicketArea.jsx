@@ -1,19 +1,22 @@
+import { useState } from 'react';
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import QuantityEditModal from './QuantityEditModal';
 
-function TicketArea({ 
-  isActionSheetOpen, setIsActionSheetOpen, 
-  setIsDiscountModalOpen, setLoyaltyModal, 
+function TicketArea({
+  isActionSheetOpen, setIsActionSheetOpen,
+  setIsDiscountModalOpen, setLoyaltyModal,
   isMobileCartOpen, setIsMobileCartOpen
 }) {
   const { t } = useTranslation();
+  const [qtyEditItem, setQtyEditItem] = useState(null);
 
-  const { 
-    activeTicketId, setActiveTicketId, visibleTickets, handleNewTicket, 
-    handleWheelScroll, activeTicket, cartSubtotal, cartTotal, 
-    autoDiscountAmount, activeAutoRuleName, manualDiscountAmount, 
-    handleRemoveItem, handleOpenCheckout, handleCancelTicket, 
-    requirePin, printRawReceipt 
+  const {
+    activeTicketId, setActiveTicketId, visibleTickets, handleNewTicket,
+    handleWheelScroll, activeTicket, cartSubtotal, cartTotal,
+    autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
+    handleRemoveItem, handleOpenCheckout, handleCancelTicket,
+    requirePin, printRawReceipt, handleUpdateItemQty
   } = usePos();
   
   return (
@@ -64,9 +67,18 @@ function TicketArea({
                 activeTicket.items.map(item => (
                   <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
                     <div className="item-row">
-                      <div>
-                        <span>{item.emoji || '•'} {item.name}</span>
-                        <span style={{ marginLeft: '10px' }}>${item.basePrice}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                        <button
+                          onClick={() => setQtyEditItem(item)}
+                          title="Editar cantidad"
+                          style={{ background: 'var(--border)', border: '1px solid var(--border)', borderRadius: '6px', padding: '2px 8px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', cursor: 'pointer', minWidth: '36px', textAlign: 'center', flexShrink: 0 }}
+                        >
+                          {item.qty || 1}
+                        </button>
+                        <div>
+                          <span>{item.emoji || '•'} {item.name}</span>
+                          <span style={{ marginLeft: '10px' }}>${(item.basePrice * (item.qty || 1)).toFixed(2)}</span>
+                        </div>
                       </div>
                       <button className="delete-item-btn" onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
                     </div>
@@ -138,6 +150,13 @@ function TicketArea({
           </>
         )}
       </aside>
+
+      <QuantityEditModal
+        isOpen={!!qtyEditItem}
+        item={qtyEditItem}
+        onConfirm={handleUpdateItemQty}
+        onClose={() => setQtyEditItem(null)}
+      />
     </>
   );
 }
