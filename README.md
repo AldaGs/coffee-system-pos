@@ -230,7 +230,3 @@ Tests cover:
     ```bash
     npm run dev
     ```
-
----
-
-*Developed with ❤️ for the artisanal coffee community.*

@@ -142,34 +142,34 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ width: '80px', height: '80px', background: 'var(--brand-color, #ffffff)', color: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 16px' }}>
-            <img 
-              src="/icon.svg" 
-              alt="tinypos" 
-              style={{width: '80px', height: '80px', borderRadius: '10px'}} 
+            <img
+              src="/icon.svg"
+              alt="tinypos"
+              style={{ width: '80px', height: '80px', borderRadius: '10px' }}
             />
           </div>
-          <h2 style={{ margin: '0', color: '#1a2a3a', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a TinyPOS"}</h2>
+          <h2 style={{ margin: '0', color: '#1a2a3a', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a tinypos"}</h2>
           <p style={{ color: '#64748b', marginTop: '8px' }}>Configura tu terminal para comenzar.</p>
         </div>
 
         {/* --- HELP BANNER --- */}
         {!isConnectingExisting && (
-          <button 
+          <button
             type="button"
             onClick={onShowGuide}
-            style={{ 
+            style={{
               width: '100%', padding: '16px', marginBottom: '24px',
-              backgroundColor: '#eff6ff', color: '#2980b9', 
-              border: '1px solid #bfdbfe', borderRadius: '12px', 
+              backgroundColor: '#eff6ff', color: '#2980b9',
+              border: '1px solid #bfdbfe', borderRadius: '12px',
               fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer',
               display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px',
-              transition: 'background-color 0.2s ease', flexDirection:"column"
+              transition: 'background-color 0.2s ease', flexDirection: "column"
             }}
             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dbeafe'}
             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
           >
-            
-            <div style={{ display: 'flex', flexDirection:"row" , alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
+
+            <div style={{ display: 'flex', flexDirection: "row", alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
               <Icon icon="lucide:help-circle" fontSize="1.2rem" />
               <span>
                 ¿Dónde obtengo estos datos?

@@ -65,6 +65,7 @@ function Admin() {
   const [newModGroupName, setNewModGroupName] = useState("");
   const [newModOption, setNewModOption] = useState({ groupKey: "", name: "", price: "0", isTextInput: false });
   const [editingDrink, setEditingDrink] = useState(null);
+  const [editingItemId, setEditingItemId] = useState(null);
   const [timeFilter, setTimeFilter] = useState('all');
   const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
   const [expenses, setExpenses] = useState(() => {
@@ -430,35 +431,99 @@ function Admin() {
 
   // Basic Menu/Modifier/Deletion Logic (Unchanged)
   const handleAddCategory = () => { if (!newCategoryName.trim()) return; const updatedMenu = { ...menuData }; updatedMenu.categories[newCategoryName] = []; saveMenuToCloud(updatedMenu); setNewCategoryName(""); };
-  const handleAddDrink = () => { 
-    // 1. Added 'return' so the function stops if fields are missing
+
+  const handleRenameCategory = (oldName, newName) => {
+    if (!newName || !newName.trim() || newName === oldName) return;
+    if (menuData.categories[newName]) {
+      return showAlert(t('menu.alertConflictTitle'), t('menu.alertConflictDesc'));
+    }
+    const updatedMenu = { ...menuData };
+    const newCategories = {};
+    // Preserve original key order
+    Object.keys(updatedMenu.categories).forEach(key => {
+      if (key === oldName) {
+        newCategories[newName] = updatedMenu.categories[oldName];
+      } else {
+        newCategories[key] = updatedMenu.categories[key];
+      }
+    });
+    updatedMenu.categories = newCategories;
+    saveMenuToCloud(updatedMenu);
+  };
+
+  const resetItemForm = () => {
+    setNewItemForm(prev => ({
+      ...prev,
+      name: "",
+      price: "",
+      emoji: '☕',
+      inventoryMode: 'none',
+      linkedWarehouseId: '',
+      linkedRecipeId: ''
+    }));
+  };
+
+  const handleAddDrink = () => {
     if (!newItemForm.category || !newItemForm.name || !newItemForm.price) {
       return showAlert("Missing Info", "Please fill out all required fields.");
     }
 
-    const updatedMenu = { ...menuData }; 
+    const updatedMenu = { ...menuData };
 
-    const newDrink = { 
-      id: newItemForm.name.toLowerCase().replace(/\s+/g, '_'), 
-      name: newItemForm.name, 
-      basePrice: parseFloat(newItemForm.price), 
+    if (editingItemId) {
+      let oldCategory = null;
+      let existing = null;
+      Object.keys(updatedMenu.categories).forEach(cat => {
+        const found = updatedMenu.categories[cat].find(d => d.id === editingItemId);
+        if (found) { oldCategory = cat; existing = found; }
+      });
+      if (!oldCategory || !existing) {
+        return showAlert(t('menu.alertErrorTitle'), t('menu.alertItemNotFound'));
+      }
+
+      const updatedItem = {
+        ...existing,
+        name: newItemForm.name,
+        basePrice: parseFloat(newItemForm.price),
+        emoji: newItemForm.emoji || '',
+        inventoryMode: newItemForm.inventoryMode || 'none',
+        linkedWarehouseId: newItemForm.linkedWarehouseId || '',
+        linkedRecipeId: newItemForm.linkedRecipeId || ''
+      };
+
+      if (oldCategory === newItemForm.category) {
+        updatedMenu.categories[oldCategory] = updatedMenu.categories[oldCategory].map(d =>
+          d.id === editingItemId ? updatedItem : d
+        );
+      } else {
+        updatedMenu.categories[oldCategory] = updatedMenu.categories[oldCategory].filter(d => d.id !== editingItemId);
+        updatedMenu.categories[newItemForm.category] = [
+          ...(updatedMenu.categories[newItemForm.category] || []),
+          updatedItem
+        ];
+      }
+
+      saveMenuToCloud(updatedMenu);
+      setEditingItemId(null);
+      resetItemForm();
+      return;
+    }
+
+    const newDrink = {
+      id: newItemForm.name.toLowerCase().replace(/\s+/g, '_'),
+      name: newItemForm.name,
+      basePrice: parseFloat(newItemForm.price),
       emoji: newItemForm.emoji || '',
       allowedModifiers: [],
       inventoryMode: newItemForm.inventoryMode || 'none',
       linkedWarehouseId: newItemForm.linkedWarehouseId || '',
-      linkedRecipeId: newItemForm.linkedRecipeId || '' 
-    }; 
-      updatedMenu.categories[newItemForm.category].push(newDrink); 
-
-      saveMenuToCloud(updatedMenu); 
-      setNewItemForm({ ...newItemForm, 
-        name: "", 
-        price: "" ,
-        inventoryMode: 'none', 
-        linkedWarehouseId: '', 
-        linkedRecipeId: ''
-      }); 
+      linkedRecipeId: newItemForm.linkedRecipeId || ''
     };
+    updatedMenu.categories[newItemForm.category].push(newDrink);
+
+    saveMenuToCloud(updatedMenu);
+    resetItemForm();
+  };
     
   const handleAddModifierGroup = () => { if (!newModGroupName.trim()) return; const groupKey = newModGroupName.toLowerCase().replace(/\s+/g, '_'); const updatedMenu = { ...menuData }; if (!updatedMenu.modifierGroups[groupKey]) { updatedMenu.modifierGroups[groupKey] = []; saveMenuToCloud(updatedMenu); } setNewModGroupName(""); };
 
@@ -729,16 +794,14 @@ function Admin() {
 
       if (error) throw error;
 
-      // Update local state organically
-      setRecipes(prev => {
-        const existing = prev.find(r => r.id === activeRecipe.id);
-        if (existing) {
-          return prev.map(r => r.id === activeRecipe.id ? data : r);
-        } else {
-          // It was a draft, unshift it to the top
-          return [data, ...prev.filter(r => r.id !== activeRecipe.id)];
-        }
-      });
+      // Update local state organically using the direct 'recipes' variable
+      const existing = recipes.find(r => r.id === activeRecipe.id);
+      if (existing) {
+        setRecipes(recipes.map(r => r.id === activeRecipe.id ? data : r));
+      } else {
+        // It was a draft, unshift it to the top
+        setRecipes([data, ...recipes.filter(r => r.id !== activeRecipe.id)]);
+      }
 
       // Switch active recipe to the formalized UUID instance
       setActiveRecipe(data);
@@ -759,7 +822,7 @@ function Admin() {
         const { error } = await supabase.from('recipes').delete().eq('id', recipeId);
         if (error) throw error;
 
-        setRecipes(prev => prev.filter(r => r.id !== recipeId));
+        setRecipes(recipes.filter(r => r.id !== recipeId));
         if (activeRecipe?.id === recipeId) setActiveRecipe(null);
         showAlert("Success", "Recipe deleted!");
       } catch (err) {
@@ -883,11 +946,11 @@ function Admin() {
             { id: 'orders', icon: 'lucide:receipt', label: t('admin.orders') },
             { id: 'menu', icon: 'lucide:coffee', label: t('admin.menu') },
             { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
-            { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
             { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
             { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
-            { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
+            { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
             { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
+            { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
             { id: 'team', icon: 'lucide:users', label: t('admin.team') },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
           ].filter(tab => !tab.advancedOnly || generalSettings.isAdvancedMode === true).map(tab => (
@@ -986,6 +1049,9 @@ function Admin() {
               recipes={recipes}
               inventoryItems={inventoryItems}
               showAlert={showAlert}
+              handleRenameCategory={handleRenameCategory}
+              editingItemId={editingItemId}
+              setEditingItemId={setEditingItemId}
             />
           )}
 
@@ -1032,7 +1098,7 @@ function Admin() {
 
         {/* 6. RECIPE BUILDER TAB */}
         {activeTab === 'calculator' && (
-          <RecipeBuilderTab recipes={recipes} activeRecipe={activeRecipe} setActiveRecipe={setActiveRecipe} handleCreateDraftRecipe={handleCreateDraftRecipe} menuData={menuData} handleAddIngredient={handleAddIngredient} handleUpdateIngredient={handleUpdateIngredient} handleDeleteIngredient={handleDeleteIngredient} handleDeleteRecipe={handleDeleteRecipe} handleSaveRecipeToCloud={handleSaveRecipeToCloud} inventoryItems={inventoryItems} />
+          <RecipeBuilderTab recipes={recipes} activeRecipe={activeRecipe} setActiveRecipe={setActiveRecipe} handleCreateDraftRecipe={handleCreateDraftRecipe} menuData={menuData} handleAddIngredient={handleAddIngredient} handleUpdateIngredient={handleUpdateIngredient} handleDeleteIngredient={handleDeleteIngredient} handleDeleteRecipe={handleDeleteRecipe} handleSaveRecipeToCloud={handleSaveRecipeToCloud} inventoryItems={inventoryItems} saveMenuToCloud={saveMenuToCloud} showAlert={showAlert} />
         )}
 
         {/* --- ADD THIS NEW RENDER BLOCK --- */}

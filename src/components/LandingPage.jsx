@@ -9,7 +9,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
       fontFamily: 'var(--font-main, system-ui)',
       display: 'flex',
       flexDirection: 'column',
-      color: '#2c3e50',
+      color: '#0d3a66',
       overflowY: 'auto',
       WebkitOverflowScrolling: 'touch'
     }}>
@@ -17,14 +17,14 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
       {/* NAVIGATION BAR */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', padding: '20px 5%', alignItems: 'center', backgroundColor: 'white', borderBottom: '1px solid #f0f0f0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: '38px', height: '38px', background: '#ffffff', color: 'white', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
-            <img 
-              src="/icon.svg" 
-              alt="tinypos" 
-              style={{width: '54px', height: '54px', borderRadius: '10px'}} 
+          <div style={{ width: '46px', height: '46px', background: 'linear-gradient(210deg, #0d3a66, #4770d6)', color: 'white', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
+            <img
+              src="/icon.svg"
+              alt="tinypos"
+              style={{ width: '50px', height: '50px', borderRadius: '10px', top: "-5px" }}
             />
           </div>
-          <h1 style={{ fontSize: '1.4rem', margin: 0, color: '#1a2a3a', fontWeight: '900', letterSpacing: '-0.5px' }}>tinypos</h1>
+          <h1 style={{ fontSize: '1.4rem', margin: 0, color: '#0d3a66', fontWeight: '900', letterSpacing: '-0.5px' }}>tinypos</h1>
         </div>
 
         <a
@@ -41,7 +41,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
       {/* HERO SECTION */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px 5%', textAlign: 'center' }}>
         <div className="fade-in" style={{ maxWidth: '900px' }}>
-          <h2 style={{ fontSize: '4rem', color: '#1a2a3a', marginBottom: '24px', lineHeight: '1.05', fontWeight: '900', letterSpacing: '-1px' }}>
+          <h2 style={{ fontSize: '4rem', color: '#0d3a66', marginBottom: '24px', lineHeight: '1.05', fontWeight: '900', letterSpacing: '-1px' }}>
             El punto de venta autónomo para <span style={{ color: 'var(--brand-color, #f28b05)' }}>pequeños negocios.</span>
           </h2>
           <p style={{ fontSize: '1.35rem', color: '#546e7a', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px', lineHeight: '1.5' }}>
@@ -51,7 +51,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
           <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <button
               onClick={() => onSelectMode('new')}
-              style={{ padding: '18px 40px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '800', cursor: 'pointer', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.25)', transition: 'transform 0.2s ease' }}
+              style={{ padding: '18px 40px', backgroundColor: '#099b46', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '900', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 78, 35, 0.25)', transition: 'transform 0.2s ease' }}
               onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
               onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
             >
@@ -60,7 +60,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
 
             <button
               onClick={() => onSelectMode('connect')}
-              style={{ padding: '18px 40px', backgroundColor: 'white', color: '#1a2a3a', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s ease' }}
+              style={{ padding: '18px 40px', backgroundColor: 'white', color: '#1a2a3a', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s ease' }}
               onMouseEnter={(e) => { e.target.style.borderColor = '#1a2a3a'; e.target.style.backgroundColor = '#f8fafc'; }}
               onMouseLeave={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.backgroundColor = 'white'; }}
             >
@@ -68,18 +68,18 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
             </button>
           </div>
 
-        {/* --- ADD THIS SECONDARY LINK --- */}
-          <button 
+          {/* --- ADD THIS SECONDARY LINK --- */}
+          <button
             onClick={onShowGuide}
             style={{
               background: 'none', border: 'none', color: '#546e7a',
               fontSize: '1.05rem', fontWeight: '600', cursor: 'pointer',
               display: 'inline-flex', alignItems: 'center', gap: '8px',
               textDecoration: 'underline', textUnderlineOffset: '4px',
-              paddingTop:"20px", flexDirection: 'column'
+              paddingTop: "20px", flexDirection: 'column'
             }}
           >
-            <div style={{ display: 'flex', flexDirection:"row" , alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
+            <div style={{ display: 'flex', flexDirection: "row", alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
               <Icon icon="lucide:book-open" />
               <span style={{ textDecoration: 'underline', textUnderlineOffset: '4px' }}>
                 ¿Cómo funciona la base de datos gratuita?

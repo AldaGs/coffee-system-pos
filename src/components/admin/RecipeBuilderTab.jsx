@@ -1,8 +1,53 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems }) {
+function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, saveMenuToCloud, showAlert }) {
+
+  const [publishModal, setPublishModal] = useState(null);
+
+  const openPublishModal = () => {
+    if (!activeRecipe || activeRecipe.isDraft) {
+      showAlert?.(t('recipe.alertSaveFirstTitle'), t('recipe.alertSaveFirstDesc'));
+      return;
+    }
+    const availableCategories = Object.keys(menuData?.categories || {});
+    setPublishModal({
+      name: activeRecipe.name || '',
+      price: '',
+      emoji: '☕',
+      category: availableCategories[0] || ''
+    });
+  };
+
+  const submitPublishModal = () => {
+    if (!publishModal) return;
+    const { name, price, emoji, category } = publishModal;
+    if (!category) return showAlert?.(t('recipe.alertMissingCatTitle'), t('recipe.alertMissingCatDesc'));
+    if (!name.trim()) return showAlert?.(t('recipe.alertMissingNameTitle'), t('recipe.alertMissingNameDesc'));
+    const parsedPrice = parseFloat(price);
+    if (isNaN(parsedPrice) || parsedPrice < 0) return showAlert?.(t('recipe.alertInvalidPriceTitle'), t('recipe.alertInvalidPriceDesc'));
+    if (!menuData.categories[category]) return showAlert?.(t('recipe.alertCatNotFoundTitle'), t('recipe.alertCatNotFoundDesc'));
+
+    const newItem = {
+      id: `${name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
+      name: name.trim(),
+      basePrice: parsedPrice,
+      emoji: emoji || '☕',
+      allowedModifiers: [],
+      inventoryMode: 'recipe',
+      linkedWarehouseId: '',
+      linkedRecipeId: activeRecipe.id
+    };
+
+    const updatedMenu = { ...menuData };
+    updatedMenu.categories = { ...updatedMenu.categories };
+    updatedMenu.categories[category] = [...updatedMenu.categories[category], newItem];
+    saveMenuToCloud(updatedMenu);
+    setPublishModal(null);
+    showAlert?.(t('recipe.alertPublishedTitle'), t('recipe.alertPublishedDesc'));
+  };
+
   const { t } = useTranslation();
 
   // --- 1. ALPHABETICAL INVENTORY SORTING ---
@@ -77,7 +122,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             </button>
           )}
 
-          {recipes.map(recipe => (
+          {Array.isArray(recipes) && recipes.map(recipe => (
             <button
               key={recipe.id}
               onClick={() => setActiveRecipe(recipe)}
@@ -123,9 +168,33 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                       {t('recipe.linkedTo')} {linkedMenuItemName}
                     </div>
                   ) : (
-                    <div style={{ padding: '14px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', borderRadius: '12px', border: '1px dashed rgba(231, 76, 60, 0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Icon icon="lucide:alert-circle" />
-                      {t('recipe.notLinked')}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ padding: '14px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', borderRadius: '12px', border: '1px dashed rgba(231, 76, 60, 0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Icon icon="lucide:alert-circle" />
+                        {t('recipe.notLinked')}
+                      </div>
+                      <button
+                        onClick={openPublishModal}
+                        disabled={activeRecipe.isDraft}
+                        title={activeRecipe.isDraft ? t('recipe.publishDisabledTooltip') : t('recipe.publishEnabledTooltip')}
+                        style={{
+                          padding: '12px 16px',
+                          background: activeRecipe.isDraft ? 'var(--bg-main)' : 'var(--brand-color)',
+                          color: activeRecipe.isDraft ? 'var(--text-muted)' : 'white',
+                          border: 'none',
+                          borderRadius: '12px',
+                          cursor: activeRecipe.isDraft ? 'not-allowed' : 'pointer',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          opacity: activeRecipe.isDraft ? 0.6 : 1
+                        }}
+                      >
+                        <Icon icon="lucide:upload-cloud" />
+                        {t('recipe.btnPublishToMenu')}
+                      </button>
                     </div>
                   )}
                   <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', fontStyle: 'italic' }}>
@@ -156,13 +225,13 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                   </div>
                 )}
 
-                {activeRecipe.ingredients.map(ing => {
+                {Array.isArray(activeRecipe.ingredients) && activeRecipe.ingredients.map(ing => {
                   const isManual = ing.isManual || false;
                   const matchedWarehouseItem = !isManual ? inventoryItems?.find(inv => inv.name === ing.name) : null;
 
                   return (
-                    <div key={ing.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '12px', alignItems: 'center', background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-main)', padding: '12px', borderRadius: '16px', border: `1px solid ${isManual ? 'rgba(155, 89, 182, 0.2)' : 'var(--border)'}` }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div key={ing.id} className="recipe-ingredient-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr)', gap: '12px', alignItems: 'center', background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-main)', padding: '12px', borderRadius: '16px', border: `1px solid ${isManual ? 'rgba(155, 89, 182, 0.2)' : 'var(--border)'}` }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', minWidth: 0 }}>
                         <button
                           onClick={() => handleUpdateIngredient(ing.id, 'isManual', !isManual)}
                           title={isManual ? 'Switch to Live Inventory' : 'Switch to Manual Cost'}
@@ -193,7 +262,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: `1px solid ${isManual ? '#9b59b6' : 'var(--border)'}`, borderRadius: '10px', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: `1px solid ${isManual ? '#9b59b6' : 'var(--border)'}`, borderRadius: '10px', overflow: 'hidden', minWidth: 0 }}>
                         <input
                           type="number"
                           placeholder={t('recipe.qty')}
@@ -217,7 +286,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                       </div>
 
                       {isManual ? (
-                        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: '1px solid #9b59b6', borderRadius: '10px', paddingLeft: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: '1px solid #9b59b6', borderRadius: '10px', paddingLeft: '10px', minWidth: 0 }}>
                           <span style={{ color: '#9b59b6', fontSize: '0.8rem', fontWeight: 'bold' }}>$</span>
                           <input
                             type="number"
@@ -234,7 +303,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <div style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'right', fontWeight: '900', border: '1px solid var(--border)' }}>
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>$</span>
                           {isManual
@@ -373,6 +442,96 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
           </div>
         )}
       </div>
+
+      {publishModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }} onClick={() => setPublishModal(null)}>
+          <div
+            className="modal-content fade-in"
+            style={{ maxWidth: '460px', background: 'var(--bg-surface)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: 'rgba(52, 152, 219, 0.1)', color: 'var(--brand-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Icon icon="lucide:upload-cloud" style={{ fontSize: '1.6rem' }} />
+              </div>
+              <div>
+                <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.3rem', fontWeight: '900' }}>{t('recipe.publishModalTitle')}</h2>
+                <p style={{ margin: '2px 0 0 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  {t('recipe.publishModalSubtitlePrefix')} "{activeRecipe?.name}" {t('recipe.publishModalSubtitleSuffix')}
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('recipe.publishLabelCategory')}</label>
+                <select
+                  value={publishModal.category}
+                  onChange={(e) => setPublishModal({ ...publishModal, category: e.target.value })}
+                  style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  {Object.keys(menuData?.categories || {}).length === 0 && (
+                    <option value="">{t('recipe.publishNoCategories')}</option>
+                  )}
+                  {Object.keys(menuData?.categories || {}).map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('recipe.publishLabelIcon')}</label>
+                  <input
+                    type="text" maxLength="2"
+                    value={publishModal.emoji}
+                    onChange={(e) => setPublishModal({ ...publishModal, emoji: e.target.value })}
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'center', fontSize: '1.5rem', outline: 'none' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('recipe.publishLabelName')}</label>
+                  <input
+                    type="text"
+                    value={publishModal.name}
+                    onChange={(e) => setPublishModal({ ...publishModal, name: e.target.value })}
+                    style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('recipe.publishLabelPrice')}</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: 'var(--text-muted)' }}>$</span>
+                  <input
+                    type="number" step="0.01" placeholder="0.00"
+                    value={publishModal.price}
+                    onChange={(e) => setPublishModal({ ...publishModal, price: e.target.value })}
+                    style={{ width: '100%', padding: '14px 14px 14px 32px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: '900', fontSize: '1.2rem' }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button
+                onClick={() => setPublishModal(null)}
+                style={{ flex: 1, padding: '14px', background: 'transparent', color: 'var(--text-main)', border: '2px solid var(--border)', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' }}
+              >
+                {t('recipe.btnCancel')}
+              </button>
+              <button
+                onClick={submitPublishModal}
+                style={{ flex: 1, padding: '14px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '900', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                <Icon icon="lucide:upload-cloud" />
+                {t('recipe.btnPublish')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,7 +5,8 @@ function MenuEditorTab({
   menuData, newCategoryName, setNewCategoryName, handleAddCategory, 
   newItemForm, setNewItemForm, handleAddDrink, handleDeleteCategory, 
   handleDeleteDrink, setEditingDrink, saveMenuToCloud, 
-  recipes, inventoryItems, showAlert 
+  recipes, inventoryItems, showAlert,
+  handleRenameCategory, editingItemId, setEditingItemId
 }) {
   const { t } = useTranslation();
 
@@ -106,17 +107,7 @@ function MenuEditorTab({
                   onChange={(e) => {
                     const mode = e.target.value;
                     if (mode === 'recipe') {
-                      if (!newItemForm.name) {
-                        showAlert(t('menu.alertMissingName'), t('menu.alertMissingNameDesc'));
-                        return setNewItemForm({ ...newItemForm, inventoryMode: 'none' });
-                      }
-                      const matchedRecipe = recipes?.find(r => r.name.toLowerCase() === newItemForm.name.toLowerCase());
-                      if (matchedRecipe) {
-                        setNewItemForm({ ...newItemForm, inventoryMode: 'recipe', linkedRecipeId: matchedRecipe.id, linkedWarehouseId: '' });
-                      } else {
-                        showAlert(t('menu.alertNoRecipe'), t('menu.alertNoRecipeDesc'));
-                        setNewItemForm({ ...newItemForm, inventoryMode: 'none', linkedRecipeId: '', linkedWarehouseId: '' });
-                      }
+                      setNewItemForm({ ...newItemForm, inventoryMode: 'recipe', linkedRecipeId: '', linkedWarehouseId: '' });
                     } else {
                       setNewItemForm({ ...newItemForm, inventoryMode: mode, linkedRecipeId: '', linkedWarehouseId: '' });
                     }
@@ -146,6 +137,24 @@ function MenuEditorTab({
                   </div>
                 )}
 
+                {newItemForm.inventoryMode === 'recipe' && (
+                  <div className="fade-in" style={{ marginTop: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                      {t('menu.selectRecipe')}
+                    </label>
+                    <select
+                      value={newItemForm.linkedRecipeId || ''}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, linkedRecipeId: e.target.value })}
+                      style={{ width: '100%', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      <option value="">{t('menu.pickRecipe')}</option>
+                      {[...(recipes || [])].sort((a, b) => a.name.localeCompare(b.name)).map(r => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {newItemForm.inventoryMode === 'recipe' && newItemForm.linkedRecipeId && (
                   <div className="fade-in" style={{ marginTop: '16px', padding: '14px', background: 'rgba(39, 174, 96, 0.05)', color: '#27ae60', borderRadius: '12px', border: '1px solid rgba(39, 174, 96, 0.2)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Icon icon="lucide:link-2" />
@@ -157,10 +166,32 @@ function MenuEditorTab({
                 )}
               </div>
 
-              <button onClick={handleAddDrink} style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '8px', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)' }}>
-                <Icon icon="lucide:save" />
-                {t('menu.btnSaveItem')}
-              </button>
+              <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                <button onClick={handleAddDrink} style={{ flex: 1, padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)' }}>
+                  <Icon icon="lucide:save" />
+                  {editingItemId ? t('menu.btnUpdateItem') : t('menu.btnSaveItem')}
+                </button>
+                {editingItemId && (
+                  <button
+                    onClick={() => {
+                      setEditingItemId(null);
+                      setNewItemForm({
+                        ...newItemForm,
+                        name: '',
+                        price: '',
+                        emoji: '☕',
+                        inventoryMode: 'none',
+                        linkedWarehouseId: '',
+                        linkedRecipeId: ''
+                      });
+                    }}
+                    style={{ padding: '16px 20px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    <Icon icon="lucide:x" />
+                    {t('menu.btnCancel')}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -177,9 +208,23 @@ function MenuEditorTab({
               <div key={category} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)' }}>
                   <h4 style={{ color: 'var(--text-main)', margin: 0, fontWeight: '900', fontSize: '1.1rem' }}>{category}</h4>
-                  <button onClick={() => handleDeleteCategory(category)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: 'none', color: '#e74c3c', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon icon="lucide:trash-2" style={{ fontSize: '1.1rem' }} />
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => {
+                        const newName = window.prompt(t('menu.promptRenameCategory'), category);
+                        if (newName && newName.trim() && newName !== category) {
+                          handleRenameCategory(category, newName.trim());
+                        }
+                      }}
+                      style={{ background: 'rgba(52, 152, 219, 0.05)', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title={t('menu.titleRenameCategory')}
+                    >
+                      <Icon icon="lucide:edit-3" style={{ fontSize: '1.1rem' }} />
+                    </button>
+                    <button onClick={() => handleDeleteCategory(category)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: 'none', color: '#e74c3c', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon icon="lucide:trash-2" style={{ fontSize: '1.1rem' }} />
+                    </button>
+                  </div>
                 </div>
                 <div style={{ padding: '8px' }}>
                   {menuData.categories[category].length === 0 ? (
@@ -210,6 +255,27 @@ function MenuEditorTab({
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                            <button
+                              onClick={() => {
+                                setEditingItemId(item.id);
+                                setNewItemForm({
+                                  ...newItemForm,
+                                  category: category,
+                                  name: item.name,
+                                  price: String(item.basePrice ?? ''),
+                                  emoji: item.emoji || '☕',
+                                  inventoryMode: item.inventoryMode || 'none',
+                                  linkedWarehouseId: item.linkedWarehouseId || '',
+                                  linkedRecipeId: item.linkedRecipeId || ''
+                                });
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title={t('menu.titleEditDetails')}
+                            >
+                              <Icon icon="lucide:edit-3" />
+                              {t('menu.btnEditDetails')}
+                            </button>
                             <button onClick={() => setEditingDrink({ categoryName: category, drink: item })} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Icon icon="lucide:settings-2" />
                               {t('menu.btnEditMods')}
