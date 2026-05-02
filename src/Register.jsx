@@ -749,6 +749,23 @@ function Register() {
     setPendingItem(null);
   };
 
+  const handleUpdateItemQty = async (itemUniqueId, newQty) => {
+    if (!activeTicket) return;
+
+    const updatedItems = newQty === 0
+      ? activeTicket.items.filter(i => i.uniqueId !== itemUniqueId)
+      : activeTicket.items.map(i => i.uniqueId === itemUniqueId ? { ...i, qty: newQty } : i);
+
+    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
+
+    if (navigator.onLine) {
+      supabase.from('active_tickets')
+        .update({ items: updatedItems, last_modified_by: myDeviceId })
+        .eq('id', activeTicket.id)
+        .then();
+    }
+  };
+
   const handleRemoveItem = async (itemUniqueId) => {
     if (!activeTicket) return;
 
@@ -967,11 +984,14 @@ function Register() {
 
       // --- ITEMS ---
       for (const item of ticket.items) {
-        let itemTotal = item.basePrice;
-        item.selectedModifiers.forEach(mod => itemTotal += mod.price);
-        rawSubtotal += itemTotal;
+        const qty = item.qty || 1;
+        let lineTotal = item.basePrice;
+        item.selectedModifiers.forEach(mod => lineTotal += mod.price);
+        lineTotal *= qty;
+        rawSubtotal += lineTotal;
 
-        pushRow(item.name, `$${item.basePrice.toFixed(2)}`);
+        const itemLabel = qty > 1 ? `${item.name} x${qty}` : item.name;
+        pushRow(itemLabel, `$${lineTotal.toFixed(2)}`);
 
         for (const mod of item.selectedModifiers) {
           const modPrice = mod.price > 0 ? `+$${mod.price.toFixed(2)}` : "";
@@ -1084,7 +1104,10 @@ function Register() {
 
     // 2. Build Items List
     activeTicket.items.forEach(item => {
-      message += `${item.emoji} ${item.name} - $${item.basePrice.toFixed(2)}\n`;
+      const qty = item.qty || 1;
+      const lineTotal = (item.basePrice + (item.selectedModifiers || []).reduce((s, m) => s + m.price, 0)) * qty;
+      const qtyLabel = qty > 1 ? ` x${qty}` : '';
+      message += `${item.emoji} ${item.name}${qtyLabel} - $${lineTotal.toFixed(2)}\n`;
       if (item.selectedModifiers && item.selectedModifiers.length > 0) {
         item.selectedModifiers.forEach(mod => {
           message += `  + ${mod.name} ($${mod.price.toFixed(2)})\n`;
@@ -1206,7 +1229,7 @@ function Register() {
       starsToEarn = 1;
     } else {
       activeTicket.items.forEach(item => {
-        if (item.name === targetItem) starsToEarn += 1;
+        if (item.name === targetItem) starsToEarn += (item.qty || 1);
       });
 
       if (countMode === 'per_ticket' && starsToEarn > 0) {
@@ -1410,7 +1433,7 @@ function Register() {
   const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
     let itemCost = item.basePrice;
     item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-    return total + itemCost;
+    return total + itemCost * (item.qty || 1);
   }, 0) : 0;
 
   // 2. Scan for AUTOMATED rules (only when Advanced Mode is on)
@@ -1432,11 +1455,11 @@ function Register() {
         else if (rule.targetType === 'item') {
           activeTicket.items.forEach(item => {
             if (item.name === rule.targetValue) {
-              // Figure out the item's cost (base + mods) to calculate percentage accurately
+              const qty = item.qty || 1;
               let itemCost = item.basePrice;
               item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
 
-              const ruleValue = rule.type === 'percentage' ? itemCost * (rule.value / 100) : rule.value;
+              const ruleValue = rule.type === 'percentage' ? itemCost * qty * (rule.value / 100) : rule.value * qty;
               autoDiscountAmount += ruleValue;
               activeAutoRuleName = rule.name;
             }
@@ -1477,7 +1500,7 @@ function Register() {
     showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
     activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
-    handleNewTicket, handleWheelScroll, handleRemoveItem,
+    handleNewTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
     handleOpenCheckout, handleCancelTicket, printRawReceipt,
 
     // --- NEW: ModifierModal Data & Functions ---
