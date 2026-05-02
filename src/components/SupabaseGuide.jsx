@@ -239,8 +239,14 @@ function ZoomableImg({ src, alt }) {
       <img
         src={src}
         alt={alt}
-        onClick={() => setOpen(true)}
-        style={{ width: '100%', height: 'auto', display: 'block', cursor: 'zoom-in' }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '100%',
+          maxHeight: '90vh',
+          objectFit: 'contain',
+          display: 'block',
+          touchAction: 'pinch-zoom',
+        }}
       />
       {open && (
         <div
