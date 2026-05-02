@@ -119,7 +119,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           left: '20px',
           background: 'white',
           border: '1px solid #e2e8f0',
-          color: '#1a2a3a',
+          color: '#0d3a66',
           fontSize: '0.95rem',
           fontWeight: '700',
           cursor: 'pointer',
@@ -141,14 +141,14 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       <div className="fade-in" style={{ background: 'white', padding: '48px', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 60px rgba(0,0,0,0.1)', border: '1px solid #f1f5f9' }}>
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ width: '80px', height: '80px', background: 'var(--brand-color, #ffffff)', color: 'white', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', margin: '0 auto 16px' }}>
+          <div style={{ width: '68px', height: '68px', background: 'linear-gradient(210deg, #0d3a66, #4770d6)', color: 'white', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', margin: '0 auto 16px' }}>
             <img
               src="/icon.svg"
               alt="tinypos"
-              style={{ width: '80px', height: '80px', borderRadius: '10px' }}
+              style={{ width: '74px', height: '74px', borderRadius: '10px' }}
             />
           </div>
-          <h2 style={{ margin: '0', color: '#1a2a3a', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a tinypos"}</h2>
+          <h2 style={{ margin: '0', color: '#0d3a66', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a tinypos"}</h2>
           <p style={{ color: '#64748b', marginTop: '8px' }}>Configura tu terminal para comenzar.</p>
         </div>
 
@@ -188,7 +188,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             <button
               type="button"
               onClick={() => fileInputRef.current.click()}
-              style={{ width: '100%', padding: '18px', backgroundColor: '#f1f5f9', color: '#1a2a3a', border: '2px dashed #cbd5e1', borderRadius: '14px', fontWeight: '800', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', transition: 'all 0.2s ease' }}
+              style={{ width: '100%', padding: '18px', backgroundColor: '#f1f5f9', color: '#0d3a66', border: '2px dashed #cbd5e1', borderRadius: '14px', fontWeight: '800', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', transition: 'all 0.2s ease' }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--brand-color, #3498db)'; e.currentTarget.style.backgroundColor = '#eff6ff'; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
             >

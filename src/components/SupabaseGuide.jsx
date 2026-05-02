@@ -3,27 +3,27 @@ import { Icon } from '@iconify/react';
 
 // ─── Design tokens matching tinypos LandingPage ───────────────────────────────
 const C = {
-  brand:      '#f28b05',
+  brand: '#f28b05',
   brandLight: '#fff7ed',
-  green:      '#27ae60',
+  green: '#27ae60',
   greenLight: '#f0faf4',
-  blue:       '#2980b9',
-  blueLight:  '#eff6ff',
-  red:        '#e74c3c',
-  text:       '#1a2a3a',
-  muted:      '#546e7a',
-  border:     '#e2e8f0',
-  bg:         '#fdfdfd',
-  surface:    '#ffffff',
-  warn:       '#d97706',
-  warnLight:  '#fffbeb',
+  blue: '#2980b9',
+  blueLight: '#eff6ff',
+  red: '#e74c3c',
+  text: '#0d3a66',
+  muted: '#546e7a',
+  border: '#e2e8f0',
+  bg: '#fdfdfd',
+  surface: '#ffffff',
+  warn: '#d97706',
+  warnLight: '#fffbeb',
 };
 
 const styles = {
   page: {
     backgroundColor: '#fdfdfd', // Matches LandingPage
     fontFamily: 'system-ui, -apple-system, sans-serif',
-    color: '#1a2a3a',
+    color: '#0d3a66',
     height: '100dvh',   // <-- THE SCROLL FIX!
     overflowY: 'auto',  // <-- THE SCROLL FIX!
     WebkitOverflowScrolling: 'touch',
@@ -47,7 +47,7 @@ const styles = {
     alignItems: 'center', justifyContent: 'center',
     fontSize: '1.2rem',
   },
-  navLogoText: { fontSize: '1.2rem', fontWeight: 900, letterSpacing: '-0.5px' },
+  navLogoText: { fontSize: '1.4rem', fontWeight: 900, letterSpacing: '-0.5px' },
   navBack: {
     display: 'flex', alignItems: 'center', gap: 6,
     color: C.muted, fontSize: '0.9rem', fontWeight: 600,
@@ -77,7 +77,7 @@ const styles = {
     marginBottom: 24,
   },
   heroTitle: {
-    fontSize: 'clamp(2rem, 5vw, 3rem)', color: '#1a2a3a', // Dark text
+    fontSize: 'clamp(2rem, 5vw, 3rem)', color: '#0d3a66', // Dark text
     fontWeight: 900, lineHeight: 1.1,
     marginBottom: 16, letterSpacing: '-1px',
   },
@@ -170,7 +170,7 @@ const styles = {
 
   // ── Code snippet ──
   codeBox: {
-    background: '#1a2a3a',
+    background: '#0d3a66',
     color: '#e2e8f0',
     borderRadius: 10,
     padding: '14px 18px',
@@ -203,7 +203,7 @@ const styles = {
     border: '1px solid #e2e8f0',
     boxShadow: '0 20px 50px rgba(0,0,0,0.05)',
     borderRadius: 24, padding: '48px',
-    textAlign: 'center', color: '#1a2a3a',
+    textAlign: 'center', color: '#0d3a66',
     marginTop: 56,
   },
   ctaTitle: {
@@ -270,7 +270,7 @@ function ZoomableImg({ src, alt }) {
               position: 'fixed', top: 16, right: 16,
               width: 40, height: 40, borderRadius: '50%',
               border: 'none', background: 'rgba(255,255,255,0.95)',
-              color: '#1a2a3a', fontSize: '1.2rem', cursor: 'pointer',
+              color: '#0d3a66', fontSize: '1.2rem', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
           >
@@ -291,18 +291,18 @@ const STEPS = [
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Supabase es como contratar a un experto en bases de datos — pero gratis. 
-          Ellos guardan toda la información de tu negocio (ventas, inventario, clientes) 
+          Supabase es como contratar a un experto en bases de datos — pero gratis.
+          Ellos guardan toda la información de tu negocio (ventas, inventario, clientes)
           de forma segura en la nube.
         </p>
 
         <div style={styles.screenshotBox}>
-            <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-        <ZoomableImg src="/step-1.jpg" alt="Paso 1 Supabase" />
-            </div>
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+            <ZoomableImg src="/step-1.jpg" alt="Paso 1 Supabase" />
+          </div>
         </div>
         <p style={{ fontSize: '0.85rem', color: C.muted, textAlign: 'center', marginBottom: '24px' }}>
-        Ve a <strong>supabase.com</strong> y haz clic en <em>"Start your project"</em>
+          Ve a <strong>supabase.com</strong> y haz clic en <em>"Start your project"</em>
         </p>
 
         <Callout type="tip" icon="lucide:info">
@@ -311,13 +311,13 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-        <ZoomableImg src="/step-2.jpg" alt="Paso 2 Supabase" />
-        </div>
+            <ZoomableImg src="/step-2.jpg" alt="Paso 2 Supabase" />
+          </div>
           <br />Supabase te enviará un correo de confirmación. <strong>Ábrelo y haz clic en el enlace</strong> antes de continuar.
         </div>
 
         <Callout type="warn" icon="lucide:alert-triangle">
-          Si no ves el correo en 2 minutos, revisa tu carpeta de <strong>Spam</strong>. 
+          Si no ves el correo en 2 minutos, revisa tu carpeta de <strong>Spam</strong>.
           A veces termina ahí.
         </Callout>
       </>
@@ -331,15 +331,15 @@ const STEPS = [
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Un "proyecto" en Supabase es simplemente tu base de datos. 
+          Un "proyecto" en Supabase es simplemente tu base de datos.
           Tendrás uno por negocio.
         </p>
 
         <div style={styles.screenshotBox}>
-            <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <ZoomableImg src="/step-3.jpg" alt="Paso 3 Supabase" />
-            </div>
-            <br />En el panel principal, haz clic en <em>"New project"</em>
+          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
+            <ZoomableImg src="/step-3.jpg" alt="Paso 3 Supabase" />
+          </div>
+          <br />En el panel principal, haz clic en <em>"New project"</em>
         </div>
 
         <p style={{ ...styles.stepDesc, marginBottom: 12 }}>Llena el formulario así:</p>
@@ -358,8 +358,8 @@ const STEPS = [
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <ZoomableImg src="/step-4.jpg" alt="Paso 4 Supabase" />
-            </div>
+            <ZoomableImg src="/step-4.jpg" alt="Paso 4 Supabase" />
+          </div>
           <br />El proyecto tarda ~1 minuto en crearse. Espera a que la que termine la configuración.
         </div>
       </>
@@ -373,14 +373,14 @@ const STEPS = [
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Este usuario es la "llave maestra" de tu tinypos. Solo necesitas uno. 
+          Este usuario es la "llave maestra" de tu tinypos. Solo necesitas uno.
           Úsalo para acceder al panel de administración desde cualquier dispositivo.
         </p>
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <ZoomableImg src="/step-5.jpg" alt="Paso 5 Supabase" />
-            </div>
+            <ZoomableImg src="/step-5.jpg" alt="Paso 5 Supabase" />
+          </div>
           <br />En el menú izquierdo: <strong>Authentication → Users → Add user</strong>
         </div>
 
@@ -391,12 +391,12 @@ const STEPS = [
         </div>
 
         <Callout type="tip" icon="lucide:lightbulb">
-          No importa si el correo no existe — es solo un identificador. 
+          No importa si el correo no existe — es solo un identificador.
           Puedes usar <code style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: 4 }}>register@tunegocio.com</code> o lo que quieras.
         </Callout>
 
         <Callout type="warn" icon="lucide:alert-triangle">
-          <strong>Anota este correo y contraseña.</strong> Los necesitarás cada vez que 
+          <strong>Anota este correo y contraseña.</strong> Los necesitarás cada vez que
           quieras acceder al panel de administración de tinypos.
         </Callout>
       </>
@@ -410,14 +410,14 @@ const STEPS = [
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Las "llaves" son dos códigos que le dicen a tinypos dónde está tu base de datos 
+          Las "llaves" son dos códigos que le dicen a tinypos dónde está tu base de datos
           y cómo conectarse. Son como la dirección y la contraseña de tu casa.
         </p>
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <ZoomableImg src="/step-6.jpg" alt="Paso 6 Supabase" />
-            </div>
+            <ZoomableImg src="/step-6.jpg" alt="Paso 6 Supabase" />
+          </div>
           <br />Regresa a la página principal <strong>Da clik en COPY para acceder a tus llaves</strong>
         </div>
 
@@ -441,23 +441,23 @@ const STEPS = [
             <div>
               <div style={{ fontWeight: 800, marginBottom: 4 }}>Publishable key</div>
               <div style={{ fontSize: '0.8rem', color: C.muted, lineHeight: 1.6 }}>
-                <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>sb_publishable_xxx...</code> 
+                <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>sb_publishable_xxx...</code>
                 Es segura compartirla — tinypos la necesita para conectarse.
               </div>
             </div>
           </div>
         </div>
         <Callout type="tip" icon="lucide:info">
-          La <strong>service_role key</strong> que aparece abajo NO la necesitas aquí. 
+          La <strong>service_role key</strong> que aparece abajo NO la necesitas aquí.
           Ignórala — esa tiene permisos totales y no debe usarse en el frontend.
         </Callout>
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <ZoomableImg src="/step-7.jpg" alt="Paso 7 Supabase" />
-            </div>
-          <br />Click en CONNECT (1). Direct (2). <em>TRANSATION POOLER</em> (3) y copia la llave que aparece (4). 
-          <br/>Sustituye <em>[YOUR-PASSWORD]</em> por la contraseña de tu cuenta de Supabase.
+            <ZoomableImg src="/step-7.jpg" alt="Paso 7 Supabase" />
+          </div>
+          <br />Click en CONNECT (1). Direct (2). <em>TRANSATION POOLER</em> (3) y copia la llave que aparece (4).
+          <br />Sustituye <em>[YOUR-PASSWORD]</em> por la contraseña de tu cuenta de Supabase.
         </div>
       </>
     ),
@@ -470,14 +470,14 @@ const STEPS = [
     content: () => (
       <>
         <p style={styles.stepDesc}>
-          Ya tienes todo. Ahora solo pegas tus llaves en tinypos y el sistema 
+          Ya tienes todo. Ahora solo pegas tus llaves en tinypos y el sistema
           crea todas las tablas necesarias automáticamente — sin tocar código.
         </p>
 
         <div style={styles.screenshotBox}>
           <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-                <ZoomableImg src="/step-8.jpg" alt="Paso 8 Supabase" />
-            </div>
+            <ZoomableImg src="/step-8.jpg" alt="Paso 8 Supabase" />
+          </div>
           <br />En tinypos, selecciona <em>"Crear tu tienda"</em> y pega los valores.
         </div>
 
@@ -499,7 +499,7 @@ const STEPS = [
 
         <Callout type="tip" icon="lucide:smartphone">
           <strong>¿Tienes más de una tablet o computadora?</strong> Guarda el archivo{' '}
-          <strong>keys.tiny</strong> que se descarga. En cada dispositivo extra, 
+          <strong>keys.tiny</strong> que se descarga. En cada dispositivo extra,
           elige "Conectar dispositivo" y sube ese archivo — listo.
         </Callout>
       </>
@@ -570,9 +570,9 @@ function ProgressStep({ num, label, active, done }) {
         {done ? <Icon icon="lucide:check" /> : num}
       </div>
       <span style={{
-        fontSize: '0.7rem', 
-        color: active ? '#1a2a3a' : '#94a3b8',
-        textAlign: 'center', lineHeight: 1.3, maxWidth: 70, 
+        fontSize: '0.7rem',
+        color: active ? '#0d3a66' : '#94a3b8',
+        textAlign: 'center', lineHeight: 1.3, maxWidth: 70,
         fontWeight: active ? 700 : 500
       }}>
         {label}
@@ -591,14 +591,16 @@ export default function SupabaseGuide({ onBack }) {
       {/* Nav */}
       <nav style={styles.nav}>
         <a href="/" style={styles.navLogo}>
-          <div style={{background:"#ffffff"}}>
-            <img 
-              src="/icon.svg" 
-              alt="tinypos" 
-              style={{width: '54px', height: '54px', borderRadius: '10px'}} 
-            />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '46px', height: '46px', background: 'linear-gradient(210deg, #0d3a66, #4770d6)', color: 'white', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
+              <img
+                src="/icon.svg"
+                alt="tinypos"
+                style={{ width: '50px', height: '50px', borderRadius: '10px', top: "-5px" }}
+              />
+            </div>
+            <span style={styles.navLogoText}>tinypos</span>
           </div>
-          <span style={styles.navLogoText}>tinypos</span>
         </a>
         <button
           onClick={onBack}
@@ -623,8 +625,8 @@ export default function SupabaseGuide({ onBack }) {
           <span style={{ color: C.brand }}>en 15 minutos</span>
         </h1>
         <p style={styles.heroSubtitle}>
-          Sin conocimientos técnicos. Sin tarjeta de crédito. 
-          Supabase es completamente gratis para negocios pequeños — 
+          Sin conocimientos técnicos. Sin tarjeta de crédito.
+          Supabase es completamente gratis para negocios pequeños —
           y tú eres dueño de todos tus datos.
         </p>
 
@@ -644,9 +646,9 @@ export default function SupabaseGuide({ onBack }) {
           <p style={styles.sectionLabel}>¿Por qué Supabase?</p>
           <h2 style={styles.sectionTitle}>Tu negocio merece sus propios datos</h2>
           <p style={styles.sectionDesc}>
-            La mayoría de los sistemas de punto de venta te cobran mensualidad 
-            y guardan tu información en sus servidores — tú no tienes control. 
-            Con tinypos, <strong>tu información vive en tu propia base de datos</strong>, 
+            La mayoría de los sistemas de punto de venta te cobran mensualidad
+            y guardan tu información en sus servidores — tú no tienes control.
+            Con tinypos, <strong>tu información vive en tu propia base de datos</strong>,
             gratis, para siempre.
           </p>
 
@@ -682,10 +684,10 @@ export default function SupabaseGuide({ onBack }) {
                 Una limitación importante que debes conocer
               </strong>
               <p style={{ fontSize: '0.84rem', color: C.text, lineHeight: 1.7, margin: 0 }}>
-                El plan gratuito de Supabase <strong>pausa tu base de datos si no hay actividad por 7 días</strong> — 
-                por ejemplo, si cierras tu negocio una semana de vacaciones. Reactivarla es fácil: 
-                entra a <strong>supabase.com</strong>, ve a tu proyecto y haz clic en "Restore". 
-                Tarda menos de 30 segundos y no pierdes ningún dato. Si prefieres evitar esto, 
+                El plan gratuito de Supabase <strong>pausa tu base de datos si no hay actividad por 7 días</strong> —
+                por ejemplo, si cierras tu negocio una semana de vacaciones. Reactivarla es fácil:
+                entra a <strong>supabase.com</strong>, ve a tu proyecto y haz clic en "Restore".
+                Tarda menos de 30 segundos y no pierdes ningún dato. Si prefieres evitar esto,
                 puedes actualizar al plan Pro de Supabase por $25 USD/mes.
               </p>
             </div>
@@ -741,11 +743,14 @@ export default function SupabaseGuide({ onBack }) {
 
         {/* CTA */}
         <div style={styles.ctaBox}>
-          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}><img 
-              src="/icon.svg" 
-              alt="tinypos" 
-              style={{width: '80px', height: '80px', borderRadius: '10px'}} 
-            />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <div style={{ width: '68px', height: '68px', background: 'linear-gradient(210deg, #0d3a66, #4770d6)', color: 'white', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem' }}>
+              <img
+                src="/icon.svg"
+                alt="tinypos"
+                style={{ width: '74px', height: '74px', borderRadius: '10px' }}
+              />
+            </div>
           </div>
           <h2 style={styles.ctaTitle}>¿Todo listo?</h2>
           <p style={styles.ctaDesc}>

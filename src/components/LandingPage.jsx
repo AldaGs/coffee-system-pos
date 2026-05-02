@@ -60,8 +60,8 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
 
             <button
               onClick={() => onSelectMode('connect')}
-              style={{ padding: '18px 40px', backgroundColor: 'white', color: '#1a2a3a', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s ease' }}
-              onMouseEnter={(e) => { e.target.style.borderColor = '#1a2a3a'; e.target.style.backgroundColor = '#f8fafc'; }}
+              style={{ padding: '18px 40px', backgroundColor: 'white', color: '#0d3a66', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s ease' }}
+              onMouseEnter={(e) => { e.target.style.borderColor = '#0d3a66'; e.target.style.backgroundColor = '#f8fafc'; }}
               onMouseLeave={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.backgroundColor = 'white'; }}
             >
               Conectar dispositivo existente
@@ -142,7 +142,7 @@ function FeatureCard({ icon, title, desc, color }) {
       }}>
         <Icon icon={icon} />
       </div>
-      <h3 style={{ fontSize: '1.25rem', color: '#1a2a3a', marginBottom: '12px', fontWeight: '800' }}>{title}</h3>
+      <h3 style={{ fontSize: '1.25rem', color: '#0d3a66', marginBottom: '12px', fontWeight: '800' }}>{title}</h3>
       <p style={{ color: '#546e7a', fontSize: '1rem', lineHeight: '1.6', margin: 0 }}>{desc}</p>
     </div>
   );
