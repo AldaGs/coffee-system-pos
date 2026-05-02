@@ -12,7 +12,6 @@ export default defineConfig({
       manifestFilename: 'manifest.webmanifest',
       workbox: {
         clientsClaim: true, // Takes control of the client immediately
-        skipWaiting: true,   // Forces the new Service Worker to activate immediately
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
       },
