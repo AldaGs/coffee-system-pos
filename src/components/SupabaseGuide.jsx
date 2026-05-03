@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Icon } from '@iconify/react';
 
 // ─── Design tokens matching tinypos LandingPage ───────────────────────────────
@@ -21,11 +21,11 @@ const C = {
 
 const styles = {
   page: {
-    backgroundColor: '#fdfdfd', // Matches LandingPage
+    backgroundColor: '#fdfdfd',
     fontFamily: 'system-ui, -apple-system, sans-serif',
     color: '#0d3a66',
-    height: '100dvh',   // <-- THE SCROLL FIX!
-    overflowY: 'auto',  // <-- THE SCROLL FIX!
+    height: '100dvh',
+    overflowY: 'auto',
     WebkitOverflowScrolling: 'touch',
     userSelect: 'text',
   },
@@ -234,43 +234,133 @@ const styles = {
 // ─── Step data ────────────────────────────────────────────────────────────────
 function ZoomableImg({ src, alt }) {
   const [open, setOpen] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const imgRef = useRef(null);
+  const gesture = useRef({
+    scale: 1, tx: 0, ty: 0,
+    startDist: 0, startScale: 1, startTx: 0, startTy: 0,
+    panStart: null,
+  });
+
+  const isTouch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+
+  const applyTransform = () => {
+    const s = gesture.current;
+    if (imgRef.current) {
+      imgRef.current.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`;
+    }
+  };
+
+  const resetGesture = () => {
+    gesture.current.scale = 1;
+    gesture.current.tx = 0;
+    gesture.current.ty = 0;
+    if (imgRef.current) imgRef.current.style.transform = '';
+  };
+
+  const close = () => { setOpen(false); setZoomed(false); resetGesture(); };
+
+  const onTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      const [a, b] = e.touches;
+      gesture.current.startDist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+      gesture.current.startScale = gesture.current.scale;
+      gesture.current.startTx = gesture.current.tx;
+      gesture.current.startTy = gesture.current.ty;
+    } else if (e.touches.length === 1 && gesture.current.scale > 1) {
+      gesture.current.panStart = {
+        x: e.touches[0].clientX - gesture.current.tx,
+        y: e.touches[0].clientY - gesture.current.ty,
+      };
+    }
+  };
+
+  const onTouchMove = (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const [a, b] = e.touches;
+      const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
+      if (gesture.current.startDist > 0) {
+        const next = gesture.current.startScale * (dist / gesture.current.startDist);
+        gesture.current.scale = Math.max(1, Math.min(5, next));
+        applyTransform();
+      }
+    } else if (e.touches.length === 1 && gesture.current.scale > 1 && gesture.current.panStart) {
+      e.preventDefault();
+      gesture.current.tx = e.touches[0].clientX - gesture.current.panStart.x;
+      gesture.current.ty = e.touches[0].clientY - gesture.current.panStart.y;
+      applyTransform();
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    gesture.current.panStart = null;
+    if (gesture.current.scale <= 1.02) resetGesture();
+    if (e.touches.length === 0 && gesture.current.scale <= 1.02) {
+      // allow tap-to-close handled by backdrop
+    }
+  };
+
   return (
     <>
       <img
         src={src}
         alt={alt}
-        onClick={(e) => e.stopPropagation()}
+        onClick={() => setOpen(true)}
         style={{
           maxWidth: '100%',
           maxHeight: '90vh',
           objectFit: 'contain',
           display: 'block',
-          touchAction: 'pinch-zoom',
+          cursor: 'zoom-in',
         }}
       />
       {open && (
         <div
-          onClick={() => setOpen(false)}
+          onClick={close}
           style={{
             position: 'fixed', inset: 0, zIndex: 9999,
             background: 'rgba(0,0,0,0.92)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 16, cursor: 'zoom-out',
-            overflow: 'auto', WebkitOverflowScrolling: 'touch',
+            display: 'flex',
+            alignItems: (!isTouch && zoomed) ? 'flex-start' : 'center',
+            justifyContent: (!isTouch && zoomed) ? 'flex-start' : 'center',
+            padding: (!isTouch && zoomed) ? 0 : 16,
+            overflow: isTouch ? 'hidden' : 'auto',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: isTouch ? 'none' : 'auto',
           }}
         >
           <img
+            ref={imgRef}
             src={src}
             alt={alt}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: 'none', width: 'auto', height: 'auto',
-              maxHeight: 'none', display: 'block',
-              touchAction: 'pinch-zoom',
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!isTouch) setZoomed(z => !z);
             }}
+            onTouchStart={isTouch ? onTouchStart : undefined}
+            onTouchMove={isTouch ? onTouchMove : undefined}
+            onTouchEnd={isTouch ? onTouchEnd : undefined}
+            style={isTouch ? {
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              display: 'block',
+              touchAction: 'none',
+              transformOrigin: 'center center',
+              willChange: 'transform',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+            } : (zoomed ? {
+              width: 'auto', maxWidth: 'none', height: 'auto',
+              display: 'block', cursor: 'zoom-out',
+            } : {
+              maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
+              display: 'block', cursor: 'zoom-in',
+            })}
           />
           <button
-            onClick={() => setOpen(false)}
+            onClick={close}
             aria-label="Cerrar"
             style={{
               position: 'fixed', top: 16, right: 16,
@@ -278,6 +368,7 @@ function ZoomableImg({ src, alt }) {
               border: 'none', background: 'rgba(255,255,255,0.95)',
               color: '#0d3a66', fontSize: '1.2rem', cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 1,
             }}
           >
             <Icon icon="lucide:x" />

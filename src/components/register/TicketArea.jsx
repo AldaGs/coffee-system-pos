@@ -71,9 +71,9 @@ function TicketArea({
                         <button
                           onClick={() => setQtyEditItem(item)}
                           title="Editar cantidad"
-                          style={{ background: 'var(--border)', border: '1px solid var(--border)', borderRadius: '6px', padding: '2px 8px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', cursor: 'pointer', minWidth: '36px', textAlign: 'center', flexShrink: 0 }}
+                          style={{ background: 'var(--bg-surface)', border: '2px solid var(--brand-color)', borderRadius: '6px', padding: '2px 8px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', cursor: 'pointer', minWidth: '36px', textAlign: 'center', flexShrink: 0 }}
                         >
-                          {item.qty || 1}
+                          {item.qty || 1} x
                         </button>
                         <div>
                           <span>{item.emoji || '•'} {item.name}</span>

@@ -362,6 +362,9 @@ export const translations = {
     "mods.swaps": "Swaps",
     "mods.for": "for",
     "mods.consumes": "Consumes",
+    "mods.labelGroup": "Belongs to",
+    "mods.labelOption": "Name",
+    "mods.labelPrice": "Price",
 
     // --- Orders Tab ---
     "orders.title": "Receipt History & Refunds",
@@ -531,6 +534,7 @@ export const translations = {
     "receipt.unsupportedDesc": "Direct printing is only supported on Windows/Mac via Chrome, or Android via the RawBT app.",
     "receipt.printerErr": "Printer Error",
     "receipt.printerErrDesc": "Could not connect to the printer.",
+    "receipt.logoHelp": "Upload logo",
     "wa.order": "Order:",
     "wa.date": "Date:",
     "wa.loyaltyTitle": "Loyalty Status",
@@ -1054,6 +1058,9 @@ export const translations = {
     "mods.badgeText": "CAMPO DE TEXTO",
     "mods.swaps": "Cambia",
     "mods.for": "por",
+    "mods.labelGroup": "Pertenece al Grupo",
+    "mods.labelOption": "Nombre",
+    "mods.labelPrice": "Precio",
     "mods.consumes": "Consume",
 
     // --- Orders Tab ---
@@ -1091,6 +1098,7 @@ export const translations = {
     "receipt.btnSave": "Guardar Configuración de Recibos",
     "receipt.previewTitle": "Vista Previa",
     "receipt.logoAlt": "Logo de la Tienda",
+    "receipt.logoHelp": "Subir logo",
 
     // --- Recipe Builder Tab ---
     "recipe.title": "Simulador de Recetas y Utilidad",
