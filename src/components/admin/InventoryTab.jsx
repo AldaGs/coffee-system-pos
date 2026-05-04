@@ -60,7 +60,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       setActiveView('list');
       
       showAlert(t('inv.alertSuccess'), `${itemToSave.name} ${t('inv.added')}`);
-    } catch (err) {
+    } catch (_UNUSED) { // eslint-disable-line no-unused-vars
       showAlert(t('inv.alertError'), t('inv.alertErrorDesc1'));
     }
   };

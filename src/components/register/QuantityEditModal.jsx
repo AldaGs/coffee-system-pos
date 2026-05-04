@@ -1,11 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 function QuantityEditModal({ isOpen, item, onConfirm, onClose }) {
-  const [qty, setQty] = useState('');
-
-  useEffect(() => {
-    if (isOpen && item) setQty(String(item.qty || 1));
-  }, [isOpen, item]);
+  const [qty, setQty] = useState(item ? String(item.qty || 1) : '');
 
   if (!isOpen || !item) return null;
 

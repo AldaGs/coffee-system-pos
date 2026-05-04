@@ -124,7 +124,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     // --- CLOUD SYNC ATTEMPT ---
     if (!navigator.onLine) throw new Error("Device is offline");
 
-    const { id: localId, ...cleanSale } = finalizedSale;
+    const { id: _UNUSED, ...cleanSale } = finalizedSale;
     const { error: salesError } = await supabase.from('sales').insert([cleanSale]);
     if (salesError) throw salesError;
 
@@ -136,7 +136,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
 
   } catch (error) {
     console.warn("Cloud save failed. Moving to offline queue.", error.message);
-    const { id: generatedId, ...safeOfflineSale } = finalizedSale;
+    const { id: _UNUSED, ...safeOfflineSale } = finalizedSale;
     
     await db.syncQueue.add(safeOfflineSale);
     if (inventoryLogsToPush.length > 0) {

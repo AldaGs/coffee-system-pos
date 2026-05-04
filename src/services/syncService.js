@@ -10,7 +10,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     const pendingSales = await db.syncQueue.toArray();
     if (pendingSales.length > 0) {
       // Strip the local Dexie ID from the sales
-      const cleanSales = pendingSales.map(({ id, ...rest }) => rest);
+      const cleanSales = pendingSales.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
       
       const { error: salesErr } = await supabase.from('sales').insert(cleanSales);
       if (!salesErr) {
@@ -24,7 +24,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     // 2. Sync Expenses (Using the state passed from Register)
     if (expenseQueue && expenseQueue.length > 0) {
       // Strip the local ID from expenses just in case
-      const cleanExpenses = expenseQueue.map(({ id, ...rest }) => rest);
+      const cleanExpenses = expenseQueue.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
       
       const { error: expErr } = await supabase.from('expenses').insert(cleanExpenses);
       if (!expErr) {
@@ -37,7 +37,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     const pendingInventory = await db.inventory_logs.toArray();
     if (pendingInventory.length > 0) {
       // Strip the local Dexie ID from the inventory logs
-      const cleanLogs = pendingInventory.map(({ id, ...rest }) => rest);
+      const cleanLogs = pendingInventory.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
       
       const { error: invErr } = await supabase.from('inventory_logs').insert(cleanLogs);
       if (!invErr) {

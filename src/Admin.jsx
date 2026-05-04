@@ -5,8 +5,8 @@ import { supabase } from './supabaseClient';
 import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
-import { useDialog } from './contexts/DialogContext';
-import { useTheme } from './contexts/ThemeContext';
+import { useDialog } from './hooks/useDialog';
+import { useTheme } from './hooks/useTheme';
 import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
 
@@ -379,7 +379,6 @@ function Admin() {
   ];
 
   const [newCashier, setNewCashier] = useState({ name: '', pin: '', isAdmin: false });
-  const [editingCashier, setEditingCashier] = useState(null);
 
   // --- CASHIER FUNCTIONS ---
   const handleAddCashier = () => {
@@ -406,17 +405,6 @@ function Admin() {
       const updatedCashiers = cashiers.filter(c => c.id !== idToRemove);
       saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
     }
-  };
-
-  const handleSaveEditCashier = () => {
-    if (!editingCashier.name || editingCashier.pin.length !== 4) return showAlert("Error", "Check name and PIN.");
-    
-    const updatedCashiers = menuData.cashiers.map(c => 
-      c.id === editingCashier.id ? editingCashier : c // This keeps the isAdmin boolean!
-    );
-    
-    saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
-    setEditingCashier(null);
   };
 
 
@@ -1188,11 +1176,9 @@ function Admin() {
               handleDeleteCategory={handleDeleteCategory} 
               handleDeleteDrink={handleDeleteDrink} 
               setEditingDrink={setEditingDrink} 
-              saveMenuToCloud={saveMenuToCloud}
               /* ADD THESE TWO LINES: */
               recipes={recipes}
               inventoryItems={inventoryItems}
-              showAlert={showAlert}
               handleRenameCategory={handleRenameCategory}
               editingItemId={editingItemId}
               setEditingItemId={setEditingItemId}
@@ -1232,7 +1218,7 @@ function Admin() {
 
         {/* --- TEAM & CASHIER MANAGEMENT TAB --- */}
         {activeTab === 'team' && (
-          <TeamTab newCashier={newCashier} setNewCashier={setNewCashier} handleAddCashier={handleAddCashier} cashiers={cashiers} editingCashier={editingCashier} setEditingCashier={setEditingCashier} handleSaveEditCashier={handleSaveEditCashier} handleDeleteCashier={handleDeleteCashier} />
+          <TeamTab newCashier={newCashier} setNewCashier={setNewCashier} handleAddCashier={handleAddCashier} cashiers={cashiers} handleDeleteCashier={handleDeleteCashier} />
         )}
 
         {/* 5. GENERAL SETTINGS TAB */}

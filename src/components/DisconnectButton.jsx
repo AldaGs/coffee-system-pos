@@ -1,6 +1,6 @@
 import React from 'react';
 import { supabase } from '../supabaseClient';
-import { useDialog } from '../contexts/DialogContext';
+import { useDialog } from '../hooks/useDialog';
 import { useTranslation } from '../hooks/useTranslation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db'; 

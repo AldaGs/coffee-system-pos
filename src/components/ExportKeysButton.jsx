@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from '../hooks/useTranslation';
-import { useDialog } from '../contexts/DialogContext';
+import { useDialog } from '../hooks/useDialog';
 
 export default function ExportKeysButton() {
   const { t } = useTranslation();

@@ -1,8 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useTranslation } from '../../hooks/useTranslation';
-
 function BootScreen({ logo, posSettings, loadingText }) {
-  const { t } = useTranslation();
   const brandName = posSettings?.name || "Registro Principal";
   const backgroundColor = posSettings?.backgroundColor || "var(--bg-main)";
 

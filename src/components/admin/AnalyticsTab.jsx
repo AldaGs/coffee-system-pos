@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, methodCounts, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [] }) {
+function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [] }) {
   const { t } = useTranslation();
   
   // --- TRUE PROFIT MATH ENGINE ---

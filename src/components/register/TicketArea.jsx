@@ -157,6 +157,7 @@ function TicketArea({
       </aside>
 
       <QuantityEditModal
+        key={qtyEditItem?.uniqueId}
         isOpen={!!qtyEditItem}
         item={qtyEditItem}
         onConfirm={handleUpdateItemQty}

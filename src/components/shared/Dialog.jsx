@@ -1,17 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 
 function Dialog({ uiDialog, closeDialog }) {
-  const [inputValue, setInputValue] = useState('');
+  const [inputValue, setInputValue] = useState(uiDialog.inputValue || '');
   const inputRef = useRef(null);
 
   useEffect(() => {
-    if (uiDialog.isOpen) {
-      setInputValue(uiDialog.inputValue || '');
-      if (uiDialog.type === 'prompt') {
-        setTimeout(() => inputRef.current?.focus(), 100);
-      }
+    if (uiDialog.isOpen && uiDialog.type === 'prompt') {
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
-  }, [uiDialog]);
+  }, [uiDialog.isOpen, uiDialog.type]);
 
   if (!uiDialog.isOpen) return null;
 

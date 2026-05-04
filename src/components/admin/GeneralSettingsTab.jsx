@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { useDialog } from '../../contexts/DialogContext';
+import { useDialog } from '../../hooks/useDialog';
 import ExportKeysButton from '../ExportKeysButton';
 import DisconnectButton from '../DisconnectButton';
 import SharedPinPad from '../shared/SharedPinPad';

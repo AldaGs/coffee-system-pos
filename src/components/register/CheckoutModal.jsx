@@ -18,7 +18,7 @@ function CheckoutModal({
         setTipAmount(cartTotal * (tipPercentage / 100));
       }
     }
-  }, [isCheckoutModalOpen, cartTotal, tipPercentage]);
+  }, [isCheckoutModalOpen, cartTotal, tipPercentage, tipAmount, setTipAmount]);
 
   if (!isCheckoutModalOpen) return null;
 

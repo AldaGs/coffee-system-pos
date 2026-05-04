@@ -29,8 +29,10 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
     if (isNaN(parsedPrice) || parsedPrice < 0) return showAlert?.(t('recipe.alertInvalidPriceTitle'), t('recipe.alertInvalidPriceDesc'));
     if (!menuData.categories[category]) return showAlert?.(t('recipe.alertCatNotFoundTitle'), t('recipe.alertCatNotFoundDesc'));
 
+    // eslint-disable-next-line react-hooks/purity
+    const timestamp = Date.now();
     const newItem = {
-      id: `${name.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`,
+      id: `${name.toLowerCase().replace(/\s+/g, '_')}_${timestamp}`,
       name: name.trim(),
       basePrice: parsedPrice,
       emoji: emoji || '☕',

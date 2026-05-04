@@ -25,7 +25,7 @@ function PinChallengeModal({ pinChallenge, setPinChallenge, challengePinAttempt,
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pinChallenge.isOpen, challengePinAttempt, handleChallengeSubmit]);
+  }, [pinChallenge.isOpen, challengePinAttempt, handleChallengeSubmit, setChallengePinAttempt, setPinChallenge]);
 
   if (!pinChallenge.isOpen) return null;
 

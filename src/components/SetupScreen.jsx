@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Icon } from '@iconify/react';
 
 export default function SetupScreen({ initialMode, onBack, onComplete, onShowGuide }) {
-  const [isConnectingExisting, setIsConnectingExisting] = useState(initialMode === 'connect');
+  const isConnectingExisting = initialMode === 'connect';
   const [formData, setFormData] = useState({ supabaseUrl: '', anonKey: '', connectionString: '' });
   const [loading, setLoading] = useState(false);
   const [customAlert, setCustomAlert] = useState({ show: false, message: '', type: '' });

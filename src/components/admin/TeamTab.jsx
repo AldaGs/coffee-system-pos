@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, editingCashier, setEditingCashier, handleSaveEditCashier, handleDeleteCashier }) {
+function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, handleDeleteCashier }) {
   const { t } = useTranslation();
 
   return (

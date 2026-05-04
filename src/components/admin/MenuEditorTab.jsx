@@ -4,8 +4,8 @@ import { useTranslation } from '../../hooks/useTranslation';
 function MenuEditorTab({ 
   menuData, newCategoryName, setNewCategoryName, handleAddCategory, 
   newItemForm, setNewItemForm, handleAddDrink, handleDeleteCategory, 
-  handleDeleteDrink, setEditingDrink, saveMenuToCloud, 
-  recipes, inventoryItems, showAlert,
+  handleDeleteDrink, setEditingDrink, 
+  recipes, inventoryItems,
   handleRenameCategory, editingItemId, setEditingItemId
 }) {
   const { t } = useTranslation();

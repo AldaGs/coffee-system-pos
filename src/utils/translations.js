@@ -19,19 +19,6 @@ export const translations = {
     "admin.lockedSubtitle": "Type your PIN or use the keypad.",
     "admin.unlockBtn": "Unlock Dashboard [Enter]",
 
-    // --- Admin Sidebar Nav ---
-    "admin.analytics": "Analytics",
-    "admin.orders": "Orders",
-    "admin.menu": "Menu Editor",
-    "admin.modifiers": "Modifiers",
-    "admin.receipt": "Receipts",
-    "admin.recipe": "Recipes",
-    "admin.inventory": "Inventory",
-    "admin.loyalty": "Loyalty",
-    "admin.promotions": "Discounts",
-    "admin.team": "Team",
-    "admin.settings": "Settings",
-
     // --- General ---
     "common.save": "Save",
     "common.cancel": "Cancel",
@@ -497,7 +484,6 @@ export const translations = {
     "team.addTitle": "Add Team Member",
     "team.labelRole": "Role",
     "team.colActions": "Actions",
-    "team.badgeAdmin": "ADMIN",
     "team.badgeUser": "User",
     "team.listTitle": "Team",
 
@@ -731,30 +717,11 @@ export const translations = {
     "admin.lockedSubtitle": "Ingresa tu PIN o usa el teclado.",
     "admin.unlockBtn": "Desbloquear Panel [Enter]",
 
-    // --- Admin Sidebar Nav ---
-    "admin.analytics": "Analíticas",
-    "admin.orders": "Ventas",
-    "admin.menu": "Editar Menú",
-    "admin.modifiers": "Modificadores",
-    "admin.receipt": "Tickets",
-    "admin.recipe": "Recetas",
-    "admin.inventory": "Inventario",
-    "admin.loyalty": "Lealtad",
-    "admin.promotions": "Promociones",
-    "admin.team": "Equipo",
-    "admin.settings": "Ajustes",
-
     // --- General ---
     "common.save": "Guardar",
     "common.cancel": "Cancelar",
     "common.delete": "Eliminar",
     "common.upload": "Cargar archivo",
-    "settings.resetTitle": "Reiniciar Número de Orden",
-    "settings.resetConfirm": "¿Estás seguro? Esto forzará que el siguiente ticket sea el Orden #1.",
-    "settings.resetSuccess": "Éxito",
-    "settings.resetSuccessDesc": "¡Listo! El siguiente ticket será el #1.",
-    "settings.btnReset": "Forzar Reinicio a #1 Ahora",
-
     // --- Register UI ---
     "register.noActiveOrders": "Sin Órdenes Activas",
     "register.startNew": "Nuevo Ticket",

@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import './App.css';
 import { PosContext } from './utils/PosContext';
-import { useDialog } from './contexts/DialogContext';
-import { useTheme } from './contexts/ThemeContext';
+import { useDialog } from './hooks/useDialog';
+import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
@@ -803,6 +803,7 @@ function Register() {
 
     const newItem = {
       ...item,
+      // eslint-disable-next-line react-hooks/purity
       uniqueId: Date.now() + Math.random(),
       selectedModifiers: modifiers
     };
@@ -1080,7 +1081,6 @@ function Register() {
       // --- DISCOUNTS ---
       if (rawSubtotal > total) {
         pushRow(t('analytics.grossRevenue'), `$${rawSubtotal.toFixed(2)}`);
-        const discountAmt = rawSubtotal - total;
         pushRow(t('disc.title'), `-$${(rawSubtotal - total).toFixed(2)}`);
         pushText("--------------------------------\n");
       }
@@ -1216,10 +1216,6 @@ function Register() {
     if (loyaltyData) {
 
       message += `--------------------------\n`;
-      const targetItemLabel = (menuData?.loyaltySettings?.targetItem === 'any' || !menuData?.loyaltySettings?.targetItem)
-        ? 'visits'
-        : `${menuData.loyaltySettings.targetItem}s`;
-
       message += `\n🌟 *${t('wa.loyaltyTitle')}*\n`;
       message += `${t('analytics.filterAll')}: ${loyaltyData.visits} / ${loyaltyData.target}\n`;
       message += `(${t('wa.earnedToday')} +${loyaltyData.earnedToday})\n`;
@@ -1250,7 +1246,7 @@ function Register() {
 
     // Safely execute routing
     if (isMobile) {
-      window.location.href = whatsappUrl;
+      window.location.assign(whatsappUrl);
     } else {
       window.open(whatsappUrl, '_blank');
     }
@@ -1321,7 +1317,7 @@ function Register() {
     let currentVisits = starsToEarn;
 
     try {
-      const { data: customer, error: fetchErr } = await supabase.from('customers').select('visits').eq('phone', cleanPhone).maybeSingle();
+      const { data: customer } = await supabase.from('customers').select('visits').eq('phone', cleanPhone).maybeSingle();
 
       if (customer) {
         currentVisits = customer.visits + starsToEarn;
@@ -1400,7 +1396,7 @@ function Register() {
   const handleConfirmPayment = async (paymentsArray) => {
 
     // 1. Call our decoupled backend service
-    const { localAnalyticsRecord, masterMethodString } = await processCheckout({
+    const { masterMethodString } = await processCheckout({
       activeTicket,
       cartTotal,
       paymentsArray,
