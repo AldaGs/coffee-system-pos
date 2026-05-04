@@ -50,7 +50,7 @@ function Register() {
 
   const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
 
-  const { showAlert, showConfirm } = useDialog();
+  const { showAlert, showConfirm, showPrompt } = useDialog();
   const { updateTheme } = useTheme();
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
 
@@ -654,38 +654,88 @@ function Register() {
 
 
 
-  const handleNewTicket = async () => {
-    const newId = Date.now();
-    const currentNum = nextOrderNum; // Grab the global counter
+  const handleNewTicket = () => {
+    showPrompt(
+      t('reg.promptTicketName'),
+      t('reg.promptTicketNameDesc'),
+      async (inputValue) => {
+        const newId = Date.now();
+        const currentNum = nextOrderNum; // Grab the global counter
+        
+        // Grab the first 3 letters of this specific device's ID
+        const prefix = myDeviceId.substring(0, 3).toUpperCase();
+        
+        // If they provided a name, use it + the number. Otherwise use default.
+        const customName = inputValue ? inputValue.trim() : '';
+        const ticketName = customName ? `${prefix} - ${customName} (#${currentNum})` : `${prefix} - #${currentNum}`;
 
-    // Grab the first 3 letters of this specific device's ID
-    const prefix = myDeviceId.substring(0, 3).toUpperCase();
+        const newTicket = {
+          id: newId,
+          name: ticketName,
+          items: [],
+          cashier_id: activeCashier?.id,
+          last_modified_by: myDeviceId
+        };
 
-    const newTicket = {
-      id: newId,
-      name: `${prefix} - #${currentNum}`,
-      items: [],
-      cashier_id: activeCashier?.id,
-      last_modified_by: myDeviceId
-    };
+        // 1. Save locally
+        await db.active_tickets.add(newTicket);
 
-    // 1. Save locally
-    await db.active_tickets.add(newTicket);
+        // 2. Push new ticket to the cloud
+        if (navigator.onLine) {
+          try {
+            await supabase.from('active_tickets').insert([newTicket]);
+          } catch (err) {
+            console.error("Cloud create failed:", err);
+          }
+        }
 
-    // 2. NEW: Push new ticket to the cloud
-    if (navigator.onLine) {
-      try {
-        await supabase.from('active_tickets').insert([newTicket]);
-      } catch (err) {
-        console.error("Cloud create failed:", err);
-      }
-    }
+        setActiveTicketId(newId);
 
-    setActiveTicketId(newId);
+        // Increment the global counter for the NEXT time
+        setNextOrderNum(currentNum + 1);
+        localStorage.setItem('tinypos_nextOrderNum', currentNum + 1);
+      },
+      '',
+      t('reg.btnCreateTicket'),
+      t('reg.btnCancel')
+    );
+  };
 
-    // Increment the global counter for the NEXT time
-    setNextOrderNum(currentNum + 1);
-    localStorage.setItem('tinypos_nextOrderNum', currentNum + 1);
+  const handleRenameTicket = () => {
+    if (!activeTicket) return;
+    showPrompt(
+      t('reg.promptTicketName'),
+      t('reg.promptTicketNameDesc'),
+      async (inputValue) => {
+        if (!inputValue || !inputValue.trim()) return;
+        const customName = inputValue.trim();
+        
+        // Try to extract the original index (#X) if it exists. 
+        const match = activeTicket.name.match(/\(#(\d+)\)$/);
+        const match2 = activeTicket.name.match(/- #(\d+)$/);
+        const currentNum = match ? match[1] : (match2 ? match2[1] : '?');
+
+        const prefix = myDeviceId.substring(0, 3).toUpperCase();
+        const newName = `${prefix} - ${customName} (#${currentNum})`;
+
+        const updatedTicket = { ...activeTicket, name: newName };
+        
+        // Save locally
+        await db.active_tickets.update(activeTicket.id, updatedTicket);
+        
+        // Push cloud
+        if (navigator.onLine) {
+          try {
+            await supabase.from('active_tickets').update({ name: newName }).eq('id', activeTicket.id);
+          } catch (err) {
+            console.error("Cloud rename failed:", err);
+          }
+        }
+      },
+      '',
+      t('ticket.btnRename'),
+      t('reg.btnCancel')
+    );
   };
 
   const handleItemClick = (item) => {
@@ -1527,7 +1577,7 @@ function Register() {
     showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
     activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
-    handleNewTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
+    handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
     handleOpenCheckout, handleCancelTicket, printRawReceipt,
 
     // --- NEW: ModifierModal Data & Functions ---

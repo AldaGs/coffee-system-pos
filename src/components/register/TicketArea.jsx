@@ -16,7 +16,7 @@ function TicketArea({
     handleWheelScroll, activeTicket, cartSubtotal, cartTotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
     handleRemoveItem, handleOpenCheckout, handleCancelTicket,
-    requirePin, printRawReceipt, handleUpdateItemQty
+    requirePin, printRawReceipt, handleUpdateItemQty, handleRenameTicket
   } = usePos();
   
   return (
@@ -131,9 +131,14 @@ function TicketArea({
                 <button onClick={() => setIsActionSheetOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', cursor: 'pointer' }}>×</button>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <button className="cancel-btn" onClick={() => { setIsActionSheetOpen(false); handleCancelTicket(); }} style={{ flex: 1, padding: '16px', fontSize: '1.1rem' }}>
-                  {t('ticket.btnVoid')}
-                </button>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button className="cancel-btn" onClick={() => { setIsActionSheetOpen(false); handleCancelTicket(); }} style={{ flex: 1, padding: '16px', fontSize: '1.1rem' }}>
+                    {t('ticket.btnVoid')}
+                  </button>
+                  <button onClick={() => { setIsActionSheetOpen(false); handleRenameTicket(); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#2980b9', border: '1px solid #2980b9', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    {t('ticket.btnRename')}
+                  </button>
+                </div>
                 <button onClick={() => { setIsActionSheetOpen(false); requirePin(t('ticket.authDiscount'), () => setIsDiscountModalOpen(true)); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>
                   {t('ticket.btnDiscount')}
                 </button>

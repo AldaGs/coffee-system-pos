@@ -515,6 +515,10 @@ export const translations = {
     "reg.accessRevoked": "Access Revoked",
     "reg.navWarningTitle": "Navigation Blocked",
     "reg.navWarningDesc": "Please use the app's internal buttons to navigate instead of the browser's back button.",
+    "reg.promptTicketName": "Customer / Table Name",
+    "reg.promptTicketNameDesc": "Enter a name for this ticket (Optional).",
+    "reg.btnCreateTicket": "Create",
+    "reg.btnCancel": "Cancel",
 
     // --- Expenses (Gastos) ---
     "expense.errMissing": "Missing Info",
@@ -693,6 +697,7 @@ export const translations = {
     "ticket.btnPay": "Pay & Close",
     "ticket.options": "Ticket Options",
     "ticket.btnVoid": "Void Ticket",
+    "ticket.btnRename": "Rename Ticket",
     "ticket.btnDiscount": "% Discount",
     "ticket.btnPrint": "Print",
     "ticket.btnWA": "WhatsApp",
@@ -1227,6 +1232,10 @@ export const translations = {
     "reg.accessRevoked": "Acceso Revocado",
     "reg.navWarningTitle": "Navegación Bloqueada",
     "reg.navWarningDesc": "Por favor use los botones internos de la aplicación para navegar en lugar del botón 'Atrás' del navegador.",
+    "reg.promptTicketName": "Nombre / Mesa",
+    "reg.promptTicketNameDesc": "Ingresa un nombre para este ticket (Opcional).",
+    "reg.btnCreateTicket": "Crear",
+    "reg.btnCancel": "Cancelar",
 
     // --- Expenses (Gastos) ---
     "expense.errMissing": "Falta Información",
@@ -1404,6 +1413,7 @@ export const translations = {
     "ticket.btnPay": "Cobrar y Cerrar",
     "ticket.options": "Opciones del Ticket",
     "ticket.btnVoid": "Anular Ticket",
+    "ticket.btnRename": "Renombrar Ticket",
     "ticket.btnDiscount": "% Descuento",
     "ticket.btnPrint": "Imprimir",
     "ticket.btnWA": "WhatsApp",
