@@ -44,7 +44,6 @@ function Admin() {
   const [pinError, setPinError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('analytics');
-  const [salesData, setSalesData] = useState([]);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [inventoryLogs, setInventoryLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -182,7 +181,11 @@ function Admin() {
   }, []);
 
   useEffect(() => {
-  if (!isAuthenticated) { setIsLoading(false); return; }
+  if (!isAuthenticated) { 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsLoading(false); 
+    return; 
+  }
   setIsLoading(true);
 
   const fetchData = async () => {
@@ -215,7 +218,6 @@ function Admin() {
       // 4. Fetch Sales History
       const { data: salesHistory, error: salesError } = await supabase.from('sales').select('*');
       if (!salesError && salesHistory) {
-        setSalesData(salesHistory);
         await db.sales.bulkPut(salesHistory);
       }
 
@@ -239,6 +241,7 @@ function Admin() {
     }
   };
   fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [isAuthenticated]);
 
 
@@ -590,8 +593,8 @@ function Admin() {
 
   // --- OPTIMIZED ANALYTICS CALCULATIONS ---
   // 1. Filter the raw data based on the selected timeframe
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const dexieSales = useLiveQuery(() => db.sales.toArray(), []) || [];
-  const dexieInventory = useLiveQuery(() => db.inventory_logs.toArray(), []) || [];
 
   const filteredSales = useMemo(() => {
     const now = new Date();

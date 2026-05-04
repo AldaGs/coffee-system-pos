@@ -16,7 +16,6 @@ function App() {
     !!localStorage.getItem('tinypos_supabase_url') && !!localStorage.getItem('tinypos_supabase_anon_key')
   );
 
-  const [wantsToSetup, setWantsToSetup] = useState(false);
   const [showGuide, setShowGuide] = useState(false); 
 
   // --- 2. SECURE SESSION STATE ---
@@ -43,6 +42,7 @@ function App() {
 
       return () => subscription.unsubscribe();
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsCheckingSession(false);
     }
   }, [isInstalled]);

@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
@@ -34,6 +34,16 @@ import DiscountModal from './components/register/DiscountModal';
 import Dialog from './components/shared/Dialog';
 
 
+const getOrCreateDeviceId = () => {
+  let id = sessionStorage.getItem('tinypos_device_id') || localStorage.getItem('tinypos_device_id');
+  if (!id) {
+    id = Math.random().toString(36).substring(2, 15);
+    localStorage.setItem('tinypos_device_id', id);
+  }
+  sessionStorage.setItem('tinypos_device_id', id);
+  return id;
+};
+
 function Register() {
   const navigate = useNavigate();
   const { t, lang } = useTranslation();
@@ -47,6 +57,8 @@ function Register() {
     customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState,
     tipAmount, setTipAmount, tipPercentage, setTipPercentage
   } = useCartStore();
+
+  const [myDeviceId] = useState(getOrCreateDeviceId);
 
   const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
 
@@ -109,6 +121,7 @@ function Register() {
       }
     };
     fetchMenuAndRecipes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
@@ -169,6 +182,7 @@ function Register() {
     return () => {
       supabase.removeChannel(ticketChannel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Stable: Only on mount
 
   // --- DAILY EXPENSES (GASTOS) STATE ---
@@ -194,6 +208,7 @@ function Register() {
 
     // 1. Build the local record
     const newExpense = {
+      // eslint-disable-next-line react-hooks/purity
       id: Date.now(),
       amount: expenseAmount,
       reason: expenseForm.reason,
@@ -361,6 +376,7 @@ function Register() {
     }
 
     if (shouldReset) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNextOrderNum(1);
       setLastResetDate(today.toDateString());
       localStorage.setItem('tinypos_nextOrderNum', 1);
@@ -374,15 +390,6 @@ function Register() {
 
   // --- DEVICE IDENTITY & SESSION ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const myDeviceId = useMemo(() => {
-    let id = sessionStorage.getItem('tinypos_device_id') || localStorage.getItem('tinypos_device_id');
-    if (!id) {
-      id = Math.random().toString(36).substring(2, 15);
-      localStorage.setItem('tinypos_device_id', id);
-    }
-    sessionStorage.setItem('tinypos_device_id', id);
-    return id;
-  }, []);
 
   // --- SECURITY PIN CHALLENGE STATE ---
   const [pinChallenge, setPinChallenge] = useState({ isOpen: false, title: "", onAuthorized: null });
@@ -417,9 +424,6 @@ function Register() {
     }
   };
 
-  const handleChallengeKeyDown = (e) => {
-    if (e.key === 'Enter') handleChallengeSubmit();
-  };
 
   // --- LOYALTY & WHATSAPP STATES ---
   const [loyaltyModal, setLoyaltyModal] = useState({ isOpen: false, step: 'phone', phone: '', data: null });
@@ -499,6 +503,7 @@ function Register() {
         setActiveTicketId(newestTicket.id);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLocked, activeCashier]); // This runs exactly once when you unlock the screen
 
 
@@ -537,6 +542,7 @@ function Register() {
       window.removeEventListener('touchstart', resetTimer);
       window.removeEventListener('keydown', resetTimer);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuData, isLocked, posSettings.autoLockMinutes]);
 
   // --- PRESENCE & SECURITY (Active Lockout System) ---
@@ -599,6 +605,7 @@ function Register() {
     return () => {
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCashier?.id, isLocked, myDeviceId]);
 
   // --- SHIFT CALCULATIONS ---
