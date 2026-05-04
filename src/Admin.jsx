@@ -166,17 +166,6 @@ function Admin() {
     navigate('/'); // Send them back to the register
   };
 
-  // --- NEW: WIPE SESSION ON TAB CLOSE ---
-  useEffect(() => {
-    const handleTabClose = () => {
-      // This wipes the Supabase token from the browser's memory 
-      // ensuring the next time the app opens, it asks for a password.
-      supabase.auth.signOut();
-    };
-
-    window.addEventListener('beforeunload', handleTabClose);
-    return () => window.removeEventListener('beforeunload', handleTabClose);
-  }, []);
 
   // --- AUTHENTICATION LISTENER (For Offline Support & Persistence) ---
   useEffect(() => {
