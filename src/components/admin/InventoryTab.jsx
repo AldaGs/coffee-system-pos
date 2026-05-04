@@ -16,6 +16,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   // --- NEW: AUDIT STATE ---
   const [auditingItem, setAuditingItem] = useState(null);
 
+  // --- NEW: RESTOCK STATE ---
+  const [restockingItem, setRestockingItem] = useState(null);
+
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
   const handleAddItem = async () => {
@@ -211,6 +214,59 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     }
   };
 
+  // --- 5. NEW: SAVE RESTOCK LOG ---
+  const handleSaveRestock = async () => {
+    const qtyBought = parseFloat(restockingItem.qtyBought);
+    const totalPaid = parseFloat(restockingItem.totalPaid);
+    
+    if (isNaN(qtyBought) || qtyBought <= 0 || isNaN(totalPaid) || totalPaid < 0) {
+      return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc3'));
+    }
+
+    const oldStock = restockingItem.current_stock;
+    const oldCost = restockingItem.unit_cost || 0;
+    const oldTotalValue = oldStock * oldCost;
+
+    const newStock = oldStock + qtyBought;
+    const newTotalValue = oldTotalValue + totalPaid;
+    const newUnitCost = newStock > 0 ? newTotalValue / newStock : 0;
+
+    try {
+      const { data, error } = await supabase.from('inventory')
+        .update({ current_stock: newStock, unit_cost: newUnitCost })
+        .eq('id', restockingItem.id).select();
+      if (error) throw error;
+
+      const restockLog = {
+        item_name: restockingItem.name,
+        qty_deducted: -qtyBought, // Negative means addition of stock
+        deduction_type: 'restock',
+        created_at: new Date().toISOString(),
+        ticket_id: `RESTOCK-${Date.now()}`
+      };
+      await supabase.from('inventory_logs').insert([restockLog]);
+
+      if (restockingItem.paidFromRegister && totalPaid > 0) {
+        const expense = {
+          amount: totalPaid,
+          reason: `RESTOCK: ${restockingItem.name} (${qtyBought}${restockingItem.unit})`,
+          cashier_name: 'Inventory System'
+        };
+        await supabase.from('expenses').insert([expense]);
+      }
+
+      await db.inventory.put(data[0]);
+      setInventoryItems(inventoryItems.map(item => item.id === restockingItem.id ? data[0] : item));
+      setRestockingItem(null);
+
+      showAlert(t('inv.alertRestockComplete'), `${qtyBought}${restockingItem.unit} ${t('inv.added')} ${t('inv.to')} ${restockingItem.name}.`);
+
+    } catch (err) {
+      console.error(err);
+      showAlert(t('inv.alertError'), t('inv.alertUpdateFail'));
+    }
+  };
+
   const handleDelete = (id, name) => {
     showConfirm(t('inv.confirmDelete'), `${t('inv.confirmDeleteDesc')} ${name}?`, async () => {
       await supabase.from('inventory').delete().eq('id', id);
@@ -395,6 +451,51 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         </div>
       )}
 
+      {/* --- NEW: RESTOCK UI --- */}
+      {restockingItem && (
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #27ae60', boxShadow: '0 10px 30px rgba(39, 174, 96, 0.1)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h3 style={{ margin: 0, color: '#27ae60', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:package-plus" />
+              {t('inv.restock')} - {restockingItem.name}
+            </h3>
+            <button onClick={() => setRestockingItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
+              <Icon icon="lucide:x" />
+            </button>
+          </div>
+
+          <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('inv.restockDesc')}</p>
+
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '16px', alignItems: 'flex-start' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.qtyBought')} ({restockingItem.unit})</label>
+              <input type="number" placeholder="0" value={restockingItem.qtyBought || ''} onChange={e => setRestockingItem({...restockingItem, qtyBought: e.target.value})} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+            </div>
+            
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.totalPaid')} ($)</label>
+              <input type="number" placeholder="0.00" value={restockingItem.totalPaid || ''} onChange={e => setRestockingItem({...restockingItem, totalPaid: e.target.value})} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                <input 
+                  type="checkbox" 
+                  checked={restockingItem.paidFromRegister || false} 
+                  onChange={e => setRestockingItem({...restockingItem, paidFromRegister: e.target.checked})} 
+                  style={{ width: '18px', height: '18px', accentColor: '#27ae60' }} 
+                />
+                {t('inv.paidFromRegister')}
+              </label>
+            </div>
+
+            <div style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'flex-start' }}>
+              <button onClick={handleSaveRestock} style={{ height: '55px', padding: '0 30px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(39, 174, 96, 0.2)' }}>
+                {t('inv.restock')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- NEW: AUDIT / WASTAGE UI --- */}
       {auditingItem && (
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 10px 30px rgba(231, 76, 60, 0.1)' }}>
@@ -503,8 +604,22 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <button 
                       onClick={() => { 
+                        setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false }); 
+                        setEditingItem(null);
+                        setAuditingItem(null);
+                        setActiveView('list'); 
+                      }} 
+                      title={t('inv.restock')}
+                      style={{ padding: '10px', background: 'var(--bg-main)', color: '#27ae60', border: '1px solid rgba(39, 174, 96, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
+                    >
+                      <Icon icon="lucide:package-plus" style={{ fontSize: '1.2rem' }} />
+                    </button>
+
+                    <button 
+                      onClick={() => { 
                         setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' }); 
                         setEditingItem(null);
+                        setRestockingItem(null);
                         setActiveView('list'); 
                       }} 
                       title={t('inv.btnAudit')}

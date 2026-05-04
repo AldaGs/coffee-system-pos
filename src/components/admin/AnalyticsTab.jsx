@@ -64,6 +64,10 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     return { totalCOGS: cogs, totalWastage: waste, trueGrossProfit: gross, trueNetProfit: net, totalTips: tips };
   }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, timeFilter]);
 
+  const totalInventoryValue = useMemo(() => {
+    return inventoryItems.reduce((sum, item) => sum + (item.current_stock * (item.unit_cost || 0)), 0);
+  }, [inventoryItems]);
+
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px' }}>
@@ -195,6 +199,18 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <Icon icon="lucide:heart-handshake" style={{ color: '#8e44ad', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#8e44ad', letterSpacing: '-1px' }}>${totalTips.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
+
+        {/* --- INVENTORY ASSET VALUE CARD --- */}
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #9b59b6' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.invValue')}</h3>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{t('analytics.invValueDesc')}</span>
+            </div>
+            <Icon icon="lucide:boxes" style={{ color: '#9b59b6', fontSize: '1.5rem' }} />
+          </div>
+          <p style={{ margin: '8px 0 0 0', fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#9b59b6', letterSpacing: '-1px' }}>${totalInventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
       </div>
 

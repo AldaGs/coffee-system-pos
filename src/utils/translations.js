@@ -232,6 +232,12 @@ export const translations = {
     "inv.has": "Has",
     "inv.typeNewOrSelect": "Type new OR select existing...",
     "inv.invoiceTotal": "Invoice Total",
+    "inv.restock": "Restock",
+    "inv.restockDesc": "Log a purchase of new inventory.",
+    "inv.qtyBought": "Quantity Bought",
+    "inv.totalPaid": "Total Amount Paid",
+    "inv.paidFromRegister": "Paid from Cash Register (Corte de Caja)",
+    "inv.alertRestockComplete": "Restock Complete",
 
     // --- Analytics Tab ---
     "analytics.title": "Financial Dashboard",
@@ -260,6 +266,8 @@ export const translations = {
     "analytics.unknownCashier": "Unknown",
     "analytics.tickets": "tickets",
     "analytics.sales": "Sales",
+    "analytics.invValue": "Inventory Asset Value",
+    "analytics.invValueDesc": "Total money invested in current stock",
 
     // --- Discounts Tab ---
     "disc.title": "Automated Discount Rules",
@@ -936,6 +944,12 @@ export const translations = {
     "inv.has": "Tiene",
     "inv.typeNewOrSelect": "Escribe uno nuevo O selecciona uno existente...",
     "inv.invoiceTotal": "Total de Factura",
+    "inv.restock": "Abastecer",
+    "inv.restockDesc": "Registrar compra de nuevo inventario.",
+    "inv.qtyBought": "Cantidad Comprada",
+    "inv.totalPaid": "Monto Total Pagado",
+    "inv.paidFromRegister": "Pagado con dinero de la caja (Corte de Caja)",
+    "inv.alertRestockComplete": "Abastecimiento Completo",
 
     // --- Analytics Tab ---
     "analytics.title": "Panel Financiero",
@@ -964,6 +978,8 @@ export const translations = {
     "analytics.unknownCashier": "Desconocido",
     "analytics.tickets": "tickets",
     "analytics.sales": "Ventas",
+    "analytics.invValue": "Valor del Inventario",
+    "analytics.invValueDesc": "Dinero total invertido en stock actual",
 
     // --- Discounts Tab ---
     "disc.title": "Reglas de Descuento Automáticas",

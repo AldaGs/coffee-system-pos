@@ -695,7 +695,9 @@ function Admin() {
   }, [expenses, timeFilter, dateRange]);
 
   const totalExpenses = useMemo(() => {
-    return filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+    return filteredExpenses
+      .filter(exp => !(exp.reason || '').startsWith('RESTOCK:'))
+      .reduce((sum, exp) => sum + exp.amount, 0);
   }, [filteredExpenses]);
 
   const netProfit = totalRevenue - totalExpenses;
