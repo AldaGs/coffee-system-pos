@@ -10,6 +10,8 @@ export const useCartStore = create((set) => ({
   nWays: 2,
   customVal: '',
   paidProductIds: [],
+  tipAmount: 0, // NEW
+  tipPercentage: 10,
 
   // Actions
   setActiveTicketId: (id) => {
@@ -23,6 +25,8 @@ export const useCartStore = create((set) => ({
   setNWays: (ways) => set({ nWays: ways }),
   setCustomVal: (val) => set({ customVal: val }),
   setPaidProductIds: (ids) => set({ paidProductIds: ids }),
+  setTipAmount: (amount) => set({ tipAmount: amount }), // NEW
+  setTipPercentage: (pct) => set({ tipPercentage: pct }),
 
   resetCheckoutState: () => set({
     isCheckoutModalOpen: false,
@@ -30,6 +34,8 @@ export const useCartStore = create((set) => ({
     splitPayments: [],
     nWays: 2,
     customVal: '',
-    paidProductIds: []
+    paidProductIds: [],
+    tipAmount: 0, // NEW
+    tipPercentage: 10
   })
 }));

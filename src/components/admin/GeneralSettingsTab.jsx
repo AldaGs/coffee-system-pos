@@ -349,6 +349,24 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Icon icon="lucide:alert-circle" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.lowStockThreshold')}
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.lowStockThreshold')}</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={generalSettings.lowStockThreshold !== undefined ? generalSettings.lowStockThreshold : 0}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, lowStockThreshold: parseInt(e.target.value) || 0 })}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
+                />
+                <small style={{ color: 'var(--text-muted)' }}>{t('settings.lowStockThresholdDesc')}</small>
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Icon icon="lucide:printer" style={{ color: 'var(--brand-color)' }} />
                 {t('settings.hardware')}
               </h3>

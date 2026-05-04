@@ -3,14 +3,65 @@ import { db } from '../../db';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function OrdersTab({ dexieSales, generalSettings, menuData }) {
+function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
 
   return (
     <div className="admin-section fade-in">
-      <div className="admin-section-header" style={{ marginBottom: '20px' }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('orders.title')}</h1>
-        <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('orders.subtitle')}</p>
+      <div className="admin-section-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+        <div>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('orders.title')}</h1>
+          <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('orders.subtitle')}</p>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <Icon icon="lucide:calendar" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={{ padding: '12px 16px 12px 38px', borderRadius: '12px', border: '1px solid var(--border)', fontWeight: 'bold', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
+              <option value="today">{t('analytics.filterToday') || 'Hoy'}</option>
+              <option value="week">{t('analytics.filterWeek') || 'Semana'}</option>
+              <option value="month">{t('analytics.filterMonth') || 'Mes'}</option>
+              <option value="6months">{t('analytics.filter6Months') || '6 Meses'}</option>
+              <option value="year">{t('analytics.filterYear') || 'Año'}</option>
+              <option value="all">{t('analytics.filterAll') || 'Todo'}</option>
+              <option value="custom">Rango (Personalizado)</option>
+            </select>
+          </div>
+
+          {timeFilter === 'custom' && (
+            <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Inicio</label>
+                <input 
+                  type="date" 
+                  value={dateRange?.start || ''} 
+                  max={new Date().toISOString().split('T')[0]} // Prevents future dates
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    let newEnd = dateRange?.end || '';
+                    // BULLETPROOF: If new start is after current end, push end date forward to match
+                    if (newEnd && new Date(newEnd) < new Date(newStart)) {
+                      newEnd = newStart;
+                    }
+                    setDateRange({ start: newStart, end: newEnd });
+                  }}
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none' }}
+                />
+              </div>
+              <span style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '14px' }}>—</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Fin</label>
+                <input 
+                  type="date" 
+                  value={dateRange?.end || ''} 
+                  min={dateRange?.start || ''} // BULLETPROOF: Native browser lock
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none' }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

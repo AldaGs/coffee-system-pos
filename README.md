@@ -167,7 +167,10 @@ CREATE TABLE IF NOT EXISTS public.sales (
   items_sold jsonb,
   cashier_name text,
   status text DEFAULT 'paid',
-  order_name text
+  order_name text,
+  refund_amount numeric DEFAULT 0,
+  tip_amount numeric DEFAULT 0,
+  splits jsonb
 );
 
 -- 2. ENABLE ROW LEVEL SECURITY (RLS)

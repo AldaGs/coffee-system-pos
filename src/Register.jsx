@@ -44,7 +44,8 @@ function Register() {
   const {
     activeTicketId, setActiveTicketId, isCheckoutModalOpen, setIsCheckoutModalOpen,
     splitMode, setSplitMode, splitPayments, setSplitPayments, nWays, setNWays,
-    customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState
+    customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState,
+    tipAmount, setTipAmount, tipPercentage, setTipPercentage
   } = useCartStore();
 
   const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
@@ -503,14 +504,7 @@ function Register() {
 
 
   // --- ORDER HISTORY (ANALYTICS LEDGER) ---
-  const [orderHistory, setOrderHistory] = useState(() => {
-    const saved = localStorage.getItem('tinypos_orderHistory');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  useEffect(() => {
-    localStorage.setItem('tinypos_orderHistory', JSON.stringify(orderHistory));
-  }, [orderHistory]);
+  const dexieSales = useLiveQuery(() => db.sales.toArray(), []) || [];
 
   // --- AUTO-LOCK LOGIC ---
   useEffect(() => {
@@ -609,15 +603,25 @@ function Register() {
 
   // --- SHIFT CALCULATIONS ---
   // 1. Filter data to ONLY include things that happened after the last Corte
-  const shiftOrders = orderHistory.filter(o => new Date(o.timestamp) > new Date(lastCorteTimestamp));
+  const shiftOrders = dexieSales.filter(o => new Date(o.created_at) > new Date(lastCorteTimestamp));
   const shiftExpenses = expenses.filter(e => new Date(e.timestamp) > new Date(lastCorteTimestamp));
 
   // 2. Break down the revenue by payment method
   const calcTotalByMethod = (method) => {
     return shiftOrders.reduce((sum, o) => {
-      if (o.method === method) return sum + o.total;
-      if (o.method === 'Split' && o.splits) {
-        return sum + o.splits.filter(s => s.method === method).reduce((acc, s) => acc + s.amount, 0);
+      let netSale = o.total_amount || 0;
+      if (o.status === 'refunded') return sum;
+      if (o.status === 'partial_refund') netSale -= (o.refund_amount || 0);
+
+      if (o.payment_method === method) return sum + netSale;
+      if (o.payment_method === 'Split' && o.splits) {
+        // Find the amount for this specific split method
+        const splitAmount = o.splits.filter(s => s.method === method).reduce((acc, s) => acc + s.amount, 0);
+        // If there's a partial refund on a split payment, the netSale is less. 
+        // We'll just subtract the refund proportionally or simply from the total if it's not a full split breakdown.
+        // For simplicity, we just use the original split amounts unless it's fully refunded. 
+        // (A more advanced system would track WHICH split was refunded).
+        return sum + splitAmount;
       }
       return sum;
     }, 0);
@@ -626,7 +630,13 @@ function Register() {
   const shiftCashSales = calcTotalByMethod('Cash');
   const shiftCardSales = calcTotalByMethod('Card');
   const shiftTransferSales = calcTotalByMethod('Transfer');
-  const shiftTotalRevenue = shiftOrders.reduce((sum, o) => sum + o.total, 0);
+  
+  const shiftTotalRevenue = shiftOrders.reduce((sum, o) => {
+    if (o.status === 'refunded') return sum;
+    let netSale = o.total_amount || 0;
+    if (o.status === 'partial_refund') netSale -= (o.refund_amount || 0);
+    return sum + netSale;
+  }, 0);
 
   // 3. Sum up the expenses
   const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -723,6 +733,22 @@ function Register() {
       setIsModalOpen(false);
       setPendingItem(null);
       return;
+    }
+
+    // --- LOW STOCK CHECK ---
+    if (recipes) {
+      const recipe = recipes.find(r => r.linked_menu_item === item.id);
+      if (recipe && recipe.ingredients) {
+        const inventory = await db.inventory.toArray();
+        const threshold = posSettings?.lowStockThreshold || 0;
+        for (const ing of recipe.ingredients) {
+          const invItem = inventory.find(i => i.name === ing.name);
+          if (invItem && (invItem.current_stock - ing.qty) <= threshold) {
+            showAlert(t('register.lowStock'), t('register.lowStockDesc').replace('{{ingredient}}', invItem.name).replace('{{qty}}', threshold));
+            break; // Show only one alert per item added to avoid spamming the cashier
+          }
+        }
+      }
     }
 
     const newItem = {
@@ -1309,8 +1335,9 @@ function Register() {
     if (itemsToMark.length > 0) setPaidProductIds([...paidProductIds, ...itemsToMark]);
 
     // 3. Test if the ticket is completed
+    const totalDue = cartTotal + (Number(tipAmount) || 0);
     const totalPaidSoFar = newPayments.reduce((sum, p) => sum + p.amount, 0);
-    if (Math.abs(cartTotal - totalPaidSoFar) < 0.01 || totalPaidSoFar >= cartTotal) {
+    if (Math.abs(totalDue - totalPaidSoFar) < 0.01 || totalPaidSoFar >= totalDue) {
       handleConfirmPayment(newPayments);
     }
   };
@@ -1328,11 +1355,11 @@ function Register() {
       cartTotal,
       paymentsArray,
       activeCashier,
-      recipes
+      recipes,
+      tipAmount
     });
 
     // 2. Handle the UI Side Effects (React state, animations, resets)
-    setOrderHistory([...orderHistory, localAnalyticsRecord]);
 
     setSuccessTicket({
       name: activeTicket.name,
@@ -1547,7 +1574,25 @@ function Register() {
           setIsModalOpen={setIsModalOpen}
         />
 
-        <CheckoutModal isCheckoutModalOpen={isCheckoutModalOpen} splitPayments={splitPayments} splitMode={splitMode} setSplitMode={setSplitMode} nWays={nWays} setNWays={setNWays} customVal={customVal} setCustomVal={setCustomVal} paidProductIds={paidProductIds} handlePartialPayment={handlePartialPayment} handleSavePartialPayments={handleSavePartialPayments} handleVoidPartialPayments={handleVoidPartialPayments} handleCancelCheckout={handleCancelCheckout} />
+        <CheckoutModal 
+          isCheckoutModalOpen={isCheckoutModalOpen} 
+          splitPayments={splitPayments} 
+          splitMode={splitMode} 
+          setSplitMode={setSplitMode} 
+          nWays={nWays} 
+          setNWays={setNWays} 
+          customVal={customVal} 
+          setCustomVal={setCustomVal} 
+          paidProductIds={paidProductIds} 
+          handlePartialPayment={handlePartialPayment} 
+          handleSavePartialPayments={handleSavePartialPayments} 
+          handleVoidPartialPayments={handleVoidPartialPayments} 
+          handleCancelCheckout={handleCancelCheckout} 
+          tipAmount={tipAmount}
+          setTipAmount={setTipAmount}
+          tipPercentage={tipPercentage}
+          setTipPercentage={setTipPercentage}
+        />
 
         <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
 

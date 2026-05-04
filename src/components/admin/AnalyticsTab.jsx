@@ -2,40 +2,67 @@ import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function AnalyticsTab({ timeFilter, setTimeFilter, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, methodCounts, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [] }) {
+function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, methodCounts, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [] }) {
   const { t } = useTranslation();
   
   // --- TRUE PROFIT MATH ENGINE ---
-  const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit } = useMemo(() => {
-    // 1. Get the IDs of the sales currently visible in the date filter
-    const relevantTicketIds = new Set(filteredSales.map(sale => sale.id));
+  const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit, totalTips } = useMemo(() => {
+    // 1. Get the IDs and timestamps of the sales currently visible in the date filter
+    const relevantTicketIds = new Set(filteredSales.map(sale => String(sale.id)));
+    const relevantTimestamps = new Set(filteredSales.map(sale => sale.created_at));
     
     let cogs = 0;
     let waste = 0;
+    let tips = 0;
+
+    filteredSales.forEach(sale => {
+      if (sale.status !== 'refunded') {
+        tips += Number(sale.tip_amount) || 0;
+      }
+    });
 
     // 2. Scan every inventory log ever recorded
     inventoryLogs.forEach(log => {
-      // Find the current monetary value of the item in the warehouse
+      // Find the historical cost if available, otherwise fallback to current cost
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
-      const unitCost = matchedItem ? matchedItem.unit_cost : 0;
+      const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
+      const unitCost = log.unit_cost !== undefined && log.unit_cost !== null ? log.unit_cost : fallbackCost;
       const financialImpact = log.qty_deducted * unitCost;
 
       if (log.deduction_type === 'sale') {
-        // Only count COGS if the sale is within our current Date Filter
-        if (relevantTicketIds.has(log.ticket_id)) {
+        // Match by timestamp (new reliable method) OR by ticket_id (legacy fallback)
+        if (relevantTimestamps.has(log.created_at) || relevantTicketIds.has(String(log.ticket_id))) {
           cogs += financialImpact;
         }
       } else {
-        // Count Wastage/Spillage/Audits (Ideally, we'd date-filter this too, but we track all-time here for simplicity)
-        waste += financialImpact;
+        // Date-filter the wastage using the same timeFilter logic
+        if (timeFilter === 'all') {
+          waste += financialImpact;
+        } else {
+          const now = new Date();
+          const logDateStr = log.created_at || log.timestamp;
+          if (logDateStr) {
+            const logDate = new Date(logDateStr);
+            if (timeFilter === 'today') {
+              if (logDate.toDateString() === now.toDateString()) waste += financialImpact;
+            } else {
+              const daysDifference = (now - logDate) / (1000 * 60 * 60 * 24);
+              if (timeFilter === 'week' && daysDifference <= 7) waste += financialImpact;
+              if (timeFilter === 'month' && daysDifference <= 30) waste += financialImpact;
+              if (timeFilter === '6months' && daysDifference <= 180) waste += financialImpact;
+              if (timeFilter === 'year' && daysDifference <= 365) waste += financialImpact;
+            }
+          }
+        }
       }
     });
 
     const gross = totalRevenue - cogs;
-    const net = gross - waste - totalExpenses - totalRefunds;
+    // gross already has refunds subtracted (totalRevenue is Net Revenue)
+    const net = gross - waste - totalExpenses;
 
-    return { totalCOGS: cogs, totalWastage: waste, trueGrossProfit: gross, trueNetProfit: net };
-  }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, totalRefunds]);
+    return { totalCOGS: cogs, totalWastage: waste, trueGrossProfit: gross, trueNetProfit: net, totalTips: tips };
+  }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, timeFilter]);
 
   return (
     <div className="admin-section fade-in">
@@ -54,8 +81,45 @@ function AnalyticsTab({ timeFilter, setTimeFilter, handleDownloadCSV, totalReven
               <option value="6months">{t('analytics.filter6Months')}</option>
               <option value="year">{t('analytics.filterYear')}</option>
               <option value="all">{t('analytics.filterAll')}</option>
+              <option value="custom">Rango (Personalizado)</option>
             </select>
           </div>
+
+          {timeFilter === 'custom' && (
+            <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Inicio</label>
+                <input 
+                  type="date" 
+                  value={dateRange?.start || ''} 
+                  max={new Date().toISOString().split('T')[0]} // Prevents future dates
+                  onChange={(e) => {
+                    const newStart = e.target.value;
+                    let newEnd = dateRange?.end || '';
+                    // BULLETPROOF: If new start is after current end, push end date forward to match
+                    if (newEnd && new Date(newEnd) < new Date(newStart)) {
+                      newEnd = newStart;
+                    }
+                    setDateRange({ start: newStart, end: newEnd });
+                  }}
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none' }}
+                />
+              </div>
+              <span style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '14px' }}>—</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Fin</label>
+                <input 
+                  type="date" 
+                  value={dateRange?.end || ''} 
+                  min={dateRange?.start || ''} // BULLETPROOF: Native browser lock
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                  style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none' }}
+                />
+              </div>
+            </div>
+          )}
+
           <button onClick={handleDownloadCSV} style={{ padding: '12px 20px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(52, 152, 219, 0.2)' }}>
             <Icon icon="lucide:download" />
             {t('analytics.exportCSV')}
@@ -123,6 +187,15 @@ function AnalyticsTab({ timeFilter, setTimeFilter, handleDownloadCSV, totalReven
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#27ae60', letterSpacing: '-1px' }}>${trueNetProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
         </div>
+
+        {/* --- TIPS CARD --- */}
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #8e44ad' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.tips')}</h3>
+            <Icon icon="lucide:heart-handshake" style={{ color: '#8e44ad', fontSize: '1.5rem' }} />
+          </div>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#8e44ad', letterSpacing: '-1px' }}>${totalTips.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        </div>
       </div>
 
       <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '32px' }}>
@@ -159,7 +232,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, handleDownloadCSV, totalReven
           </h3>
           {filteredSales.length === 0 ? (<p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noCashier')}</p>) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {Object.entries(filteredSales.reduce((acc, order) => { const name = order.cashier_name || t('analytics.unknownCashier'); if (!acc[name]) acc[name] = { sales: 0, tickets: 0 }; acc[name].sales += order.total_amount || 0; acc[name].tickets += 1; return acc; }, {})).sort((a, b) => b[1].sales - a[1].sales).map(([name, data]) => (
+              {Object.entries(filteredSales.reduce((acc, order) => { const name = order.cashier_name || t('analytics.unknownCashier'); if (!acc[name]) acc[name] = { sales: 0, tickets: 0 }; const netAmount = (order.total_amount || 0) - (order.refund_amount || 0); acc[name].sales += netAmount; acc[name].tickets += 1; return acc; }, {})).sort((a, b) => b[1].sales - a[1].sales).map(([name, data]) => (
                 <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div style={{ height: '48px', width: '48px', borderRadius: '14px', background: 'var(--brand-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}>

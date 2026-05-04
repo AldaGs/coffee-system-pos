@@ -36,7 +36,7 @@ export const translations = {
     "common.save": "Save",
     "common.cancel": "Cancel",
     "common.delete": "Delete",
-    "common.upload" :"Upload File",
+    "common.upload": "Upload File",
 
     // --- Register UI ---
     "register.noActiveOrders": "No Active Orders",
@@ -97,6 +97,8 @@ export const translations = {
     "settings.corteYes": "Yes - Show the Corte button",
     "settings.corteNo": "No - Hide shift management",
     "settings.corteDesc": "Turn this off if the café does not reconcile the cash drawer per shift.",
+    "settings.lowStockThreshold": "Low Stock Alert Threshold",
+    "settings.lowStockThresholdDesc": "Show an alert when an ingredient falls to this amount or lower.",
     "settings.hardware": "Hardware",
     "settings.printerSize": "Thermal Printer Size",
     "settings.printer80": "Standard (80mm)",
@@ -240,7 +242,7 @@ export const translations = {
     "analytics.filter6Months": "Last 6 Months",
     "analytics.filterYear": "Last Year",
     "analytics.filterAll": "All Time",
-    "analytics.exportCSV": "Export CSV",
+    "analytics.exportCSV": "Export XLSX",
     "analytics.menuHealth": "Menu Health (Trading Margin)",
     "analytics.grossRevenue": "Gross Revenue",
     "analytics.cogs": "Cost of Goods (COGS)",
@@ -248,6 +250,7 @@ export const translations = {
     "analytics.bizHealth": "Business Healthcare (Bottom Line)",
     "analytics.wastage": "Wastage & Audits",
     "analytics.expenses": "Expenses & Refunds",
+    "analytics.tips": "Tips Collected",
     "analytics.netProfit": "True Net Profit",
     "analytics.topItems": "Top Selling",
     "analytics.noSales": "No sales data yet.",
@@ -256,6 +259,7 @@ export const translations = {
     "analytics.noCashier": "No cashier data yet.",
     "analytics.unknownCashier": "Unknown",
     "analytics.tickets": "tickets",
+    "analytics.sales": "Sales",
 
     // --- Discounts Tab ---
     "disc.title": "Automated Discount Rules",
@@ -571,6 +575,8 @@ export const translations = {
     "menuArea.pendingCashDesc": "There are open tickets with 'Saved Partial Payments' in Cash. This physical cash is currently in your drawer but is NOT counted in the Corte report until those tickets are finalized. Close shift anyway?",
     "menuArea.authGasto": "Authorize Gasto",
     "menuArea.authCorte": "Authorize Corte de Caja",
+    "register.lowStock": "Low Stock",
+    "register.lowStockDesc": "The inventory for {{ingredient}} is at or below the threshold ({{qty}}).",
 
     // --- Checkout Modal ---
     "check.title": "Payment Checkout",
@@ -581,6 +587,7 @@ export const translations = {
     "check.modeEven": "Even By N",
     "check.modeProduct": "By Prod.",
     "check.modeCustom": "Custom",
+    "check.tip": "Tip (Optional)",
     "check.cash": "Cash",
     "check.card": "Card",
     "check.transfer": "Transfer",
@@ -728,7 +735,7 @@ export const translations = {
     "common.save": "Guardar",
     "common.cancel": "Cancelar",
     "common.delete": "Eliminar",
-    "common.upload" :"Cargar archivo",
+    "common.upload": "Cargar archivo",
     "settings.resetTitle": "Reiniciar Número de Orden",
     "settings.resetConfirm": "¿Estás seguro? Esto forzará que el siguiente ticket sea el Orden #1.",
     "settings.resetSuccess": "Éxito",
@@ -794,6 +801,8 @@ export const translations = {
     "settings.corteYes": "Sí - Mostrar el botón de Corte",
     "settings.corteNo": "No - Ocultar gestión de turnos",
     "settings.corteDesc": "Desactiva esto si la cafetería no concilia el efectivo por turno.",
+    "settings.lowStockThreshold": "Límite de Alerta de Stock Bajo",
+    "settings.lowStockThresholdDesc": "Mostrar alerta cuando un ingrediente caiga a esta cantidad o menos.",
     "settings.hardware": "Hardware",
     "settings.printerSize": "Tamaño de Impresora Térmica",
     "settings.printer80": "Estándar (80mm)",
@@ -937,7 +946,7 @@ export const translations = {
     "analytics.filter6Months": "Últimos 6 Meses",
     "analytics.filterYear": "Último Año",
     "analytics.filterAll": "Todo el Tiempo",
-    "analytics.exportCSV": "Exportar CSV",
+    "analytics.exportCSV": "Exportar XLSX",
     "analytics.menuHealth": "Salud del Menú (Margen Comercial)",
     "analytics.grossRevenue": "Ingresos Brutos",
     "analytics.cogs": "Costo de Ventas (COGS)",
@@ -945,6 +954,7 @@ export const translations = {
     "analytics.bizHealth": "Salud del Negocio (Resultado Final)",
     "analytics.wastage": "Mermas y Auditorías",
     "analytics.expenses": "Gastos y Reembolsos",
+    "analytics.tips": "Propinas Recaudadas",
     "analytics.netProfit": "Ganancia Neta Verdadera",
     "analytics.topItems": "Más Vendidos",
     "analytics.noSales": "Aún no hay datos de ventas.",
@@ -953,6 +963,7 @@ export const translations = {
     "analytics.noCashier": "Aún no hay datos de cajeros.",
     "analytics.unknownCashier": "Desconocido",
     "analytics.tickets": "tickets",
+    "analytics.sales": "Ventas",
 
     // --- Discounts Tab ---
     "disc.title": "Reglas de Descuento Automáticas",
@@ -1267,6 +1278,8 @@ export const translations = {
     "menuArea.pendingCashDesc": "Hay tickets abiertos con Pagos Parciales en Efectivo. Este efectivo físico ya está en tu caja pero NO se contará en el Corte hasta que esos tickets sean finalizados. ¿Deseas cerrar el turno de todos modos?",
     "menuArea.authGasto": "Autorizar Gasto",
     "menuArea.authCorte": "Autorizar Corte de Caja",
+    "register.lowStock": "Stock Bajo",
+    "register.lowStockDesc": "El inventario de {{ingredient}} está en o por debajo del límite ({{qty}}).",
 
     // --- Checkout Modal ---
     "check.title": "Pago de la Cuenta",
@@ -1277,6 +1290,7 @@ export const translations = {
     "check.modeEven": "Dividir N",
     "check.modeProduct": "Por Prod.",
     "check.modeCustom": "Otro",
+    "check.tip": "Propina (Opcional)",
     "check.cash": "Efectivo",
     "check.card": "Tarjeta",
     "check.transfer": "Transferencia",

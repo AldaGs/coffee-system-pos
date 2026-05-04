@@ -2,6 +2,7 @@ import { Icon } from '@iconify/react';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useDialog } from './contexts/DialogContext';
@@ -67,6 +68,7 @@ function Admin() {
   const [editingDrink, setEditingDrink] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
   const [timeFilter, setTimeFilter] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
   const [expenses, setExpenses] = useState(() => {
   const saved = localStorage.getItem('tinypos_expenses');
@@ -621,6 +623,15 @@ function Admin() {
 
       const saleDate = new Date(sale.created_at);
       
+      if (timeFilter === 'custom') {
+        if (!dateRange.start || !dateRange.end) return true; // Show all until both are selected
+        const start = new Date(dateRange.start);
+        start.setHours(0, 0, 0, 0); // Start of day
+        const end = new Date(dateRange.end);
+        end.setHours(23, 59, 59, 999); // End of day
+        return saleDate >= start && saleDate <= end;
+      }
+
       // FIX 1: Strict calendar-day matching instead of "24 hours ago"
       if (timeFilter === 'today') {
         return saleDate.toDateString() === now.toDateString();
@@ -633,7 +644,7 @@ function Admin() {
       if (timeFilter === 'year') return daysDifference <= 365;
       return true;
     });
-  }, [dexieSales, timeFilter]); // FIX 2: Listens to dexieSales instead of static salesData
+  }, [dexieSales, timeFilter, dateRange]); // FIX 2: Listens to dexieSales instead of static salesData
 
   // 2. Calculate Total Revenue
   const totalRevenue = useMemo(() => {
@@ -663,6 +674,15 @@ function Admin() {
       if (!dateStr) return false;
       const expDate = new Date(dateStr);
 
+      if (timeFilter === 'custom') {
+        if (!dateRange.start || !dateRange.end) return true; // Show all until both are selected
+        const start = new Date(dateRange.start);
+        start.setHours(0, 0, 0, 0); // Start of day
+        const end = new Date(dateRange.end);
+        end.setHours(23, 59, 59, 999); // End of day
+        return expDate >= start && expDate <= end;
+      }
+
       if (timeFilter === 'today') {
         return expDate.toDateString() === now.toDateString();
       }
@@ -672,7 +692,7 @@ function Admin() {
       if (timeFilter === 'month') return daysDifference <= 30;
       return true;
     });
-  }, [expenses, timeFilter]);
+  }, [expenses, timeFilter, dateRange]);
 
   const totalExpenses = useMemo(() => {
     return filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -701,35 +721,158 @@ function Admin() {
     return Object.entries(itemCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [filteredSales]);
 
-  // 3. The CSV Exporter Function
+  // 3. The Multi-Tab Excel Exporter Function
   const handleDownloadCSV = () => {
-    if (filteredSales.length === 0) return window.confirm("No data to export for this timeframe.");
+    if (filteredSales.length === 0 && filteredExpenses.length === 0 && inventoryLogs.length === 0) {
+      return window.confirm("No hay datos para exportar en este periodo.");
+    }
 
-    // Create the CSV headers
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Date,Time,Total Amount,Payment Method,Items Sold\n";
+    const now = new Date();
 
-    // Format each row
+    // --- A. Sheet 1: Ingresos (Sales & Refunds) ---
+    const ingresosData = [];
     filteredSales.forEach(sale => {
       const dateObj = new Date(sale.created_at);
       const date = dateObj.toLocaleDateString();
       const time = dateObj.toLocaleTimeString();
-      const amount = sale.total_amount;
-      const method = sale.payment_method;
-      // Join items with a pipe (|) so commas don't break the CSV format
-      const items = sale.items_sold ? sale.items_sold.join(' | ') : 'None';
+      const method = sale.payment_method || 'N/A';
+      const items = sale.items_sold ? sale.items_sold.join(' | ') : 'Varios';
 
-      csvContent += `${date},${time},${amount},${method},${items}\n`;
+      if (sale.status === 'refunded') {
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Total', Monto: -parseFloat(sale.total_amount || 0), Método: method, Detalles: items });
+      } else if (sale.status === 'partial_refund') {
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(sale.total_amount || 0), Método: method, Detalles: items });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Parcial', Monto: -parseFloat(sale.refund_amount || 0), Método: method, Detalles: 'Ajuste de ticket' });
+      } else {
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(sale.total_amount || 0), Método: method, Detalles: items });
+      }
     });
 
-    // Trigger the download via a hidden HTML tag
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `tinypos_sales_${timeFilter}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // --- B. Sheet 2: Egresos (Expenses) ---
+    const egresosData = [];
+    filteredExpenses.forEach(exp => {
+      const dateObj = new Date(exp.created_at || exp.timestamp);
+      egresosData.push({ 
+        Fecha: dateObj.toLocaleDateString(), 
+        Hora: dateObj.toLocaleTimeString(), 
+        'Tipo de Movimiento': 'Gasto / Compra', 
+        Monto: -parseFloat(exp.amount || 0), 
+        Método: 'Caja/Efectivo', 
+        Detalles: exp.reason || 'Sin detalles'
+      });
+    });
+
+    // --- C. Sheet 3: Auditorías / Mermas ---
+    const auditoriaData = [];
+    const filteredLogs = inventoryLogs.filter(log => {
+      if (timeFilter === 'all') return true;
+      const logDate = new Date(log.created_at);
+
+      if (timeFilter === 'custom') {
+        if (!dateRange.start || !dateRange.end) return true;
+        const start = new Date(dateRange.start);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(dateRange.end);
+        end.setHours(23, 59, 59, 999);
+        return logDate >= start && logDate <= end;
+      }
+
+      if (timeFilter === 'today') return logDate.toDateString() === now.toDateString();
+      const daysDiff = (now - logDate) / (1000 * 60 * 60 * 24);
+      if (timeFilter === 'week') return daysDiff <= 7;
+      if (timeFilter === 'month') return daysDiff <= 30;
+      if (timeFilter === '6months') return daysDiff <= 180;
+      if (timeFilter === 'year') return daysDiff <= 365;
+      return true;
+    });
+
+    filteredLogs.forEach(log => {
+      const dateObj = new Date(log.created_at);
+      auditoriaData.push({ 
+        Fecha: dateObj.toLocaleDateString(), 
+        Hora: dateObj.toLocaleTimeString(), 
+        'Tipo de Movimiento': 'Auditoría / Merma', 
+        Monto: 0.00, // Operational tracking
+        Método: 'N/A', 
+        Detalles: `${log.item_name} | Ajuste: ${log.qty_deducted} | Razón: ${log.deduction_type}`
+      });
+    });
+
+    // --- D. Sheet 0: Resumen (Summary) ---
+    const relevantTicketIds = new Set(filteredSales.map(sale => String(sale.id)));
+    const relevantTimestamps = new Set(filteredSales.map(sale => sale.created_at));
+    let totalCOGS = 0;
+    let totalWastage = 0;
+
+    inventoryLogs.forEach(log => {
+      const matchedItem = inventoryItems.find(i => i.name === log.item_name);
+      const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
+      const unitCost = log.unit_cost !== undefined && log.unit_cost !== null ? log.unit_cost : fallbackCost;
+      const financialImpact = log.qty_deducted * unitCost;
+
+      if (log.deduction_type === 'sale') {
+        if (relevantTimestamps.has(log.created_at) || relevantTicketIds.has(String(log.ticket_id))) {
+          totalCOGS += financialImpact;
+        }
+      } else {
+        if (timeFilter === 'all') {
+          totalWastage += financialImpact;
+        } else {
+          const logDateStr = log.created_at || log.timestamp;
+          if (logDateStr) {
+            const logDate = new Date(logDateStr);
+            if (timeFilter === 'today') {
+              if (logDate.toDateString() === now.toDateString()) totalWastage += financialImpact;
+            } else if (timeFilter === 'custom') {
+              if (!dateRange.start || !dateRange.end) {
+                totalWastage += financialImpact;
+              } else {
+                const start = new Date(dateRange.start);
+                start.setHours(0, 0, 0, 0);
+                const end = new Date(dateRange.end);
+                end.setHours(23, 59, 59, 999);
+                if (logDate >= start && logDate <= end) totalWastage += financialImpact;
+              }
+            } else {
+              const daysDifference = (now - logDate) / (1000 * 60 * 60 * 24);
+              if (timeFilter === 'week' && daysDifference <= 7) totalWastage += financialImpact;
+              if (timeFilter === 'month' && daysDifference <= 30) totalWastage += financialImpact;
+              if (timeFilter === '6months' && daysDifference <= 180) totalWastage += financialImpact;
+              if (timeFilter === 'year' && daysDifference <= 365) totalWastage += financialImpact;
+            }
+          }
+        }
+      }
+    });
+
+    const grossRevenue = totalRevenue + totalRefunds;
+    const trueNetProfit = totalRevenue - totalCOGS - totalWastage - totalExpenses;
+    
+    const resumenData = [
+      { Métrica: 'Ingresos Brutos', Valor: parseFloat(grossRevenue.toFixed(2)) },
+      { Métrica: 'Reembolsos', Valor: -parseFloat(totalRefunds.toFixed(2)) },
+      { Métrica: 'Ingresos Netos', Valor: parseFloat(totalRevenue.toFixed(2)) },
+      { Métrica: 'Costo de Bienes (COGS)', Valor: -parseFloat(totalCOGS.toFixed(2)) },
+      { Métrica: 'Mermas y Auditorías', Valor: -parseFloat(totalWastage.toFixed(2)) },
+      { Métrica: 'Gastos de Operación', Valor: -parseFloat(totalExpenses.toFixed(2)) },
+      { Métrica: 'Ganancia Neta Verdadera', Valor: parseFloat(trueNetProfit.toFixed(2)) }
+    ];
+
+    // Create Worksheets
+    const wsResumen = XLSX.utils.json_to_sheet(resumenData);
+    const wsIngresos = XLSX.utils.json_to_sheet(ingresosData);
+    const wsEgresos = XLSX.utils.json_to_sheet(egresosData);
+    const wsAuditorias = XLSX.utils.json_to_sheet(auditoriaData);
+
+    // Add Worksheets to Workbook (Resumen goes first!)
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+    XLSX.utils.book_append_sheet(wb, wsIngresos, "Ingresos");
+    XLSX.utils.book_append_sheet(wb, wsEgresos, "Egresos");
+    XLSX.utils.book_append_sheet(wb, wsAuditorias, "Auditorías");
+
+    // Generate Excel file and trigger download
+    XLSX.writeFile(wb, `tinypos_reporte_maestro_${timeFilter}.xlsx`);
   };
 
   // --- ADVANCED RECIPE BUILDER LOGIC ---
@@ -1009,6 +1152,8 @@ function Admin() {
           <AnalyticsTab 
             timeFilter={timeFilter} 
             setTimeFilter={setTimeFilter} 
+            dateRange={dateRange}
+            setDateRange={setDateRange}
             handleDownloadCSV={handleDownloadCSV} 
             totalRevenue={totalRevenue} 
             totalExpenses={totalExpenses} 
@@ -1027,7 +1172,15 @@ function Admin() {
         
               {/* 1.5 RECEIPT HISTORY / REFUNDS TAB */}
         {activeTab === 'orders' && (
-          <OrdersTab dexieSales={dexieSales} generalSettings={generalSettings} menuData={menuData} />
+          <OrdersTab 
+            dexieSales={filteredSales} 
+            generalSettings={generalSettings} 
+            menuData={menuData}
+            timeFilter={timeFilter} 
+            setTimeFilter={setTimeFilter} 
+            dateRange={dateRange}
+            setDateRange={setDateRange} 
+          />
         )}
 
 

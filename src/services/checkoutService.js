@@ -1,7 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
 
-export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes }) => {
+export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0 }) => {
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;
   const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
@@ -21,6 +21,8 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   const currentSale = {
     total_amount: cartTotal,
     payment_method: masterMethodString,
+    splits: isSplit ? paymentsArray : null,
+    tip_amount: tipAmount,
     items_sold: activeTicket.items.map(item => item.name),
     cashier_name: activeCashier?.name || 'Unknown Cashier'
   };
@@ -48,7 +50,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         const warehouseItem = currentInventory.find(inv => String(inv.id) === String(item.linkedWarehouseId));
 
         if (warehouseItem) {
-          inventoryLogsToPush.push({ item_name: warehouseItem.name, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
+          inventoryLogsToPush.push({ item_name: warehouseItem.name, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id, unit_cost: warehouseItem.unit_cost || 0 });
 
           const newStock = warehouseItem.current_stock - itemQty;
           await db.inventory.update(warehouseItem.id, { current_stock: newStock });
@@ -60,9 +62,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         if (item.selectedModifiers && item.selectedModifiers.length > 0) {
           for (const mod of item.selectedModifiers) {
             if (mod.deductionTarget && !mod.substitutionTarget) {
-              inventoryLogsToPush.push({ item_name: mod.deductionTarget, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
-
               const modItem = currentInventory.find(inv => inv.name === mod.deductionTarget);
+              inventoryLogsToPush.push({ item_name: mod.deductionTarget, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id, unit_cost: modItem ? (modItem.unit_cost || 0) : 0 });
+
               if (modItem) {
                 const newModStock = modItem.current_stock - itemQty;
                 await db.inventory.update(modItem.id, { current_stock: newModStock });
@@ -104,9 +106,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
 
           for (const ing of cartBOM) {
             if (ing.qty > 0) {
-              inventoryLogsToPush.push({ item_name: ing.item_name, qty_deducted: ing.qty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id });
-
               const whItem = currentInventory.find(inv => inv.name === ing.item_name);
+              inventoryLogsToPush.push({ item_name: ing.item_name, qty_deducted: ing.qty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id, unit_cost: whItem ? (whItem.unit_cost || 0) : 0 });
+
               if (whItem) {
                 const newStock = whItem.current_stock - ing.qty;
                 await db.inventory.update(whItem.id, { current_stock: newStock });

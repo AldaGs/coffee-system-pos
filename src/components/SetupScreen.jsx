@@ -44,7 +44,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         showAlert("¡Llaves cargadas con éxito!", "success");
         setTimeout(() => onComplete(), 1500);
       } catch (err) {
-        showAlert("¡Archivo keys.tiny inválido!", "error");
+        showAlert("¡Archivo keys.tiny inválido!", err);
       }
     };
     reader.readAsText(file);
