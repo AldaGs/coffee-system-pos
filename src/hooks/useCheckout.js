@@ -10,7 +10,7 @@ import { useMenuStore } from '../store/useMenuStore';
  */
 export const useCheckout = (posState) => {
   const {
-    activeTicket, cartTotal, activeCashier, tipAmount,
+    activeTicket, cartTotal, activeCashier, tipAmount = 0,
     clearCurrentTicket, setSuccessTicket, showAlert
   } = posState;
 
