@@ -19,3 +19,14 @@ db.version(7).stores({
   inventory: 'id, name',
   inventory_logs: '++id, item_name, created_at, ticket_id, local_id'
 });
+
+// --- V8: OFFLINE UPDATES QUEUE ---
+db.version(8).stores({
+  sales: '++id, status, created_at, local_id',
+  menu: 'id',
+  syncQueue: '++id, local_id',
+  active_tickets: 'id',
+  inventory: 'id, name',
+  inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+  updateQueue: '++id, type, local_id'
+});

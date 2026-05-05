@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import { fetchAndMergeSales } from './services/salesSync';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
@@ -160,6 +161,9 @@ function Register() {
   useEffect(() => {
     if (!supabase || !navigator.onLine) return;
     syncCloudTickets();
+    // Backfill sales history into Dexie so OrdersTab works on a fresh device
+    // without requiring the Admin tab to be opened first.
+    fetchAndMergeSales().catch(err => console.error('Sales backfill failed:', err));
 
     const ticketChannel = supabase
       .channel('active-tickets-realtime')
@@ -635,12 +639,17 @@ function Register() {
     if (!activeTicket) return;
     const ticketIdToDelete = activeTicket.id;
     await db.active_tickets.delete(ticketIdToDelete);
+
     if (navigator.onLine) {
       try {
-        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
+        const { error } = await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
+        if (error) throw error;
       } catch (err) {
-        console.error("Cloud delete failed:", err);
+        console.warn("Cloud delete deferred:", err);
+        await db.updateQueue.add({ type: 'ticket_deletion', ticket_id: ticketIdToDelete });
       }
+    } else {
+      await db.updateQueue.add({ type: 'ticket_deletion', ticket_id: ticketIdToDelete });
     }
     const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
     if (remainingTickets.length > 0) {
@@ -849,7 +858,7 @@ function Register() {
         last_modified_by: myDeviceId
       })
         .eq('id', activeTicket.id)
-        .then();
+        .then(({ error }) => { if (error) console.error('active_tickets sync (add item) failed:', error); });
     }
 
     setIsModalOpen(false);
@@ -869,7 +878,7 @@ function Register() {
       supabase.from('active_tickets')
         .update({ items: updatedItems, last_modified_by: myDeviceId })
         .eq('id', activeTicket.id)
-        .then();
+        .then(({ error }) => { if (error) console.error('active_tickets sync (update qty) failed:', error); });
     }
   };
 
@@ -889,7 +898,7 @@ function Register() {
           last_modified_by: myDeviceId // Mark this update as yours
         })
         .eq('id', activeTicket.id)
-        .then();
+        .then(({ error }) => { if (error) console.error('active_tickets sync (remove item) failed:', error); });
     }
   };
 

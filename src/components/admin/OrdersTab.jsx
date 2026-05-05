@@ -63,13 +63,42 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
     }
 
     try {
-      await db.sales.update(order.id, { status: newStatus, refund_amount: prevRefund + rAmt });
+      const updateData = { status: newStatus, refund_amount: prevRefund + rAmt };
+      await db.sales.update(order.id, updateData);
+
+      // Legacy orders (created before local_id existed) won't have a local_id —
+      // for those we fall back to the cloud `id` (which is what bulkPut stored).
+      const queueEntry = {
+        type: 'sale_update',
+        local_id: order.local_id || null,
+        cloud_id: order.local_id ? null : order.id,
+        data: updateData
+      };
+
       if (navigator.onLine) {
-        await supabase.from('sales').update({ status: newStatus, refund_amount: prevRefund + rAmt }).eq('id', order.id);
+        const query = order.local_id
+          ? supabase.from('sales').update(updateData).eq('local_id', order.local_id)
+          : supabase.from('sales').update(updateData).eq('id', order.id);
+        const { error } = await query;
+        if (error) throw error;
+      } else {
+        await db.updateQueue.add(queueEntry);
       }
+
       setRefundModal({ isOpen: false, order: null });
       showAlert(t('toast.success'), t('toast.success'));
     } catch (err) {
+      if (!navigator.onLine) {
+         // Already handled by the if(navigator.onLine) but just in case of race
+         await db.updateQueue.add({
+           type: 'sale_update',
+           local_id: order.local_id || null,
+           cloud_id: order.local_id ? null : order.id,
+           data: { status: newStatus, refund_amount: prevRefund + rAmt }
+         });
+         setRefundModal({ isOpen: false, order: null });
+         return showAlert(t('toast.success'), t('toast.success') + " (Offline)");
+      }
       showAlert(t('common.error'), err.message);
     }
   };

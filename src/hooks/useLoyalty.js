@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient';
+import { db } from '../db';
 
 /**
  * Hook to manage the loyalty system logic.
@@ -61,6 +62,8 @@ export const useLoyalty = (posState) => {
     let currentVisits = starsToEarn;
 
     try {
+      if (!navigator.onLine) throw new Error("Device is offline");
+
       const { data: customer } = await supabase.from('customers').select('visits').eq('phone', cleanPhone).maybeSingle();
 
       if (customer) {
@@ -72,8 +75,16 @@ export const useLoyalty = (posState) => {
         if (insertErr) throw insertErr;
       }
     } catch (err) {
-      console.error("Loyalty error:", err);
-      return showAlert("Database Error", "Could not save stars. Please check your internet or Supabase permissions.");
+      console.warn("Loyalty error, queueing update:", err);
+      // Queue an INCREMENT (not absolute), so background sync adds to whatever
+      // is already on the server instead of overwriting it with today's stars.
+      await db.updateQueue.add({
+        type: 'loyalty_increment',
+        data: { phone: cleanPhone, increment: starsToEarn }
+      });
+      if (!navigator.onLine) {
+        showAlert(t('loyalty.offlineTitle') || "Offline", t('loyalty.offlineDesc') || "Stars will sync when connection returns.");
+      }
     }
 
     setLoyaltyModal(prev => ({

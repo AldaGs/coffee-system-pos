@@ -200,7 +200,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
   splits jsonb,
   items jsonb,
   discount jsonb,
-  local_id uuid UNIQUE
+  local_id uuid UNIQUE,
+  ticket_id text
 );
 
 -- Secure PIN Storage

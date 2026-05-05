@@ -108,7 +108,8 @@ export default async function handler(req, res) {
       splits jsonb,
       items jsonb,
       discount jsonb,
-      local_id uuid UNIQUE
+      local_id uuid UNIQUE,
+      ticket_id text
     );
 
     CREATE TABLE IF NOT EXISTS public.shop_settings (

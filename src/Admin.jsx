@@ -5,6 +5,7 @@ import { supabase } from './supabaseClient';
 import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
+import { fetchAndMergeSales } from './services/salesSync';
 import { useDialog } from './hooks/useDialog';
 import { useTheme } from './hooks/useTheme';
 import { useMenuStore } from './store/useMenuStore';
@@ -214,11 +215,8 @@ function Admin() {
         if (menuSettings.menu_data.posSettings) setGeneralSettings(prev => ({ ...prev, ...menuSettings.menu_data.posSettings }));
         if (menuSettings.menu_data.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...menuSettings.menu_data.loyaltySettings }));
 
-        // 4. Fetch Sales History
-        const { data: salesHistory, error: salesError } = await supabase.from('sales').select('*');
-        if (!salesError && salesHistory) {
-          await db.sales.bulkPut(salesHistory);
-        }
+        // 4. Fetch Sales History (dedupe by local_id — see salesSync.js)
+        await fetchAndMergeSales();
 
         // 5. Fetch Recipes & Inventory
         const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
