@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_logs (
   qty_deducted numeric NOT NULL,
   deduction_type text NOT NULL,
   ticket_id text,
+  unit_cost numeric DEFAULT 0,
   created_at timestamp with time zone DEFAULT now()
 );
 
@@ -64,6 +65,8 @@ CREATE TABLE IF NOT EXISTS public.sales (
   total_amount numeric,
   payment_method text,
   items_sold jsonb,
+  items jsonb,
+  discount jsonb,
   cashier_name text,
   status text DEFAULT 'paid',
   order_name text

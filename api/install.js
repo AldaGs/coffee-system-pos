@@ -69,6 +69,7 @@ export default async function handler(req, res) {
       qty_deducted numeric NOT NULL,
       deduction_type text NOT NULL,
       ticket_id text,
+      unit_cost numeric DEFAULT 0,
       local_id uuid UNIQUE,
       created_at timestamp with time zone DEFAULT now()
     );
@@ -105,6 +106,8 @@ export default async function handler(req, res) {
       refund_amount numeric DEFAULT 0,
       tip_amount numeric DEFAULT 0,
       splits jsonb,
+      items jsonb,
+      discount jsonb,
       local_id uuid UNIQUE
     );
 
@@ -206,18 +209,19 @@ export default async function handler(req, res) {
     $$ LANGUAGE plpgsql SECURITY DEFINER;
 
     -- Atomic inventory deduction (prevents race conditions)
+    DROP FUNCTION IF EXISTS deduct_inventory(BIGINT, NUMERIC);
     CREATE OR REPLACE FUNCTION deduct_inventory(item_id BIGINT, qty NUMERIC)
     RETURNS TABLE (
-      id BIGINT,
-      name TEXT,
-      current_stock NUMERIC
+      out_id BIGINT,
+      out_name TEXT,
+      out_current_stock NUMERIC
     ) AS $$
     BEGIN
       RETURN QUERY
-      UPDATE public.inventory
-      SET current_stock = current_stock - qty
-      WHERE public.inventory.id = item_id AND current_stock >= qty
-      RETURNING public.inventory.id, public.inventory.name, public.inventory.current_stock;
+      UPDATE public.inventory AS inv
+      SET current_stock = inv.current_stock - qty
+      WHERE inv.id = item_id AND inv.current_stock >= qty
+      RETURNING inv.id, inv.name, inv.current_stock;
     END;
     $$ LANGUAGE plpgsql SECURITY DEFINER;
   `;

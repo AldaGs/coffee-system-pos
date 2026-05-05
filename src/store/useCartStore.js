@@ -12,7 +12,7 @@ export const useCartStore = create(immer((set) => ({
   customVal: '',
   paidProductIds: [],
   tipAmount: 0, 
-  tipPercentage: 10,
+  tipPercentage: 0,
 
   // Actions
   setActiveTicketId: (id) => {
@@ -37,6 +37,6 @@ export const useCartStore = create(immer((set) => ({
     state.customVal = '';
     state.paidProductIds = [];
     state.tipAmount = 0;
-    state.tipPercentage = 10;
+    state.tipPercentage = 0;
   })
 })));

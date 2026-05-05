@@ -22,6 +22,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     items: activeTicket.items, // Full objects for re-sharing
     discount: activeTicket.discount, // Discount info for re-sharing
     cashier_name: activeCashier?.name || 'Unknown Cashier',
+    order_name: activeTicket.name || null,
     local_id: localId
   };
 
