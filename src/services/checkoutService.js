@@ -50,10 +50,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         if (warehouseItem) {
           // ONLINE ATOMIC DEDUCTION
           if (navigator.onLine) {
-            const { data, error } = await supabase.rpc('deduct_inventory', { item_id: warehouseItem.id, qty: itemQty });
-            if (error || !data || data.length === 0) {
-              throw new Error(`Insufficient stock for ${warehouseItem.name}`);
-            }
+            const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(warehouseItem.id), qty: itemQty });
+            if (error) throw new Error(`RPC error deducting ${warehouseItem.name}: ${error.message}`);
+            if (!data || data.length === 0) throw new Error(`Insufficient stock for ${warehouseItem.name}`);
           }
 
           inventoryLogsToPush.push({ 
@@ -80,10 +79,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
 
               if (modItem) {
                 if (navigator.onLine) {
-                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: modItem.id, qty: itemQty });
-                  if (error || !data || data.length === 0) {
-                    throw new Error(`Insufficient stock for modifier ${modItem.name}`);
-                  }
+                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(modItem.id), qty: itemQty });
+                  if (error) throw new Error(`RPC error deducting modifier ${modItem.name}: ${error.message}`);
+                  if (!data || data.length === 0) throw new Error(`Insufficient stock for modifier ${modItem.name}`);
                 }
 
                 inventoryLogsToPush.push({ 
@@ -141,10 +139,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
 
               if (whItem) {
                 if (navigator.onLine) {
-                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: whItem.id, qty: ing.qty });
-                  if (error || !data || data.length === 0) {
-                    throw new Error(`Insufficient stock for ingredient ${whItem.name}`);
-                  }
+                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(whItem.id), qty: ing.qty });
+                  if (error) throw new Error(`RPC error deducting ingredient ${whItem.name}: ${error.message}`);
+                  if (!data || data.length === 0) throw new Error(`Insufficient stock for ingredient ${whItem.name}`);
                 }
 
                 inventoryLogsToPush.push({ 
@@ -170,7 +167,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     // --- CLOUD SYNC ATTEMPT ---
     if (!navigator.onLine) throw new Error("Device is offline");
 
-    const { id: _UNUSED, ...cleanSale } = finalizedSale;
+    const { id: _UNUSED, discount: _DISCOUNT, ...cleanSale } = finalizedSale;
     const { error: salesError } = await supabase.from('sales').upsert(cleanSale, { onConflict: 'local_id' });
     if (salesError) throw salesError;
 
