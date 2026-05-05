@@ -1160,6 +1160,44 @@ body.dark-mode {
 
   .force-white {
     /* This specific combination turns any colored image completely white */
-    filter: brightness(0) invert(1); 
+    filter: brightness(0) invert(1);
   }
+
+/* Recipe calculator — responsive ingredient row */
+.recipe-calc-row {
+  display: grid;
+  grid-template-columns: 1.6fr 100px 90px 1fr 40px;
+  gap: 10px;
+  padding: 10px 20px;
+  align-items: center;
+}
+.recipe-calc-header {
+  display: grid;
+  grid-template-columns: 1.6fr 100px 90px 1fr 40px;
+  gap: 10px;
+  padding: 12px 20px;
+}
+@media (max-width: 640px) {
+  .recipe-calc-header { display: none; }
+  .recipe-calc-row {
+    grid-template-columns: 1fr 40px;
+    grid-template-areas:
+      "name remove"
+      "qty qty"
+      "unit cost";
+    gap: 8px;
+    padding: 14px 16px;
+  }
+  .recipe-calc-row > .rc-name { grid-area: name; }
+  .recipe-calc-row > .rc-qty { grid-area: qty; }
+  .recipe-calc-row > .rc-unit { grid-area: unit; }
+  .recipe-calc-row > .rc-cost { grid-area: cost; }
+  .recipe-calc-row > .rc-remove { grid-area: remove; justify-self: end; }
+  .recipe-calc-row input,
+  .recipe-calc-row select {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    padding: 10px 12px !important;
+  }
+}
 }

@@ -115,6 +115,14 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
             title="Funciona sin internet"
             desc="Mantén tu fila avanzando incluso si se cae tu conexión a internet."
           />
+          <FeatureCard
+            icon="lucide:calculator"
+            color="#099b46"
+            title="Calculadora de recetas"
+            desc="Calcula el costo real de tus recetas antes de fijar precios. Sin cuenta, sin registros."
+            href="/calculator"
+            linkLabel="Probar ahora →"
+          />
         </div>
       </main>
 
@@ -125,9 +133,9 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
   );
 }
 
-function FeatureCard({ icon, title, desc, color }) {
+function FeatureCard({ icon, title, desc, color, href, linkLabel }) {
   return (
-    <div style={{ flex: '1 1 300px', textAlign: 'center', padding: '32px', background: 'white', borderRadius: '24px', border: '1px solid #f0f0f0', transition: 'all 0.3s ease' }}>
+    <div style={{ flex: '1 1 300px', textAlign: 'center', padding: '32px', background: 'white', borderRadius: '24px', border: '1px solid #f0f0f0', transition: 'all 0.3s ease', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{
         width: '64px',
         height: '64px',
@@ -143,7 +151,15 @@ function FeatureCard({ icon, title, desc, color }) {
         <Icon icon={icon} />
       </div>
       <h3 style={{ fontSize: '1.25rem', color: '#0d3a66', marginBottom: '12px', fontWeight: '800' }}>{title}</h3>
-      <p style={{ color: '#546e7a', fontSize: '1rem', lineHeight: '1.6', margin: 0 }}>{desc}</p>
+      <p style={{ color: '#546e7a', fontSize: '1rem', lineHeight: '1.6', margin: 0, flex: 1 }}>{desc}</p>
+      {href && (
+        <a
+          href={href}
+          style={{ marginTop: '20px', display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 22px', background: color, color: 'white', borderRadius: '10px', textDecoration: 'none', fontWeight: '800', fontSize: '0.95rem' }}
+        >
+          {linkLabel}
+        </a>
+      )}
     </div>
   );
 }

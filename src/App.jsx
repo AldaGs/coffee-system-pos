@@ -6,10 +6,15 @@ import Admin from './Admin';
 import SetupScreen from './components/SetupScreen';
 import LandingPage from './components/LandingPage';
 import SupabaseGuide from './components/SupabaseGuide';
+import RecipeCostCalculator from './components/RecipeCostCalculator';
 import { supabase } from './supabaseClient';
 import UpdateNotification from './components/shared/UpdateNotification';
 
 function App() {
+  if (window.location.pathname === '/calculator') {
+    return <RecipeCostCalculator />;
+  }
+
   // --- 1. NEW: CHECK FOR INSTALLATION ---
   // We now check for the specific keys that SetupScreen saves.
   const [isInstalled, setIsInstalled] = useState(
