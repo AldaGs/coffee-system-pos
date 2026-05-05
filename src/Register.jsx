@@ -33,6 +33,8 @@ import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
 import DiscountModal from './components/register/DiscountModal';
+import TicketImage from './components/register/TicketImage';
+import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
 
 
 const getOrCreateDeviceId = () => {
@@ -937,258 +939,30 @@ function Register() {
 
 
 
-  // --- THE ESC/POS IMAGE ENCODER ---
-  const convertLogoToESCPOS = async (base64Data) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.src = base64Data;
-
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        // 58mm printers have a max printable width of exactly 384 dots (pixels).
-        // Let's cap the logo at 300px so it has a nice visual margin.
-        const MAX_WIDTH = 300;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > MAX_WIDTH) {
-          height = Math.round((height * MAX_WIDTH) / width);
-          width = MAX_WIDTH;
-        }
-
-        // CRITICAL: ESC/POS raster images MUST have a width that is a multiple of 8.
-        width = Math.ceil(width / 8) * 8;
-
-        canvas.width = width;
-        canvas.height = height;
-
-        // 1. Fill with white first! (Otherwise transparent PNGs print as giant solid black squares)
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, width, height);
-
-        // 2. Draw the logo
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // 3. Extract the raw pixel data
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const pixels = imageData.data;
-
-        // 4. Calculate ESC/POS parameters
-        const widthBytes = width / 8;
-        const xL = widthBytes % 256;
-        const xH = Math.floor(widthBytes / 256);
-        const yL = height % 256;
-        const yH = Math.floor(height / 256);
-
-        // The ESC/POS command: GS v 0 (Print Raster Bit Image)
-        const header = [0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH];
-        const imageBytes = [];
-
-        let currentByte = 0;
-        let bitIndex = 0;
-
-        // 5. Loop through every single pixel (RGBA) and convert to 1-bit monochrome
-        for (let i = 0; i < pixels.length; i += 4) {
-          const r = pixels[i];
-          const g = pixels[i + 1];
-          const b = pixels[i + 2];
-          const a = pixels[i + 3];
-
-          // Calculate brightness. If it's dark, it becomes a black dot.
-          const isBlack = (a > 128) && ((r * 0.299 + g * 0.587 + b * 0.114) < 128);
-
-          if (isBlack) {
-            currentByte |= (1 << (7 - bitIndex)); // Turn on the bit
-          }
-
-          bitIndex++;
-
-          // Once we have 8 bits, push the completed byte to our array
-          if (bitIndex === 8) {
-            imageBytes.push(currentByte);
-            currentByte = 0;
-            bitIndex = 0;
-          }
-        }
-
-        resolve(new Uint8Array([...header, ...imageBytes]));
-      };
-    });
-  };
+  // Utilities moved to src/utils/sharingUtils.js
 
   const printRawReceipt = async (ticket, total) => {
+    const receiptSettings = menuData?.receiptSettings || {
+      header: "TINY COFFEE BAR",
+      subheader: "Puebla, Mexico",
+      footer: "Thank you for your visit!",
+      enableTaxBreakdown: false,
+      taxRate: 16,
+      logo: null
+    };
     try {
-      const encoder = new TextEncoder();
-      let receiptBuffer = []; // We store EVERYTHING here first
-
-      // --- ESC/POS COMMANDS ---
-      const ESC_INIT = [0x1B, 0x40];
-      const ESC_ALIGN_LEFT = [0x1B, 0x61, 0x00];
-      const ESC_ALIGN_CENTER = [0x1B, 0x61, 0x01];
-      const ESC_BOLD_ON = [0x1B, 0x45, 0x01];
-      const ESC_BOLD_OFF = [0x1B, 0x45, 0x00];
-
-      // --- HELPERS ---
-      const pushCommand = (cmdArray) => receiptBuffer.push(...cmdArray);
-
-      const stripEmojis = (str) => {
-        if (!str) return "";
-        return str.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
-      };
-
-      const pushText = (text) => receiptBuffer.push(...encoder.encode(text));
-
-      const pushRow = (leftText, rightText) => {
-        const cleanLeft = stripEmojis(leftText);
-        const spacesNeeded = Math.max(1, 32 - cleanLeft.length - rightText.length);
-        pushText(`${cleanLeft}${' '.repeat(spacesNeeded)}${rightText}\n`);
-      };
-
-      // 1. GRAB SETTINGS
-      const receiptSettings = menuData?.receiptSettings || {
-        header: "TINY COFFEE BAR",
-        subheader: "Puebla, Mexico",
-        footer: "Thank you for your visit!",
-        enableTaxBreakdown: false,
-        taxRate: 16,
-        logo: null
-      };
-
-      // ==========================================
-      // --- BUILD THE RECEIPT ---
-      // ==========================================
-      pushCommand(ESC_INIT);
-      pushCommand(ESC_ALIGN_CENTER);
-
-      // --- LOGO INJECTION ---
-      if (receiptSettings.logo) {
-        try {
-          const logoBytes = await convertLogoToESCPOS(receiptSettings.logo);
-          // Convert the Uint8Array to a normal array so we can push it into the buffer
-          pushCommand(Array.from(logoBytes));
-          pushText("\n");
-        } catch (e) {
-          console.warn("Could not process logo:", e);
-        }
-      }
-
-      // --- HEADER ---
-      pushCommand(ESC_BOLD_ON);
-      pushText(`${receiptSettings.header}\n`);
-      pushCommand(ESC_BOLD_OFF);
-      pushText(`${receiptSettings.subheader}\n`);
-      pushText("--------------------------------\n");
-      pushText(`${t('receipt.ticket')} ${ticket.name}\n`);
-      pushText(`${t('receipt.date')} ${new Date().toLocaleString(lang === 'es' ? 'es-MX' : 'en-US')}\n`);
-      pushText("--------------------------------\n");
-
-      pushCommand(ESC_ALIGN_LEFT);
-
-      let rawSubtotal = 0;
-
-      // --- ITEMS ---
-      for (const item of ticket.items) {
-        const qty = item.qty || 1;
-        let lineTotal = item.basePrice;
-        item.selectedModifiers.forEach(mod => lineTotal += mod.price);
-        lineTotal *= qty;
-        rawSubtotal += lineTotal;
-
-        const itemLabel = qty > 1 ? `${item.name} x${qty}` : item.name;
-        pushRow(itemLabel, `$${lineTotal.toFixed(2)}`);
-
-        for (const mod of item.selectedModifiers) {
-          const modPrice = mod.price > 0 ? `+$${mod.price.toFixed(2)}` : "";
-          pushRow(`  + ${mod.name}`, modPrice);
-        }
-      }
-
-      pushText("--------------------------------\n");
-
-      // --- DISCOUNTS ---
-      if (rawSubtotal > total) {
-        pushRow(t('analytics.grossRevenue'), `$${rawSubtotal.toFixed(2)}`);
-        pushRow(t('disc.title'), `-$${(rawSubtotal - total).toFixed(2)}`);
-        pushText("--------------------------------\n");
-      }
-
-      // --- SAT TAX EXTRACTION ---
-      if (receiptSettings.enableTaxBreakdown) {
-        const taxRate = receiptSettings.taxRate || 16;
-        const taxDecimal = taxRate / 100;
-        const baseSubtotal = total / (1 + taxDecimal);
-        const extractedTax = total - baseSubtotal;
-
-        pushRow("Subtotal ", `$${baseSubtotal.toFixed(2)}`);
-        pushRow(`IVA (${taxRate}%)`, `$${extractedTax.toFixed(2)}`);
-        pushText("--------------------------------\n");
-      }
-
-      // --- GRAND TOTAL ---
-      pushCommand(ESC_ALIGN_CENTER);
-      pushCommand(ESC_BOLD_ON);
-      pushText(`TOTAL: $${total.toFixed(2)}\n`);
-      pushCommand(ESC_BOLD_OFF);
-
-      // ADD THIS NEW LINE TO THE PRINTER:
-      pushText(`${numeroALetras(total)}\n`);
-
-      pushText("--------------------------------\n");
-      pushText(`${receiptSettings.footer}\n`);
-      pushText("\n\n\n"); // Feed paper
-
-
-
-      // ==========================================
-      // --- ROUTING: WHERE DOES THE BUFFER GO? ---
-      // ==========================================
-      const finalBytes = new Uint8Array(receiptBuffer);
-      const isAndroid = /Android/i.test(navigator.userAgent);
-
-      if (isAndroid) {
-        // --- PATH A: ANDROID (RAWBT BRIDGE) ---
-        let binary = '';
-        for (let i = 0; i < finalBytes.byteLength; i++) {
-          binary += String.fromCharCode(finalBytes[i]);
-        }
-        const base64Data = window.btoa(binary);
-
-        const rawbtUrl = `rawbt:base64,${base64Data}`;
-
-        const link = document.createElement('a');
-        link.href = rawbtUrl;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-
-        setTimeout(() => document.body.removeChild(link), 100);
-
-      } else if (navigator.serial) {
-        // --- PATH B: WINDOWS / MAC LAPTOP (WEB SERIAL) ---
-        const port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 9600 });
-        const writer = port.writable.getWriter();
-        await writer.write(finalBytes);
-        writer.releaseLock();
-        await port.close();
-
+      await printRawReceiptUtil(ticket, total, { t, lang, receiptSettings });
+    } catch (err) {
+      if (err.message !== "unsupported") {
+        showAlert(t('receipt.printerErr'), t('receipt.printerErrDesc'));
       } else {
         showAlert("Unsupported Device", "Direct printing is only supported on Windows/Mac via Chrome, or Android via the RawBT app.");
       }
-
-    } catch (err) {
-      console.error("Printing failed:", err);
-      showAlert(t('receipt.printerErr'), t('receipt.printerErrDesc'));
     }
   };
 
   // --- WHATSAPP RECEIPT LOGIC ---
   const sendFinalMessage = (phone, loyaltyData) => {
-    if (!activeTicket) return;
-
-    // Grab the receipt settings from the cloud (with safe fallbacks)
     const receiptSettings = menuData?.receiptSettings || {
       header: posSettings.name || 'TinyPOS',
       subheader: '',
@@ -1196,89 +970,24 @@ function Register() {
       enableTaxBreakdown: false,
       taxRate: 16
     };
-
-    // 1. Build Receipt Header & Subheader
-    let message = `*${receiptSettings.header}*\n`;
-    if (receiptSettings.subheader) {
-      message += `${receiptSettings.subheader}\n`;
-    }
-    message += `--------------------------\n`;
-    message += `${t('wa.order')} ${activeTicket.name}\n`;
-    message += `${t('wa.date')} ${new Date().toLocaleString(lang === 'es' ? 'es-MX' : 'en-US')}\n`;
-    message += `--------------------------\n`;
-
-    // 2. Build Items List
-    activeTicket.items.forEach(item => {
-      const qty = item.qty || 1;
-      const lineTotal = (item.basePrice + (item.selectedModifiers || []).reduce((s, m) => s + m.price, 0)) * qty;
-      const qtyLabel = qty > 1 ? ` x${qty}` : '';
-      message += `${item.emoji} ${item.name}${qtyLabel} - $${lineTotal.toFixed(2)}\n`;
-      if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-        item.selectedModifiers.forEach(mod => {
-          message += `  + ${mod.name} ($${mod.price.toFixed(2)})\n`;
-        });
-      }
-    });
-
-    message += `--------------------------\n`;
-
-    // 3. Build Tax Breakdown (If Enabled)
-    if (receiptSettings.enableTaxBreakdown) {
-      const taxRate = receiptSettings.taxRate || 16;
-      const { subtotal: baseSubtotal, tax: extractedTax } = calculateTaxBreakdown(cartTotal, taxRate);
-
-      message += `Subtotal: $${baseSubtotal.toFixed(2)}\n`;
-      message += `IVA (${taxRate}%): $${extractedTax.toFixed(2)}\n`;
-    }
-
-    message += `--------------------------\n`;
-
-    // 4. Grand Total
-    message += `*TOTAL: $${cartTotal.toFixed(2)}*\n`;
-
-    // ADD THIS NEW LINE FOR WHATSAPP:
-    message += `_${numeroALetras(cartTotal)}_\n`;
-
-    // 5. Loyalty Status (Inside sendFinalMessage)
-    if (loyaltyData) {
-
-      message += `--------------------------\n`;
-      message += `\n🌟 *${t('wa.loyaltyTitle')}*\n`;
-      message += `${t('analytics.filterAll')}: ${loyaltyData.visits} / ${loyaltyData.target}\n`;
-      message += `(${t('wa.earnedToday')} +${loyaltyData.earnedToday})\n`;
-
-      if (loyaltyData.isRewardReady) {
-        message += `🎉 ${t('wa.rewardReady')} ${loyaltyData.reward}!\n`;
-      } else {
-        message += `${t('wa.nextReward')} ${loyaltyData.target - (loyaltyData.visits % loyaltyData.target)} ${t('wa.more')}!\n`;
-      }
-    }
-
-    message += `--------------------------\n`;
-
-    // 6. Custom Footer
-    message += `\n${receiptSettings.footer}`;
-
-    // --- WHATSAPP ROUTING LOGIC ---
-    const encodedMessage = encodeURIComponent(message);
-    const targetPhone = `52${phone}`; // MX country code
-
-    // Detect if the device is mobile (Phone/Tablet) or Desktop
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
-    // Route to native app on mobile, or web.whatsapp on PC
-    const whatsappUrl = isMobile
-      ? `whatsapp://send?phone=${targetPhone}&text=${encodedMessage}`
-      : `https://web.whatsapp.com/send?phone=${targetPhone}&text=${encodedMessage}`;
-
-    // Safely execute routing
-    if (isMobile) {
-      window.location.assign(whatsappUrl);
-    } else {
-      window.open(whatsappUrl, '_blank');
-    }
-
+    sendFinalMessageUtil(phone, activeTicket, cartTotal, { t, lang, receiptSettings, loyaltyData });
     setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
+  };
+
+  const handleSaveAsPNG = async (ticket, total) => {
+    const receiptSettings = menuData?.receiptSettings || {
+      header: posSettings.name || 'TinyPOS',
+      subheader: '',
+      footer: 'Thank you for your visit! ✨',
+      enableTaxBreakdown: false,
+      taxRate: 16
+    };
+    try {
+      // Capture the hidden TicketImage element
+      await saveTicketAsPNGUtil('ticket-to-capture', `ticket-${ticket.name || 'pos'}.png`);
+    } catch (err) {
+      showAlert("Error", "Could not save PNG: " + err.message);
+    }
   };
 
   // --- 2. THE GUEST CHECKOUT (NO TRACKING) ---
@@ -1604,7 +1313,7 @@ function Register() {
     activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
     handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
-    handleOpenCheckout, handleCancelTicket, printRawReceipt,
+    handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
 
     // --- NEW: ModifierModal Data & Functions ---
     pendingItem,
@@ -1691,6 +1400,18 @@ function Register() {
         <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 
         <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
+
+        {/* Hidden TicketImage for PNG Capture */}
+        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
+           <TicketImage 
+             id="ticket-to-capture"
+             ticket={activeTicket} 
+             total={cartTotal} 
+             receiptSettings={menuData?.receiptSettings || {}} 
+             lang={lang} 
+             t={t} 
+           />
+        </div>
 
       </div>
     </PosContext.Provider>

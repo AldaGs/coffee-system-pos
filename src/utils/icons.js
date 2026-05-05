@@ -59,6 +59,7 @@ import logOut from '@iconify-icons/lucide/log-out';
 import mail from '@iconify-icons/lucide/mail';
 import mapPin from '@iconify-icons/lucide/map-pin';
 import menu from '@iconify-icons/lucide/menu';
+import moreVertical from '@iconify-icons/lucide/more-vertical';
 import messageSquare from '@iconify-icons/lucide/message-square';
 import monitor from '@iconify-icons/lucide/monitor';
 import packageCheck from '@iconify-icons/lucide/package-check';
@@ -174,6 +175,7 @@ const icons = {
   'lucide:mail': mail,
   'lucide:map-pin': mapPin,
   'lucide:menu': menu,
+  'lucide:more-vertical': moreVertical,
   'lucide:message-square-text': messageSquare,
   'lucide:monitor': monitor,
   'lucide:package-check': packageCheck,

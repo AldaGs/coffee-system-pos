@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Icon } from '@iconify/react';
 import QuantityEditModal from './QuantityEditModal';
 
 function TicketArea({
@@ -16,7 +17,7 @@ function TicketArea({
     handleWheelScroll, activeTicket, cartSubtotal, cartTotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
     handleRemoveItem, handleOpenCheckout, handleCancelTicket,
-    requirePin, printRawReceipt, handleUpdateItemQty, handleRenameTicket
+    requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket
   } = usePos();
   
   return (
@@ -117,7 +118,9 @@ function TicketArea({
                 </div>
               )}
               <div className="checkout-actions">
-                <button className="options-btn" onClick={() => setIsActionSheetOpen(true)} disabled={activeTicket.items.length === 0} style={{ flex: '0 0 auto', width: '60px', padding: '16px 0', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: activeTicket.items.length === 0 ? 0.5 : 1, cursor: activeTicket.items.length === 0 ? 'not-allowed' : 'pointer' }}>⚙️</button>
+                <button className="options-btn" onClick={() => setIsActionSheetOpen(true)} disabled={activeTicket.items.length === 0} style={{ flex: '0 0 auto', width: '60px', padding: '16px 0', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: activeTicket.items.length === 0 ? 0.5 : 1, cursor: activeTicket.items.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon icon="lucide:more-vertical" />
+                </button>
                 <button className="charge-btn" onClick={handleOpenCheckout} disabled={activeTicket.items.length === 0} style={{ flex: 1 }}>
                   {t('ticket.btnPay')}
                 </button>
@@ -145,6 +148,9 @@ function TicketArea({
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>
                     {t('ticket.btnPrint')}
+                  </button>
+                  <button style={{ flex: 1, padding: '16px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); handleSaveAsPNG(activeTicket, cartTotal); }}>
+                    {t('ticket.btnPNG')}
                   </button>
                   <button style={{ flex: 1, padding: '16px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); setLoyaltyModal({ isOpen: true, step: 'phone', phone: '', data: null }); }}>
                     {t('ticket.btnWA')}

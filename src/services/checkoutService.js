@@ -24,6 +24,8 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     splits: isSplit ? paymentsArray : null,
     tip_amount: tipAmount,
     items_sold: activeTicket.items.map(item => item.name),
+    items: activeTicket.items, // Full objects for re-sharing
+    discount: activeTicket.discount, // Discount info for re-sharing
     cashier_name: activeCashier?.name || 'Unknown Cashier'
   };
 

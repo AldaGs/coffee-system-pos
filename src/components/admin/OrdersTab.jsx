@@ -1,13 +1,108 @@
+import { useState } from 'react';
 import { Icon } from '@iconify/react';
 import { db } from '../../db';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
+import TicketImage from '../register/TicketImage';
+import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from '../../utils/sharingUtils';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
+  const [sharingOrder, setSharingOrder] = useState(null);
+
+  const getOrderTicket = (order) => {
+    // If we have the full items array (saved in newer versions)
+    if (order.items && Array.isArray(order.items)) {
+      return {
+        name: order.order_name || String(order.id),
+        items: order.items,
+        discount: order.discount,
+        created_at: order.created_at
+      };
+    }
+    
+    // Legacy fallback: Create a lite ticket from items_sold names
+    return {
+      name: order.order_name || String(order.id),
+      items: (order.items_sold || []).map(name => ({
+        name: name,
+        basePrice: 0, // We don't have historical item prices in legacy
+        qty: 1,
+        emoji: '☕',
+        selectedModifiers: []
+      })),
+      created_at: order.created_at
+    };
+  };
+
+  const handleSharePNG = async (order) => {
+    setSharingOrder(order);
+    // Wait for the DOM to update so TicketImage is rendered
+    setTimeout(async () => {
+      try {
+        await saveTicketAsPNGUtil(`order-capture-${order.id}`, `ticket-${order.id}.png`);
+      } catch (err) {
+        alert("Error saving PNG: " + err.message);
+      } finally {
+        setSharingOrder(null);
+      }
+    }, 300);
+  };
+
+  const handleShareWA = (order) => {
+    const phone = window.prompt(t('wa.promptPhone') || "Enter WhatsApp Phone (10 digits):");
+    if (!phone || phone.length !== 10) return;
+    
+    const ticket = getOrderTicket(order);
+    const receiptSettings = menuData?.receiptSettings || {
+      header: generalSettings.name || 'TinyPOS',
+      subheader: '',
+      footer: 'Thank you for your visit! ✨',
+      enableTaxBreakdown: false,
+      taxRate: 16
+    };
+    
+    sendFinalMessageUtil(phone, ticket, order.total_amount, { t, lang, receiptSettings });
+  };
+
+  const handlePrint = async (order) => {
+    const ticket = getOrderTicket(order);
+    const receiptSettings = menuData?.receiptSettings || {
+      header: "TINY COFFEE BAR",
+      subheader: "Puebla, Mexico",
+      footer: "Thank you for your visit!",
+      enableTaxBreakdown: false,
+      taxRate: 16,
+      logo: null
+    };
+
+    try {
+      await printRawReceiptUtil(ticket, order.total_amount, { t, lang, receiptSettings });
+    } catch (err) {
+      if (err.message !== "unsupported") {
+        alert("Printer Error: " + err.message);
+      } else {
+        alert("Unsupported Device: Direct printing is only supported on Windows/Mac via Chrome, or Android via the RawBT app.");
+      }
+    }
+  };
 
   return (
     <div className="admin-section fade-in">
+      {/* Hidden capture target for PNG generation */}
+      {sharingOrder && (
+        <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
+           <TicketImage 
+             id={`order-capture-${sharingOrder.id}`}
+             ticket={getOrderTicket(sharingOrder)} 
+             total={sharingOrder.total_amount} 
+             receiptSettings={menuData?.receiptSettings || {}} 
+             lang={lang} 
+             t={t} 
+           />
+        </div>
+      )}
+
       <div className="admin-section-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
         <div>
           <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('orders.title')}</h1>
@@ -106,7 +201,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
               </div>
             </div>
 
-            <div className="mobile-flex-stack" style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
+            <div className="mobile-flex-stack" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
               <div style={{ textAlign: 'inherit' }}>
                 <div style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)', textDecoration: order.status === 'refunded' ? 'line-through' : 'none', letterSpacing: '-1px' }}>
                   ${Number(order.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -118,6 +213,32 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                   </div>
                 )}
               </div>
+
+              {/* RE-SHARE BUTTONS */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => handlePrint(order)}
+                  title={t('ticket.btnPrint')}
+                  style={{ padding: '10px', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+                >
+                  <Icon icon="lucide:printer" />
+                </button>
+                <button 
+                  onClick={() => handleSharePNG(order)}
+                  title={t('ticket.btnPNG')}
+                  style={{ padding: '10px', background: 'rgba(230, 126, 34, 0.1)', color: '#e67e22', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+                >
+                  <Icon icon="lucide:image" />
+                </button>
+                <button 
+                  onClick={() => handleShareWA(order)}
+                  title={t('ticket.btnWA')}
+                  style={{ padding: '10px', background: 'rgba(37, 211, 102, 0.1)', color: '#25D366', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+                >
+                  <Icon icon="lucide:message-circle" />
+                </button>
+              </div>
+
               <button 
                 onClick={() => {
                   const typedPin = window.prompt(t('orders.promptPin'));
@@ -152,8 +273,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                 }} 
                 disabled={order.status === 'refunded'} 
                 style={{ 
-                  padding: '12px 24px', 
-                  width: '100%',
+                  padding: '12px 20px', 
                   background: order.status === 'refunded' ? 'var(--bg-main)' : 'rgba(231, 76, 60, 0.05)', 
                   color: order.status === 'refunded' ? 'var(--text-muted)' : '#e74c3c', 
                   border: `2px solid ${order.status === 'refunded' ? 'transparent' : 'rgba(231, 76, 60, 0.2)'}`, 

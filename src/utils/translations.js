@@ -687,6 +687,7 @@ export const translations = {
     "ticket.btnDiscount": "% Discount",
     "ticket.btnPrint": "Print",
     "ticket.btnWA": "WhatsApp",
+    "ticket.btnPNG": "Save PNG",
     "ticket.authDiscount": "Authorize Discount",
 
     // --- Modifier Modal ---
@@ -1394,6 +1395,7 @@ export const translations = {
     "ticket.btnDiscount": "% Descuento",
     "ticket.btnPrint": "Imprimir",
     "ticket.btnWA": "WhatsApp",
+    "ticket.btnPNG": "Guardar PNG",
     "ticket.authDiscount": "Autorizar Descuento",
 
     // --- Modifier Modal ---
