@@ -251,7 +251,7 @@ function Register() {
     setExpenses([...expenses, newExpense]);
 
     // LOG ACTIVITY
-    logActivity('Gasto (Expense)', `Registró un gasto de $${expenseAmount.toFixed(2)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
+    logActivity('expense_added', null, { amount: expenseAmount, category: expenseForm.category, reason: expenseForm.reason });
 
     setIsExpenseModalOpen(false);
     setExpenseForm({ amount: '', reason: '', category: 'General' });
@@ -270,7 +270,7 @@ function Register() {
       await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
 
       // LOG ACTIVITY
-      logActivity('Discount Applied', `A ${val}${discountForm.type === 'percentage' ? '%' : '$'} discount was applied to ticket: ${activeTicket.name}`);
+      logActivity('discount_applied', null, { value: val, type: discountForm.type, ticket_name: activeTicket.name });
     }
     setIsDiscountModalOpen(false);
     setDiscountForm({ type: 'percentage', value: '' }); // Reset form

@@ -3,12 +3,16 @@ import { useAuthStore } from '../store/useAuthStore';
 
 /**
  * Logs an action to the activity_logs table.
- * 
- * @param {string} actionType - E.g., 'Discount Applied', 'Price Changed', 'Inventory Restock'
- * @param {string} description - Human readable description of what happened
- * @param {object} metadata - Optional JSON object with exact values (e.g., { oldPrice: 10, newPrice: 15 })
+ *
+ * Prefer the canonical action codes in `activityFormatter.js` (e.g. 'sale',
+ * 'discount_applied', 'inventory_restock'). Pass `description = null` so the
+ * UI renders the human-readable text from `metadata` in the viewer's locale.
+ *
+ * @param {string} actionType
+ * @param {string|null} description - Pre-formatted text (legacy). Prefer null.
+ * @param {object} metadata - Structured payload the UI formatter consumes.
  */
-export const logActivity = async (actionType, description, metadata = null) => {
+export const logActivity = async (actionType, description = null, metadata = null) => {
   try {
     // We grab the current cashier straight from the global store
     const { activeCashier } = useAuthStore.getState();

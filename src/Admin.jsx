@@ -399,7 +399,7 @@ function Admin() {
     saveMenuToCloud(updatedMenu);
 
     // LOG ACTIVITY
-    logActivity('Team Management', `Added new cashier: ${newCashier.name}`, { cashierId: newEntry.id });
+    logActivity('cashier_added', null, { name: newCashier.name, cashierId: newEntry.id });
 
     setNewCashier({ name: '', pin: '', isAdmin: false }); // Reset form
   };
@@ -414,7 +414,7 @@ function Admin() {
 
       // LOG ACTIVITY
       if (cashierToDelete) {
-        logActivity('Team Management', `Removed cashier: ${cashierToDelete.name}`);
+        logActivity('cashier_removed', null, { name: cashierToDelete.name });
       }
     });
 
@@ -498,7 +498,7 @@ function Admin() {
       saveMenuToCloud(updatedMenu);
 
       // LOG ACTIVITY
-      logActivity('Menu Management', `Updated drink: ${updatedItem.name}`);
+      logActivity('menu_item_updated', null, { name: updatedItem.name });
 
       setEditingItemId(null);
       resetItemForm();
@@ -520,7 +520,7 @@ function Admin() {
     saveMenuToCloud(updatedMenu);
 
     // LOG ACTIVITY
-    logActivity('Menu Management', `Added new item: ${newItemForm.name} to ${newItemForm.category} for $${newItemForm.price}`);
+    logActivity('menu_item_added', null, { name: newItemForm.name, category: newItemForm.category, price: newItemForm.price });
 
     resetItemForm();
   };
@@ -566,7 +566,7 @@ function Admin() {
       saveMenuToCloud(updatedMenu);
 
       // LOG ACTIVITY
-      logActivity('Menu Management', `Deleted drink: ${drinkName}`);
+      logActivity('menu_item_deleted', null, { name: drinkName });
     });
   };
 

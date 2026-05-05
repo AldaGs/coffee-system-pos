@@ -34,7 +34,7 @@ export const useShiftCorte = (posState) => {
 
     try {
       // 1. Log the activity (Cloud + Local)
-      await logActivity('corte', corteRecord);
+      await logActivity('corte', null, corteRecord);
 
       // 2. Clear current session data locally
       const now = corteRecord.timestamp;

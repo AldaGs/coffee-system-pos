@@ -48,7 +48,11 @@ export const useCheckout = (posState) => {
       attemptBackgroundSync();
 
       // 5. Analytics
-      logActivity('sale', { amount: cartTotal, method: masterMethodString });
+      logActivity('sale', null, {
+        amount: cartTotal,
+        method: masterMethodString,
+        items_count: (activeTicket?.items || []).reduce((s, it) => s + (it.qty || 1), 0)
+      });
 
       return true;
     } catch (error) {

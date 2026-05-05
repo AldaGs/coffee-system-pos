@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatActivity } from '../../services/activityFormatter';
 
 function ActivityTab() {
   const { t } = useTranslation();
@@ -49,26 +50,6 @@ function ActivityTab() {
     });
   }, [fetchLogs]);
 
-  const getActionIcon = (actionType) => {
-    const type = actionType.toLowerCase();
-    if (type.includes('discount')) return 'lucide:percent';
-    if (type.includes('price')) return 'lucide:badge-dollar-sign';
-    if (type.includes('team') || type.includes('cashier')) return 'lucide:users';
-    if (type.includes('inventory') || type.includes('restock')) return 'lucide:database';
-    if (type.includes('expense') || type.includes('gasto')) return 'lucide:receipt';
-    if (type.includes('corte')) return 'lucide:clipboard-check';
-    return 'lucide:scroll-text';
-  };
-
-  const getActionColor = (actionType) => {
-    const type = actionType.toLowerCase();
-    if (type.includes('discount')) return '#e74c3c'; // red
-    if (type.includes('price')) return '#f39c12'; // orange
-    if (type.includes('inventory')) return '#3498db'; // blue
-    if (type.includes('expense') || type.includes('gasto')) return '#9b59b6'; // purple
-    return 'var(--text-muted)';
-  };
-
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '20px' }}>
@@ -112,6 +93,7 @@ function ActivityTab() {
               const dateObj = new Date(log.created_at);
               const dateStr = dateObj.toLocaleDateString();
               const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const view = formatActivity(log, t);
 
               return (
                 <div key={log.id} style={{
@@ -132,18 +114,18 @@ function ActivityTab() {
                     alignItems: 'center',
                     justifyContent: 'center'
                   }}>
-                    <Icon icon={getActionIcon(log.action_type)} style={{ fontSize: '1.4rem', color: getActionColor(log.action_type) }} />
+                    <Icon icon={view.icon} style={{ fontSize: '1.4rem', color: view.color }} />
                   </div>
 
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '1.1rem' }}>{log.action_type}</span>
+                      <span style={{ fontWeight: '800', color: 'var(--text-main)', fontSize: '1.1rem' }}>{view.label}</span>
                       <div style={{ display: 'flex', gap: '12px', color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Icon icon="lucide:user" /> {log.cashier_name}</span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Icon icon="lucide:calendar" /> {dateStr} {timeStr}</span>
                       </div>
                     </div>
-                    <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: '1.5' }}>{log.description}</p>
+                    <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: '1.5' }}>{view.description}</p>
                   </div>
                 </div>
               );

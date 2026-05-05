@@ -57,7 +57,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       }
       
       // LOG ACTIVITY
-      logActivity('Inventory Item Created', `Created item: ${itemToSave.name} (${stockVal}${itemToSave.unit})`, { item: itemToSave.name, stock: stockVal });
+      logActivity('inventory_created', null, { name: itemToSave.name, stock: stockVal, unit: itemToSave.unit });
 
       await db.inventory.put(data[0]);
       setInventoryItems([...inventoryItems, data[0]]);
@@ -212,7 +212,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         : `${t('inv.foundExtra')} ${variance}${auditingItem.unit} (+$${financialImpact.toFixed(2)})`;
 
       // LOG ACTIVITY
-      logActivity('Inventory Audit', `Audit for ${auditingItem.name}: ${impactMsg}`, { item: auditingItem.name, variance, financialImpact });
+      logActivity('inventory_audit', null, { name: auditingItem.name, variance, financial_impact: financialImpact });
 
       showAlert(t('inv.alertAuditComplete'), impactMsg);
 
@@ -270,7 +270,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       }
 
       // LOG ACTIVITY
-      logActivity('Inventory Restock', `Restocked ${qtyBought}${restockingItem.unit} of ${restockingItem.name} for $${totalPaid}`, { item: restockingItem.name, qty: qtyBought, cost: totalPaid });
+      logActivity('inventory_restock', null, { name: restockingItem.name, qty: qtyBought, unit: restockingItem.unit, cost: totalPaid });
 
       await db.inventory.put(data[0]);
       setInventoryItems(inventoryItems.map(item => item.id === restockingItem.id ? data[0] : item));
