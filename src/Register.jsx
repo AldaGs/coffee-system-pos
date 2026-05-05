@@ -973,14 +973,7 @@ function Register() {
     setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
   };
 
-  const handleSaveAsPNG = async (ticket, total) => {
-    const receiptSettings = menuData?.receiptSettings || {
-      header: posSettings.name || 'TinyPOS',
-      subheader: '',
-      footer: 'Thank you for your visit! ✨',
-      enableTaxBreakdown: false,
-      taxRate: 16
-    };
+  const handleSaveAsPNG = async (ticket) => {
     try {
       // Capture the hidden TicketImage element
       await saveTicketAsPNGUtil('ticket-to-capture', `ticket-${ticket.name || 'pos'}.png`);
