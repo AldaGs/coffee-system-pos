@@ -39,12 +39,12 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
       </nav>
 
       {/* HERO SECTION */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '80px 5%', textAlign: 'center' }}>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 'clamp(40px, 8vw, 80px) 5%', textAlign: 'center' }}>
         <div className="fade-in" style={{ maxWidth: '900px' }}>
-          <h2 style={{ fontSize: '4rem', color: '#0d3a66', marginBottom: '24px', lineHeight: '1.05', fontWeight: '900', letterSpacing: '-1px' }}>
+          <h2 style={{ fontSize: 'clamp(2.4rem, 8vw, 4rem)', color: '#0d3a66', marginBottom: '24px', lineHeight: '1.05', fontWeight: '900', letterSpacing: '-1px' }}>
             El punto de venta autónomo para <span style={{ color: 'var(--brand-color, #f28b05)' }}>pequeños negocios.</span>
           </h2>
-          <p style={{ fontSize: '1.35rem', color: '#546e7a', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px', lineHeight: '1.5' }}>
+          <p style={{ fontSize: 'clamp(1rem, 3vw, 1.35rem)', color: '#546e7a', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px', lineHeight: '1.5' }}>
             Sin mensualidades. Sin suscripciones en la nube. Sé dueño de tus datos, conecta tu hardware y gestiona tu negocio a tu manera.
           </p>
 

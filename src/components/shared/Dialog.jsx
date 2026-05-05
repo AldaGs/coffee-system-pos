@@ -3,11 +3,21 @@ import { useState, useEffect, useRef } from 'react';
 function Dialog({ uiDialog, closeDialog }) {
   const [inputValue, setInputValue] = useState(uiDialog.inputValue || '');
   const inputRef = useRef(null);
+  const dialogRef = useRef(null);
+  const confirmBtnRef = useRef(null);
+  const previousFocusRef = useRef(null);
 
   useEffect(() => {
-    if (uiDialog.isOpen && uiDialog.type === 'prompt') {
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    if (!uiDialog.isOpen) return;
+    previousFocusRef.current = document.activeElement;
+    const focusTarget = uiDialog.type === 'prompt' ? inputRef : confirmBtnRef;
+    const id = setTimeout(() => focusTarget.current?.focus(), 50);
+    return () => {
+      clearTimeout(id);
+      if (previousFocusRef.current && typeof previousFocusRef.current.focus === 'function') {
+        previousFocusRef.current.focus();
+      }
+    };
   }, [uiDialog.isOpen, uiDialog.type]);
 
   if (!uiDialog.isOpen) return null;
@@ -26,16 +36,41 @@ function Dialog({ uiDialog, closeDialog }) {
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleConfirm();
     if (e.key === 'Escape') closeDialog();
+    if (e.key === 'Tab' && dialogRef.current) {
+      const focusables = dialogRef.current.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
   };
 
   return (
     <div className="modal-overlay" style={{ zIndex: 9999 }}>
-      <div className="modal-content fade-in" style={{ textAlign: 'center', maxWidth: '400px', background: 'var(--bg-surface)' }}>
-        <div style={{ fontSize: '3.5rem', marginBottom: '10px' }}>
+      <div
+        ref={dialogRef}
+        className="modal-content fade-in"
+        style={{ textAlign: 'center', maxWidth: '400px', background: 'var(--bg-surface)' }}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="dialog-title"
+        aria-describedby="dialog-message"
+        onKeyDown={handleKeyDown}
+      >
+        <div style={{ fontSize: '3.5rem', marginBottom: '10px' }} aria-hidden="true">
           {uiDialog.type === 'alert' ? '🔔' : uiDialog.type === 'prompt' ? '📝' : '⚠️'}
         </div>
-        <h2 style={{ color: 'var(--text-main)', marginBottom: '16px', marginTop: 0 }}>{uiDialog.title}</h2>
-        <p style={{ fontSize: '1.1rem', marginBottom: uiDialog.type === 'prompt' ? '16px' : '24px', color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{uiDialog.message}</p>
+        <h2 id="dialog-title" style={{ color: 'var(--text-main)', marginBottom: '16px', marginTop: 0 }}>{uiDialog.title}</h2>
+        <p id="dialog-message" style={{ fontSize: '1.1rem', marginBottom: uiDialog.type === 'prompt' ? '16px' : '24px', color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{uiDialog.message}</p>
+
         
         {uiDialog.type === 'prompt' && (
           <input
@@ -55,7 +90,7 @@ function Dialog({ uiDialog, closeDialog }) {
               {uiDialog.cancelText || 'Cancel'}
             </button>
           )}
-          <button onClick={handleConfirm} style={{ flex: 1, padding: '14px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem' }}>
+          <button ref={confirmBtnRef} onClick={handleConfirm} style={{ flex: 1, padding: '14px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem' }}>
             {uiDialog.type === 'alert' ? 'OK' : uiDialog.confirmText || 'Confirm'}
           </button>
         </div>

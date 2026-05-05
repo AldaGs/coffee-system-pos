@@ -53,8 +53,9 @@ function App() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      alert("Device Authorization Failed: " + error.message);
+      window.alert("Device Authorization Failed: " + error.message);
     }
+
     setIsLoggingIn(false);
   };
 

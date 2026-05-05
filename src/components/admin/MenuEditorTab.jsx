@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useDialog } from '../../hooks/useDialog';
 
 function MenuEditorTab({ 
   menuData, newCategoryName, setNewCategoryName, handleAddCategory, 
@@ -9,6 +10,7 @@ function MenuEditorTab({
   handleRenameCategory, editingItemId, setEditingItemId
 }) {
   const { t } = useTranslation();
+  const { showPrompt } = useDialog();
 
   return (
     <div className="admin-section fade-in">
@@ -211,10 +213,11 @@ function MenuEditorTab({
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
                       onClick={() => {
-                        const newName = window.prompt(t('menu.promptRenameCategory'), category);
-                        if (newName && newName.trim() && newName !== category) {
-                          handleRenameCategory(category, newName.trim());
-                        }
+                        showPrompt(t('menu.promptRenameCategory'), category, (newName) => {
+                          if (newName && newName.trim() && newName !== category) {
+                            handleRenameCategory(category, newName.trim());
+                          }
+                        });
                       }}
                       style={{ background: 'rgba(52, 152, 219, 0.05)', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       title={t('menu.titleRenameCategory')}

@@ -239,6 +239,11 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     const newTotalValue = oldTotalValue + totalPaid;
     const newUnitCost = newStock > 0 ? newTotalValue / newStock : 0;
 
+    if (newUnitCost < 0) {
+      return showAlert(t('common.error'), "Negative COGS: The calculated unit cost is negative. Please check your total paid amount.");
+    }
+
+
     try {
       const { data, error } = await supabase.from('inventory')
         .update({ current_stock: newStock, unit_cost: newUnitCost })

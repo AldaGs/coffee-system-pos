@@ -1,10 +1,30 @@
 // src/tests/posMath.test.js
 import { describe, it, expect } from 'vitest';
-import { calculateTaxBreakdown, calculateTransformationCost, calculateExpectedCash } from '../utils/posMath';
+import { calculateTaxBreakdown, calculateTransformationCost, calculateExpectedCash, money } from '../utils/posMath';
 
 describe('TinyPOS Core Mathematical Engines', () => {
 
+  describe('Precision Money Rounding (The EPSILON fix)', () => {
+    it('correctly rounds 1.005 to 1.01 (the classic floating point trap)', () => {
+      // Standard Math.round(1.005 * 100) / 100 usually fails and returns 1.00
+      expect(money(1.005)).toBe(1.01);
+    });
+
+    it('correctly rounds 1.105 to 1.11', () => {
+      expect(money(1.105)).toBe(1.11);
+    });
+
+    it('preserves integers', () => {
+      expect(money(100)).toBe(100);
+    });
+
+    it('handles negative numbers safely', () => {
+      expect(money(-1.005)).toBe(-1.01);
+    });
+  });
+
   describe('Tax Extraction Engine', () => {
+
     it('accurately extracts 16% SAT tax from a $116.00 total', () => {
       const result = calculateTaxBreakdown(116.00, 16);
       expect(result.subtotal).toBe(100.00);

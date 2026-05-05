@@ -9,30 +9,30 @@ function ExpenseModal({ isExpenseModalOpen, setIsExpenseModalOpen, expenseForm, 
     <div className="modal-overlay" style={{ zIndex: 100 }}>
       <div className="modal-content fade-in" style={{ maxWidth: '400px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, color: '#e74c3c' }}>{t('exp.title')}</h2>
-          <button onClick={() => setIsExpenseModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
+          <h2 style={{ margin: 0, color: 'var(--text-main)' }}>{t('exp.title')}</h2>
+          <button onClick={() => setIsExpenseModalOpen(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
         </div>
         <p style={{ color: 'var(--text-muted)', marginBottom: '20px' }}>{t('exp.subtitle')}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>{t('exp.amount')}</label>
-            <input type="number" step="0.01" placeholder="e.g., 150.50" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
+            <input type="number" step="0.01" placeholder={t('expense.amountPlaceholder')} value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
           </div>
           <div>
-            <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>Categoría</label>
+            <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>{t('expense.categoryLabel')}</label>
             <select value={expenseForm.category || 'General'} onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
-              <option value="General">General</option>
-              <option value="Inventario">Inventario (Insumos)</option>
-              <option value="Marketing">Marketing / Publicidad</option>
-              <option value="Operativo">Operativo / Limpieza</option>
-              <option value="Nómina">Nómina / Sueldos</option>
+              <option value="General">{t('expense.catGeneral')}</option>
+              <option value="Inventario">{t('expense.catInventory')}</option>
+              <option value="Marketing">{t('expense.catMarketing')}</option>
+              <option value="Operativo">{t('expense.catOperational')}</option>
+              <option value="Nómina">{t('expense.catPayroll')}</option>
             </select>
           </div>
           <div>
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>{t('exp.reason')}</label>
             <input type="text" placeholder={t('exp.reasonPlaceholder')} value={expenseForm.reason} onChange={(e) => setExpenseForm({ ...expenseForm, reason: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
           </div>
-          <button onClick={handleSaveExpense} style={{ width: '100%', padding: '16px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '10px' }}>
+          <button onClick={handleSaveExpense} style={{ width: '100%', padding: '16px', background: 'var(--action-primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '10px' }}>
             {t('exp.btnWithdraw')}
           </button>
         </div>

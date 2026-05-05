@@ -487,14 +487,19 @@
 
 /* By default, variables are set in :root (Light Mode) */
 :root {
-  --brand-color: var(--brand-color);
   --bg-main: #f4f6f8;
   --bg-surface: #ffffff;
   --text-main: #111827;
-  --text-muted: #6b7280;
-  --border: var(--brand-color);
+  --text-muted: #4b5563;
+  --border: #e5e7eb;
   --admin-padding: 32px;
   --admin-card-radius: 24px;
+  /* Semantic action colors (audit 4.6) */
+  --action-primary: var(--brand-color, #f28b05);
+  --border: var(--brand-color, #e5e7eb);
+  --action-success: #27ae60;
+  --action-danger: #e74c3c;
+  --action-neutral: #6b7280;
 }
 
 /* When the 'dark-mode' class is added to the body, these take over */
@@ -503,7 +508,11 @@ body.dark-mode {
   --bg-surface: #1e1e1e;
   --text-main: #e0e0e0;
   --text-muted: #a0a0a0;
-  --border: var(--brand-color);
+  --border: #333;
+  --color-success: #2ecc71;
+  --color-danger: #e74c3c;
+  --color-info: #3498db;
+  --color-warning: #f1c40f;
 }
 
 /* --- UI ANIMATIONS --- */

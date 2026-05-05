@@ -1,6 +1,7 @@
 import { create } from 'zustand';
+import { immer } from 'zustand/middleware/immer';
 
-export const useCartStore = create((set) => ({
+export const useCartStore = create(immer((set) => ({
   activeTicketId: JSON.parse(localStorage.getItem('tinypos_activeTicketId')) || null,
   
   // Split Payment UI States
@@ -10,32 +11,32 @@ export const useCartStore = create((set) => ({
   nWays: 2,
   customVal: '',
   paidProductIds: [],
-  tipAmount: 0, // NEW
+  tipAmount: 0, 
   tipPercentage: 10,
 
   // Actions
   setActiveTicketId: (id) => {
     localStorage.setItem('tinypos_activeTicketId', JSON.stringify(id));
-    set({ activeTicketId: id });
+    set((state) => { state.activeTicketId = id; });
   },
 
-  setIsCheckoutModalOpen: (isOpen) => set({ isCheckoutModalOpen: isOpen }),
-  setSplitMode: (mode) => set({ splitMode: mode }),
-  setSplitPayments: (payments) => set({ splitPayments: payments }),
-  setNWays: (ways) => set({ nWays: ways }),
-  setCustomVal: (val) => set({ customVal: val }),
-  setPaidProductIds: (ids) => set({ paidProductIds: ids }),
-  setTipAmount: (amount) => set({ tipAmount: amount }), // NEW
-  setTipPercentage: (pct) => set({ tipPercentage: pct }),
+  setIsCheckoutModalOpen: (isOpen) => set((state) => { state.isCheckoutModalOpen = isOpen; }),
+  setSplitMode: (mode) => set((state) => { state.splitMode = mode; }),
+  setSplitPayments: (payments) => set((state) => { state.splitPayments = payments; }),
+  setNWays: (ways) => set((state) => { state.nWays = ways; }),
+  setCustomVal: (val) => set((state) => { state.customVal = val; }),
+  setPaidProductIds: (ids) => set((state) => { state.paidProductIds = ids; }),
+  setTipAmount: (amount) => set((state) => { state.tipAmount = amount; }), 
+  setTipPercentage: (pct) => set((state) => { state.tipPercentage = pct; }),
 
-  resetCheckoutState: () => set({
-    isCheckoutModalOpen: false,
-    splitMode: 'full',
-    splitPayments: [],
-    nWays: 2,
-    customVal: '',
-    paidProductIds: [],
-    tipAmount: 0, // NEW
-    tipPercentage: 10
+  resetCheckoutState: () => set((state) => {
+    state.isCheckoutModalOpen = false;
+    state.splitMode = 'full';
+    state.splitPayments = [];
+    state.nWays = 2;
+    state.customVal = '';
+    state.paidProductIds = [];
+    state.tipAmount = 0;
+    state.tipPercentage = 10;
   })
-}));
+})));

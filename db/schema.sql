@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS public.active_tickets (
   items jsonb,
   cashier_id bigint,
   created_at timestamp with time zone DEFAULT now(),
-  sentToBarista boolean,
   discount jsonb,
   savedSplitPayments jsonb,
   savedPaidProductIds jsonb,

@@ -10,7 +10,7 @@ function SyncStatusModal({ isSyncModalOpen, setIsSyncModalOpen, isCurrentlyOffli
       <div className="modal-content fade-in" style={{ maxWidth: '400px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, color: 'var(--text-main)' }}>{t('sync.title')}</h2>
-          <button onClick={() => setIsSyncModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
+          <button onClick={() => setIsSyncModalOpen(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
         </div>
 
         {isCurrentlyOffline ? (

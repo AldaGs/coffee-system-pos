@@ -5,10 +5,12 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = localStorage.getItem('tinypos_supabase_url') || import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = localStorage.getItem('tinypos_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-console.log("Supabase Client Init:", { 
-  url: supabaseUrl, 
-  source: localStorage.getItem('tinypos_supabase_url') ? 'localStorage' : 'env' 
-});
+if (import.meta.env.DEV) {
+  console.log("Supabase Client Init:", { 
+    url: supabaseUrl, 
+    source: localStorage.getItem('tinypos_supabase_url') ? 'localStorage' : 'env' 
+  });
+}
 
 // Create the connection if keys are available
 if (!supabaseUrl) {

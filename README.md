@@ -1,6 +1,6 @@
 # ☕ tinypos: BYOS Coffee System
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/aldair/tinypos)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/aldair/tinypos)
 [![React](https://img.shields.io/badge/frontend-React_19-61dafb.svg)](https://reactjs.org/)
 [![Vite](https://img.shields.io/badge/build-Vite_8-646cff.svg)](https://vitejs.dev/)
 [![Supabase](https://img.shields.io/badge/cloud-Supabase-3ecf8e.svg)](https://supabase.com/)
@@ -38,21 +38,28 @@ TinyPOS is built on a **Resilient Reactive Architecture**:
 *   **Recipe Builder (COGS Engine):**
     *   Link menu items to complex inventory recipes.
     *   **Profit Engine:** Set target margins and see recommended selling prices based on live inventory costs.
+*   **Activity Audit Trail:** Full audit log of all cashier actions (sales, refunds, menu changes, cortes).
 
 ### 📱 Loyalty & Engagement
 *   **Loyalty 2.0:** Track customer visits by phone number. Automatically trigger rewards for specific items or entire orders based on visit counts.
 *   **WhatsApp Digital Receipts:** Send tickets directly to customers via WhatsApp—no paper needed.
+*   **PNG Export:** Save ticket images for sharing or archiving.
 
 ### 🧾 Enterprise Printing & Compliance
 *   **Print Bridge Integration:** Dedicated interface for local thermal printers (80mm/58mm).
 *   **SAT/Tax Engine:** Configurable IVA extraction for Mexican compliance.
 *   **Custom Branding:** Inject Base64 logos and custom header/footer messages into thermal receipts.
 
+### 🔐 Security
+*   **Hashed PIN Storage:** Cashier PINs are stored as bcrypt hashes via `pgcrypto` — never in plaintext.
+*   **Server-Side Verification:** PIN checks run through a Supabase RPC (`verify_pin`), keeping secrets off the client.
+*   **Row Level Security:** All tables enforce RLS policies scoped to `authenticated` users only.
+
 ---
 
 ## 🛠️ Tech Stack
 *   **Framework:** React 19 + Vite 8
-*   **State Management:** Zustand
+*   **State Management:** Zustand (with immer middleware)
 *   **Database:** Dexie.js (Local) + Supabase (Cloud Sync)
 *   **Testing:** Vitest (Core math & POS logic)
 *   **Deployment:** Vercel (Serverless Functions + SPA)
@@ -70,7 +77,11 @@ TinyPOS features a **One-Click Installation** API for Supabase.
       "connectionString": "postgresql://postgres:[PASSWORD]@db.[PROJECT-ID].supabase.co:5432/postgres"
     }
     ```
-3.  **Action:** This will automatically create all tables, seed initial settings, and enable **Row Level Security (RLS)** policies scoped to `authenticated`.
+3.  **Action:** This will automatically:
+    *   Create all tables (including `cashier_pins` for secure PIN storage)
+    *   Create RPC functions (`verify_pin`, `deduct_inventory`)
+    *   Seed initial settings and default Admin PIN (`1234`)
+    *   Enable **Row Level Security (RLS)** policies scoped to `authenticated`
 4.  **Prerequisite:** Before the device can sync, create at least one Supabase Auth user (**Authentication → Users → Add user** in the Supabase dashboard). The Device Authorization screen will sign in with these credentials on first boot.
 
 ---
@@ -81,9 +92,12 @@ If you prefer manual setup:
 
 1.  **Create a hardware Auth user.** In your Supabase project, go to **Authentication → Users → Add user** and create one (e.g. `register@yourshop.com`). The Device Authorization screen on first boot will sign in with these credentials. RLS policies below are scoped to `authenticated`, so the device cannot read or write any data until this sign-in completes — the public anon key alone is not sufficient.
 2.  **Run the SQL below** in your Supabase SQL Editor. Note the use of `BY DEFAULT AS IDENTITY` for easier terminal synchronization.
-3.  **Existing installs:** if you ran an earlier version of this schema or `/api/install` before this change, your policies were created as `TO public` and are world-readable via the anon key. Apply [`db/migrations/001_lock_down_rls.sql`](db/migrations/001_lock_down_rls.sql) once to drop and recreate them as `TO authenticated`.
+3.  **Existing installs:** Apply the migrations in `db/migrations/` in order to upgrade your schema.
 
 ```sql
+-- 0. EXTENSIONS
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- 1. TABLES
 
 -- Shop Settings
@@ -100,7 +114,6 @@ CREATE TABLE IF NOT EXISTS public.active_tickets (
   items jsonb,
   cashier_id bigint,
   created_at timestamp with time zone DEFAULT now(),
-  sentToBarista boolean,
   discount jsonb,
   savedSplitPayments jsonb,
   savedPaidProductIds jsonb,
@@ -124,6 +137,7 @@ CREATE TABLE IF NOT EXISTS public.expenses (
   reason text,
   category text DEFAULT 'General',
   cashier_name text,
+  local_id uuid UNIQUE,
   created_at timestamp with time zone DEFAULT now()
 );
 
@@ -144,6 +158,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_logs (
   qty_deducted numeric NOT NULL,
   deduction_type text NOT NULL,
   ticket_id text,
+  local_id uuid UNIQUE,
   created_at timestamp with time zone DEFAULT now()
 );
 
@@ -181,10 +196,47 @@ CREATE TABLE IF NOT EXISTS public.sales (
   order_name text,
   refund_amount numeric DEFAULT 0,
   tip_amount numeric DEFAULT 0,
-  splits jsonb
+  splits jsonb,
+  local_id uuid UNIQUE
 );
 
--- 2. ENABLE ROW LEVEL SECURITY (RLS)
+-- Secure PIN Storage
+CREATE TABLE IF NOT EXISTS public.cashier_pins (
+  cashier_id bigint PRIMARY KEY,
+  pin_hash text NOT NULL,
+  created_at timestamp with time zone DEFAULT now()
+);
+
+-- 2. REFUND SAFETY
+ALTER TABLE public.sales ADD CONSTRAINT refund_limit_check CHECK (refund_amount <= total_amount);
+
+-- 3. RPC FUNCTIONS
+
+-- Secure PIN verification
+CREATE OR REPLACE FUNCTION verify_pin(p_cashier_id BIGINT, p_pin TEXT)
+RETURNS BOOLEAN AS $$
+DECLARE
+    v_hash TEXT;
+BEGIN
+    SELECT pin_hash INTO v_hash FROM public.cashier_pins WHERE cashier_id = p_cashier_id;
+    IF v_hash IS NULL THEN RETURN FALSE; END IF;
+    RETURN v_hash = crypt(p_pin, v_hash);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomic inventory deduction
+CREATE OR REPLACE FUNCTION deduct_inventory(item_id BIGINT, qty NUMERIC)
+RETURNS TABLE (id BIGINT, name TEXT, current_stock NUMERIC) AS $$
+BEGIN
+  RETURN QUERY
+  UPDATE public.inventory
+  SET current_stock = current_stock - qty
+  WHERE public.inventory.id = item_id AND current_stock >= qty
+  RETURNING public.inventory.id, public.inventory.name, public.inventory.current_stock;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 4. ENABLE ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.shop_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.active_tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
@@ -194,9 +246,9 @@ ALTER TABLE public.inventory_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recipes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cashier_pins ENABLE ROW LEVEL SECURITY;
 
--- 3. POLICIES (Hardware-Level Access)
--- Drop existing policies first to ensure a clean slate and avoid 'already exists' errors
+-- 5. POLICIES (Hardware-Level Access)
 DROP POLICY IF EXISTS "Hardware can access shop_settings" ON public.shop_settings;
 DROP POLICY IF EXISTS "Hardware can access active_tickets" ON public.active_tickets;
 DROP POLICY IF EXISTS "Hardware can access customers" ON public.customers;
@@ -206,8 +258,8 @@ DROP POLICY IF EXISTS "Hardware can access inventory_logs" ON public.inventory_l
 DROP POLICY IF EXISTS "Hardware can access activity_logs" ON public.activity_logs;
 DROP POLICY IF EXISTS "Hardware can access recipes" ON public.recipes;
 DROP POLICY IF EXISTS "Hardware can access sales" ON public.sales;
+DROP POLICY IF EXISTS "Hardware can access cashier_pins" ON public.cashier_pins;
 
--- Re-create policies scoped strictly to 'authenticated' users
 CREATE POLICY "Hardware can access shop_settings" ON public.shop_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Hardware can access active_tickets" ON public.active_tickets FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Hardware can access customers" ON public.customers FOR ALL TO authenticated USING (true) WITH CHECK (true);
@@ -217,12 +269,35 @@ CREATE POLICY "Hardware can access inventory_logs" ON public.inventory_logs FOR 
 CREATE POLICY "Hardware can access activity_logs" ON public.activity_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Hardware can access recipes" ON public.recipes FOR ALL TO authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "Hardware can access sales" ON public.sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Hardware can access cashier_pins" ON public.cashier_pins FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
--- 4. SEED INITIAL SETTINGS
+-- 6. SEED INITIAL SETTINGS
 INSERT INTO public.shop_settings (id, menu_data)
-VALUES (1, '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "TinyPOS", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open"}, "receiptSettings": {"header": "TINY COFFEE BAR", "subheader": "Puebla, Mexico", "footer": "Thank you for your visit!", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}')
+VALUES (1, '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "TinyPOS", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "1234"}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}')
 ON CONFLICT (id) DO NOTHING;
+
+-- Seed default PINs (hashed)
+INSERT INTO public.cashier_pins (cashier_id, pin_hash)
+VALUES (0, crypt('1234', gen_salt('bf'))),
+       (1, crypt('1234', gen_salt('bf')))
+ON CONFLICT (cashier_id) DO NOTHING;
 ```
+
+---
+
+## 🔄 Migrations (Existing Installs)
+
+If you installed TinyPOS before v1.2.0, apply these migrations **in order** via the Supabase SQL Editor:
+
+| Migration | Purpose |
+|---|---|
+| [`001_lock_down_rls.sql`](db/migrations/001_lock_down_rls.sql) | Drops `TO public` RLS policies and re-creates them as `TO authenticated` |
+| [`002_inventory_rpc.sql`](db/migrations/002_inventory_rpc.sql) | Adds atomic `deduct_inventory` RPC to prevent race conditions |
+| [`003_secure_pins.sql`](db/migrations/003_secure_pins.sql) | Creates `cashier_pins` table, migrates existing plaintext PINs to bcrypt hashes, adds `verify_pin` RPC |
+| [`004_idempotent_sync_and_refunds.sql`](db/migrations/004_idempotent_sync_and_refunds.sql) | Adds `local_id` columns for idempotent sync, adds `refund_limit_check` constraint |
+| [`005_drop_sent_to_barista.sql`](db/migrations/005_drop_sent_to_barista.sql) | Drops the unused `sentToBarista` column from `active_tickets` |
+
+> **Note:** Migration `003` is **critical** for v1.2.0. The Admin panel and Lock Screen now verify PINs via the `verify_pin` RPC instead of comparing plaintext. If you skip this migration, you will be locked out of the Admin dashboard.
 
 ---
 
@@ -235,10 +310,10 @@ npm test
 ```
 
 Tests cover:
-*   Tax calculations (IVA).
+*   Floating-point money rounding (positive & negative values).
+*   Tax calculations (IVA extraction).
 *   Inventory deductions & stock math.
-*   Loyalty reward triggers.
-*   Discount application logic.
+*   Discount stacking & capping logic.
 
 ---
 

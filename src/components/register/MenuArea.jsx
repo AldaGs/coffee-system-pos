@@ -37,7 +37,7 @@ function MenuArea({
             </span>
             
             {posSettings?.isAdvancedMode && (
-              <button onClick={() => { requirePin(t('menuArea.authGasto'), () => setIsExpenseModalOpen(true)); setIsMobileMenuOpen(false); }} style={{ padding: '8px 16px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button onClick={() => { requirePin(t('menuArea.authGasto'), () => setIsExpenseModalOpen(true)); setIsMobileMenuOpen(false); }} style={{ padding: '8px 16px', background: 'var(--action-neutral)', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {t('menuArea.gasto')}
               </button>
             )}

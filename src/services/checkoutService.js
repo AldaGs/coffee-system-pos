@@ -1,32 +1,28 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { money } from '../utils/posMath';
 
 export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0 }) => {
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;
   const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
+  
+  // Ensure we are working with rounded money values
+  const roundedTotal = money(cartTotal);
+  const roundedTip = money(tipAmount);
+  const localId = crypto.randomUUID();
 
-  // 1. Build the LOCAL Analytics Data (This powers your Admin Dashboard!)
-  const localAnalyticsRecord = {
-    ...activeTicket, // Copies all items and modifiers
-    total: cartTotal,
-    method: masterMethodString,
-    splits: isSplit ? paymentsArray : null,
-    timestamp: new Date().toISOString(),
-    cashierId: activeCashier?.id || 'unknown',
-    cashier_name: activeCashier?.name || 'Unknown Cashier'
-  };
-
-  // 2. Build the CLOUD Data specifically matching your Supabase columns
+  // 1. Build the CLOUD Data specifically matching your Supabase columns
   const currentSale = {
-    total_amount: cartTotal,
+    total_amount: roundedTotal,
     payment_method: masterMethodString,
-    splits: isSplit ? paymentsArray : null,
-    tip_amount: tipAmount,
+    splits: isSplit ? paymentsArray.map(p => ({ ...p, amount: money(p.amount) })) : null,
+    tip_amount: roundedTip,
     items_sold: activeTicket.items.map(item => item.name),
     items: activeTicket.items, // Full objects for re-sharing
     discount: activeTicket.discount, // Discount info for re-sharing
-    cashier_name: activeCashier?.name || 'Unknown Cashier'
+    cashier_name: activeCashier?.name || 'Unknown Cashier',
+    local_id: localId
   };
 
   // --- PREPARE THE DATA ---
@@ -34,7 +30,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   const inventoryLogsToPush = [];
 
   try {
-    // Immediately save to local Dexie so it shows up in your history instantly
+    // Immediately save to local Dexie
     await db.sales.add(finalizedSale);
 
     // Fetch local inventory for instant offline deduction
@@ -43,35 +39,66 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
 
     // --- HYBRID INVENTORY DEDUCTION ENGINE ---
     for (const item of activeTicket.items) {
+      const itemQty = item.qty || 1;
       
       // ==========================================
       // A. STANDARD ITEMS (Make-to-Stock)
       // ==========================================
       if (item.inventoryMode === "standard" && item.linkedWarehouseId) {
-        const itemQty = item.qty || 1;
         const warehouseItem = currentInventory.find(inv => String(inv.id) === String(item.linkedWarehouseId));
 
         if (warehouseItem) {
-          inventoryLogsToPush.push({ item_name: warehouseItem.name, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id, unit_cost: warehouseItem.unit_cost || 0 });
+          // ONLINE ATOMIC DEDUCTION
+          if (navigator.onLine) {
+            const { data, error } = await supabase.rpc('deduct_inventory', { item_id: warehouseItem.id, qty: itemQty });
+            if (error || !data || data.length === 0) {
+              throw new Error(`Insufficient stock for ${warehouseItem.name}`);
+            }
+          }
+
+          inventoryLogsToPush.push({ 
+            item_name: warehouseItem.name, 
+            qty_deducted: itemQty, 
+            deduction_type: "sale", 
+            created_at: timestamp, 
+            ticket_id: String(activeTicket.id), 
+            unit_cost: warehouseItem.unit_cost || 0,
+            local_id: crypto.randomUUID()
+          });
 
           const newStock = warehouseItem.current_stock - itemQty;
           await db.inventory.update(warehouseItem.id, { current_stock: newStock });
           warehouseItem.current_stock = newStock;
-          if (navigator.onLine) supabase.from('inventory').update({ current_stock: newStock }).eq('id', warehouseItem.id).then();
         }
 
-        // Process Additions on Standard Items
+        // Process Modifiers on Standard Items
         if (item.selectedModifiers && item.selectedModifiers.length > 0) {
           for (const mod of item.selectedModifiers) {
-            if (mod.deductionTarget && !mod.substitutionTarget) {
-              const modItem = currentInventory.find(inv => inv.name === mod.deductionTarget);
-              inventoryLogsToPush.push({ item_name: mod.deductionTarget, qty_deducted: itemQty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id, unit_cost: modItem ? (modItem.unit_cost || 0) : 0 });
+            if (mod.deductionTargetId && !mod.substitutionTarget) {
+              const modItem = currentInventory.find(inv => String(inv.id) === String(mod.deductionTargetId)) 
+                             || currentInventory.find(inv => inv.name === mod.deductionTarget); // Fallback to name for legacy
 
               if (modItem) {
+                if (navigator.onLine) {
+                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: modItem.id, qty: itemQty });
+                  if (error || !data || data.length === 0) {
+                    throw new Error(`Insufficient stock for modifier ${modItem.name}`);
+                  }
+                }
+
+                inventoryLogsToPush.push({ 
+                  item_name: modItem.name, 
+                  qty_deducted: itemQty, 
+                  deduction_type: "sale", 
+                  created_at: timestamp, 
+                  ticket_id: String(activeTicket.id), 
+                  unit_cost: modItem.unit_cost || 0,
+                  local_id: crypto.randomUUID()
+                });
+
                 const newModStock = modItem.current_stock - itemQty;
                 await db.inventory.update(modItem.id, { current_stock: newModStock });
                 modItem.current_stock = newModStock;
-                if (navigator.onLine) supabase.from('inventory').update({ current_stock: newModStock }).eq('id', modItem.id).then();
               }
             }
           }
@@ -85,37 +112,54 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
 
         if (recipe && recipe.ingredients) {
-          const itemQty = item.qty || 1;
-          let cartBOM = recipe.ingredients.map(ing => ({ item_name: ing.name, qty: (parseFloat(ing.qty) || 0) * itemQty }));
+          let cartBOM = recipe.ingredients.map(ing => ({ 
+            id: ing.id, // Prefer ID
+            item_name: ing.name, 
+            qty: (parseFloat(ing.qty) || 0) * itemQty 
+          }));
 
+          // Process Modifier Substitutions/Additions
           if (item.selectedModifiers && item.selectedModifiers.length > 0) {
             item.selectedModifiers.forEach(mod => {
-              if (mod.deductionTarget && mod.substitutionTarget) {
-                const targetName = mod.substitutionTarget.trim().toLowerCase();
-                const baseIndex = cartBOM.findIndex(ing => ing.item_name.trim().toLowerCase() === targetName);
+              if (mod.deductionTargetId && mod.substitutionTargetId) {
+                const baseIndex = cartBOM.findIndex(ing => String(ing.id) === String(mod.substitutionTargetId));
                 if (baseIndex !== -1) {
                   const baseQty = cartBOM[baseIndex].qty;
                   cartBOM.splice(baseIndex, 1);
-                  cartBOM.push({ item_name: mod.deductionTarget, qty: baseQty });
-                } else {
-                  cartBOM.push({ item_name: mod.deductionTarget, qty: 1 });
+                  cartBOM.push({ id: mod.deductionTargetId, item_name: mod.deductionTarget, qty: baseQty });
                 }
-              } else if (mod.deductionTarget && !mod.substitutionTarget) {
-                cartBOM.push({ item_name: mod.deductionTarget, qty: 1 });
+              } else if (mod.deductionTargetId && !mod.substitutionTargetId) {
+                cartBOM.push({ id: mod.deductionTargetId, item_name: mod.deductionTarget, qty: 1 });
               }
             });
           }
 
           for (const ing of cartBOM) {
             if (ing.qty > 0) {
-              const whItem = currentInventory.find(inv => inv.name === ing.item_name);
-              inventoryLogsToPush.push({ item_name: ing.item_name, qty_deducted: ing.qty, deduction_type: "sale", created_at: timestamp, ticket_id: activeTicket.id, unit_cost: whItem ? (whItem.unit_cost || 0) : 0 });
+              const whItem = currentInventory.find(inv => String(inv.id) === String(ing.id))
+                             || currentInventory.find(inv => inv.name === ing.item_name);
 
               if (whItem) {
+                if (navigator.onLine) {
+                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: whItem.id, qty: ing.qty });
+                  if (error || !data || data.length === 0) {
+                    throw new Error(`Insufficient stock for ingredient ${whItem.name}`);
+                  }
+                }
+
+                inventoryLogsToPush.push({ 
+                  item_name: whItem.name, 
+                  qty_deducted: ing.qty, 
+                  deduction_type: "sale", 
+                  created_at: timestamp, 
+                  ticket_id: String(activeTicket.id), 
+                  unit_cost: whItem.unit_cost || 0,
+                  local_id: crypto.randomUUID()
+                });
+
                 const newStock = whItem.current_stock - ing.qty;
                 await db.inventory.update(whItem.id, { current_stock: newStock });
                 whItem.current_stock = newStock;
-                if (navigator.onLine) supabase.from('inventory').update({ current_stock: newStock }).eq('id', whItem.id).then();
               }
             }
           }
@@ -127,25 +171,25 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     if (!navigator.onLine) throw new Error("Device is offline");
 
     const { id: _UNUSED, ...cleanSale } = finalizedSale;
-    const { error: salesError } = await supabase.from('sales').insert([cleanSale]);
+    const { error: salesError } = await supabase.from('sales').upsert(cleanSale, { onConflict: 'local_id' });
     if (salesError) throw salesError;
 
     if (inventoryLogsToPush.length > 0) {
-      const { error: invError } = await supabase.from('inventory_logs').insert(inventoryLogsToPush);
+      const { error: invError } = await supabase.from('inventory_logs').upsert(inventoryLogsToPush, { onConflict: 'local_id' });
       if (invError) throw invError;
     }
-    console.log("SALE COMPLETE & SAVED TO CLOUD INSTANTLY");
 
   } catch (error) {
-    console.warn("Cloud save failed. Moving to offline queue.", error.message);
+    console.warn("Cloud sync deferred:", error.message);
     const { id: _UNUSED, ...safeOfflineSale } = finalizedSale;
     
     await db.syncQueue.add(safeOfflineSale);
     if (inventoryLogsToPush.length > 0) {
       await db.inventory_logs.bulkPut(inventoryLogsToPush);
     }
+    // If it was a stock error, we should probably re-throw to alert the UI
+    if (error.message.includes("Insufficient stock")) throw error;
   } 
 
-  // Return the data the UI needs to finish the transaction animations
-  return { localAnalyticsRecord, masterMethodString };
-};
+  return { localAnalyticsRecord: finalizedSale, masterMethodString };
+};

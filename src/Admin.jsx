@@ -47,17 +47,17 @@ function Admin() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-  const [newItemForm, setNewItemForm] = useState({ 
-    category: '', 
-    name: '', 
-    price: '', 
-    emoji: '☕' ,
+  const [newItemForm, setNewItemForm] = useState({
+    category: '',
+    name: '',
+    price: '',
+    emoji: '☕',
     allowedModifiers: [],
     item_type: "none",
 
     groupKey: "",
     isTextInput: false,
-    deductionTarget: "", 
+    deductionTarget: "",
     substitutionTarget: ""
   });
   const [newModGroupName, setNewModGroupName] = useState("");
@@ -68,19 +68,19 @@ function Admin() {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
   const [expenses, setExpenses] = useState(() => {
-  const saved = localStorage.getItem('tinypos_expenses');
-  return saved ? JSON.parse(saved) : [];
-});
+    const saved = localStorage.getItem('tinypos_expenses');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   // --- INSTANT RECEIPT SETTINGS ---
   const [receiptForm, setReceiptForm] = useState(() => {
-    const defaultReceipt = { 
-      header: "TINY COFFEE BAR", 
-      subheader: "Puebla, Mexico", 
-      footer: "Thank you for your visit!", 
-      logo: null, 
-      enableTaxBreakdown: false, 
-      taxRate: 16 
+    const defaultReceipt = {
+      header: "",
+      subheader: "",
+      footer: "",
+      logo: null,
+      enableTaxBreakdown: false,
+      taxRate: 16
     };
     const cached = localStorage.getItem('tinypos_cached_menu');
     if (cached) {
@@ -92,15 +92,15 @@ function Admin() {
 
   // --- INSTANT GENERAL SETTINGS ---
   const [generalSettings, setGeneralSettings] = useState(() => {
-    const defaultSettings = { 
-      name: "Main Register", 
-      brandColor: 'var(--brand-color)', 
-      isDarkMode: false, 
-      autoLockMinutes: 5, 
-      orderResetPolicy: "daily", 
-      enableCorte: false, 
-      ticketVisibility: "open", 
-      printerSize: "80mm" 
+    const defaultSettings = {
+      name: "Main Register",
+      brandColor: 'var(--brand-color)',
+      isDarkMode: false,
+      autoLockMinutes: 5,
+      orderResetPolicy: "daily",
+      enableCorte: false,
+      ticketVisibility: "open",
+      printerSize: "80mm"
     };
     const cached = localStorage.getItem('tinypos_cached_menu');
     if (cached) {
@@ -112,10 +112,10 @@ function Admin() {
 
   // --- INSTANT LOYALTY SETTINGS ---
   const [loyaltyForm, setLoyaltyForm] = useState(() => {
-    const defaultLoyalty = { 
-      isActive: true, 
-      visitsRequired: 10, 
-      rewardDescription: "tu próxima bebida GRATIS" 
+    const defaultLoyalty = {
+      isActive: true,
+      visitsRequired: 10,
+      rewardDescription: "tu próxima bebida GRATIS"
     };
     const cached = localStorage.getItem('tinypos_cached_menu');
     if (cached) {
@@ -142,10 +142,11 @@ function Admin() {
       });
 
       if (error) throw error;
-      
+
       setIsAuthenticated(true);
     } catch (error) {
-      window.confirm("Login Failed: " + error.message);
+      showAlert(t('admin.loginFailed'), error.message);
+
       setLoginForm({ ...loginForm, password: "" });
     } finally {
       setIsLoading(false);
@@ -179,71 +180,71 @@ function Admin() {
   }, []);
 
   useEffect(() => {
-  if (!isAuthenticated) { 
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsLoading(false); 
-    return; 
-  }
-  setIsLoading(true);
-
-  const fetchData = async () => {
-    try {
-      // 1. Fetch Menu Data
-      const { data: menuSettings, error: menuError } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
-      if (menuError) throw menuError;
-      setMenuData(menuSettings.menu_data);
-      
-      const firstCategory = Object.keys(menuSettings.menu_data.categories)[0];
-      if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
-
-      // 2. NEW: Fetch All Expenses (General + Inventory Purchases)
-      const { data: expensesData, error: expensesError } = await supabase
-        .from('expenses')
-        .select('*')
-        .order('created_at', { ascending: false }); // Show newest first
-      
-      if (!expensesError && expensesData) {
-        setExpenses(expensesData); 
-        // Sync back to localStorage so the Register tab sees them too
-        localStorage.setItem('tinypos_expenses', JSON.stringify(expensesData));
-      }
-
-      // 3. Load UI Settings (Receipt, General, Loyalty)
-      if (menuSettings.menu_data.receiptSettings) setReceiptForm(prev => ({ ...prev, ...menuSettings.menu_data.receiptSettings }));
-      if (menuSettings.menu_data.posSettings) setGeneralSettings(prev => ({ ...prev, ...menuSettings.menu_data.posSettings }));
-      if (menuSettings.menu_data.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...menuSettings.menu_data.loyaltySettings }));
-
-      // 4. Fetch Sales History
-      const { data: salesHistory, error: salesError } = await supabase.from('sales').select('*');
-      if (!salesError && salesHistory) {
-        await db.sales.bulkPut(salesHistory);
-      }
-
-      // 5. Fetch Recipes & Inventory
-      const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
-      if (recipesData) setRecipes(recipesData);
-
-      const { data: invData } = await supabase.from('inventory').select('*');
-      if (invData) {
-        setInventoryItems(invData);
-        await db.inventory.bulkPut(invData);
-      }
-
-      const { data: logsData } = await supabase.from('inventory_logs').select('*');
-      if (logsData) setInventoryLogs(logsData);
-
-    } catch (error) {
-      console.error("Error fetching data:", error.message);
-    } finally {
+    if (!isAuthenticated) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
+      return;
     }
-  };
-  fetchData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [isAuthenticated]);
+    setIsLoading(true);
+
+    const fetchData = async () => {
+      try {
+        // 1. Fetch Menu Data
+        const { data: menuSettings, error: menuError } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
+        if (menuError) throw menuError;
+        setMenuData(menuSettings.menu_data);
+
+        const firstCategory = Object.keys(menuSettings.menu_data.categories)[0];
+        if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
+
+        // 2. NEW: Fetch All Expenses (General + Inventory Purchases)
+        const { data: expensesData, error: expensesError } = await supabase
+          .from('expenses')
+          .select('*')
+          .order('created_at', { ascending: false }); // Show newest first
+
+        if (!expensesError && expensesData) {
+          setExpenses(expensesData);
+          // Sync back to localStorage so the Register tab sees them too
+          localStorage.setItem('tinypos_expenses', JSON.stringify(expensesData));
+        }
+
+        // 3. Load UI Settings (Receipt, General, Loyalty)
+        if (menuSettings.menu_data.receiptSettings) setReceiptForm(prev => ({ ...prev, ...menuSettings.menu_data.receiptSettings }));
+        if (menuSettings.menu_data.posSettings) setGeneralSettings(prev => ({ ...prev, ...menuSettings.menu_data.posSettings }));
+        if (menuSettings.menu_data.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...menuSettings.menu_data.loyaltySettings }));
+
+        // 4. Fetch Sales History
+        const { data: salesHistory, error: salesError } = await supabase.from('sales').select('*');
+        if (!salesError && salesHistory) {
+          await db.sales.bulkPut(salesHistory);
+        }
+
+        // 5. Fetch Recipes & Inventory
+        const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
+        if (recipesData) setRecipes(recipesData);
+
+        const { data: invData } = await supabase.from('inventory').select('*');
+        if (invData) {
+          setInventoryItems(invData);
+          await db.inventory.bulkPut(invData);
+        }
+
+        const { data: logsData } = await supabase.from('inventory_logs').select('*');
+        if (logsData) setInventoryLogs(logsData);
+
+      } catch (error) {
+        console.error("Error fetching data:", error.message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
 
-// --- THEME INJECTION LOGIC (KEEPS ADMIN IN SYNC) ---
+  // --- THEME INJECTION LOGIC (KEEPS ADMIN IN SYNC) ---
   useEffect(() => {
     if (menuData?.posSettings) {
       updateTheme(menuData.posSettings);
@@ -257,7 +258,8 @@ function Admin() {
       if (error) throw error;
       setMenuData(updatedMenu);
     } catch (error) {
-      window.confirm("Failed to save to cloud: " + error.message);
+      showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + error.message);
+
     } finally {
       setIsSaving(false);
     }
@@ -295,7 +297,7 @@ function Admin() {
   const handleSaveReceipt = () => {
     const updatedMenu = { ...menuData, receiptSettings: receiptForm };
     saveMenuToCloud(updatedMenu);
-    showAlert("Success", "Receipt settings & App Logo saved successfully!");
+    showAlert(t('common.success'), t('receipt.saveSuccessDesc'));
   };
 
   const handleSaveGeneralSettings = async () => {
@@ -307,7 +309,7 @@ function Admin() {
         .from('shop_settings')
         .update({ menu_data: updatedMenu })
         .eq('id', 1);
-      
+
       if (error) throw error;
 
       // Update local state so UI reflects changes immediately
@@ -322,7 +324,7 @@ function Admin() {
       // 3. Sync to LocalStorage for the Favicon/Boot injector
       if (generalSettings.appBootLogo) {
         localStorage.setItem('tinypos_boot_logo', generalSettings.appBootLogo);
-        
+
         // Immediate favicon update without refresh
         let link = document.querySelector("link[rel~='icon']");
         if (!link) {
@@ -333,10 +335,10 @@ function Admin() {
         link.href = generalSettings.appBootLogo;
       }
 
-      showAlert("Success", "Settings saved and branding updated!");
+      showAlert(t('common.success'), t('settings.saveSuccessDesc'));
     } catch (err) {
       console.error(err);
-      showAlert("Error", "Failed to save settings: " + err.message);
+      showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -345,28 +347,28 @@ function Admin() {
   // Saves the custom loyalty settings to our JSON cloud object
   const handleSaveLoyalty = () => {
     if (loyaltyForm.isActive) {
-      if (loyaltyForm.visitsRequired < 1) return showAlert(t('common.error'), "Visits required must be at least 1.");
-      if (!loyaltyForm.rewardDescription || !loyaltyForm.rewardDescription.trim()) return showAlert(t('common.error'), "Please describe the reward.");
+      if (loyaltyForm.visitsRequired < 1) return showAlert(t('common.error'), t('loyalty.visitsRequiredErr'));
+      if (!loyaltyForm.rewardDescription || !loyaltyForm.rewardDescription.trim()) return showAlert(t('common.error'), t('loyalty.rewardRequiredErr'));
     }
 
     const updatedMenu = { ...menuData, loyaltySettings: loyaltyForm };
     saveMenuToCloud(updatedMenu);
-    showAlert(t('common.success'), "Loyalty program settings saved successfully!");
+    showAlert(t('common.success'), t('loyalty.saveSuccessDesc'));
   };
 
   // --- DANGER ZONE: RESET ALL CUSTOMER STARS ---
   const handleResetLoyaltyData = async () => {
-    const confirmMessage = "CRITICAL WARNING: This will permanently delete ALL customer stars and reset everyone to 0 visits. \n\nAre you absolutely sure you want to start a fresh program?";
+    const confirmMessage = t('loyalty.resetWarning');
 
-    showConfirm("Wipe Loyalty Data?", confirmMessage, async () => {
+    showConfirm(t('loyalty.deleteTitle') || 'Wipe Loyalty Data?', confirmMessage, async () => {
       try {
         setIsSaving(true);
         const { error } = await supabase.from('customers').update({ visits: 0 }).not('phone', 'is', null);
         if (error) throw error;
 
-        showAlert("Success", "All customer stars have been wiped. You are ready to start a new promotion.");
+        showAlert(t('common.success'), t('loyalty.wipedMsg'));
       } catch (err) {
-        showAlert("Database Error", "Failed to reset database: " + err.message);
+        showAlert(t('admin.dbError'), t('admin.dbResetFailPrefix') + err.message);
       } finally {
         setIsSaving(false);
       }
@@ -376,7 +378,7 @@ function Admin() {
   // --- CASHIER MANAGEMENT (NOW CLOUD SYNCED) ---
   const cashiers = menuData?.cashiers || [
     { id: 1, name: 'Admin', pin: '1234', isAdmin: true },
-    { id: 2, name: 'Barista 1', pin: '0000'}
+    { id: 2, name: 'Barista 1', pin: '0000' }
   ];
 
   const [newCashier, setNewCashier] = useState({ name: '', pin: '', isAdmin: false });
@@ -384,7 +386,7 @@ function Admin() {
   // --- CASHIER FUNCTIONS ---
   const handleAddCashier = () => {
     if (!newCashier.name || newCashier.pin.length !== 4) {
-      return showAlert("Invalid Info", "Please enter a name and a 4-digit PIN.");
+      return showAlert(t('team.invalidInfoTitle'), t('team.invalidInfoDesc'));
     }
 
     const updatedMenu = { ...menuData };
@@ -397,7 +399,7 @@ function Admin() {
 
     updatedMenu.cashiers.push(newEntry);
     saveMenuToCloud(updatedMenu);
-    
+
     // LOG ACTIVITY
     logActivity('Team Management', `Added new cashier: ${newCashier.name}`, { cashierId: newEntry.id });
 
@@ -405,8 +407,9 @@ function Admin() {
   };
 
   const handleDeleteCashier = (idToRemove) => {
-    if (cashiers.length <= 1) return window.confirm("You cannot delete the last profile!");
-    if (window.confirm("Are you sure you want to remove this cashier?")) {
+    if (cashiers.length <= 1) return showAlert(t('common.error'), t('team.cannotDeleteLast'));
+
+    showConfirm(t('team.deleteCashierTitle'), t('team.deleteCashierDesc'), () => {
       const cashierToDelete = cashiers.find(c => c.id === idToRemove);
       const updatedCashiers = cashiers.filter(c => c.id !== idToRemove);
       saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
@@ -415,7 +418,8 @@ function Admin() {
       if (cashierToDelete) {
         logActivity('Team Management', `Removed cashier: ${cashierToDelete.name}`);
       }
-    }
+    });
+
   };
 
 
@@ -455,7 +459,7 @@ function Admin() {
 
   const handleAddDrink = () => {
     if (!newItemForm.category || !newItemForm.name || !newItemForm.price) {
-      return showAlert("Missing Info", "Please fill out all required fields.");
+      return showAlert(t('menu.missingFieldsTitle'), t('menu.missingFieldsDesc'));
     }
 
     const updatedMenu = { ...menuData };
@@ -494,7 +498,7 @@ function Admin() {
       }
 
       saveMenuToCloud(updatedMenu);
-      
+
       // LOG ACTIVITY
       logActivity('Menu Management', `Updated drink: ${updatedItem.name}`);
 
@@ -516,18 +520,18 @@ function Admin() {
     updatedMenu.categories[newItemForm.category].push(newDrink);
 
     saveMenuToCloud(updatedMenu);
-    
+
     // LOG ACTIVITY
     logActivity('Menu Management', `Added new item: ${newItemForm.name} to ${newItemForm.category} for $${newItemForm.price}`);
 
     resetItemForm();
   };
-    
+
   const handleAddModifierGroup = () => { if (!newModGroupName.trim()) return; const groupKey = newModGroupName.toLowerCase().replace(/\s+/g, '_'); const updatedMenu = { ...menuData }; if (!updatedMenu.modifierGroups[groupKey]) { updatedMenu.modifierGroups[groupKey] = []; saveMenuToCloud(updatedMenu); } setNewModGroupName(""); };
 
   const handleAddModifierOption = () => {
     if (!newModOption.groupKey || !newModOption.name || (!newModOption.isTextInput && newModOption.price === "")) {
-      return showAlert("Missing Info", "Please fill all required fields.");
+      return showAlert(t('menu.missingFieldsTitle'), t('menu.missingFieldsDesc'));
     }
 
     const updatedMenu = { ...menuData };
@@ -544,13 +548,13 @@ function Admin() {
     saveMenuToCloud(updatedMenu);
 
     // Reset the form completely
-    setNewModOption({ 
-      groupKey: newModOption.groupKey, 
-      name: "", 
-      price: "0", 
-      isTextInput: false, 
-      deductionTarget: "", 
-      substitutionTarget: "" 
+    setNewModOption({
+      groupKey: newModOption.groupKey,
+      name: "",
+      price: "0",
+      isTextInput: false,
+      deductionTarget: "",
+      substitutionTarget: ""
     });
   };
 
@@ -558,11 +562,11 @@ function Admin() {
 
   // FIX: Upgraded to showConfirm!
   const handleDeleteDrink = (categoryName, drinkId, drinkName) => {
-    showConfirm("Delete Drink", `Permanently delete "${drinkName}"?`, () => {
+    showConfirm(t('menu.deleteDrinkTitle'), `${t('menu.deleteDrinkDesc')} (${drinkName})`, () => {
       const updatedMenu = { ...menuData };
       updatedMenu.categories[categoryName] = updatedMenu.categories[categoryName].filter(drink => drink.id !== drinkId);
       saveMenuToCloud(updatedMenu);
-      
+
       // LOG ACTIVITY
       logActivity('Menu Management', `Deleted drink: ${drinkName}`);
     });
@@ -570,8 +574,9 @@ function Admin() {
 
   // FIX: Upgraded to showConfirm!
   const handleDeleteCategory = (categoryName) => {
-    if (menuData.categories[categoryName].length > 0) return window.confirm(`Cannot delete "${categoryName}" - contains drinks.`);
-    showConfirm("Delete Category", `Delete the empty category "${categoryName}"?`, () => {
+    if (menuData.categories[categoryName].length > 0) return showAlert(t('common.error'), `${t('menu.deleteCategoryHasItems')} (${categoryName})`);
+
+    showConfirm(t('menu.deleteCategoryTitle'), `${t('menu.deleteCategoryDesc')} (${categoryName})`, () => {
       const updatedMenu = { ...menuData };
       delete updatedMenu.categories[categoryName];
       saveMenuToCloud(updatedMenu);
@@ -581,8 +586,8 @@ function Admin() {
   // NEW: Delete an entire modifier group and scrub it from all drinks
   const handleDeleteModifierGroup = (groupKey) => {
     showConfirm(
-      "Delete Modifier Group",
-      `Are you sure you want to delete the entire "${groupKey.replace('_', ' ')}" group and all its options? This will also remove it from any items currently using it.`,
+      t('menu.deleteModGroupTitle'),
+      `${t('menu.deleteModGroupDesc')} (${groupKey.replace('_', ' ')})`,
       () => {
         const updatedMenu = { ...menuData };
 
@@ -603,7 +608,7 @@ function Admin() {
 
   // FIX: Upgraded to showConfirm!
   const handleDeleteModifierOption = (groupKey, optionId, optionName) => {
-    showConfirm("Delete Modifier", `Delete the "${optionName}" option?`, () => {
+    showConfirm(t('menu.deleteModOptionTitle'), `${t('menu.deleteModOptionDesc')} (${optionName})`, () => {
       const updatedMenu = { ...menuData };
       updatedMenu.modifierGroups[groupKey] = updatedMenu.modifierGroups[groupKey].filter(opt => opt.id !== optionId);
       saveMenuToCloud(updatedMenu);
@@ -621,7 +626,7 @@ function Admin() {
       if (timeFilter === 'all') return true;
 
       const saleDate = new Date(sale.created_at);
-      
+
       if (timeFilter === 'custom') {
         if (!dateRange.start || !dateRange.end) return true; // Show all until both are selected
         const start = new Date(dateRange.start);
@@ -656,20 +661,20 @@ function Admin() {
   }, [filteredSales]);
 
   const totalRefunds = useMemo(() => {
-     return filteredSales.reduce((sum, sale) => {
-        if (sale.status === 'refunded') return sum + Number(sale.total_amount);
-        if (sale.status === 'partial_refund') return sum + Number(sale.refund_amount || 0);
-        return sum;
-     }, 0);
+    return filteredSales.reduce((sum, sale) => {
+      if (sale.status === 'refunded') return sum + Number(sale.total_amount);
+      if (sale.status === 'partial_refund') return sum + Number(sale.refund_amount || 0);
+      return sum;
+    }, 0);
   }, [filteredSales]);
 
   const filteredExpenses = useMemo(() => {
     const now = new Date();
     return expenses.filter(exp => {
       if (timeFilter === 'all') return true;
-      
+
       // Check both potential date fields
-      const dateStr = exp.created_at || exp.timestamp; 
+      const dateStr = exp.created_at || exp.timestamp;
       if (!dateStr) return false;
       const expDate = new Date(dateStr);
 
@@ -725,7 +730,8 @@ function Admin() {
   // 3. The Multi-Tab Excel Exporter Function
   const handleDownloadCSV = () => {
     if (filteredSales.length === 0 && filteredExpenses.length === 0 && inventoryLogs.length === 0) {
-      return window.confirm("No hay datos para exportar en este periodo.");
+      return showAlert(t('common.error'), t('analytics.noDataExport'));
+
     }
 
     const now = new Date();
@@ -753,12 +759,12 @@ function Admin() {
     const egresosData = [];
     filteredExpenses.forEach(exp => {
       const dateObj = new Date(exp.created_at || exp.timestamp);
-      egresosData.push({ 
-        Fecha: dateObj.toLocaleDateString(), 
-        Hora: dateObj.toLocaleTimeString(), 
-        'Tipo de Movimiento': exp.category ? `Gasto (${exp.category})` : 'Gasto (General)', 
-        Monto: -parseFloat(exp.amount || 0), 
-        Método: 'Caja/Efectivo', 
+      egresosData.push({
+        Fecha: dateObj.toLocaleDateString(),
+        Hora: dateObj.toLocaleTimeString(),
+        'Tipo de Movimiento': exp.category ? `Gasto (${exp.category})` : 'Gasto (General)',
+        Monto: -parseFloat(exp.amount || 0),
+        Método: 'Caja/Efectivo',
         Detalles: exp.reason || 'Sin detalles'
       });
     });
@@ -789,12 +795,12 @@ function Admin() {
 
     filteredLogs.forEach(log => {
       const dateObj = new Date(log.created_at);
-      auditoriaData.push({ 
-        Fecha: dateObj.toLocaleDateString(), 
-        Hora: dateObj.toLocaleTimeString(), 
-        'Tipo de Movimiento': 'Auditoría / Merma', 
+      auditoriaData.push({
+        Fecha: dateObj.toLocaleDateString(),
+        Hora: dateObj.toLocaleTimeString(),
+        'Tipo de Movimiento': 'Auditoría / Merma',
         Monto: 0.00, // Operational tracking
-        Método: 'N/A', 
+        Método: 'N/A',
         Detalles: `${log.item_name} | Ajuste: ${log.qty_deducted} | Razón: ${log.deduction_type}`
       });
     });
@@ -848,7 +854,7 @@ function Admin() {
 
     const grossRevenue = totalRevenue + totalRefunds;
     const trueNetProfit = totalRevenue - totalCOGS - totalWastage - totalExpenses;
-    
+
     const resumenData = [
       { Métrica: 'Ingresos Brutos', Valor: parseFloat(grossRevenue.toFixed(2)) },
       { Métrica: 'Reembolsos', Valor: -parseFloat(totalRefunds.toFixed(2)) },
@@ -911,7 +917,7 @@ function Admin() {
 
   const handleSaveRecipeToCloud = async () => {
     if (!activeRecipe) return;
-    if (!activeRecipe.name.trim()) return showAlert("Validation Error", "Please give this recipe a name before saving.");
+    if (!activeRecipe.name.trim()) return showAlert(t('common.error'), t('recipe.validateNameRequired'));
 
     setIsSaving(true);
     try {
@@ -949,18 +955,18 @@ function Admin() {
 
       // Switch active recipe to the formalized UUID instance
       setActiveRecipe(data);
-      showAlert("Success", "Recipe saved directly to Supabase!");
+      showAlert(t('common.success'), t('recipe.saveSuccessDesc'));
 
     } catch (err) {
       console.error(err);
-      showAlert("Database Error", err.message);
+      showAlert(t('admin.dbError'), err.message);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDeleteRecipe = async (recipeId) => {
-    showConfirm("Delete Recipe", "Are you sure you want to permanently delete this recipe from Supabase?", async () => {
+    showConfirm(t('recipe.deleteTitle'), t('recipe.deleteDesc'), async () => {
       setIsSaving(true);
       try {
         const { error } = await supabase.from('recipes').delete().eq('id', recipeId);
@@ -968,9 +974,9 @@ function Admin() {
 
         setRecipes(recipes.filter(r => r.id !== recipeId));
         if (activeRecipe?.id === recipeId) setActiveRecipe(null);
-        showAlert("Success", "Recipe deleted!");
+        showAlert(t('common.success'), t('recipe.deleteSuccessDesc'));
       } catch (err) {
-        showAlert("Error", err.message);
+        showAlert(t('common.error'), err.message);
       } finally {
         setIsSaving(false);
       }
@@ -988,18 +994,18 @@ function Admin() {
             <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '900' }}>{t('admin.loginTitle')}</h2>
             <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>{t('admin.loginSubtitle') || 'Access the administrative dashboard'}</p>
           </div>
-          
+
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Icon icon="lucide:mail" />
                 {t('admin.email')}
               </label>
-              <input 
-                type="email" 
-                value={loginForm.email} 
-                onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })} 
-                style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }} 
+              <input
+                type="email"
+                value={loginForm.email}
+                onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
+                style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
                 required
               />
             </div>
@@ -1008,17 +1014,17 @@ function Admin() {
                 <Icon icon="lucide:key-round" />
                 {t('admin.password')}
               </label>
-              <input 
-                type="password" 
-                value={loginForm.password} 
-                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} 
-                style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }} 
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                style={{ padding: '16px', borderRadius: '16px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
                 required
               />
             </div>
             <button type="submit" style={{ padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '18px', cursor: 'pointer', fontWeight: '900', fontSize: '1.2rem', marginTop: '8px', boxShadow: '0 10px 25px rgba(52, 152, 219, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                <Icon icon="lucide:log-in" />
-                {t('admin.accessBtn')}
+              <Icon icon="lucide:log-in" />
+              {t('admin.accessBtn')}
             </button>
             <button type="button" onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               <Icon icon="lucide:arrow-left" />
@@ -1040,8 +1046,8 @@ function Admin() {
     setIsMobileMenuOpen(false);
   };
 
-  
-    if (isAuthenticated && !isAdminUnlocked) {
+
+  if (isAuthenticated && !isAdminUnlocked) {
     return (
       <SharedPinPad
         variant="fullscreen"
@@ -1055,15 +1061,20 @@ function Admin() {
         onCancel={handleBackToRegister}
         submitText={t('admin.unlockBtn')}
         submitIcon="lucide:unlock"
-        onSubmit={() => {
-          const isStaffAdmin = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === adminPinInput);
-          const isMasterPin = adminPinInput === generalSettings.pinCode;
-          if (isStaffAdmin || isMasterPin) { 
-            setIsAdminUnlocked(true); 
-            setPinError(false); 
-          } else { 
-            setPinError(true); 
-            setAdminPinInput(''); 
+        onSubmit={async () => {
+          const { verifyAdminPin } = useMenuStore.getState();
+          try {
+            const isValid = await verifyAdminPin(adminPinInput);
+            if (isValid) {
+              setIsAdminUnlocked(true);
+              setPinError(false);
+            } else {
+              setPinError(true);
+              setAdminPinInput('');
+            }
+          } catch (err) {
+            showAlert(t('admin.error'), err.message);
+            setAdminPinInput('');
           }
         }}
       />
@@ -1080,7 +1091,7 @@ function Admin() {
             <Icon icon="lucide:store" style={{ color: 'var(--brand-color)' }} />
             <span>{generalSettings.name} | admin</span>
           </h2>
-          <button className="desktop-hidden" onClick={() => setIsMobileMenuOpen(false)} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer', display: 'flex' }}>
+          <button className="desktop-hidden" onClick={() => setIsMobileMenuOpen(false)} aria-label={t('common.close')} style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer', display: 'flex' }}>
             <Icon icon="lucide:x" />
           </button>
         </div>
@@ -1096,38 +1107,64 @@ function Admin() {
             { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
             { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
             { id: 'team', icon: 'lucide:users', label: t('admin.team') },
-            { id: 'activity', icon: 'lucide:history', label: 'Actividad', advancedOnly: true },
+            { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
-          ].filter(tab => !tab.advancedOnly || generalSettings.isAdvancedMode === true).map(tab => (
-            <button 
-              key={tab.id}
-              onClick={() => switchTab(tab.id)} 
-              style={{ 
-                padding: '12px 24px', 
-                textAlign: 'left', 
-                background: activeTab === tab.id ? 'rgba(255,255,255,0.15)' : 'transparent', 
-                border: 'none', 
-                color: 'white', 
-                cursor: 'pointer', 
-                fontSize: '1rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                borderLeft: activeTab === tab.id ? '4px solid var(--brand-color)' : '4px solid transparent',
-                transition: 'all 0.2s'
-              }}
-            >
-              <Icon icon={tab.icon} style={{ fontSize: '1.2rem', opacity: activeTab === tab.id ? 1 : 0.7 }} />
-              <span>{tab.label}</span>
-            </button>
-          ))}
+          ].map(tab => {
+            const isLocked = tab.advancedOnly && generalSettings.isAdvancedMode !== true;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => {
+                  if (isLocked) {
+                    showConfirm(t('settings.advancedLockedTitle'), t('settings.advancedLockedDesc'), () => switchTab('settings'));
+                  } else {
+                    switchTab(tab.id);
+                  }
+                }}
+                style={{
+                  padding: '12px 24px',
+                  textAlign: 'left',
+                  background: activeTab === tab.id ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  border: 'none',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  opacity: isLocked ? 0.45 : 1,
+                  borderLeft: activeTab === tab.id ? '4px solid var(--brand-color)' : '4px solid transparent',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <Icon icon={tab.icon} style={{ fontSize: '1.2rem', opacity: activeTab === tab.id ? 1 : 0.7 }} />
+                <span style={{ flex: 1 }}>{tab.label}</span>
+                {isLocked && (
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.65)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Icon icon="lucide:lock" style={{ fontSize: '0.7rem' }} />
+                    {t('settings.advancedBadge')}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
         <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+          {!generalSettings.isAdvancedMode && (
+            <div
+              onClick={() => switchTab('settings')}
+              style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.08)', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.7)', border: '1px dashed rgba(255,255,255,0.2)' }}
+              title={t('settings.advancedMode')}
+            >
+              <Icon icon="lucide:lock" style={{ fontSize: '1rem' }} />
+              <span>{t('settings.liteMode')}{t('settings.advancedMode')}</span>
+            </div>
+          )}
           <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'transparent', color: '#ccc', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <Icon icon="lucide:log-out" />
             <span>{t('admin.signOut')}</span>
           </button>
-          <button onClick={handleBackToRegister} style={{ width: '100%', padding: '12px', background: '#e74c3c', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(231, 76, 60, 0.3)' }}>
+          <button onClick={handleBackToRegister} style={{ width: '100%', padding: '12px', background: '#bd301e', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(41, 128, 185, 0.3)' }}>
             <Icon icon="lucide:layout-dashboard" />
             <span>{t('admin.backToReg')}</span>
           </button>
@@ -1148,26 +1185,26 @@ function Admin() {
             <span>{t('admin.saving')}</span>
           </div>
         )}
-        
+
         {/* 1. ANALYTICS TAB */}
         {activeTab === 'analytics' && (
-          <AnalyticsTab 
-            timeFilter={timeFilter} 
-            setTimeFilter={setTimeFilter} 
+          <AnalyticsTab
+            timeFilter={timeFilter}
+            setTimeFilter={setTimeFilter}
             dateRange={dateRange}
             setDateRange={setDateRange}
-            handleDownloadCSV={handleDownloadCSV} 
-            totalRevenue={totalRevenue} 
-            totalExpenses={totalExpenses} 
-            totalRefunds={totalRefunds} 
-            netProfit={netProfit} 
-            methodCounts={methodCounts} 
-            topItemsArray={topItemsArray} 
+            handleDownloadCSV={handleDownloadCSV}
+            totalRevenue={totalRevenue}
+            totalExpenses={totalExpenses}
+            totalRefunds={totalRefunds}
+            netProfit={netProfit}
+            methodCounts={methodCounts}
+            topItemsArray={topItemsArray}
             filteredSales={filteredSales}
-            
+
             // ADD THESE TWO NEW LINES:
-            inventoryLogs={inventoryLogs} 
-            inventoryItems={inventoryItems} 
+            inventoryLogs={inventoryLogs}
+            inventoryItems={inventoryItems}
             filteredExpenses={filteredExpenses}
           />
         )}
@@ -1177,56 +1214,56 @@ function Admin() {
           <ActivityTab />
         )}
 
-        
-              {/* 1.5 RECEIPT HISTORY / REFUNDS TAB */}
+
+        {/* 1.5 RECEIPT HISTORY / REFUNDS TAB */}
         {activeTab === 'orders' && (
-          <OrdersTab 
-            dexieSales={filteredSales} 
-            generalSettings={generalSettings} 
+          <OrdersTab
+            dexieSales={filteredSales}
+            generalSettings={generalSettings}
             menuData={menuData}
-            timeFilter={timeFilter} 
-            setTimeFilter={setTimeFilter} 
+            timeFilter={timeFilter}
+            setTimeFilter={setTimeFilter}
             dateRange={dateRange}
-            setDateRange={setDateRange} 
+            setDateRange={setDateRange}
           />
         )}
 
 
-          {/* Inside Admin.jsx */}
-          {activeTab === 'menu' && (
-            <MenuEditorTab 
-              menuData={menuData} 
-              newCategoryName={newCategoryName} 
-              setNewCategoryName={setNewCategoryName} 
-              handleAddCategory={handleAddCategory} 
-              newItemForm={newItemForm} 
-              setNewItemForm={setNewItemForm} 
-              handleAddDrink={handleAddDrink} 
-              handleDeleteCategory={handleDeleteCategory} 
-              handleDeleteDrink={handleDeleteDrink} 
-              setEditingDrink={setEditingDrink} 
-              /* ADD THESE TWO LINES: */
-              recipes={recipes}
-              inventoryItems={inventoryItems}
-              handleRenameCategory={handleRenameCategory}
-              editingItemId={editingItemId}
-              setEditingItemId={setEditingItemId}
-            />
-          )}
+        {/* Inside Admin.jsx */}
+        {activeTab === 'menu' && (
+          <MenuEditorTab
+            menuData={menuData}
+            newCategoryName={newCategoryName}
+            setNewCategoryName={setNewCategoryName}
+            handleAddCategory={handleAddCategory}
+            newItemForm={newItemForm}
+            setNewItemForm={setNewItemForm}
+            handleAddDrink={handleAddDrink}
+            handleDeleteCategory={handleDeleteCategory}
+            handleDeleteDrink={handleDeleteDrink}
+            setEditingDrink={setEditingDrink}
+            /* ADD THESE TWO LINES: */
+            recipes={recipes}
+            inventoryItems={inventoryItems}
+            handleRenameCategory={handleRenameCategory}
+            editingItemId={editingItemId}
+            setEditingItemId={setEditingItemId}
+          />
+        )}
 
         {/* 3. MODIFIER LIBRARY TAB */}
         {activeTab === 'modifiers' && (
-          <ModifierLibraryTab 
-            menuData={menuData} 
-            inventoryItems={inventoryItems} 
-            newModGroupName={newModGroupName} 
-            setNewModGroupName={setNewModGroupName} 
-            handleAddModifierGroup={handleAddModifierGroup} 
-            newModOption={newModOption} 
-            setNewModOption={setNewModOption} 
-            handleAddModifierOption={handleAddModifierOption} 
-            handleDeleteModifierGroup={handleDeleteModifierGroup} 
-            handleDeleteModifierOption={handleDeleteModifierOption} 
+          <ModifierLibraryTab
+            menuData={menuData}
+            inventoryItems={inventoryItems}
+            newModGroupName={newModGroupName}
+            setNewModGroupName={setNewModGroupName}
+            handleAddModifierGroup={handleAddModifierGroup}
+            newModOption={newModOption}
+            setNewModOption={setNewModOption}
+            handleAddModifierOption={handleAddModifierOption}
+            handleDeleteModifierGroup={handleDeleteModifierGroup}
+            handleDeleteModifierOption={handleDeleteModifierOption}
           />
         )}
 
@@ -1262,11 +1299,11 @@ function Admin() {
 
         {/* --- ADD THIS NEW RENDER BLOCK --- */}
         {activeTab === 'inventory' && (
-          <InventoryTab 
-            inventoryItems={inventoryItems} 
-            setInventoryItems={setInventoryItems} 
-            showAlert={showAlert} 
-            showConfirm={showConfirm} 
+          <InventoryTab
+            inventoryItems={inventoryItems}
+            setInventoryItems={setInventoryItems}
+            showAlert={showAlert}
+            showConfirm={showConfirm}
           />
         )}
         {/* --------------------------------- */}

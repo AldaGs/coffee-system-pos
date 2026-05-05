@@ -11,11 +11,10 @@ import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
-import { processCheckout } from './services/checkoutService';
 import { attemptBackgroundSync } from './services/syncService';
 import { logActivity } from './services/activityService';
 import { useTranslation } from './hooks/useTranslation';
-import { calculateExpectedCash } from './utils/posMath';
+import { calculateExpectedCash, money } from './utils/posMath';
 import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
@@ -28,6 +27,11 @@ import CheckoutModal from './components/register/CheckoutModal';
 import LoyaltyModal from './components/register/LoyaltyModal';
 import FlyingReceipt from './components/register/FlyingReceipt';
 import ExpenseModal from './components/register/ExpenseModal';
+import { usePresence } from './hooks/usePresence';
+import { useCheckout } from './hooks/useCheckout';
+import { useShiftCorte } from './hooks/useShiftCorte';
+import { useLoyalty } from './hooks/useLoyalty';
+
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
@@ -37,28 +41,25 @@ import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMe
 
 
 const getOrCreateDeviceId = () => {
-  let id = sessionStorage.getItem('tinypos_device_id') || localStorage.getItem('tinypos_device_id');
+  let id = localStorage.getItem('tinypos_device_id');
   if (!id) {
-    id = Math.random().toString(36).substring(2, 15);
+    id = crypto.randomUUID();
     localStorage.setItem('tinypos_device_id', id);
   }
-  sessionStorage.setItem('tinypos_device_id', id);
   return id;
 };
+
 
 function Register() {
   const navigate = useNavigate();
   const { t, lang } = useTranslation();
 
   // --- ZUSTAND GLOBAL STORES ---
-  const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime, logout } = useAuthStore();
-  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, isLoading, setIsLoading, getPosSettings } = useMenuStore();
-  const {
-    activeTicketId, setActiveTicketId, isCheckoutModalOpen, setIsCheckoutModalOpen,
-    splitMode, setSplitMode, splitPayments, setSplitPayments, nWays, setNWays,
-    customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState,
-    tipAmount, setTipAmount, tipPercentage, setTipPercentage
-  } = useCartStore();
+  const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime } = useAuthStore();
+  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, isLoading, setIsLoading, getPosSettings, lastSyncedAt } = useMenuStore();
+  const { activeTicketId, setActiveTicketId, isCheckoutModalOpen, setIsCheckoutModalOpen, splitMode, setSplitMode, splitPayments, setSplitPayments, nWays, setNWays, customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState, tipAmount, setTipAmount, tipPercentage, setTipPercentage } = useCartStore();
+
+
 
   const [myDeviceId] = useState(getOrCreateDeviceId);
 
@@ -165,6 +166,7 @@ function Register() {
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'active_tickets' },
         async (payload) => {
+          try {
           if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
             if (payload.new.last_modified_by === myDeviceId) {
               return;
@@ -176,6 +178,9 @@ function Register() {
             if (activeTicketIdRef.current === payload.old.id) {
               setActiveTicketId(null);
             }
+          }
+          } catch (err) {
+            console.error("Realtime handler error:", err);
           }
         }
       )
@@ -224,7 +229,7 @@ function Register() {
       amount: expenseAmount,
       reason: expenseForm.reason,
       category: expenseForm.category || 'General',
-      cashier_name: activeCashier?.name || 'Unknown Cashier'
+      cashier_name: activeCashier?.name || t('expense.unknownCashierFallback')
     };
 
     try {
@@ -255,7 +260,7 @@ function Register() {
 
   const handleApplyDiscount = async () => {
     const val = parseFloat(discountForm.value);
-    if (isNaN(val) || val <= 0) return showAlert("Invalid Discount", "Please enter a valid amount.");
+    if (isNaN(val) || val <= 0) return showAlert(t('discount.invalidTitle'), t('discount.invalidDesc'));
 
     if (activeTicket) {
       await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
@@ -319,50 +324,7 @@ function Register() {
   const [isCorteModalOpen, setIsCorteModalOpen] = useState(false);
   const [countedCash, setCountedCash] = useState("");
 
-  // --- PROCESS CORTE DE CAJA ---
-  const handleProcessCorte = () => {
-    const actualCash = parseFloat(countedCash) || 0;
-    const difference = actualCash - expectedCash;
 
-    // Safety check to ensure they actually counted
-    if (countedCash === "") {
-      return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc1')); // Reusing inventory strings or add new ones
-    }
-
-    // Determine the status string
-    let statusMsg = t('corte.balanced');
-    if (difference > 0) statusMsg = `${t('corte.over')} $${difference.toFixed(2)} ⬆️`;
-    if (difference < 0) statusMsg = `${t('corte.short')} $${Math.abs(difference).toFixed(2)} ⬇️`;
-
-    const confirmMessage = `
-      ${t('corte.summary')}:
-      ${t('analytics.sales')}: ${shiftOrders.length}
-      ${t('corte.gross')}: $${shiftTotalRevenue.toFixed(2)}
-      ${t('corte.expenses')}: $${shiftTotalExpenses.toFixed(2)}
-
-      ${t('corte.cashRecon')}:
-      ${t('corte.expected')}: $${expectedCash.toFixed(2)}
-      ${t('corte.counted')}: $${actualCash.toFixed(2)}
-      ${t('corte.result')}: ${statusMsg}
-
-      ${t('corte.closeConfirm')}`;
-
-    showConfirm(t('corte.confirmTitle'), confirmMessage, () => {
-      // 1. Mark the current exact time as the new baseline
-      const newTimestamp = new Date().toISOString();
-      setLastCorteTimestamp(newTimestamp);
-      localStorage.setItem('tinypos_last_corte', newTimestamp);
-
-      // 2. Reset the modal
-      setIsCorteModalOpen(false);
-      setCountedCash("");
-
-      // LOG ACTIVITY
-      logActivity('Corte de Caja', `Turno cerrado con ${statusMsg}. Efectivo esperado: $${expectedCash.toFixed(2)}, contado: $${actualCash.toFixed(2)}`, { expectedCash, actualCash, difference });
-
-      showAlert(t('corte.successTitle'), t('corte.successDesc'));
-    });
-  };
 
   // --- ORDER NUMBER ENGINE ---
   const [nextOrderNum, setNextOrderNum] = useState(() => {
@@ -416,25 +378,29 @@ function Register() {
     setPinChallenge({ isOpen: true, title, onAuthorized: onAuthorizedAction });
   };
 
-  const handleChallengeSubmit = () => {
-    // 1. Is it the currently logged-in cashier's PIN?
-    const isCashierMatch = challengePinAttempt === activeCashier?.pin;
+  const handleChallengeSubmit = async () => {
+    const { verifyPin, verifyAdminPin } = useMenuStore.getState();
 
-    // 2. NEW: Does this PIN belong to ANY profile where isAdmin is true?
-    // This completely ignores the trapped posSettings.pinCode!
-    const isStaffAdmin = (menuData?.cashiers || []).some(
-      cashier => cashier.isAdmin === true && cashier.pin === challengePinAttempt
-    );
+    try {
+      // 1. Is it the currently logged-in cashier's PIN?
+      const isCashierMatch = await verifyPin(activeCashier?.id, challengePinAttempt);
 
-    if (isCashierMatch || isStaffAdmin) {
-      // Success: Clear the challenge and run the intercepted action
-      setChallengePinAttempt('');
-      setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
-      if (pinChallenge.onAuthorized) pinChallenge.onAuthorized();
-    } else {
-      // Fail: Trigger the shake animation
-      setChallengeError(true);
-      setTimeout(() => setChallengeError(false), 500);
+      // 2. NEW: Does this PIN belong to ANY profile where isAdmin is true or Master PIN?
+      const isStaffAdmin = await verifyAdminPin(challengePinAttempt);
+
+      if (isCashierMatch || isStaffAdmin) {
+        // Success: Clear the challenge and run the intercepted action
+        setChallengePinAttempt('');
+        setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
+        if (pinChallenge.onAuthorized) pinChallenge.onAuthorized();
+      } else {
+        // Fail: Trigger the shake animation
+        setChallengeError(true);
+        setTimeout(() => setChallengeError(false), 500);
+        setChallengePinAttempt('');
+      }
+    } catch (err) {
+      showAlert(t('security.pinErrorTitle'), err.message);
       setChallengePinAttempt('');
     }
   };
@@ -462,36 +428,37 @@ function Register() {
   const [pinAttempt, setPinAttempt] = useState('');
 
   // --- UNLOCK LOGIC & ENTER KEY ---
-  const handleUnlockSubmit = () => {
+  const handleUnlockSubmit = async () => {
     if (!selectedProfile) return;
+    const { verifyPin, verifyAdminPin } = useMenuStore.getState();
 
-    // 1. Does it match the selected profile's own PIN?
-    const isProfileMatch = pinAttempt === selectedProfile.pin;
+    try {
+      // 1. Does it match the selected profile's own PIN?
+      const isProfileMatch = await verifyPin(selectedProfile.id, pinAttempt);
 
-    // 2. Does it match ANY profile marked as isAdmin?
-    const isStaffAdmin = (menuData?.cashiers || []).some(
-      c => c.isAdmin === true && c.pin === pinAttempt
-    );
+      // 2. Does it match ANY profile marked as isAdmin or Master PIN?
+      const isStaffAdmin = await verifyAdminPin(pinAttempt);
 
-    // 3. Does it match the Master PIN in General Settings?
-    const isMasterPin = pinAttempt === posSettings.pinCode;
+      if (isProfileMatch || isStaffAdmin) {
+        setIsLocked(false);
+        setActiveCashier(selectedProfile);
+        localStorage.setItem('tinypos_activeCashier', JSON.stringify(selectedProfile));
 
-    if (isProfileMatch || isStaffAdmin || isMasterPin) {
-      setIsLocked(false);
-      setActiveCashier(selectedProfile);
-      localStorage.setItem('tinypos_activeCashier', JSON.stringify(selectedProfile));
+        const newSessionTime = Date.now();
+        setSessionTime(newSessionTime);
+        localStorage.setItem('tinypos_session_time', newSessionTime.toString());
 
-      const newSessionTime = Date.now();
-      setSessionTime(newSessionTime);
-      localStorage.setItem('tinypos_session_time', newSessionTime.toString());
-
-      // Reset the lock screen for next time
-      setPinAttempt('');
-      setSelectedProfile(null);
-    } else {
-      // Wrong PIN! Trigger the shake animation
-      setPhoneError(true);
-      setTimeout(() => setPhoneError(false), 500);
+        // Reset the lock screen for next time
+        setPinAttempt('');
+        setSelectedProfile(null);
+      } else {
+        // Wrong PIN! Trigger the shake animation
+        setPhoneError(true);
+        setTimeout(() => setPhoneError(false), 500);
+        setPinAttempt('');
+      }
+    } catch (err) {
+      showAlert(t('lock.loginErrorTitle'), err.message);
       setPinAttempt('');
     }
   };
@@ -560,68 +527,8 @@ function Register() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuData, isLocked, posSettings.autoLockMinutes]);
 
-  // --- PRESENCE & SECURITY (Active Lockout System) ---
-  useEffect(() => {
-    // Don't connect if we are already locked out or offline
-    if (!supabase || !navigator.onLine || !activeCashier || isLocked) return;
-
-    const channel = supabase.channel('cashier-presence', {
-      config: {
-        presence: { key: myDeviceId },
-        broadcast: { ack: true }
-      },
-    });
-
-    // The function that ruthlessly kills the session
-    const executeLockout = (reason) => {
-      console.warn(`🔒 ${reason}`);
-      logout(); // <-- This handles isLocked, activeCashier, sessionTime, AND localStorage all at once!
-      showAlert("Access Revoked", reason);
-    };
-
-    channel
-      // 1. THE EAR: Listen for the kill command from new devices
-      .on('broadcast', { event: 'force-kick' }, (payload) => {
-        const { incomingCashierId, incomingDeviceId } = payload.payload;
-
-        // If the login is for my profile, but from a different device -> Lockout!
-        if (incomingCashierId === activeCashierRef.current?.id && incomingDeviceId !== myDeviceId) {
-          executeLockout("Session terminated by a new login on another device.");
-        }
-      })
-      // 2. THE EYE: Passive tracking (optional, but good for debugging)
-      .on('presence', { event: 'sync' }, () => {
-        console.log("Active Devices:", Object.keys(channel.presenceState()).length);
-      })
-      // 3. THE WEAPON: Connect and fire!
-      .subscribe((status) => { // <-- Removed 'async' here
-        console.log(`Presence Status (${activeCashierRef.current?.name}):`, status);
-
-        if (status === 'SUBSCRIBED') {
-
-          // 1. SHOOT FIRST: Instantly fire the kick command (No 'await')
-          channel.send({
-            type: 'broadcast',
-            event: 'force-kick',
-            payload: {
-              incomingCashierId: activeCashierRef.current.id,
-              incomingDeviceId: myDeviceId
-            }
-          });
-
-          // 2. TRACK LATER: Let presence sync in the background (No 'await')
-          channel.track({
-            cashierId: activeCashierRef.current.id,
-            deviceId: myDeviceId
-          });
-        }
-      });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCashier?.id, isLocked, myDeviceId]);
+  // --- EXTRACTED HOOKS (Issue 3.6) ---
+  usePresence(myDeviceId, showAlert);
 
   // --- SHIFT CALCULATIONS ---
   // 1. Filter data to ONLY include things that happened after the last Corte
@@ -637,12 +544,7 @@ function Register() {
 
       if (o.payment_method === method) return sum + netSale;
       if (o.payment_method === 'Split' && o.splits) {
-        // Find the amount for this specific split method
         const splitAmount = o.splits.filter(s => s.method === method).reduce((acc, s) => acc + s.amount, 0);
-        // If there's a partial refund on a split payment, the netSale is less. 
-        // We'll just subtract the refund proportionally or simply from the total if it's not a full split breakdown.
-        // For simplicity, we just use the original split amounts unless it's fully refunded. 
-        // (A more advanced system would track WHICH split was refunded).
         return sum + splitAmount;
       }
       return sum;
@@ -652,13 +554,6 @@ function Register() {
   const shiftCashSales = calcTotalByMethod('Cash');
   const shiftCardSales = calcTotalByMethod('Card');
   const shiftTransferSales = calcTotalByMethod('Transfer');
-
-  const shiftTotalRevenue = shiftOrders.reduce((sum, o) => {
-    if (o.status === 'refunded') return sum;
-    let netSale = o.total_amount || 0;
-    if (o.status === 'partial_refund') netSale -= (o.refund_amount || 0);
-    return sum + netSale;
-  }, 0);
 
   // 3. Sum up the expenses
   const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + e.amount, 0);
@@ -673,6 +568,111 @@ function Register() {
     return sum;
   }, 0);
   const expectedCash = calculateExpectedCash(shiftCashSales, shiftCashRefunds, shiftTotalExpenses);
+
+  // --- TICKET FILTERING & CART MATH (Hoisted above hooks that need them) ---
+  const totalOfflineRecords = syncQueue.length + expenseQueue.length + waQueue.length;
+  const isCurrentlyOffline = !navigator.onLine;
+
+  const visibleTickets = posSettings.ticketVisibility === 'isolated'
+    ? tickets.filter(t => t.cashier_id === activeCashier?.id)
+    : tickets;
+
+  const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || visibleTickets[0];
+
+  const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
+    let itemCost = item.basePrice;
+    item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
+    const itemTotal = Math.round(itemCost * (item.qty || 1) * 100) / 100;
+    return Math.round((total + itemTotal) * 100) / 100;
+  }, 0) : 0;
+
+  let autoDiscountAmount = 0;
+  let activeAutoRuleName = "";
+
+  if (posSettings?.isAdvancedMode) {
+    const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
+    if (activeRules.length > 0 && cartSubtotal > 0) {
+      activeRules.forEach(rule => {
+        if (rule.targetType === 'cart') {
+          const ruleValue = rule.type === 'percentage' ? cartSubtotal * (rule.value / 100) : rule.value;
+          autoDiscountAmount += ruleValue;
+          activeAutoRuleName = rule.name;
+        } else if (rule.targetType === 'item') {
+          activeTicket.items.forEach(item => {
+            if (item.name === rule.targetValue) {
+              const qty = item.qty || 1;
+              let itemCost = item.basePrice;
+              item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
+              const ruleValue = rule.type === 'percentage' ? itemCost * qty * (rule.value / 100) : rule.value * qty;
+              autoDiscountAmount += ruleValue;
+              activeAutoRuleName = rule.name;
+            }
+          });
+        }
+      });
+    }
+  }
+
+  autoDiscountAmount = Math.max(0, Math.min(autoDiscountAmount, cartSubtotal));
+
+  let manualDiscountAmount = 0;
+  if (activeTicket?.discount) {
+    const subtotalAfterAuto = Math.max(0, cartSubtotal - autoDiscountAmount);
+    const discountVal = parseFloat(activeTicket.discount.value) || 0;
+    if (activeTicket.discount.type === 'percentage') {
+      const safePct = Math.max(0, Math.min(discountVal, 100));
+      manualDiscountAmount = subtotalAfterAuto * (safePct / 100);
+    } else if (activeTicket.discount.type === 'flat') {
+      manualDiscountAmount = Math.max(0, Math.min(discountVal, subtotalAfterAuto));
+    }
+  }
+
+  const totalDiscounts = money(autoDiscountAmount + manualDiscountAmount);
+  const cartTotal = money(Math.max(0, cartSubtotal - totalDiscounts));
+
+  // --- TICKET LIFECYCLE (Must be above hooks that reference them) ---
+  const clearCurrentTicket = async () => {
+    if (!activeTicket) return;
+    const ticketIdToDelete = activeTicket.id;
+    await db.active_tickets.delete(ticketIdToDelete);
+    if (navigator.onLine) {
+      try {
+        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
+      } catch (err) {
+        console.error("Cloud delete failed:", err);
+      }
+    }
+    const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
+    if (remainingTickets.length > 0) {
+      const nextVisible = remainingTickets.find(t => posSettings.ticketVisibility === 'open' || t.cashier_id === activeCashier?.id);
+      setActiveTicketId(nextVisible ? nextVisible.id : null);
+    } else {
+      setActiveTicketId(null);
+    }
+  };
+
+  const handleCancelTicket = () => {
+    if (activeTicket.items.length === 0) {
+      clearCurrentTicket();
+      return;
+    }
+    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => clearCurrentTicket());
+  };
+
+  // --- HOOK DEPENDENCIES (all computed values now available) ---
+  const hookDeps = {
+    expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales,
+    shiftTotalExpenses, activeCashier, myDeviceId, setIsCorteModalOpen,
+    setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm,
+    loyaltyModal, setLoyaltyModal, activeTicket, menuData, setPhoneError,
+    cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket
+  };
+
+  const { handleProcessCorte } = useShiftCorte(hookDeps);
+  const { handleConfirmPayment } = useCheckout(hookDeps);
+  const { handleCheckLoyalty } = useLoyalty(hookDeps);
+
+
 
   // --- THEME INJECTION LOGIC ---
   useEffect(() => {
@@ -809,7 +809,7 @@ function Register() {
 
   const addToTicket = async (item, modifiers) => {
     if (!activeTicket) {
-      showAlert("No Active Order", "Please click '+ Start New Ticket' before adding items.");
+      showAlert(t('cart.noActiveOrderTitle'), t('cart.noActiveOrderDesc'));
       setIsModalOpen(false);
       setPendingItem(null);
       return;
@@ -893,48 +893,7 @@ function Register() {
     }
   };
 
-  const clearCurrentTicket = async () => {
-    if (!activeTicket) return;
-
-    const ticketIdToDelete = activeTicket.id; // Store ID before deleting
-
-    // 1. Delete locally
-    await db.active_tickets.delete(ticketIdToDelete);
-
-    // 2. NEW: Delete from the cloud so it vanishes from the phone!
-    if (navigator.onLine) {
-      try {
-        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
-        console.log("Ticket deleted");
-      } catch (err) {
-        console.error("Cloud delete failed:", err);
-      }
-    }
-
-    const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
-
-    // Try to find another ticket that belongs to this cashier
-    if (remainingTickets.length > 0) {
-      const nextVisible = remainingTickets.find(t => posSettings.ticketVisibility === 'open' || t.cashier_id === activeCashier?.id);
-      if (nextVisible) {
-        setActiveTicketId(nextVisible.id);
-      } else {
-        setActiveTicketId(null); // None of the remaining tickets belong to them
-      }
-    } else {
-      setActiveTicketId(null); // The master cart is totally empty
-    }
-  };
-
-  const handleCancelTicket = () => {
-    // Check if ticket is empty. If it is, don't even ask, just close it.
-    if (activeTicket.items.length === 0) {
-      clearCurrentTicket();
-      return;
-    }
-
-    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => clearCurrentTicket());
-  };
+  // clearCurrentTicket and handleCancelTicket hoisted above hooks (see line ~641)
 
 
 
@@ -942,9 +901,9 @@ function Register() {
 
   const printRawReceipt = async (ticket, total) => {
     const receiptSettings = menuData?.receiptSettings || {
-      header: "TINY COFFEE BAR",
-      subheader: "Puebla, Mexico",
-      footer: "Thank you for your visit!",
+      header: posSettings?.name || "",
+      subheader: "",
+      footer: "",
       enableTaxBreakdown: false,
       taxRate: 16,
       logo: null
@@ -955,7 +914,7 @@ function Register() {
       if (err.message !== "unsupported") {
         showAlert(t('receipt.printerErr'), t('receipt.printerErrDesc'));
       } else {
-        showAlert("Unsupported Device", "Direct printing is only supported on Windows/Mac via Chrome, or Android via the RawBT app.");
+        showAlert(t('receipt.unsupportedTitle'), t('receipt.unsupportedMsg'));
       }
     }
   };
@@ -965,7 +924,7 @@ function Register() {
     const receiptSettings = menuData?.receiptSettings || {
       header: posSettings.name || 'TinyPOS',
       subheader: '',
-      footer: 'Thank you for your visit! ✨',
+      footer: '',
       enableTaxBreakdown: false,
       taxRate: 16
     };
@@ -978,7 +937,7 @@ function Register() {
       // Capture the hidden TicketImage element
       await saveTicketAsPNGUtil('ticket-to-capture', `ticket-${ticket.name || 'pos'}.png`);
     } catch (err) {
-      showAlert("Error", "Could not save PNG: " + err.message);
+      showAlert(t('common.error'), t('receipt.savePngErrorPrefix') + err.message);
     }
   };
 
@@ -994,85 +953,7 @@ function Register() {
     sendFinalMessage(cleanPhone, null);
   };
 
-  // --- 3. THE LOYALTY CHECKOUT (UPGRADED ITEM TRACKER) ---
-  const handleCheckLoyalty = async () => {
-    // 1. SAFE FALLBACK: Merge cloud settings with our defaults!
-    const loyaltySettings = {
-      isActive: true,
-      visitsRequired: 10,
-      rewardDescription: "tu próxima bebida GRATIS",
-      targetItem: "any",
-      countMode: 'per_item',
-      ...(menuData?.loyaltySettings || {}) // Overwrites with cloud data if it exists
-    };
 
-    // 2. Now check our safe, merged object
-    const isLoyaltyActive = loyaltySettings.isActive === true || loyaltySettings.isActive === "true";
-
-    if (!isLoyaltyActive) {
-      setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
-      return showAlert(t('loyalty.paused'), t('loyalty.noPromos'));
-    }
-
-    const cleanPhone = loyaltyModal.phone.replace(/\D/g, '');
-    if (cleanPhone.length !== 10) {
-      setPhoneError(true);
-      setTimeout(() => setPhoneError(false), 500);
-      return;
-    }
-
-    let starsToEarn = 0;
-    const targetItem = loyaltySettings.targetItem;
-    const countMode = loyaltySettings.countMode;
-
-    if (targetItem === 'any') {
-      starsToEarn = 1;
-    } else {
-      activeTicket.items.forEach(item => {
-        if (item.name === targetItem) starsToEarn += (item.qty || 1);
-      });
-
-      if (countMode === 'per_ticket' && starsToEarn > 0) {
-        starsToEarn = 1;
-      }
-    }
-
-    if (starsToEarn === 0) {
-      setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
-      return showAlert(t('loyalty.noQualify'), t('loyalty.noQualifyDesc'));
-    }
-
-    let currentVisits = starsToEarn;
-
-    try {
-      const { data: customer } = await supabase.from('customers').select('visits').eq('phone', cleanPhone).maybeSingle();
-
-      if (customer) {
-        currentVisits = customer.visits + starsToEarn;
-        const { error: updateErr } = await supabase.from('customers').update({ visits: currentVisits }).eq('phone', cleanPhone);
-        if (updateErr) throw updateErr;
-      } else {
-        const { error: insertErr } = await supabase.from('customers').insert([{ phone: cleanPhone, visits: starsToEarn }]);
-        if (insertErr) throw insertErr;
-      }
-    } catch (err) {
-      console.error("Loyalty error:", err);
-      // Let's actually show an alert if the database rejects the save!
-      return showAlert("Database Error", "Could not save stars. Please check your internet or Supabase permissions.");
-    }
-
-    setLoyaltyModal(prev => ({
-      ...prev,
-      step: 'result',
-      data: {
-        visits: currentVisits,
-        target: loyaltySettings.visitsRequired,
-        reward: loyaltySettings.rewardDescription,
-        earnedToday: starsToEarn,
-        isRewardReady: currentVisits > 0 && (currentVisits % loyaltySettings.visitsRequired === 0)
-      }
-    }));
-  };
 
   // --- SPLIT PAYMENT LOGIC & PERSISTENCE ---
   const handleOpenCheckout = () => {
@@ -1120,32 +1001,6 @@ function Register() {
     resetCheckoutState();
   };
 
-  // Action 2: The actual finalization of the sale
-  const handleConfirmPayment = async (paymentsArray) => {
-
-    // 1. Call our decoupled backend service
-    const { masterMethodString } = await processCheckout({
-      activeTicket,
-      cartTotal,
-      paymentsArray,
-      activeCashier,
-      recipes,
-      tipAmount
-    });
-
-    // 2. Handle the UI Side Effects (React state, animations, resets)
-
-    setSuccessTicket({
-      name: activeTicket.name,
-      items: activeTicket.items,
-      total: cartTotal,
-      method: masterMethodString
-    });
-    setTimeout(() => setSuccessTicket(null), 2500);
-
-    handleCancelCheckout();
-    clearCurrentTicket();
-  };
 
   // --- THE NAVIGATION TRAP (Prevents Swipe-Back & Refreshing) ---
   useEffect(() => {
@@ -1215,85 +1070,19 @@ function Register() {
 
   if (!menuData) return <div>{t('reg.errMissingMenu')}</div>;
 
-  // Calculate total offline burdens for the UI badge
-  const totalOfflineRecords = syncQueue.length + expenseQueue.length + waQueue.length;
-  const isCurrentlyOffline = !navigator.onLine;
-
-  // --- TICKET FILTERING ENGINE ---
-  // If isolated, only show tickets that belong to the logged-in cashier
-  const visibleTickets = posSettings.ticketVisibility === 'isolated'
-    ? tickets.filter(t => t.cashier_id === activeCashier?.id)
-    : tickets;
-
-  // Grab the active ticket from the VISIBLE list, not the master list
-  const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || visibleTickets[0];
-
-  // --- THE NEW CART MATH (With Auto & Manual Discounts) ---
-
-  // 1. Calculate the raw subtotal of all items and modifiers
-  const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
-    let itemCost = item.basePrice;
-    item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-    const itemTotal = Math.round(itemCost * (item.qty || 1) * 100) / 100;
-    return Math.round((total + itemTotal) * 100) / 100;
-  }, 0) : 0;
-
-  // 2. Scan for AUTOMATED rules (only when Advanced Mode is on)
-  let autoDiscountAmount = 0;
-  let activeAutoRuleName = ""; // We track this to show it on the receipt!
-
-  if (posSettings?.isAdvancedMode) {
-    const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
-
-    if (activeRules.length > 0 && cartSubtotal > 0) {
-      activeRules.forEach(rule => {
-        // Rule Type A: Applies to the Entire Order
-        if (rule.targetType === 'cart') {
-          const ruleValue = rule.type === 'percentage' ? cartSubtotal * (rule.value / 100) : rule.value;
-          autoDiscountAmount += ruleValue;
-          activeAutoRuleName = rule.name;
-        }
-        // Rule Type B: Applies ONLY to specific items
-        else if (rule.targetType === 'item') {
-          activeTicket.items.forEach(item => {
-            if (item.name === rule.targetValue) {
-              const qty = item.qty || 1;
-              let itemCost = item.basePrice;
-              item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-
-              const ruleValue = rule.type === 'percentage' ? itemCost * qty * (rule.value / 100) : rule.value * qty;
-              autoDiscountAmount += ruleValue;
-              activeAutoRuleName = rule.name;
-            }
-          });
-        }
-      });
-    }
-  }
-
-  autoDiscountAmount = Math.min(autoDiscountAmount, cartSubtotal);
-
-  // 3. Scan for MANUAL Manager Overrides
-  let manualDiscountAmount = 0;
-  if (activeTicket?.discount) {
-    // Note: Manual percentage discounts are applied to the REMAINING balance after auto-discounts!
-    const subtotalAfterAuto = Math.max(0, cartSubtotal - autoDiscountAmount);
-    if (activeTicket.discount.type === 'percentage') {
-      manualDiscountAmount = subtotalAfterAuto * (activeTicket.discount.value / 100);
-    } else if (activeTicket.discount.type === 'flat') {
-      manualDiscountAmount = activeTicket.discount.value;
-    }
-  }
-
-  // 4. Calculate Final Total
-  const totalDiscounts = Math.min(autoDiscountAmount + manualDiscountAmount, cartSubtotal);
-  const cartTotal = Math.max(0, cartSubtotal - totalDiscounts);
 
   // --- MOUSE WHEEL HORIZONTAL SCROLL HELPERS ---
   const handleWheelScroll = (e) => {
     // If the user scrolls the wheel vertically, move the container horizontally
+    // BUT only if we are actually hovering a scrollable horizontal container
     if (e.deltaY !== 0) {
-      e.currentTarget.scrollLeft += e.deltaY;
+      const canScrollLeft = e.currentTarget.scrollLeft > 0;
+      const canScrollRight = e.currentTarget.scrollLeft < (e.currentTarget.scrollWidth - e.currentTarget.clientWidth);
+
+      if ((e.deltaY < 0 && canScrollLeft) || (e.deltaY > 0 && canScrollRight)) {
+        e.preventDefault(); // Only hijack if we can actually scroll
+        e.currentTarget.scrollLeft += e.deltaY;
+      }
     }
   };
 
@@ -1317,7 +1106,14 @@ function Register() {
   return (
     <PosContext.Provider value={posState}>
       <div className="pos-container">
+        {/* Issue 8: Out of date banner */}
+        {lastSyncedAt && (new Date() - new Date(lastSyncedAt) > 24 * 60 * 60 * 1000) && (
+          <div style={{ background: '#f39c12', color: 'white', padding: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem', width: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1000 }}>
+            ⚠️ {t('sync.outOfDate') || 'Menu potentially out of date. Syncing...'}
+          </div>
+        )}
         <MenuArea
+
           activeCategory={activeCategory}
           setActiveCategory={setActiveCategory}
           isMobileMenuOpen={isMobileMenuOpen}

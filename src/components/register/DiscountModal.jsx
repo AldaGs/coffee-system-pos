@@ -10,7 +10,7 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
       <div className="modal-content fade-in" style={{ maxWidth: '400px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h2 style={{ margin: 0, color: '#8e44ad' }}>{t('discModal.title')}</h2>
-          <button onClick={() => setIsDiscountModalOpen(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
+          <button onClick={() => setIsDiscountModalOpen(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>

@@ -81,7 +81,7 @@ function TicketArea({
                           <span style={{ marginLeft: '10px' }}>${(item.basePrice * (item.qty || 1)).toFixed(2)}</span>
                         </div>
                       </div>
-                      <button className="delete-item-btn" onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
+                      <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
                     </div>
                     {item.selectedModifiers.map(mod => (
                       <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>

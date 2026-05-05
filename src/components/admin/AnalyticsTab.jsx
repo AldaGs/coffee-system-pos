@@ -82,6 +82,20 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     }, {});
   }, [filteredExpenses]);
 
+  // Team Performance (extracted from JSX to fix Rules of Hooks violation)
+  const teamPerformance = useMemo(() => {
+    return Object.entries(
+      filteredSales.reduce((acc, order) => {
+        const name = order.cashier_name || t('analytics.unknownCashier');
+        if (!acc[name]) acc[name] = { sales: 0, tickets: 0 };
+        const netAmount = (order.total_amount || 0) - (order.refund_amount || 0);
+        acc[name].sales += netAmount;
+        acc[name].tickets += 1;
+        return acc;
+      }, {})
+    ).sort((a, b) => b[1].sales - a[1].sales);
+  }, [filteredSales, t]);
+
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px' }}>
@@ -99,14 +113,14 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
               <option value="6months">{t('analytics.filter6Months')}</option>
               <option value="year">{t('analytics.filterYear')}</option>
               <option value="all">{t('analytics.filterAll')}</option>
-              <option value="custom">Rango (Personalizado)</option>
+              <option value="custom">{t('analytics.customRange')}</option>
             </select>
           </div>
 
           {timeFilter === 'custom' && (
             <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Inicio</label>
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('analytics.dateStart')}</label>
                 <input 
                   type="date" 
                   value={dateRange?.start || ''} 
@@ -125,7 +139,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
               </div>
               <span style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '14px' }}>—</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Fin</label>
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('analytics.dateEnd')}</label>
                 <input 
                   type="date" 
                   value={dateRange?.end || ''} 
@@ -262,7 +276,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
           </h3>
           {filteredSales.length === 0 ? (<p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noCashier')}</p>) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {Object.entries(filteredSales.reduce((acc, order) => { const name = order.cashier_name || t('analytics.unknownCashier'); if (!acc[name]) acc[name] = { sales: 0, tickets: 0 }; const netAmount = (order.total_amount || 0) - (order.refund_amount || 0); acc[name].sales += netAmount; acc[name].tickets += 1; return acc; }, {})).sort((a, b) => b[1].sales - a[1].sales).map(([name, data]) => (
+              {teamPerformance.map(([name, data]) => (
                 <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div style={{ height: '48px', width: '48px', borderRadius: '14px', background: 'var(--brand-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}>

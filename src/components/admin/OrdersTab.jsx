@@ -4,11 +4,75 @@ import { db } from '../../db';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import TicketImage from '../register/TicketImage';
+import PinChallengeModal from '../register/PinChallengeModal';
+import { useDialog } from '../../hooks/useDialog';
+import { useMenuStore } from '../../store/useMenuStore';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from '../../utils/sharingUtils';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
+  const { showAlert, showPrompt } = useDialog();
+  const { verifyAdminPin } = useMenuStore();
   const [sharingOrder, setSharingOrder] = useState(null);
+
+  // --- PIN CHALLENGE STATE ---
+  const [pinChallenge, setPinChallenge] = useState({ isOpen: false, title: "", onAuthorized: null });
+  const [challengePinAttempt, setChallengePinAttempt] = useState('');
+  const [challengeError, setChallengeError] = useState('');
+
+  // --- REFUND MODAL STATE ---
+  const [refundModal, setRefundModal] = useState({ isOpen: false, order: null });
+  const [refundMode, setRefundMode] = useState('all'); // 'all' | 'custom'
+  const [refundAmount, setRefundAmount] = useState('');
+
+  const handleChallengeSubmit = async () => {
+    const isValid = await verifyAdminPin(challengePinAttempt);
+    if (isValid) {
+      const authorizedCallback = pinChallenge.onAuthorized;
+      setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
+      setChallengePinAttempt('');
+      setChallengeError('');
+      if (authorizedCallback) authorizedCallback();
+    } else {
+      setChallengeError(t('orders.alertInvalidPin'));
+      setChallengePinAttempt('');
+    }
+  };
+
+  const handleProcessRefund = async () => {
+    const { order } = refundModal;
+    if (!order) return;
+
+    const isFull = refundMode === 'all';
+    let rAmt = isFull ? Number(order.total_amount) - Number(order.refund_amount || 0) : parseFloat(refundAmount);
+
+    if (!isFull && (isNaN(rAmt) || rAmt <= 0)) return showAlert(t('common.error'), t('orders.alertInvalidAmt'));
+
+    const prevRefund = Number(order.refund_amount || 0);
+    const totalAvailable = order.total_amount - prevRefund;
+
+    rAmt = Math.min(rAmt, totalAvailable);
+    if (rAmt <= 0) return showAlert(t('common.error'), t('orders.alertOverload'));
+
+    let newStatus = 'completed';
+    if (Math.abs(order.total_amount - (prevRefund + rAmt)) < 0.01) {
+      newStatus = 'refunded';
+      rAmt = totalAvailable;
+    } else {
+      newStatus = 'partial_refund';
+    }
+
+    try {
+      await db.sales.update(order.id, { status: newStatus, refund_amount: prevRefund + rAmt });
+      if (navigator.onLine) {
+        await supabase.from('sales').update({ status: newStatus, refund_amount: prevRefund + rAmt }).eq('id', order.id);
+      }
+      setRefundModal({ isOpen: false, order: null });
+      showAlert(t('toast.success'), t('toast.success'));
+    } catch (err) {
+      showAlert(t('common.error'), err.message);
+    }
+  };
 
   const getOrderTicket = (order) => {
     // If we have the full items array (saved in newer versions)
@@ -20,7 +84,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
         created_at: order.created_at
       };
     }
-    
+
     // Legacy fallback: Create a lite ticket from items_sold names
     return {
       name: order.order_name || String(order.id),
@@ -42,7 +106,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       try {
         await saveTicketAsPNGUtil(`order-capture-${order.id}`, `ticket-${order.id}.png`);
       } catch (err) {
-        alert("Error saving PNG: " + err.message);
+        showAlert(t('common.error'), t('receipt.capturePngErrorPrefix') + err.message);
       } finally {
         setSharingOrder(null);
       }
@@ -50,27 +114,29 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   };
 
   const handleShareWA = (order) => {
-    const phone = window.prompt(t('wa.promptPhone') || "Enter WhatsApp Phone (10 digits):");
-    if (!phone || phone.length !== 10) return;
-    
-    const ticket = getOrderTicket(order);
-    const receiptSettings = menuData?.receiptSettings || {
-      header: generalSettings.name || 'TinyPOS',
-      subheader: '',
-      footer: 'Thank you for your visit! ✨',
-      enableTaxBreakdown: false,
-      taxRate: 16
-    };
-    
-    sendFinalMessageUtil(phone, ticket, order.total_amount, { t, lang, receiptSettings });
+    showPrompt(t('wa.promptPhone') || "Enter WhatsApp Phone (10 digits):", "", (phone) => {
+      if (!phone || phone.length !== 10) return showAlert(t('common.error'), t('wa.invalidPhone'));
+
+      const ticket = getOrderTicket(order);
+      const receiptSettings = menuData?.receiptSettings || {
+        header: generalSettings.name || 'TinyPOS',
+        subheader: '',
+        footer: '',
+        enableTaxBreakdown: false,
+        taxRate: 16
+      };
+
+      sendFinalMessageUtil(phone, ticket, order.total_amount, { t, lang, receiptSettings });
+    });
   };
+
 
   const handlePrint = async (order) => {
     const ticket = getOrderTicket(order);
     const receiptSettings = menuData?.receiptSettings || {
-      header: "TINY COFFEE BAR",
-      subheader: "Puebla, Mexico",
-      footer: "Thank you for your visit!",
+      header: generalSettings?.name || "",
+      subheader: "",
+      footer: "",
       enableTaxBreakdown: false,
       taxRate: 16,
       logo: null
@@ -80,9 +146,9 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       await printRawReceiptUtil(ticket, order.total_amount, { t, lang, receiptSettings });
     } catch (err) {
       if (err.message !== "unsupported") {
-        alert("Printer Error: " + err.message);
+        showAlert(t('common.error'), t('receipt.printerErrorPrefix') + err.message);
       } else {
-        alert("Unsupported Device: Direct printing is only supported on Windows/Mac via Chrome, or Android via the RawBT app.");
+        showAlert(t('receipt.unsupportedTitle'), t('receipt.unsupportedMsg'));
       }
     }
   };
@@ -92,14 +158,14 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       {/* Hidden capture target for PNG generation */}
       {sharingOrder && (
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
-           <TicketImage 
-             id={`order-capture-${sharingOrder.id}`}
-             ticket={getOrderTicket(sharingOrder)} 
-             total={sharingOrder.total_amount} 
-             receiptSettings={menuData?.receiptSettings || {}} 
-             lang={lang} 
-             t={t} 
-           />
+          <TicketImage
+            id={`order-capture-${sharingOrder.id}`}
+            ticket={getOrderTicket(sharingOrder)}
+            total={sharingOrder.total_amount}
+            receiptSettings={menuData?.receiptSettings || {}}
+            lang={lang}
+            t={t}
+          />
         </div>
       )}
 
@@ -118,17 +184,17 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
               <option value="6months">{t('analytics.filter6Months') || '6 Meses'}</option>
               <option value="year">{t('analytics.filterYear') || 'Año'}</option>
               <option value="all">{t('analytics.filterAll') || 'Todo'}</option>
-              <option value="custom">Rango (Personalizado)</option>
+              <option value="custom">{t('analytics.customRange')}</option>
             </select>
           </div>
 
           {timeFilter === 'custom' && (
             <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Inicio</label>
-                <input 
-                  type="date" 
-                  value={dateRange?.start || ''} 
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('analytics.dateStart')}</label>
+                <input
+                  type="date"
+                  value={dateRange?.start || ''}
                   max={new Date().toISOString().split('T')[0]} // Prevents future dates
                   onChange={(e) => {
                     const newStart = e.target.value;
@@ -144,10 +210,10 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
               </div>
               <span style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '14px' }}>—</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Fin</label>
-                <input 
-                  type="date" 
-                  value={dateRange?.end || ''} 
+                <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('analytics.dateEnd')}</label>
+                <input
+                  type="date"
+                  value={dateRange?.end || ''}
                   min={dateRange?.start || ''} // BULLETPROOF: Native browser lock
                   max={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
@@ -158,7 +224,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
           )}
         </div>
       </div>
-      
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         {dexieSales.slice().reverse().map(order => (
           <div key={order.id} className="mobile-flex-stack" style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
@@ -216,21 +282,21 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
 
               {/* RE-SHARE BUTTONS */}
               <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
+                <button
                   onClick={() => handlePrint(order)}
                   title={t('ticket.btnPrint')}
                   style={{ padding: '10px', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
                 >
                   <Icon icon="lucide:printer" />
                 </button>
-                <button 
+                <button
                   onClick={() => handleSharePNG(order)}
                   title={t('ticket.btnPNG')}
                   style={{ padding: '10px', background: 'rgba(230, 126, 34, 0.1)', color: '#e67e22', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
                 >
                   <Icon icon="lucide:image" />
                 </button>
-                <button 
+                <button
                   onClick={() => handleShareWA(order)}
                   title={t('ticket.btnWA')}
                   style={{ padding: '10px', background: 'rgba(37, 211, 102, 0.1)', color: '#25D366', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
@@ -239,47 +305,27 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                 </button>
               </div>
 
-              <button 
+              <button
                 onClick={() => {
-                  const typedPin = window.prompt(t('orders.promptPin'));
-                  const isMasterMatch = typedPin === generalSettings.pinCode;
-                  const isStaffAdminMatch = (menuData?.cashiers || []).some(c => c.isAdmin && c.pin === typedPin);
-                  
-                  if (!isMasterMatch && !isStaffAdminMatch) return alert(t('orders.alertInvalidPin'));
-                  
-                  const refundAmtRaw = window.prompt(t('orders.promptAmt'));
-                  if (!refundAmtRaw) return;
-                  
-                  const isFull = refundAmtRaw.toUpperCase() === t('orders.keywordAll').toUpperCase();
-                  let rAmt = isFull ? Number(order.total_amount) : parseFloat(refundAmtRaw);
-                  
-                  if (!isFull && (isNaN(rAmt) || rAmt <= 0)) return alert(t('orders.alertInvalidAmt'));
-                  const prevRefund = Number(order.refund_amount || 0);
-                  if ((prevRefund + rAmt) > order.total_amount + 0.001) return alert(t('orders.alertOverload'));
-                  
-                  let newStatus = 'completed';
-                  if (rAmt >= order.total_amount) { 
-                    newStatus = 'refunded'; 
-                    rAmt = order.total_amount; 
-                  } else if (rAmt > 0) { 
-                    newStatus = 'partial_refund'; 
-                  }
-                  
-                  db.sales.update(order.id, { status: newStatus, refund_amount: prevRefund + rAmt });
-                  
-                  if (navigator.onLine) { 
-                    supabase.from('sales').update({ status: newStatus, refund_amount: prevRefund + rAmt }).eq('id', order.id).then(); 
-                  }
-                }} 
-                disabled={order.status === 'refunded'} 
-                style={{ 
-                  padding: '12px 20px', 
-                  background: order.status === 'refunded' ? 'var(--bg-main)' : 'rgba(231, 76, 60, 0.05)', 
-                  color: order.status === 'refunded' ? 'var(--text-muted)' : '#e74c3c', 
-                  border: `2px solid ${order.status === 'refunded' ? 'transparent' : 'rgba(231, 76, 60, 0.2)'}`, 
-                  borderRadius: '16px', 
-                  cursor: order.status === 'refunded' ? 'not-allowed' : 'pointer', 
-                  fontWeight: '900', 
+                  setPinChallenge({
+                    isOpen: true,
+                    title: t('orders.promptPin'),
+                    onAuthorized: () => {
+                      setRefundMode('all');
+                      setRefundAmount('');
+                      setRefundModal({ isOpen: true, order: order });
+                    }
+                  });
+                }}
+                disabled={order.status === 'refunded'}
+                style={{
+                  padding: '12px 20px',
+                  background: order.status === 'refunded' ? 'var(--bg-main)' : 'rgba(231, 76, 60, 0.05)',
+                  color: order.status === 'refunded' ? 'var(--text-muted)' : '#e74c3c',
+                  border: `2px solid ${order.status === 'refunded' ? 'transparent' : 'rgba(231, 76, 60, 0.2)'}`,
+                  borderRadius: '16px',
+                  cursor: order.status === 'refunded' ? 'not-allowed' : 'pointer',
+                  fontWeight: '900',
                   transition: '0.2s',
                   display: 'flex',
                   alignItems: 'center',
@@ -304,6 +350,102 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
           </div>
         )}
       </div>
+
+      {/* PIN CHALLENGE MODAL */}
+      <PinChallengeModal
+        pinChallenge={pinChallenge}
+        setPinChallenge={setPinChallenge}
+        challengePinAttempt={challengePinAttempt}
+        setChallengePinAttempt={setChallengePinAttempt}
+        challengeError={challengeError}
+        setChallengeError={setChallengeError}
+        handleChallengeSubmit={handleChallengeSubmit}
+      />
+
+      {/* REFUND DETAILS MODAL */}
+      {refundModal.isOpen && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content fade-in" style={{ maxWidth: '450px', background: 'var(--bg-surface)' }}>
+            <h2 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Icon icon="lucide:rotate-ccw" style={{ color: 'var(--brand-color)' }} />
+              {t('orders.refundTitle')}
+            </h2>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', marginBottom: '12px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('orders.refundType')}</label>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={() => setRefundMode('all')}
+                  style={{
+                    flex: 1,
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: `2px solid ${refundMode === 'all' ? 'var(--brand-color)' : 'var(--border)'}`,
+                    background: refundMode === 'all' ? 'rgba(52, 152, 219, 0.05)' : 'transparent',
+                    color: refundMode === 'all' ? 'var(--brand-color)' : 'var(--text-muted)',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {t('orders.refundAll')}
+                </button>
+                <button
+                  onClick={() => setRefundMode('custom')}
+                  style={{
+                    flex: 1,
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: `2px solid ${refundMode === 'custom' ? 'var(--brand-color)' : 'var(--border)'}`,
+                    background: refundMode === 'custom' ? 'rgba(52, 152, 219, 0.05)' : 'transparent',
+                    color: refundMode === 'custom' ? 'var(--brand-color)' : 'var(--text-muted)',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {t('orders.refundCustom')}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '32px' }}>
+              <label style={{ display: 'block', marginBottom: '12px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('orders.refundTotal')}</label>
+              {refundMode === 'all' ? (
+                <div style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)', textAlign: 'center', padding: '10px 0' }}>
+                  ${(Number(refundModal.order.total_amount) - Number(refundModal.order.refund_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                </div>
+              ) : (
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--text-muted)' }}>$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    autoFocus
+                    value={refundAmount}
+                    onChange={(e) => setRefundAmount(e.target.value)}
+                    placeholder="0.00"
+                    style={{
+                      width: '100%',
+                      padding: '16px 16px 16px 32px',
+                      fontSize: '1.5rem',
+                      fontWeight: 'bold',
+                      borderRadius: '12px',
+                      border: '2px solid var(--border)',
+                      background: 'var(--bg-main)',
+                      color: 'var(--text-main)',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button onClick={() => setRefundModal({ isOpen: false, order: null })} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
+              <button onClick={handleProcessRefund} className="btn-confirm" style={{ flex: 2, background: 'var(--brand-color)', color: 'white' }}>{t('orders.btnConfirmRefund')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

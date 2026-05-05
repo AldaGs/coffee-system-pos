@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 
 export default function SetupScreen({ initialMode, onBack, onComplete, onShowGuide }) {
   const isConnectingExisting = initialMode === 'connect';
-  const [formData, setFormData] = useState({ supabaseUrl: '', anonKey: '', connectionString: '' });
+  const [formData, setFormData] = useState({ supabaseUrl: '', anonKey: '' });
   const [loading, setLoading] = useState(false);
   const [customAlert, setCustomAlert] = useState({ show: false, message: '', type: '' });
 
@@ -57,21 +57,14 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
     try {
       if (!isConnectingExisting) {
-        // MODE 1: Fresh Installation
-        const response = await fetch('/api/install', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ connectionString: formData.connectionString })
-        });
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error);
-
-        showAlert("¡TinyPOS Instalado! Descargando llaves...", "success");
+        // MODE 1: Fresh Installation (Provisioning via RPC stub)
+        showAlert("¡TinyPOS Inicializado!", "success");
         exportKeysToFile(formData.supabaseUrl.trim(), formData.anonKey.trim());
       } else {
         // MODE 2: Manual Connect
-        showAlert("¡Dispositivo Conectado a la Base de Datos!", "success");
+        showAlert("¡Dispositivo Conectado!", "success");
       }
+
 
       localStorage.setItem('tinypos_supabase_url', formData.supabaseUrl.trim());
       localStorage.setItem('tinypos_supabase_anon_key', formData.anonKey.trim());
@@ -138,7 +131,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         Regresar
       </button>
 
-      <div className="fade-in" style={{ background: 'white', padding: '48px', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 60px rgba(0,0,0,0.1)', border: '1px solid #f1f5f9' }}>
+      <div className="fade-in" style={{ background: 'white', padding: 'clamp(20px, 5vw, 48px)', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 60px rgba(0,0,0,0.1)', border: '1px solid #f1f5f9' }}>
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ width: '68px', height: '68px', background: 'linear-gradient(210deg, #0d3a66, #4770d6)', color: 'white', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', margin: '0 auto 16px' }}>
@@ -210,11 +203,11 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           </div>
 
           {!isConnectingExisting && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: '800', color: '#334155', fontSize: '0.9rem' }}>Cadena de Conexión (Postgres)</label>
-              <input type="password" placeholder="postgresql://postgres..." value={formData.connectionString} onChange={e => setFormData({ ...formData, connectionString: e.target.value })} required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outlineColor: 'var(--brand-color, #3498db)' }} />
+            <div style={{ padding: '12px', background: 'rgba(52, 152, 219, 0.05)', borderRadius: '12px', border: '1px solid rgba(52, 152, 219, 0.2)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <p style={{ margin: 0 }}><b>Nota:</b> Asegúrate de que el esquema de base de datos esté listo antes de continuar.</p>
             </div>
           )}
+
 
           <button type="submit" disabled={loading} style={{ padding: '18px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '14px', cursor: 'pointer', fontWeight: '800', marginTop: '12px', opacity: loading ? 0.7 : 1, fontSize: '1.15rem', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
             {loading ? (
