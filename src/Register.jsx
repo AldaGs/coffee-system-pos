@@ -14,9 +14,8 @@ import { useCartStore } from './store/useCartStore';
 import { processCheckout } from './services/checkoutService';
 import { attemptBackgroundSync } from './services/syncService';
 import { logActivity } from './services/activityService';
-import { numeroALetras } from './utils/numeroALetras';
 import { useTranslation } from './hooks/useTranslation';
-import { calculateExpectedCash, calculateTaxBreakdown } from './utils/posMath';
+import { calculateExpectedCash } from './utils/posMath';
 import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
@@ -241,7 +240,7 @@ function Register() {
 
     // 3. ALWAYS DO THIS (Online or Offline)
     setExpenses([...expenses, newExpense]);
-    
+
     // LOG ACTIVITY
     logActivity('Gasto (Expense)', `Registró un gasto de $${expenseAmount.toFixed(2)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
 
@@ -260,7 +259,7 @@ function Register() {
 
     if (activeTicket) {
       await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
-      
+
       // LOG ACTIVITY
       logActivity('Discount Applied', `A ${val}${discountForm.type === 'percentage' ? '%' : '$'} discount was applied to ticket: ${activeTicket.name}`);
     }
@@ -653,7 +652,7 @@ function Register() {
   const shiftCashSales = calcTotalByMethod('Cash');
   const shiftCardSales = calcTotalByMethod('Card');
   const shiftTransferSales = calcTotalByMethod('Transfer');
-  
+
   const shiftTotalRevenue = shiftOrders.reduce((sum, o) => {
     if (o.status === 'refunded') return sum;
     let netSale = o.total_amount || 0;
@@ -692,10 +691,10 @@ function Register() {
       async (inputValue) => {
         const newId = Date.now();
         const currentNum = nextOrderNum; // Grab the global counter
-        
+
         // Grab the first 3 letters of this specific device's ID
         const prefix = myDeviceId.substring(0, 3).toUpperCase();
-        
+
         // If they provided a name, use it + the number. Otherwise use default.
         const customName = inputValue ? inputValue.trim() : '';
         const ticketName = customName ? `${prefix} - ${customName} (#${currentNum})` : `${prefix} - #${currentNum}`;
@@ -740,7 +739,7 @@ function Register() {
       async (inputValue) => {
         if (!inputValue || !inputValue.trim()) return;
         const customName = inputValue.trim();
-        
+
         // Try to extract the original index (#X) if it exists. 
         const match = activeTicket.name.match(/\(#(\d+)\)$/);
         const match2 = activeTicket.name.match(/- #(\d+)$/);
@@ -750,10 +749,10 @@ function Register() {
         const newName = `${prefix} - ${customName} (#${currentNum})`;
 
         const updatedTicket = { ...activeTicket, name: newName };
-        
+
         // Save locally
         await db.active_tickets.update(activeTicket.id, updatedTicket);
-        
+
         // Push cloud
         if (navigator.onLine) {
           try {
@@ -1345,8 +1344,8 @@ function Register() {
         />
 
         {/* NEW: Floating Cart Button for Mobile */}
-        <button 
-          className="mobile-cart-fab desktop-hidden" 
+        <button
+          className="mobile-cart-fab desktop-hidden"
           onClick={() => setIsMobileCartOpen(true)}
         >
           <Icon icon="lucide:shopping-cart" />
@@ -1359,20 +1358,20 @@ function Register() {
           setIsModalOpen={setIsModalOpen}
         />
 
-        <CheckoutModal 
-          isCheckoutModalOpen={isCheckoutModalOpen} 
-          splitPayments={splitPayments} 
-          splitMode={splitMode} 
-          setSplitMode={setSplitMode} 
-          nWays={nWays} 
-          setNWays={setNWays} 
-          customVal={customVal} 
-          setCustomVal={setCustomVal} 
-          paidProductIds={paidProductIds} 
-          handlePartialPayment={handlePartialPayment} 
-          handleSavePartialPayments={handleSavePartialPayments} 
-          handleVoidPartialPayments={handleVoidPartialPayments} 
-          handleCancelCheckout={handleCancelCheckout} 
+        <CheckoutModal
+          isCheckoutModalOpen={isCheckoutModalOpen}
+          splitPayments={splitPayments}
+          splitMode={splitMode}
+          setSplitMode={setSplitMode}
+          nWays={nWays}
+          setNWays={setNWays}
+          customVal={customVal}
+          setCustomVal={setCustomVal}
+          paidProductIds={paidProductIds}
+          handlePartialPayment={handlePartialPayment}
+          handleSavePartialPayments={handleSavePartialPayments}
+          handleVoidPartialPayments={handleVoidPartialPayments}
+          handleCancelCheckout={handleCancelCheckout}
           tipAmount={tipAmount}
           setTipAmount={setTipAmount}
           tipPercentage={tipPercentage}
@@ -1403,14 +1402,14 @@ function Register() {
 
         {/* Hidden TicketImage for PNG Capture */}
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
-           <TicketImage 
-             id="ticket-to-capture"
-             ticket={activeTicket} 
-             total={cartTotal} 
-             receiptSettings={menuData?.receiptSettings || {}} 
-             lang={lang} 
-             t={t} 
-           />
+          <TicketImage
+            id="ticket-to-capture"
+            ticket={activeTicket}
+            total={cartTotal}
+            receiptSettings={menuData?.receiptSettings || {}}
+            lang={lang}
+            t={t}
+          />
         </div>
 
       </div>

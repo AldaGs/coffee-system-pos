@@ -149,7 +149,7 @@ function TicketArea({
                   <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>
                     {t('ticket.btnPrint')}
                   </button>
-                  <button style={{ flex: 1, padding: '16px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); handleSaveAsPNG(activeTicket, cartTotal); }}>
+                  <button style={{ flex: 1, padding: '16px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); handleSaveAsPNG(activeTicket); }}>
                     {t('ticket.btnPNG')}
                   </button>
                   <button style={{ flex: 1, padding: '16px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); setLoyaltyModal({ isOpen: true, step: 'phone', phone: '', data: null }); }}>
