@@ -10,7 +10,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     const pendingSales = await db.syncQueue.toArray();
     if (pendingSales.length > 0) {
       // Strip the local Dexie ID
-      const cleanSales = pendingSales.map(({ id: _UNUSED, discount: _DISCOUNT, items: _ITEMS, ...rest }) => rest); // eslint-disable-line no-unused-vars
+      const cleanSales = pendingSales.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
       
       const { error: salesErr } = await supabase.from('sales').upsert(cleanSales, { onConflict: 'local_id' });
       if (!salesErr) {

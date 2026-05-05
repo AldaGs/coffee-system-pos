@@ -167,7 +167,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     // --- CLOUD SYNC ATTEMPT ---
     if (!navigator.onLine) throw new Error("Device is offline");
 
-    const { id: _UNUSED, discount: _DISCOUNT, items: _ITEMS, ...cleanSale } = finalizedSale;
+    const { id: _UNUSED, ...cleanSale } = finalizedSale;
     const { error: salesError } = await supabase.from('sales').upsert(cleanSale, { onConflict: 'local_id' });
     if (salesError) throw salesError;
 
