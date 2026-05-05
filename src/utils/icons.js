@@ -10,6 +10,7 @@ import badgeDollarSign from '@iconify-icons/lucide/badge-dollar-sign';
 import banknote from '@iconify-icons/lucide/banknote';
 import barChart3 from '@iconify-icons/lucide/bar-chart-3';
 import bookOpen from '@iconify-icons/lucide/book-open';
+import boxes from '@iconify-icons/lucide/boxes';
 import calculator from '@iconify-icons/lucide/calculator';
 import calendar from '@iconify-icons/lucide/calendar';
 import check from '@iconify-icons/lucide/check';
@@ -18,6 +19,7 @@ import checkCircle2 from '@iconify-icons/lucide/check-circle-2';
 import chefHat from '@iconify-icons/lucide/chef-hat';
 import chevronsUpDown from '@iconify-icons/lucide/chevrons-up-down';
 import clipboardCheck from '@iconify-icons/lucide/clipboard-check';
+import clipboardList from '@iconify-icons/lucide/clipboard-list';
 import clock from '@iconify-icons/lucide/clock';
 import coffee from '@iconify-icons/lucide/coffee';
 import creditCard from '@iconify-icons/lucide/credit-card';
@@ -35,6 +37,8 @@ import folderOpen from '@iconify-icons/lucide/folder-open';
 import folderPlus from '@iconify-icons/lucide/folder-plus';
 import gift from '@iconify-icons/lucide/gift';
 import hash from '@iconify-icons/lucide/hash';
+import heartHandshake from '@iconify-icons/lucide/heart-handshake';
+import history from '@iconify-icons/lucide/history';
 import image from '@iconify-icons/lucide/image';
 import imagePlus from '@iconify-icons/lucide/image-plus';
 import key from '@iconify-icons/lucide/key';
@@ -75,6 +79,7 @@ import refreshCw from '@iconify-icons/lucide/refresh-cw';
 import rocket from '@iconify-icons/lucide/rocket';
 import rotateCcw from '@iconify-icons/lucide/rotate-ccw';
 import save from '@iconify-icons/lucide/save';
+import scrollText from '@iconify-icons/lucide/scroll-text';
 import settings from '@iconify-icons/lucide/settings';
 import settings2 from '@iconify-icons/lucide/settings-2';
 import shield from '@iconify-icons/lucide/shield';
@@ -120,6 +125,7 @@ const icons = {
   'lucide:banknote': banknote,
   'lucide:bar-chart-3': barChart3,
   'lucide:book-open': bookOpen,
+  'lucide:boxes': boxes,
   'lucide:calculator': calculator,
   'lucide:calendar': calendar,
   'lucide:check': check,
@@ -128,6 +134,7 @@ const icons = {
   'lucide:chef-hat': chefHat,
   'lucide:chevrons-up-down': chevronsUpDown,
   'lucide:clipboard-check': clipboardCheck,
+  'lucide:clipboard-list': clipboardList,
   'lucide:clock': clock,
   'lucide:coffee': coffee,
   'lucide:credit-card': creditCard,
@@ -145,6 +152,8 @@ const icons = {
   'lucide:folder-plus': folderPlus,
   'lucide:gift': gift,
   'lucide:hash': hash,
+  'lucide:heart-handshake': heartHandshake,
+  'lucide:history': history,
   'lucide:image': image,
   'lucide:image-plus': imagePlus,
   'lucide:key': key,
@@ -185,6 +194,7 @@ const icons = {
   'lucide:rocket': rocket,
   'lucide:rotate-ccw': rotateCcw,
   'lucide:save': save,
+  'lucide:scroll-text': scrollText,
   'lucide:settings': settings,
   'lucide:settings-2': settings2,
   'lucide:shield': shield,

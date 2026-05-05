@@ -238,13 +238,13 @@ export const translations = {
     "analytics.exportCSV": "Export XLSX",
     "analytics.menuHealth": "Menu Health (Trading Margin)",
     "analytics.grossRevenue": "Gross Revenue",
-    "analytics.cogs": "Cost of Goods (COGS)",
-    "analytics.grossProfit": "Gross Profit",
-    "analytics.bizHealth": "Business Healthcare (Bottom Line)",
-    "analytics.wastage": "Wastage & Audits",
-    "analytics.expenses": "Expenses & Refunds",
-    "analytics.tips": "Tips Collected",
+    "analytics.cogs": "Cost of Goods Sold (COGS)",
+    "analytics.wastage": "Wastage / Audits",
+    "analytics.expenses": "Cash Expenses",
+    "analytics.expensesByCategory": "Expenses by Category",
+    "analytics.noExpenses": "No expenses recorded",
     "analytics.netProfit": "True Net Profit",
+    "analytics.tips": "Tips Collected",
     "analytics.topItems": "Top Selling",
     "analytics.noSales": "No sales data yet.",
     "analytics.sold": "sold",
@@ -695,6 +695,16 @@ export const translations = {
     "modModal.btnCancel": "Cancel",
     "modModal.btnAdd": "Add to Ticket",
 
+    // --- Activity Tab ---
+    "activity.title": "Activity Log",
+    "activity.subtitle": "History of critical system actions",
+    "activity.filterToday": "Today",
+    "activity.filterWeek": "Last 7 Days",
+    "activity.filterMonth": "Last 30 Days",
+    "activity.filterAll": "All History",
+    "activity.loading": "Loading activity...",
+    "activity.noActivity": "No activity recorded in this period.",
+
     // --- Toast Notifications ---
     "toast.success": "Success"
   },
@@ -936,12 +946,12 @@ export const translations = {
     "analytics.menuHealth": "Salud del Menú (Margen Comercial)",
     "analytics.grossRevenue": "Ingresos Brutos",
     "analytics.cogs": "Costo de Ventas (COGS)",
-    "analytics.grossProfit": "Ganancia Bruta",
-    "analytics.bizHealth": "Salud del Negocio (Resultado Final)",
-    "analytics.wastage": "Mermas y Auditorías",
-    "analytics.expenses": "Gastos y Reembolsos",
-    "analytics.tips": "Propinas Recaudadas",
+    "analytics.wastage": "Mermas / Auditorías",
+    "analytics.expenses": "Gastos Operativos",
+    "analytics.expensesByCategory": "Desglose de Gastos",
+    "analytics.noExpenses": "No hay gastos registrados",
     "analytics.netProfit": "Ganancia Neta Verdadera",
+    "analytics.tips": "Propinas Recaudadas",
     "analytics.topItems": "Más Vendidos",
     "analytics.noSales": "Aún no hay datos de ventas.",
     "analytics.sold": "vendidos",
@@ -1391,6 +1401,16 @@ export const translations = {
     "modModal.typeHere": "Escribe aquí...",
     "modModal.btnCancel": "Cancelar",
     "modModal.btnAdd": "Agregar a la Orden",
+
+    // --- Activity Tab ---
+    "activity.title": "Registro de Actividad",
+    "activity.subtitle": "Historial de acciones críticas del sistema",
+    "activity.filterToday": "Hoy",
+    "activity.filterWeek": "Últimos 7 días",
+    "activity.filterMonth": "Últimos 30 días",
+    "activity.filterAll": "Todo el historial",
+    "activity.loading": "Cargando actividad...",
+    "activity.noActivity": "No hay actividad registrada en este periodo.",
 
     // --- Toast Notifications ---
     "toast.success": "Éxito"

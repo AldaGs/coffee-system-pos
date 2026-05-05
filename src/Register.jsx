@@ -13,6 +13,7 @@ import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
 import { processCheckout } from './services/checkoutService';
 import { attemptBackgroundSync } from './services/syncService';
+import { logActivity } from './services/activityService';
 import { numeroALetras } from './utils/numeroALetras';
 import { useTranslation } from './hooks/useTranslation';
 import SharedPinPad from './components/shared/SharedPinPad';
@@ -31,7 +32,6 @@ import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
 import DiscountModal from './components/register/DiscountModal';
-import Dialog from './components/shared/Dialog';
 
 
 const getOrCreateDeviceId = () => {
@@ -221,6 +221,7 @@ function Register() {
     const cloudExpense = {
       amount: expenseAmount,
       reason: expenseForm.reason,
+      category: expenseForm.category || 'General',
       cashier_name: activeCashier?.name || 'Unknown Cashier'
     };
 
@@ -237,8 +238,12 @@ function Register() {
 
     // 3. ALWAYS DO THIS (Online or Offline)
     setExpenses([...expenses, newExpense]);
+    
+    // LOG ACTIVITY
+    logActivity('Gasto (Expense)', `Registró un gasto de $${expenseAmount.toFixed(2)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
+
     setIsExpenseModalOpen(false);
-    setExpenseForm({ amount: '', reason: '' });
+    setExpenseForm({ amount: '', reason: '', category: 'General' });
     showAlert(t('expense.success'), `${t('expense.successDesc')} $${expenseAmount.toFixed(2)}:\n${expenseForm.reason}`);
   };
 
@@ -250,7 +255,12 @@ function Register() {
     const val = parseFloat(discountForm.value);
     if (isNaN(val) || val <= 0) return showAlert("Invalid Discount", "Please enter a valid amount.");
 
-    if (activeTicket) await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
+    if (activeTicket) {
+      await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
+      
+      // LOG ACTIVITY
+      logActivity('Discount Applied', `A ${val}${discountForm.type === 'percentage' ? '%' : '$'} discount was applied to ticket: ${activeTicket.name}`);
+    }
     setIsDiscountModalOpen(false);
     setDiscountForm({ type: 'percentage', value: '' }); // Reset form
   };
@@ -344,6 +354,9 @@ function Register() {
       // 2. Reset the modal
       setIsCorteModalOpen(false);
       setCountedCash("");
+
+      // LOG ACTIVITY
+      logActivity('Corte de Caja', `Turno cerrado con ${statusMsg}. Efectivo esperado: $${expectedCash.toFixed(2)}, contado: $${actualCash.toFixed(2)}`, { expectedCash, actualCash, difference });
 
       showAlert(t('corte.successTitle'), t('corte.successDesc'));
     });

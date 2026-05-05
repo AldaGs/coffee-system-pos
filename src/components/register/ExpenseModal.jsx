@@ -19,6 +19,16 @@ function ExpenseModal({ isExpenseModalOpen, setIsExpenseModalOpen, expenseForm, 
             <input type="number" step="0.01" placeholder="e.g., 150.50" value={expenseForm.amount} onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
           </div>
           <div>
+            <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>Categoría</label>
+            <select value={expenseForm.category || 'General'} onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}>
+              <option value="General">General</option>
+              <option value="Inventario">Inventario (Insumos)</option>
+              <option value="Marketing">Marketing / Publicidad</option>
+              <option value="Operativo">Operativo / Limpieza</option>
+              <option value="Nómina">Nómina / Sueldos</option>
+            </select>
+          </div>
+          <div>
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>{t('exp.reason')}</label>
             <input type="text" placeholder={t('exp.reasonPlaceholder')} value={expenseForm.reason} onChange={(e) => setExpenseForm({ ...expenseForm, reason: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
           </div>

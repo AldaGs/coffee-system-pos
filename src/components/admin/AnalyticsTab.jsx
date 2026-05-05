@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [] }) {
+function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [] }) {
   const { t } = useTranslation();
   
   // --- TRUE PROFIT MATH ENGINE ---
@@ -67,6 +67,14 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
   const totalInventoryValue = useMemo(() => {
     return inventoryItems.reduce((sum, item) => sum + (item.current_stock * (item.unit_cost || 0)), 0);
   }, [inventoryItems]);
+
+  const expensesByCategory = useMemo(() => {
+    return filteredExpenses.reduce((acc, exp) => {
+      const category = exp.category || 'General';
+      acc[category] = (acc[category] || 0) + exp.amount;
+      return acc;
+    }, {});
+  }, [filteredExpenses]);
 
   return (
     <div className="admin-section fade-in">
@@ -262,6 +270,26 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '1.3rem', fontWeight: '900', color: '#27ae60' }}>${data.sales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* EXPENSES BY CATEGORY */}
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
+            <Icon icon="lucide:layers" style={{ color: '#9b59b6' }} />
+            {t('analytics.expensesByCategory')}
+          </h3>
+          {Object.keys(expensesByCategory).length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noExpenses')}</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {Object.entries(expensesByCategory).sort((a, b) => b[1] - a[1]).map(([category, amount]) => (
+                <div key={category} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{category}</span>
+                  <span style={{ fontWeight: '800', color: '#f39c12' }}>${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               ))}
             </div>

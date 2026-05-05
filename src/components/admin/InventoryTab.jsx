@@ -3,6 +3,7 @@ import { useState, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
 import { useTranslation } from '../../hooks/useTranslation';
+import { logActivity } from '../../services/activityService';
 
 function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -48,12 +49,16 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         const purchaseExpense = {
           amount: costVal,
           reason: `Inventory Purchase: ${newItem.name} (${stockVal}${newItem.unit})`,
+          category: 'Inventario',
           cashier_name: 'Inventory System' 
         };
         const { error: expenseError } = await supabase.from('expenses').insert([purchaseExpense]);
         if (expenseError) console.error("Failed to log purchase expense:", expenseError);
       }
       
+      // LOG ACTIVITY
+      logActivity('Inventory Item Created', `Created item: ${itemToSave.name} (${stockVal}${itemToSave.unit})`, { item: itemToSave.name, stock: stockVal });
+
       await db.inventory.put(data[0]);
       setInventoryItems([...inventoryItems, data[0]]);
       setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '' });
@@ -206,6 +211,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         ? `${t('inv.loggedLoss')} ${Math.abs(variance)}${auditingItem.unit} (-$${Math.abs(financialImpact).toFixed(2)})`
         : `${t('inv.foundExtra')} ${variance}${auditingItem.unit} (+$${financialImpact.toFixed(2)})`;
 
+      // LOG ACTIVITY
+      logActivity('Inventory Audit', `Audit for ${auditingItem.name}: ${impactMsg}`, { item: auditingItem.name, variance, financialImpact });
+
       showAlert(t('inv.alertAuditComplete'), impactMsg);
 
     } catch (err) {
@@ -250,10 +258,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         const expense = {
           amount: totalPaid,
           reason: `RESTOCK: ${restockingItem.name} (${qtyBought}${restockingItem.unit})`,
+          category: 'Inventario',
           cashier_name: 'Inventory System'
         };
         await supabase.from('expenses').insert([expense]);
       }
+
+      // LOG ACTIVITY
+      logActivity('Inventory Restock', `Restocked ${qtyBought}${restockingItem.unit} of ${restockingItem.name} for $${totalPaid}`, { item: restockingItem.name, qty: qtyBought, cost: totalPaid });
 
       await db.inventory.put(data[0]);
       setInventoryItems(inventoryItems.map(item => item.id === restockingItem.id ? data[0] : item));

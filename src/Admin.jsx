@@ -10,7 +10,6 @@ import { useTheme } from './hooks/useTheme';
 import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
 
-import Dialog from './components/shared/Dialog';
 import AnalyticsTab from './components/admin/AnalyticsTab';
 import OrdersTab from './components/admin/OrdersTab';
 import MenuEditorTab from './components/admin/MenuEditorTab';
@@ -23,11 +22,10 @@ import GeneralSettingsTab from './components/admin/GeneralSettingsTab';
 import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
 import InventoryTab from './components/admin/InventoryTab.jsx';
+import ActivityTab from './components/admin/ActivityTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
-import ExportKeysButton from './components/ExportKeysButton';
-import DisconnectButton from './components/DisconnectButton';
-
+import { logActivity } from './services/activityService';
 
 function Admin() {
   const navigate = useNavigate();
@@ -399,14 +397,24 @@ function Admin() {
 
     updatedMenu.cashiers.push(newEntry);
     saveMenuToCloud(updatedMenu);
+    
+    // LOG ACTIVITY
+    logActivity('Team Management', `Added new cashier: ${newCashier.name}`, { cashierId: newEntry.id });
+
     setNewCashier({ name: '', pin: '', isAdmin: false }); // Reset form
   };
 
   const handleDeleteCashier = (idToRemove) => {
     if (cashiers.length <= 1) return window.confirm("You cannot delete the last profile!");
     if (window.confirm("Are you sure you want to remove this cashier?")) {
+      const cashierToDelete = cashiers.find(c => c.id === idToRemove);
       const updatedCashiers = cashiers.filter(c => c.id !== idToRemove);
       saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
+
+      // LOG ACTIVITY
+      if (cashierToDelete) {
+        logActivity('Team Management', `Removed cashier: ${cashierToDelete.name}`);
+      }
     }
   };
 
@@ -486,6 +494,10 @@ function Admin() {
       }
 
       saveMenuToCloud(updatedMenu);
+      
+      // LOG ACTIVITY
+      logActivity('Menu Management', `Updated drink: ${updatedItem.name}`);
+
       setEditingItemId(null);
       resetItemForm();
       return;
@@ -504,6 +516,10 @@ function Admin() {
     updatedMenu.categories[newItemForm.category].push(newDrink);
 
     saveMenuToCloud(updatedMenu);
+    
+    // LOG ACTIVITY
+    logActivity('Menu Management', `Added new item: ${newItemForm.name} to ${newItemForm.category} for $${newItemForm.price}`);
+
     resetItemForm();
   };
     
@@ -546,6 +562,9 @@ function Admin() {
       const updatedMenu = { ...menuData };
       updatedMenu.categories[categoryName] = updatedMenu.categories[categoryName].filter(drink => drink.id !== drinkId);
       saveMenuToCloud(updatedMenu);
+      
+      // LOG ACTIVITY
+      logActivity('Menu Management', `Deleted drink: ${drinkName}`);
     });
   };
 
@@ -737,7 +756,7 @@ function Admin() {
       egresosData.push({ 
         Fecha: dateObj.toLocaleDateString(), 
         Hora: dateObj.toLocaleTimeString(), 
-        'Tipo de Movimiento': 'Gasto / Compra', 
+        'Tipo de Movimiento': exp.category ? `Gasto (${exp.category})` : 'Gasto (General)', 
         Monto: -parseFloat(exp.amount || 0), 
         Método: 'Caja/Efectivo', 
         Detalles: exp.reason || 'Sin detalles'
@@ -1077,6 +1096,7 @@ function Admin() {
             { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
             { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
             { id: 'team', icon: 'lucide:users', label: t('admin.team') },
+            { id: 'activity', icon: 'lucide:history', label: 'Actividad', advancedOnly: true },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
           ].filter(tab => !tab.advancedOnly || generalSettings.isAdvancedMode === true).map(tab => (
             <button 
@@ -1148,7 +1168,13 @@ function Admin() {
             // ADD THESE TWO NEW LINES:
             inventoryLogs={inventoryLogs} 
             inventoryItems={inventoryItems} 
+            filteredExpenses={filteredExpenses}
           />
+        )}
+
+        {/* NEW ACTIVITY TAB */}
+        {activeTab === 'activity' && (
+          <ActivityTab />
         )}
 
         
