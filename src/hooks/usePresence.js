@@ -15,7 +15,7 @@ export const usePresence = (myDeviceId, showAlert) => {
   }, [activeCashier]);
 
   useEffect(() => {
-    if (!supabase || !navigator.onLine || !activeCashier || isLocked) return;
+    if (!supabase || !navigator.onLine || !activeCashier?.id || isLocked) return;
 
     const channel = supabase.channel('cashier-presence', {
       config: {
