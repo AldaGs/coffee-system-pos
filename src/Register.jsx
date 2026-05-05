@@ -16,6 +16,7 @@ import { attemptBackgroundSync } from './services/syncService';
 import { logActivity } from './services/activityService';
 import { numeroALetras } from './utils/numeroALetras';
 import { useTranslation } from './hooks/useTranslation';
+import { calculateExpectedCash, calculateTaxBreakdown } from './utils/posMath';
 import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
@@ -662,7 +663,15 @@ function Register() {
   const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + e.amount, 0);
 
   // 4. Calculate Expected Cash in Drawer (Cash In - Cash Out)
-  const expectedCash = shiftCashSales - shiftTotalExpenses;
+  const shiftCashRefunds = shiftOrders.reduce((sum, o) => {
+    if (o.status === 'refunded' || o.status === 'partial_refund') {
+      if (o.payment_method === 'Cash' || (o.payment_method === 'Split' && o.splits?.some(s => s.method === 'Cash'))) {
+        return sum + (o.refund_amount || 0);
+      }
+    }
+    return sum;
+  }, 0);
+  const expectedCash = calculateExpectedCash(shiftCashSales, shiftCashRefunds, shiftTotalExpenses);
 
   // --- THEME INJECTION LOGIC ---
   useEffect(() => {
@@ -1216,9 +1225,7 @@ function Register() {
     // 3. Build Tax Breakdown (If Enabled)
     if (receiptSettings.enableTaxBreakdown) {
       const taxRate = receiptSettings.taxRate || 16;
-      const taxDecimal = taxRate / 100;
-      const baseSubtotal = cartTotal / (1 + taxDecimal);
-      const extractedTax = cartTotal - baseSubtotal;
+      const { subtotal: baseSubtotal, tax: extractedTax } = calculateTaxBreakdown(cartTotal, taxRate);
 
       message += `Subtotal: $${baseSubtotal.toFixed(2)}\n`;
       message += `IVA (${taxRate}%): $${extractedTax.toFixed(2)}\n`;
@@ -1526,7 +1533,8 @@ function Register() {
   const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
     let itemCost = item.basePrice;
     item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-    return total + itemCost * (item.qty || 1);
+    const itemTotal = Math.round(itemCost * (item.qty || 1) * 100) / 100;
+    return Math.round((total + itemTotal) * 100) / 100;
   }, 0) : 0;
 
   // 2. Scan for AUTOMATED rules (only when Advanced Mode is on)
@@ -1562,6 +1570,8 @@ function Register() {
     }
   }
 
+  autoDiscountAmount = Math.min(autoDiscountAmount, cartSubtotal);
+
   // 3. Scan for MANUAL Manager Overrides
   let manualDiscountAmount = 0;
   if (activeTicket?.discount) {
@@ -1575,7 +1585,7 @@ function Register() {
   }
 
   // 4. Calculate Final Total
-  const totalDiscounts = autoDiscountAmount + manualDiscountAmount;
+  const totalDiscounts = Math.min(autoDiscountAmount + manualDiscountAmount, cartSubtotal);
   const cartTotal = Math.max(0, cartSubtotal - totalDiscounts);
 
   // --- MOUSE WHEEL HORIZONTAL SCROLL HELPERS ---

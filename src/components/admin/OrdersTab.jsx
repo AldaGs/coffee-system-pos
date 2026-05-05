@@ -133,7 +133,8 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                   let rAmt = isFull ? Number(order.total_amount) : parseFloat(refundAmtRaw);
                   
                   if (!isFull && (isNaN(rAmt) || rAmt <= 0)) return alert(t('orders.alertInvalidAmt'));
-                  if (rAmt > order.total_amount) return alert(t('orders.alertOverload'));
+                  const prevRefund = Number(order.refund_amount || 0);
+                  if ((prevRefund + rAmt) > order.total_amount + 0.001) return alert(t('orders.alertOverload'));
                   
                   let newStatus = 'completed';
                   if (rAmt >= order.total_amount) { 
@@ -143,7 +144,6 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                     newStatus = 'partial_refund'; 
                   }
                   
-                  const prevRefund = Number(order.refund_amount || 0);
                   db.sales.update(order.id, { status: newStatus, refund_amount: prevRefund + rAmt });
                   
                   if (navigator.onLine) { 

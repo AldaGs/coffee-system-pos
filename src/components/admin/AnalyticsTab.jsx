@@ -61,7 +61,13 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     // gross already has refunds subtracted (totalRevenue is Net Revenue)
     const net = gross - waste - totalExpenses;
 
-    return { totalCOGS: cogs, totalWastage: waste, trueGrossProfit: gross, trueNetProfit: net, totalTips: tips };
+    return { 
+      totalCOGS: Number(cogs.toFixed(2)), 
+      totalWastage: Number(waste.toFixed(2)), 
+      trueGrossProfit: Number(gross.toFixed(2)), 
+      trueNetProfit: Number(net.toFixed(2)), 
+      totalTips: Number(tips.toFixed(2)) 
+    };
   }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, timeFilter]);
 
   const totalInventoryValue = useMemo(() => {
