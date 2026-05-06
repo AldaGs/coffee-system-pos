@@ -34,6 +34,7 @@ function TicketImage({ ticket, total, receiptSettings, lang, t, id }) {
           <img 
             src={receiptSettings.logo} 
             alt="Logo" 
+            crossOrigin="anonymous"
             style={{ maxWidth: '200px', marginBottom: '10px' }} 
           />
         )}

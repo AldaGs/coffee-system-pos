@@ -265,13 +265,24 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
 export const saveTicketAsPNG = async (elementId, fileName = 'ticket.png') => {
   const node = document.getElementById(elementId);
   if (!node) return;
+
   try {
+    // PASS 1: Warm up (Fixes Safari/iOS missing image bug)
+    // We call toPng once to force the browser to decode and cache images in the cloned DOM
+    await htmlToImage.toPng(node);
+    
+    // Tiny delay to let the rendering engine breathe
+    await new Promise(resolve => setTimeout(resolve, 150));
+
+    // PASS 2: Actual capture
     const dataUrl = await htmlToImage.toPng(node, { 
       backgroundColor: '#fff',
+      pixelRatio: 2, // Higher quality for mobile sharing
       style: {
         borderRadius: '0'
       }
     });
+
     const link = document.createElement('a');
     link.download = fileName;
     link.href = dataUrl;
