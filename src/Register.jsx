@@ -4,7 +4,6 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
-import { fetchAndMergeSales } from './services/salesSync';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
@@ -161,9 +160,6 @@ function Register() {
   useEffect(() => {
     if (!supabase || !navigator.onLine) return;
     syncCloudTickets();
-    // Backfill sales history into Dexie so OrdersTab works on a fresh device
-    // without requiring the Admin tab to be opened first.
-    fetchAndMergeSales().catch(err => console.error('Sales backfill failed:', err));
 
     const ticketChannel = supabase
       .channel('active-tickets-realtime')
@@ -251,7 +247,7 @@ function Register() {
     setExpenses([...expenses, newExpense]);
 
     // LOG ACTIVITY
-    logActivity('expense_added', null, { amount: expenseAmount, category: expenseForm.category, reason: expenseForm.reason });
+    logActivity('Gasto (Expense)', `Registró un gasto de $${expenseAmount.toFixed(2)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
 
     setIsExpenseModalOpen(false);
     setExpenseForm({ amount: '', reason: '', category: 'General' });
@@ -270,7 +266,7 @@ function Register() {
       await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
 
       // LOG ACTIVITY
-      logActivity('discount_applied', null, { value: val, type: discountForm.type, ticket_name: activeTicket.name });
+      logActivity('Discount Applied', `A ${val}${discountForm.type === 'percentage' ? '%' : '$'} discount was applied to ticket: ${activeTicket.name}`);
     }
     setIsDiscountModalOpen(false);
     setDiscountForm({ type: 'percentage', value: '' }); // Reset form
@@ -639,17 +635,12 @@ function Register() {
     if (!activeTicket) return;
     const ticketIdToDelete = activeTicket.id;
     await db.active_tickets.delete(ticketIdToDelete);
-
     if (navigator.onLine) {
       try {
-        const { error } = await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
-        if (error) throw error;
+        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
       } catch (err) {
-        console.warn("Cloud delete deferred:", err);
-        await db.updateQueue.add({ type: 'ticket_deletion', ticket_id: ticketIdToDelete });
+        console.error("Cloud delete failed:", err);
       }
-    } else {
-      await db.updateQueue.add({ type: 'ticket_deletion', ticket_id: ticketIdToDelete });
     }
     const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
     if (remainingTickets.length > 0) {
@@ -778,6 +769,30 @@ function Register() {
   };
 
   const handleItemClick = (item) => {
+    if (item.priceType === 'variable') {
+      showPrompt(
+        `${t('menu.promptVariablePrice') || 'Enter Price for'} ${item.name}`,
+        '',
+        (inputValue) => {
+          const customPrice = parseFloat(inputValue);
+          if (isNaN(customPrice) || customPrice < 0) {
+            return showAlert(t('common.error'), t('check.alertInvalid'));
+          }
+          
+          if (item.allowedModifiers.length > 0) {
+            setPendingItem({ ...item, basePrice: customPrice, selectedModifiers: [] });
+            setIsModalOpen(true);
+          } else {
+            addToTicket(item, [], customPrice);
+          }
+        },
+        item.basePrice > 0 ? String(item.basePrice) : '',
+        t('common.save'),
+        t('common.cancel')
+      );
+      return;
+    }
+
     if (item.allowedModifiers.length > 0) {
       setPendingItem({ ...item, selectedModifiers: [] });
       setIsModalOpen(true);
@@ -816,7 +831,7 @@ function Register() {
     setPendingItem({ ...pendingItem, selectedModifiers: updatedModifiers });
   };
 
-  const addToTicket = async (item, modifiers) => {
+  const addToTicket = async (item, modifiers, customPrice) => {
     if (!activeTicket) {
       showAlert(t('cart.noActiveOrderTitle'), t('cart.noActiveOrderDesc'));
       setIsModalOpen(false);
@@ -842,6 +857,7 @@ function Register() {
 
     const newItem = {
       ...item,
+      basePrice: customPrice !== undefined ? customPrice : item.basePrice,
       // eslint-disable-next-line react-hooks/purity
       uniqueId: Date.now() + Math.random(),
       selectedModifiers: modifiers
@@ -858,7 +874,7 @@ function Register() {
         last_modified_by: myDeviceId
       })
         .eq('id', activeTicket.id)
-        .then(({ error }) => { if (error) console.error('active_tickets sync (add item) failed:', error); });
+        .then();
     }
 
     setIsModalOpen(false);
@@ -878,7 +894,7 @@ function Register() {
       supabase.from('active_tickets')
         .update({ items: updatedItems, last_modified_by: myDeviceId })
         .eq('id', activeTicket.id)
-        .then(({ error }) => { if (error) console.error('active_tickets sync (update qty) failed:', error); });
+        .then();
     }
   };
 
@@ -898,7 +914,7 @@ function Register() {
           last_modified_by: myDeviceId // Mark this update as yours
         })
         .eq('id', activeTicket.id)
-        .then(({ error }) => { if (error) console.error('active_tickets sync (remove item) failed:', error); });
+        .then();
     }
   };
 

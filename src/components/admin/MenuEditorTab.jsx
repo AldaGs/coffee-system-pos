@@ -84,17 +84,31 @@ function MenuEditorTab({
                 </div>
               </div>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelPrice') || 'Base Price'}</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: 'var(--text-muted)' }}>$</span>
-                  <input 
-                    type="number" 
-                    placeholder={t('menu.placeholderPrice')} 
-                    value={newItemForm.price} 
-                    onChange={(e) => setNewItemForm({ ...newItemForm, price: e.target.value })} 
-                    style={{ width: '100%', padding: '14px 14px 14px 32px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: '900', fontSize: '1.2rem' }} 
-                  />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelPriceType') || 'Price Type'}</label>
+                  <select 
+                    value={newItemForm.priceType || 'fixed'} 
+                    onChange={(e) => setNewItemForm({ ...newItemForm, priceType: e.target.value })} 
+                    style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    <option value="fixed">{t('menu.priceFixed') || 'Fixed Price'}</option>
+                    <option value="variable">{t('menu.priceVariable') || 'Variable / Open Price'}</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelPrice') || 'Base Price'}</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: 'var(--text-muted)' }}>$</span>
+                    <input 
+                      type="number" 
+                      placeholder={t('menu.placeholderPrice')} 
+                      value={newItemForm.price} 
+                      onChange={(e) => setNewItemForm({ ...newItemForm, price: e.target.value })} 
+                      style={{ width: '100%', padding: '14px 14px 14px 32px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: '900', fontSize: '1.2rem' }} 
+                    />
+                  </div>
                 </div>
               </div>
               
@@ -247,6 +261,12 @@ function MenuEditorTab({
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
                                 <span style={{ color: '#27ae60', fontWeight: '900', fontSize: '0.85rem' }}>${item.basePrice.toFixed(2)}</span>
                                 <span style={{ height: '3px', width: '3px', background: 'var(--border)', borderRadius: '50%' }} />
+                                {item.priceType === 'variable' && (
+                                  <>
+                                    <span style={{ color: 'var(--brand-color)', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>{t('menu.badgeVariable') || 'Open Price'}</span>
+                                    <span style={{ height: '3px', width: '3px', background: 'var(--border)', borderRadius: '50%' }} />
+                                  </>
+                                )}
                                 {item.inventoryMode === 'recipe' ? (
                                   <span style={{ color: '#2980b9', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>{t('menu.badgeRecipe')}</span>
                                 ) : item.inventoryMode === 'standard' ? (
@@ -266,6 +286,7 @@ function MenuEditorTab({
                                   category: category,
                                   name: item.name,
                                   price: String(item.basePrice ?? ''),
+                                  priceType: item.priceType || 'fixed',
                                   emoji: item.emoji || '☕',
                                   inventoryMode: item.inventoryMode || 'none',
                                   linkedWarehouseId: item.linkedWarehouseId || '',

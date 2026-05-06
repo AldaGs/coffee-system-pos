@@ -342,6 +342,11 @@ export const translations = {
     "menu.alertConflictDesc": "A category with that name already exists.",
     "menu.alertItemNotFound": "Could not locate item to update.",
     "menu.alertErrorTitle": "Error",
+    "menu.labelPriceType": "Price Type",
+    "menu.priceFixed": "Fixed Price",
+    "menu.priceVariable": "Variable / Open Price",
+    "menu.promptVariablePrice": "Enter Price for",
+    "menu.badgeVariable": "Open Price",
 
     // --- Modifier Library Tab ---
     "mods.title": "Modifier Library",
@@ -1168,6 +1173,11 @@ export const translations = {
     "menu.alertConflictDesc": "Ya existe una categoría con ese nombre.",
     "menu.alertItemNotFound": "No se pudo localizar el artículo a actualizar.",
     "menu.alertErrorTitle": "Error",
+    "menu.labelPriceType": "Tipo de Precio",
+    "menu.priceFixed": "Precio Fijo",
+    "menu.priceVariable": "Precio Variable / Abierto",
+    "menu.promptVariablePrice": "Ingresa el Precio para",
+    "menu.badgeVariable": "Precio Abierto",
 
     // --- Modifier Library Tab ---
     "mods.title": "Biblioteca de Modificadores",
