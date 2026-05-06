@@ -61,7 +61,7 @@ function TicketImage({ ticket, total, receiptSettings, lang, t, id }) {
             <div key={idx} style={{ marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>{qty > 1 ? `${item.name} x${qty}` : item.name}</span>
-                <span>${lineTotal.toFixed(2)}</span>
+                <span>${(item.basePrice * qty).toFixed(2)}</span>
               </div>
               {(item.selectedModifiers || []).map((mod, midx) => (
                 <div key={midx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', paddingLeft: '10px' }}>

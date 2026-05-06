@@ -127,7 +127,8 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
       rawSubtotal += lineTotal;
 
       const itemLabel = qty > 1 ? `${item.name} x${qty}` : item.name;
-      pushRow(itemLabel, `$${lineTotal.toFixed(2)}`);
+      const baseTotal = item.basePrice * qty;
+      pushRow(itemLabel, `$${baseTotal.toFixed(2)}`);
 
       for (const mod of item.selectedModifiers) {
         const modPrice = mod.price > 0 ? `+$${mod.price.toFixed(2)}` : "";
@@ -208,9 +209,9 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
 
   ticket.items.forEach(item => {
     const qty = item.qty || 1;
-    const lineTotal = (item.basePrice + (item.selectedModifiers || []).reduce((s, m) => s + m.price, 0)) * qty;
+    const baseTotal = item.basePrice * qty;
     const qtyLabel = qty > 1 ? ` x${qty}` : '';
-    message += `${item.emoji || '☕'} ${item.name}${qtyLabel} - $${lineTotal.toFixed(2)}\n`;
+    message += `${item.emoji || '☕'} ${item.name}${qtyLabel} - $${baseTotal.toFixed(2)}\n`;
     if (item.selectedModifiers && item.selectedModifiers.length > 0) {
       item.selectedModifiers.forEach(mod => {
         message += `  + ${mod.name} ($${mod.price.toFixed(2)})\n`;
