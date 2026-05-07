@@ -788,7 +788,8 @@ function Register() {
         },
         item.basePrice > 0 ? String(item.basePrice) : '',
         t('common.save'),
-        t('common.cancel')
+        t('common.cancel'),
+        'decimal'
       );
       return;
     }

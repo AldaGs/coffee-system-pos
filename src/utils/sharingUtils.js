@@ -131,8 +131,9 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
       pushRow(itemLabel, `$${baseTotal.toFixed(2)}`);
 
       for (const mod of item.selectedModifiers) {
+        const modLabel = `  + ${mod.name}${mod.textValue ? ': ' + mod.textValue : ''}`;
         const modPrice = mod.price > 0 ? `+$${mod.price.toFixed(2)}` : "";
-        pushRow(`  + ${mod.name}`, modPrice);
+        pushRow(modLabel, modPrice);
       }
     }
 
@@ -214,7 +215,11 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
     message += `${item.emoji || '☕'} ${item.name}${qtyLabel} - $${baseTotal.toFixed(2)}\n`;
     if (item.selectedModifiers && item.selectedModifiers.length > 0) {
       item.selectedModifiers.forEach(mod => {
-        message += `  + ${mod.name} ($${mod.price.toFixed(2)})\n`;
+        if (mod.textValue) {
+          message += `  + ${mod.name}: "${mod.textValue}"\n`;
+        } else {
+          message += `  + ${mod.name}${mod.price > 0 ? ` (+$${mod.price.toFixed(2)})` : ''}\n`;
+        }
       });
     }
   });

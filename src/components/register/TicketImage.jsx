@@ -66,7 +66,7 @@ function TicketImage({ ticket, total, receiptSettings, lang, t, id }) {
               </div>
               {(item.selectedModifiers || []).map((mod, midx) => (
                 <div key={midx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', paddingLeft: '10px' }}>
-                  <span>+ {mod.name}</span>
+                  <span>+ {mod.name}{mod.textValue ? `: "${mod.textValue}"` : ''}</span>
                   <span>{mod.price > 0 ? `+$${mod.price.toFixed(2)}` : ''}</span>
                 </div>
               ))}

@@ -75,12 +75,23 @@ function Dialog({ uiDialog, closeDialog }) {
         {uiDialog.type === 'prompt' && (
           <input
             ref={inputRef}
-            type="text"
+            type={uiDialog.inputMode === 'decimal' ? 'text' : 'text'}
+            inputMode={uiDialog.inputMode || 'text'}
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (uiDialog.inputMode === 'decimal') {
+                // Allow only digits, one dot, up to 2 decimal places
+                if (val === '' || /^\d*\.?\d{0,2}$/.test(val)) {
+                  setInputValue(val);
+                }
+              } else {
+                setInputValue(val);
+              }
+            }}
             onKeyDown={handleKeyDown}
-            style={{ width: '100%', padding: '14px', fontSize: '1.1rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', marginBottom: '24px', outline: 'none' }}
-            placeholder="..."
+            style={{ width: '100%', padding: '14px', fontSize: '1.4rem', fontWeight: 'bold', textAlign: uiDialog.inputMode === 'decimal' ? 'center' : 'left', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', marginBottom: '24px', outline: 'none' }}
+            placeholder={uiDialog.inputMode === 'decimal' ? '0.00' : '...'}
           />
         )}
 

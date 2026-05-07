@@ -13,8 +13,8 @@ export const DialogProvider = ({ children }) => {
     setUiDialog({ isOpen: true, type: 'confirm', title, message, onConfirm: onConfirmAction, timestamp: Date.now() });
   };
 
-  const showPrompt = (title, message, onConfirmAction, defaultValue = '', confirmText = '', cancelText = '') => {
-    setUiDialog({ isOpen: true, type: 'prompt', title, message, onConfirm: onConfirmAction, inputValue: defaultValue, confirmText, cancelText, timestamp: Date.now() });
+  const showPrompt = (title, message, onConfirmAction, defaultValue = '', confirmText = '', cancelText = '', inputMode = 'text') => {
+    setUiDialog({ isOpen: true, type: 'prompt', title, message, onConfirm: onConfirmAction, inputValue: defaultValue, confirmText, cancelText, inputMode, timestamp: Date.now() });
   };
 
   const closeDialog = () => {
