@@ -1,7 +1,7 @@
 import { useTranslation } from '../../hooks/useTranslation';
 import { calculateTaxBreakdown } from '../../utils/posMath';
 
-const TicketImage = ({ ticket, receiptSettings, total }) => {
+const TicketImage = ({ id, ticket, receiptSettings, total }) => {
   const { t } = useTranslation();
 
   if (!ticket) return null;
@@ -24,7 +24,7 @@ const TicketImage = ({ ticket, receiptSettings, total }) => {
     : null;
 
   return (
-    <div id="ticket-image-container" style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.2' }}>
+    <div id={id || "ticket-image-container"} style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.2' }}>
       <div style={{ textAlign: 'center', marginBottom: '10px' }}>
         <h2 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>{receiptSettings?.storeName || 'Coffee POS'}</h2>
         <p style={{ margin: '0', fontSize: '12px' }}>{receiptSettings?.address || ''}</p>
