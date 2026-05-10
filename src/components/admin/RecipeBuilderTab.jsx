@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { toCents, formatForDisplay } from '../../utils/moneyUtils';
+import { toCents } from '../../utils/moneyUtils';
 
 function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, saveMenuToCloud, showAlert }) {
 
@@ -67,7 +67,13 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
         return sum + (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0) * 10000);
       } else {
         const matchedItem = inventoryItems?.find(inv => inv.name === ing.name);
-        const unitCost = matchedItem?.unit_cost || 0; // Millicents
+        let unitCost = matchedItem?.unit_cost || 0; // Millicents
+        
+        // LEGACY DETECTOR: If cost is a float < 10, it's likely a legacy decimal.
+        if (unitCost > 0 && unitCost < 10) {
+          unitCost *= 10000;
+        }
+        
         return sum + (parseFloat(ing.qty || 0) * unitCost);
       }
     }, 0);

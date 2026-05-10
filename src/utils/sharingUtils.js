@@ -127,12 +127,12 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
       rawSubtotal += lineTotal;
 
       const itemLabel = qty > 1 ? `${item.name} x${qty}` : item.name;
-      const baseTotal = item.basePrice * qty;
+      const baseTotal = (item.basePrice * qty) / 100;
       pushRow(itemLabel, `$${baseTotal.toFixed(2)}`);
 
       for (const mod of item.selectedModifiers) {
         const modLabel = `  + ${mod.name}${mod.textValue ? ': ' + mod.textValue : ''}`;
-        const modPrice = mod.price > 0 ? `+$${mod.price.toFixed(2)}` : "";
+        const modPrice = mod.price > 0 ? `+$${(mod.price / 100).toFixed(2)}` : "";
         pushRow(modLabel, modPrice);
       }
     }
@@ -140,24 +140,24 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
     pushText("--------------------------------\n");
 
     if (rawSubtotal > total) {
-      pushRow(t('analytics.grossRevenue'), `$${rawSubtotal.toFixed(2)}`);
-      pushRow(t('disc.title'), `-$${(rawSubtotal - total).toFixed(2)}`);
+      pushRow(t('analytics.grossRevenue'), `$${(rawSubtotal / 100).toFixed(2)}`);
+      pushRow(t('disc.title'), `-$${((rawSubtotal - total) / 100).toFixed(2)}`);
       pushText("--------------------------------\n");
     }
 
     if (receiptSettings.enableTaxBreakdown) {
       const taxRate = receiptSettings.taxRate || 16;
       const { subtotal: baseSubtotal, tax: extractedTax } = calculateTaxBreakdown(total, taxRate);
-      pushRow("Subtotal ", `$${baseSubtotal.toFixed(2)}`);
-      pushRow(`IVA (${taxRate}%)`, `$${extractedTax.toFixed(2)}`);
+      pushRow("Subtotal ", `$${(baseSubtotal / 100).toFixed(2)}`);
+      pushRow(`IVA (${taxRate}%)`, `$${(extractedTax / 100).toFixed(2)}`);
       pushText("--------------------------------\n");
     }
 
     pushCommand(ESC_ALIGN_CENTER);
     pushCommand(ESC_BOLD_ON);
-    pushText(`TOTAL: $${total.toFixed(2)}\n`);
+    pushText(`TOTAL: $${(total / 100).toFixed(2)}\n`);
     pushCommand(ESC_BOLD_OFF);
-    pushText(`${numeroALetras(total)}\n`);
+    pushText(`${numeroALetras(total / 100)}\n`);
     pushText("--------------------------------\n");
     pushText(`${receiptSettings.footer}\n`);
     pushText("\n\n\n");
@@ -210,7 +210,7 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
 
   ticket.items.forEach(item => {
     const qty = item.qty || 1;
-    const baseTotal = item.basePrice * qty;
+    const baseTotal = (item.basePrice * qty) / 100;
     const qtyLabel = qty > 1 ? ` x${qty}` : '';
     message += `${item.emoji || '☕'} ${item.name}${qtyLabel} - $${baseTotal.toFixed(2)}\n`;
     if (item.selectedModifiers && item.selectedModifiers.length > 0) {
@@ -218,7 +218,7 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
         if (mod.textValue) {
           message += `  + ${mod.name}: "${mod.textValue}"\n`;
         } else {
-          message += `  + ${mod.name}${mod.price > 0 ? ` (+$${mod.price.toFixed(2)})` : ''}\n`;
+          message += `  + ${mod.name}${mod.price > 0 ? ` (+$${(mod.price / 100).toFixed(2)})` : ''}\n`;
         }
       });
     }
@@ -229,13 +229,13 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
   if (receiptSettings.enableTaxBreakdown) {
     const taxRate = receiptSettings.taxRate || 16;
     const { subtotal: baseSubtotal, tax: extractedTax } = calculateTaxBreakdown(total, taxRate);
-    message += `Subtotal: $${baseSubtotal.toFixed(2)}\n`;
-    message += `IVA (${taxRate}%): $${extractedTax.toFixed(2)}\n`;
+    message += `Subtotal: $${(baseSubtotal / 100).toFixed(2)}\n`;
+    message += `IVA (${taxRate}%): $${(extractedTax / 100).toFixed(2)}\n`;
   }
 
   message += `--------------------------\n`;
-  message += `*TOTAL: $${total.toFixed(2)}*\n`;
-  message += `_${numeroALetras(total)}_\n`;
+  message += `*TOTAL: $${(total / 100).toFixed(2)}*\n`;
+  message += `_${numeroALetras(total / 100)}_\n`;
 
   if (loyaltyData) {
     message += `--------------------------\n`;

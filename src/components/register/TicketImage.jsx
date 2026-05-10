@@ -62,12 +62,12 @@ function TicketImage({ ticket, total, receiptSettings, lang, t, id }) {
             <div key={idx} style={{ marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>{qty > 1 ? `${item.name} x${qty}` : item.name}</span>
-                <span>${(item.basePrice * qty).toFixed(2)}</span>
+                <span>${((item.basePrice * qty) / 100).toFixed(2)}</span>
               </div>
               {(item.selectedModifiers || []).map((mod, midx) => (
                 <div key={midx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', paddingLeft: '10px' }}>
                   <span>+ {mod.name}{mod.textValue ? `: "${mod.textValue}"` : ''}</span>
-                  <span>{mod.price > 0 ? `+$${mod.price.toFixed(2)}` : ''}</span>
+                  <span>{mod.price > 0 ? `+$${(mod.price / 100).toFixed(2)}` : ''}</span>
                 </div>
               ))}
             </div>
@@ -81,11 +81,11 @@ function TicketImage({ ticket, total, receiptSettings, lang, t, id }) {
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>{t('analytics.grossRevenue')}</span>
-            <span>${rawSubtotal.toFixed(2)}</span>
+            <span>${(rawSubtotal / 100).toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>{t('disc.title')}</span>
-            <span>-${(rawSubtotal - total).toFixed(2)}</span>
+            <span>-${((rawSubtotal - total) / 100).toFixed(2)}</span>
           </div>
           <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
         </>
@@ -95,22 +95,22 @@ function TicketImage({ ticket, total, receiptSettings, lang, t, id }) {
         <>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>Subtotal</span>
-            <span>${taxInfo.subtotal.toFixed(2)}</span>
+            <span>${(taxInfo.subtotal / 100).toFixed(2)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span>IVA ({receiptSettings.taxRate}%)</span>
-            <span>${taxInfo.tax.toFixed(2)}</span>
+            <span>${(taxInfo.tax / 100).toFixed(2)}</span>
           </div>
           <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
         </>
       )}
 
       <div style={{ textAlign: 'center', fontSize: '20px', fontWeight: 'bold', margin: '15px 0' }}>
-        TOTAL: ${total.toFixed(2)}
+        TOTAL: ${(total / 100).toFixed(2)}
       </div>
       
       <div style={{ textAlign: 'center', fontSize: '12px', fontStyle: 'italic', marginBottom: '15px' }}>
-        {numeroALetras(total)}
+        {numeroALetras(total / 100)}
       </div>
 
       <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>

@@ -187,7 +187,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       return showAlert(t('inv.alertVerified'), t('inv.alertVerifiedDesc'));
     }
 
-    const financialImpactInCents = Math.round((variance * (auditingItem.unit_cost || 0)) / 100);
+    const rawCost = auditingItem.unit_cost || 0;
+    const unitCost = (rawCost > 0 && rawCost < 10) ? rawCost * 10000 : rawCost;
+    const financialImpactInCents = Math.round((variance * unitCost) / 100);
     const deductionType = variance < 0 ? (auditingItem.reason || 'waste') : 'audit_correction';
 
     try {
@@ -545,7 +547,10 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             {auditingItem.actualCount !== undefined && auditingItem.actualCount !== '' && (() => {
               const variance = parseFloat(auditingItem.actualCount) - auditingItem.current_stock;
               const isLoss = variance < 0;
-              const financialImpactInCents = Math.round(Math.abs(variance * (auditingItem.unit_cost || 0)) / 100);
+              
+              const rawCost = auditingItem.unit_cost || 0;
+              const unitCost = (rawCost > 0 && rawCost < 10) ? rawCost * 10000 : rawCost;
+              const financialImpactInCents = Math.round(Math.abs(variance * unitCost) / 100);
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

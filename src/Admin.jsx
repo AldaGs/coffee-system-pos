@@ -817,10 +817,12 @@ function Admin() {
     inventoryLogs.forEach(log => {
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      const unitCost = log.unit_cost !== undefined && log.unit_cost !== null ? log.unit_cost : fallbackCost;
-      // Millicents * Qty = Millicents
-      const financialImpact = log.qty_deducted * unitCost;
-
+      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      
+      if (unitCost > 0 && unitCost < 10) {
+        unitCost *= 10000;
+      }
+      const financialImpact = Math.round(log.qty_deducted * unitCost);
       if (log.deduction_type === 'sale') {
         if (relevantTimestamps.has(log.created_at) || relevantTicketIds.has(String(log.ticket_id))) {
           totalCOGS += financialImpact;

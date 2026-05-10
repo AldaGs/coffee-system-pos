@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { formatForDisplay, toCents } from '../../utils/moneyUtils';
+import { formatForDisplay } from '../../utils/moneyUtils';
 
 function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [] }) {
   const { t } = useTranslation();
@@ -27,7 +27,14 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       // Find the historical cost if available, otherwise fallback to current cost
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      const unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      
+      // LEGACY DETECTOR: If cost is a float < 10, it's likely a legacy decimal.
+      // New Millicent format is always >= 100 for anything > $0.01.
+      if (unitCost > 0 && unitCost < 10) {
+        unitCost *= 10000;
+      }
+
       // Convert Millicents (10000x) * Qty -> Millicents. Then / 100 -> Cents.
       const financialImpact = Math.round((log.qty_deducted * unitCost) / 100);
 
