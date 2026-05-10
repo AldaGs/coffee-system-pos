@@ -614,7 +614,7 @@ function Register() {
   };
 
   const { handleProcessCorte } = useShiftCorte(hookDeps);
-  const { handleConfirmPayment, handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);
+  const { handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);
   const { handleCheckLoyalty } = useLoyalty(hookDeps);
 
 
