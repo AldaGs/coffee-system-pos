@@ -1069,12 +1069,14 @@ function Register() {
 
         {/* Hidden TicketImage for PNG Capture */}
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
-          <TicketImage
-            id="ticket-to-capture"
-            ticket={activeTicket}
-            total={cartTotal}
-            receiptSettings={menuData?.receiptSettings || {}}
-          />
+          {activeTicket && (
+            <TicketImage
+              id="ticket-to-capture"
+              ticket={activeTicket}
+              total={cartTotal}
+              receiptSettings={menuData?.receiptSettings || {}}
+            />
+          )}
         </div>
 
       </div>

@@ -4,6 +4,8 @@ import { calculateTaxBreakdown } from '../../utils/posMath';
 const TicketImage = ({ ticket, receiptSettings, total }) => {
   const { t } = useTranslation();
 
+  if (!ticket) return null;
+
   // Helper to scale legacy prices
   const scale = (val) => (val > 0 && val < 2000) ? val * 100 : val;
 
