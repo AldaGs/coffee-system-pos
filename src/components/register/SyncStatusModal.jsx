@@ -1,4 +1,5 @@
 import { useTranslation } from '../../hooks/useTranslation';
+import SignOutButton from '../SignOutButton';
 
 function SyncStatusModal({ isSyncModalOpen, setIsSyncModalOpen, isCurrentlyOffline, syncQueue, expenseQueue, waQueue }) {
   const { t } = useTranslation();
@@ -15,8 +16,11 @@ function SyncStatusModal({ isSyncModalOpen, setIsSyncModalOpen, isCurrentlyOffli
 
         {isCurrentlyOffline ? (
           <div style={{ background: '#fdf0ed', color: '#e74c3c', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e74c3c' }}>
-            <strong>{t('sync.offlineTitle')}</strong><br />
-            {!navigator.onLine ? t('sync.offlineDesc') : t('sync.authErrorDesc') || "Tu sesión ha expirado o el dispositivo no está autorizado. Por favor, reinicia la app para re-autorizar."}
+            <div style={{ marginBottom: '12px' }}>
+              <strong>{t('sync.offlineTitle')}</strong><br />
+              {!navigator.onLine ? t('sync.offlineDesc') : t('sync.authErrorDesc') || "Tu sesión ha expirado o el dispositivo no está autorizado. Por favor, reinicia la app para re-autorizar."}
+            </div>
+            {navigator.onLine && <SignOutButton variant="outline" />}
           </div>
         ) : (
           <div style={{ background: '#eafaf1', color: '#27ae60', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #27ae60' }}>

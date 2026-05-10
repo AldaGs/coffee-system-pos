@@ -4,6 +4,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
 import ExportKeysButton from '../ExportKeysButton';
 import DisconnectButton from '../DisconnectButton';
+import SignOutButton from '../SignOutButton';
 import SharedPinPad from '../shared/SharedPinPad';
 
 function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogoUpload, handleSaveGeneralSettings, menuData, saveMenuToCloud, setLoyaltyForm }) {
@@ -393,6 +394,17 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
             </button>
             
             <ExportKeysButton />
+            
+            <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
+              <h3 style={{ marginTop: 0, color: 'var(--text-main)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:refresh-cw" style={{ color: '#f39c12' }} />
+                {t('settings.signOutTitle', 'Authorization')}
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
+                {t('settings.signOutConfirm', 'Use this to fix sync issues or switch to a different store account without losing your local tickets.')}
+              </p>
+              <SignOutButton />
+            </div>
 
             <div style={{ 
               border: '2px solid rgba(231, 76, 60, 0.2)', 
