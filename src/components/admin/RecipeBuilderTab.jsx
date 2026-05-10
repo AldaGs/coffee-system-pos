@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { toCents, formatForDisplay } from '../../utils/moneyUtils';
 
 function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, saveMenuToCloud, showAlert }) {
 
@@ -34,7 +35,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
     const newItem = {
       id: `${name.toLowerCase().replace(/\s+/g, '_')}_${timestamp}`,
       name: name.trim(),
-      basePrice: parsedPrice,
+      basePrice: toCents(parsedPrice),
       emoji: emoji || '☕',
       allowedModifiers: [],
       inventoryMode: 'recipe',
@@ -60,15 +61,17 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
   // --- 2. GLOBAL DYNAMIC MATH ENGINE ---
   const calculateLiveCost = (ingredients) => {
-    return (ingredients || []).reduce((sum, ing) => {
+    const millicentSum = (ingredients || []).reduce((sum, ing) => {
       if (ing.isManual) {
-        return sum + (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0));
+        // Manual costs are entered as decimals, convert to millicents for uniform sum
+        return sum + (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0) * 10000);
       } else {
         const matchedItem = inventoryItems?.find(inv => inv.name === ing.name);
-        const unitCost = matchedItem?.unit_cost || 0;
+        const unitCost = matchedItem?.unit_cost || 0; // Millicents
         return sum + (parseFloat(ing.qty || 0) * unitCost);
       }
     }, 0);
+    return millicentSum / 10000; // Return as decimal dollars for easier UI math
   };
 
   let linkedMenuItemName = null;
@@ -301,7 +304,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         </div>
                       ) : (
                         <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', background: 'rgba(0,0,0,0.02)', borderRadius: '10px' }}>
-                          ${(matchedWarehouseItem?.unit_cost || 0).toFixed(4)}
+                          ${((matchedWarehouseItem?.unit_cost || 0) / 10000).toFixed(4)}
                         </div>
                       )}
 
@@ -310,7 +313,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>$</span>
                           {isManual
                             ? (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0)).toFixed(2)
-                            : (matchedWarehouseItem && ing.qty ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0)).toFixed(2) : '0.00')
+                            : (matchedWarehouseItem && ing.qty ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0) / 10000).toFixed(2) : '0.00')
                           }
                         </div>
 
