@@ -57,8 +57,8 @@ function Register() {
 
   // --- ZUSTAND GLOBAL STORES ---
   const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime } = useAuthStore();
-  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, isLoading, setIsLoading, getPosSettings, lastSyncedAt } = useMenuStore();
-  const { activeTicketId, setActiveTicketId, isCheckoutModalOpen, setIsCheckoutModalOpen, splitMode, setSplitMode, splitPayments, setSplitPayments, nWays, setNWays, customVal, setCustomVal, paidProductIds, setPaidProductIds, resetCheckoutState, tipAmount, setTipAmount, tipPercentage, setTipPercentage } = useCartStore();
+  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, setIsLoading, getPosSettings, lastSyncedAt } = useMenuStore();
+  const { activeTicketId, setActiveTicketId, isCheckoutModalOpen, splitMode, setSplitMode, splitPayments, nWays, setNWays, customVal, setCustomVal, paidProductIds, tipAmount, setTipAmount, tipPercentage, setTipPercentage } = useCartStore();
 
 
 
@@ -614,7 +614,7 @@ function Register() {
   };
 
   const { handleProcessCorte } = useShiftCorte(hookDeps);
-  const { handleConfirmPayment } = useCheckout(hookDeps);
+  const { handleConfirmPayment, handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);
   const { handleCheckLoyalty } = useLoyalty(hookDeps);
 
 
