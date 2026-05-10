@@ -121,19 +121,32 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
     let rawSubtotal = 0;
     for (const item of ticket.items) {
       const qty = item.qty || 1;
-      let lineTotal = item.basePrice;
-      item.selectedModifiers.forEach(mod => lineTotal += mod.price);
+      
+      // LEGACY DETECTOR for menu items
+      let itemBase = item.basePrice || 0;
+      if (itemBase > 0 && itemBase < 2000) itemBase *= 100;
+      
+      let lineTotal = itemBase;
+      
+      const modRows = [];
+      for (const mod of (item.selectedModifiers || [])) {
+        let modP = mod.price || 0;
+        if (modP > 0 && modP < 1000) modP *= 100;
+        lineTotal += modP;
+        
+        const modLabel = `  + ${mod.name}${mod.textValue ? ': ' + mod.textValue : ''}`;
+        const modPriceStr = modP > 0 ? `+$${(modP / 100).toFixed(2)}` : "";
+        modRows.push({ label: modLabel, price: modPriceStr });
+      }
+      
       lineTotal *= qty;
       rawSubtotal += lineTotal;
 
       const itemLabel = qty > 1 ? `${item.name} x${qty}` : item.name;
-      const baseTotal = (item.basePrice * qty) / 100;
-      pushRow(itemLabel, `$${baseTotal.toFixed(2)}`);
+      pushRow(itemLabel, `$${((itemBase * qty) / 100).toFixed(2)}`);
 
-      for (const mod of item.selectedModifiers) {
-        const modLabel = `  + ${mod.name}${mod.textValue ? ': ' + mod.textValue : ''}`;
-        const modPrice = mod.price > 0 ? `+$${(mod.price / 100).toFixed(2)}` : "";
-        pushRow(modLabel, modPrice);
+      for (const row of modRows) {
+        pushRow(row.label, row.price);
       }
     }
 
