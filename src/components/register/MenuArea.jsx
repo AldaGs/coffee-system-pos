@@ -32,6 +32,22 @@ function MenuArea({
           
           <button className="mobile-hamburger desktop-hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>☰</button>
           
+          {isMobileMenuOpen && (
+            <div 
+              className="mobile-menu-overlay desktop-hidden"
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 999,
+                background: 'transparent'
+              }}
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
+
           <div className={`action-buttons-container ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
             <span style={{ background: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '9999px', fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--brand-color)', border: '1px solid var(--border)' }}>
               👤 {activeCashier?.name}
