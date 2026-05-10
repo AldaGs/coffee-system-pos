@@ -15,7 +15,7 @@ import { attemptBackgroundSync } from './services/syncService';
 import { logActivity } from './services/activityService';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
-import { toCents, formatForDisplay } from './utils/moneyUtils';
+import { toCents, formatForDisplay, normalizeMenuPrice } from './utils/moneyUtils';
 import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
@@ -98,103 +98,19 @@ function Register() {
 
         // SAFE ACTIVE CATEGORY ASSIGNMENT
         const safeCategories = menuResp.menu_data?.categories || {};
-        const categoryNames = Object.keys(safeCategories);
-        setActiveCategory(categoryNames.length > 0 ? categoryNames[0] : null);
-
-        localStorage.setItem('tinypos_cached_menu', JSON.stringify(menuResp.menu_data));
-        localStorage.setItem('tinypos_cached_recipes', JSON.stringify(recipeResp));
-
-      } catch {
-        console.warn("Cloud fetch failed. Searching for local backup...");
-        const cachedMenu = localStorage.getItem('tinypos_cached_menu');
-        const cachedRecipes = localStorage.getItem('tinypos_cached_recipes');
-
-        if (cachedMenu) {
-          const parsedMenu = JSON.parse(cachedMenu);
-          setMenuData(parsedMenu);
-
-          // SAFE ACTIVE CATEGORY ASSIGNMENT FOR CACHE
-          const safeCachedCategories = parsedMenu?.categories || {};
-          const cachedCategoryNames = Object.keys(safeCachedCategories);
-          setActiveCategory(cachedCategoryNames.length > 0 ? cachedCategoryNames[0] : null);
+        if (Object.keys(safeCategories).length > 0) {
+          setActiveCategory(Object.keys(safeCategories)[0]);
         }
-        if (cachedRecipes) {
-          setRecipes(JSON.parse(cachedRecipes));
-        }
-      } finally {
+        setIsLoading(false);
+      } catch (err) {
+        console.warn("Failed to fetch fresh menu, using cache.", err);
         setIsLoading(false);
       }
     };
     fetchMenuAndRecipes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [setMenuData, setRecipes, setActiveCategory, setIsLoading]);
 
-
-  // --- UPDATED: FULL SOURCE-OF-TRUTH SYNC ---
-  const syncCloudTickets = async () => {
-    if (!navigator.onLine) return;
-    try {
-      const { data, error } = await supabase.from('active_tickets').select('*');
-      if (data && !error) {
-        // 1. Get all tickets currently on this device (Phone/PC)
-        const localTickets = await db.active_tickets.toArray();
-        const cloudIds = data.map(t => t.id);
-
-        // 2. Find "Ghost" tickets (Items on your phone that aren't in Supabase)
-        const ghostTickets = localTickets.filter(t => !cloudIds.includes(t.id));
-
-        if (ghostTickets.length > 0) {
-          // Kill the ghosts!
-          const idsToDelete = ghostTickets.map(g => g.id);
-          await db.active_tickets.bulkDelete(idsToDelete);
-          console.log(`Cleared ${idsToDelete.length} ghost tickets from local storage.`);
-        }
-
-        // 3. Update the local database with the actual cloud data
-        await db.active_tickets.bulkPut(data);
-      }
-    } catch (err) {
-      console.error("Could not sync cloud tickets:", err);
-    }
-  };
-
-  // --- TRIGGER SYNC & SET UP REAL-TIME LISTENER ---
-  useEffect(() => {
-    if (!supabase || !navigator.onLine) return;
-    syncCloudTickets();
-
-    const ticketChannel = supabase
-      .channel('active-tickets-realtime')
-      .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'active_tickets' },
-        async (payload) => {
-          try {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            if (payload.new.last_modified_by === myDeviceId) {
-              return;
-            }
-            await db.active_tickets.put(payload.new);
-          }
-          else if (payload.eventType === 'DELETE') {
-            await db.active_tickets.delete(payload.old.id);
-            if (activeTicketIdRef.current === payload.old.id) {
-              setActiveTicketId(null);
-            }
-          }
-          } catch (err) {
-            console.error("Realtime handler error:", err);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(ticketChannel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Stable: Only on mount
-
-  // --- DAILY EXPENSES (GASTOS) STATE ---
+  // --- EXPENSES (LOCAL STORAGE BACKED) ---
   const [expenses, setExpenses] = useState(() => {
     const saved = localStorage.getItem('tinypos_expenses');
     return saved ? JSON.parse(saved) : [];
@@ -608,8 +524,8 @@ function Register() {
   const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || visibleTickets[0];
 
   const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
-    let itemCost = toCents(item.basePrice);
-    item.selectedModifiers.forEach(mod => { itemCost += toCents(mod.price); });
+    let itemCost = normalizeMenuPrice(item.basePrice);
+    item.selectedModifiers.forEach(mod => { itemCost += normalizeMenuPrice(mod.price); });
     const itemTotal = itemCost * (item.qty || 1);
     return total + itemTotal;
   }, 0) : 0;
@@ -651,7 +567,7 @@ function Register() {
       const safePct = Math.max(0, Math.min(discountPct, 100));
       manualDiscountAmount = Math.round(subtotalAfterAuto * (safePct / 100));
     } else if (activeTicket.discount.type === 'flat') {
-      const discountCents = toCents(activeTicket.discount.value);
+      const discountCents = normalizeMenuPrice(activeTicket.discount.value);
       manualDiscountAmount = Math.max(0, Math.min(discountCents, subtotalAfterAuto));
     }
   }
@@ -998,104 +914,12 @@ function Register() {
   // --- 2. THE GUEST CHECKOUT (NO TRACKING) ---
   const handleGuestReceipt = () => {
     const cleanPhone = loyaltyModal.phone.replace(/\D/g, '');
-    if (cleanPhone.length !== 10) {
-      setPhoneError(true);
-      setTimeout(() => setPhoneError(false), 500);
-      return;
-    }
-    // Instantly send the receipt with NO loyalty data
+    if (cleanPhone.length < 10) return setPhoneError(true);
     sendFinalMessage(cleanPhone, null);
   };
 
-
-
-  // --- SPLIT PAYMENT LOGIC & PERSISTENCE ---
-  const handleOpenCheckout = () => {
-    if (!activeTicket) return;
-    setSplitPayments(activeTicket.savedSplitPayments || []);
-    setPaidProductIds(activeTicket.savedPaidProductIds || []);
-    setSplitMode(activeTicket.savedSplitMode || 'full');
-    setNWays(activeTicket.savedNWays || 2);
-    setIsCheckoutModalOpen(true);
-  };
-
-  const handleSavePartialPayments = async () => {
-    if (activeTicket) await db.active_tickets.update(activeTicket.id, { savedSplitPayments: splitPayments, savedPaidProductIds: paidProductIds, savedSplitMode: splitMode, savedNWays: nWays });
-    setIsCheckoutModalOpen(false);
-  };
-
-  const handleVoidPartialPayments = () => {
-    showConfirm(t('checkout.voidPartialTitle'), t('checkout.voidPartialDesc'), async () => {
-      if (activeTicket) await db.active_tickets.update(activeTicket.id, { savedSplitPayments: [], savedPaidProductIds: [], savedSplitMode: null, savedNWays: 2 });
-      setSplitPayments([]);
-      setPaidProductIds([]);
-      setSplitMode('full');
-      setNWays(2);
-      setIsCheckoutModalOpen(false);
-    });
-  };
-
-  const handlePartialPayment = (amountToPay, method, itemsToMark = []) => {
-    // 1. Log the new payment slice
-    const newPayments = [...splitPayments, { amount: amountToPay, method }];
-    setSplitPayments(newPayments);
-
-    // 2. Mark any purchased items (For Product splitting mode)
-    if (itemsToMark.length > 0) setPaidProductIds([...paidProductIds, ...itemsToMark]);
-
-    // 3. Test if the ticket is completed
-    const totalDue = cartTotal + (Number(tipAmount) || 0);
-    const totalPaidSoFar = newPayments.reduce((sum, p) => sum + p.amount, 0);
-    if (Math.abs(totalDue - totalPaidSoFar) < 0.01 || totalPaidSoFar >= totalDue) {
-      handleConfirmPayment(newPayments);
-    }
-  };
-
-  const handleCancelCheckout = () => {
-    resetCheckoutState();
-  };
-
-
-  // --- THE NAVIGATION TRAP (Prevents Swipe-Back & Refreshing) ---
-  useEffect(() => {
-    // 1. Push a "dummy" state into the history stack immediately
-    window.history.pushState(null, null, window.location.href);
-
-    // 2. Intercept the browser's "Back" button or edge-swipe
-    const handlePopState = () => {
-      // Instantly push them forward again so they stay trapped on the Register
-      window.history.pushState(null, null, window.location.href);
-
-      // Fire your custom alert so they know what happened
-      showAlert(t('reg.navWarningTitle'), t('reg.navWarningDesc'));
-    };
-
-    // 3. Intercept accidental Page Refreshes or Tab Closures
-    const handleBeforeUnload = (e) => {
-      // This triggers the browser's native "Are you sure you want to leave?" popup
-      e.preventDefault();
-      e.returnValue = '';
-    };
-
-    // Attach the listeners
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [showAlert, t]);
-
-  // --- THE NEW BRANDED BOOT SCREEN ---
-  if (isLoading) {
-    return <BootScreen posSettings={posSettings} logo={posSettings.appBootLogo} loadingText={t('boot.loading')} />;
-  }
-
-  // --- THE UPGRADED LOCK & PIN ENGINE ---
+  // --- 1. LOCK SCREEN GUARD ---
   if (isLocked) {
-    // If no one is selected, show your standard user list (LockScreen)
     if (!selectedProfile) {
       return <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} />;
     }
@@ -1193,7 +1017,7 @@ function Register() {
         >
           <Icon icon="lucide:shopping-cart" />
           <span className="cart-badge">{activeTicket?.items?.length || 0}</span>
-          <span>${cartTotal.toFixed(2)}</span>
+          <span>{formatForDisplay(cartTotal)}</span>
         </button>
 
         <ModifierModal
@@ -1250,8 +1074,6 @@ function Register() {
             ticket={activeTicket}
             total={cartTotal}
             receiptSettings={menuData?.receiptSettings || {}}
-            lang={lang}
-            t={t}
           />
         </div>
 

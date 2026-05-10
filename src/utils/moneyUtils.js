@@ -17,6 +17,20 @@ export const toCents = (val) => {
 };
 
 /**
+ * Detects if a menu price is in legacy decimal or new centavo format.
+ * Returns the value in integer Cents.
+ */
+export const normalizeMenuPrice = (val) => {
+  if (val === null || val === undefined || val === '') return 0;
+  const num = typeof val === 'string' ? parseFloat(val) : val;
+  if (isNaN(num)) return 0;
+  // If price is > 0 and < 2000, it's likely a legacy decimal dollar (e.g. 500.00)
+  // New centavo format for $500.00 is 50000.
+  if (num > 0 && num < 2000) return Math.round(num * 100);
+  return Math.round(num);
+};
+
+/**
  * Converts a decimal dollar value (or string) to integer Millicents.
  * 1 Millicent = $0.0001
  */

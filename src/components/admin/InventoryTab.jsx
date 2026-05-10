@@ -8,13 +8,13 @@ import { toCents, toMillicents, fromMillicents, formatForDisplay } from '../../u
 
 function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfirm }) {
   const { t } = useTranslation();
-  
+
   const [activeView, setActiveView] = useState('list'); // 'list', 'add', 'transform'
-  
+
   const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '' });
   const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', shrinkagePerc: 20, targetItemName: '', operationalCost: '' });
   const [editingItem, setEditingItem] = useState(null);
-  
+
   // --- NEW: AUDIT STATE ---
   const [auditingItem, setAuditingItem] = useState(null);
 
@@ -50,12 +50,12 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           amount: costInCents,
           reason: `Inventory Purchase: ${newItem.name} (${stockVal}${newItem.unit})`,
           category: 'Inventario',
-          cashier_name: 'Inventory System' 
+          cashier_name: 'Inventory System'
         };
         const { error: expenseError } = await supabase.from('expenses').insert([purchaseExpense]);
         if (expenseError) console.error("Failed to log purchase expense:", expenseError);
       }
-      
+
       // LOG ACTIVITY
       logActivity('inventory_created', null, { name: itemToSave.name, stock: stockVal, unit: itemToSave.unit });
 
@@ -63,7 +63,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       setInventoryItems([...inventoryItems, data[0]]);
       setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '' });
       setActiveView('list');
-      
+
       showAlert(t('inv.alertSuccess'), `${itemToSave.name} ${t('inv.added')}`);
     } catch (_UNUSED) { // eslint-disable-line no-unused-vars
       showAlert(t('inv.alertError'), t('inv.alertErrorDesc1'));
@@ -79,7 +79,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     const sourceItem = inventoryItems.find(i => i.id === parseInt(transformForm.sourceItemId));
     const usedQty = parseFloat(transformForm.amountUsed);
     const shrinkPerc = parseFloat(transformForm.shrinkagePerc);
-    const opCost = parseFloat(transformForm.operationalCost) || 0; 
+    const opCost = parseFloat(transformForm.operationalCost) || 0;
 
     if (usedQty > sourceItem.current_stock) {
       return showAlert(t('inv.alertNotEnough'), `Solo hay ${sourceItem.current_stock}${sourceItem.unit} de ${sourceItem.name}.`);
@@ -87,9 +87,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
     const yieldMultiplier = (100 - shrinkPerc) / 100;
     const finalYieldQty = usedQty * yieldMultiplier;
-    
+
     // unit_cost is in Millicents. opCost is in dollars.
-    const totalCostOfUsedInMillicents = Math.round(usedQty * sourceItem.unit_cost) + toMillicents(opCost); 
+    const totalCostOfUsedInMillicents = Math.round(usedQty * sourceItem.unit_cost) + toMillicents(opCost);
     const newRoastedUnitMillicents = Math.round(totalCostOfUsedInMillicents / finalYieldQty);
 
     const existingTarget = inventoryItems.find(
@@ -115,7 +115,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       const targetItemPayload = {
         name: existingTarget ? existingTarget.name : transformForm.targetItemName.trim(),
         current_stock: finalStockForTarget,
-        unit: sourceItem.unit, 
+        unit: sourceItem.unit,
         unit_cost: finalUnitCost
       };
 
@@ -126,20 +126,20 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       setInventoryItems(prev => {
         let next = prev.map(i => i.id === updatedSource.id ? updatedSource : i);
         if (existingTarget) {
-           next = next.map(i => i.id === existingTarget.id ? upsertData[0] : i);
+          next = next.map(i => i.id === existingTarget.id ? upsertData[0] : i);
         } else {
-           next = [...next, upsertData[0]];
+          next = [...next, upsertData[0]];
         }
         return next;
       });
 
       setActiveView('list');
       setTransformForm({ sourceItemId: '', amountUsed: '', shrinkagePerc: 20, targetItemName: '', operationalCost: '' });
-      
-      const successMsg = existingTarget 
+
+      const successMsg = existingTarget
         ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} $${fromMillicents(finalUnitCost).toFixed(4)}/g.`
         : `${t('inv.roastCompleteMsg')} ${finalYieldQty}g de ${targetItemPayload.name} ${t('inv.at')} $${fromMillicents(finalUnitCost).toFixed(4)}/g.`;
-        
+
       showAlert(t('inv.alertTransformComplete'), successMsg);
 
     } catch (err) {
@@ -168,7 +168,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       await db.inventory.put(data[0]);
       setInventoryItems(inventoryItems.map(item => item.id === editingItem.id ? data[0] : item));
-      setEditingItem(null); 
+      setEditingItem(null);
     } catch (err) {
       console.error(err);
       showAlert(t('inv.alertError'), t('inv.alertUpdateFail'));
@@ -181,7 +181,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     if (isNaN(actualCount)) return showAlert(t('inv.alertInvalidCount'), t('inv.alertInvalidCountDesc'));
 
     const variance = actualCount - auditingItem.current_stock;
-    
+
     if (variance === 0) {
       setAuditingItem(null);
       return showAlert(t('inv.alertVerified'), t('inv.alertVerifiedDesc'));
@@ -201,7 +201,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         qty_deducted: Math.abs(variance),
         deduction_type: deductionType,
         created_at: new Date().toISOString(),
-        ticket_id: `AUDIT-${Date.now()}` 
+        ticket_id: `AUDIT-${Date.now()}`
       };
 
       const { error: logError } = await supabase.from('inventory_logs').insert([auditLog]);
@@ -209,9 +209,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       await db.inventory.put(data[0]);
       setInventoryItems(inventoryItems.map(item => item.id === auditingItem.id ? data[0] : item));
-      setAuditingItem(null); 
+      setAuditingItem(null);
 
-      const impactMsg = variance < 0 
+      const impactMsg = variance < 0
         ? `${t('inv.loggedLoss')} ${Math.abs(variance)}${auditingItem.unit} (-${formatForDisplay(Math.abs(financialImpactInCents))})`
         : `${t('inv.foundExtra')} ${variance}${auditingItem.unit} (+${formatForDisplay(financialImpactInCents)})`;
 
@@ -230,7 +230,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   const handleSaveRestock = async () => {
     const qtyBought = parseFloat(restockingItem.qtyBought);
     const totalPaidInCents = toCents(restockingItem.totalPaid);
-    
+
     if (isNaN(qtyBought) || qtyBought <= 0 || isNaN(totalPaidInCents) || totalPaidInCents < 0) {
       return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc3'));
     }
@@ -328,14 +328,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
         <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.8rem' }}>{t('inv.title')}</h2>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button 
+          <button
             onClick={() => { setActiveView(activeView === 'transform' ? 'list' : 'transform'); setEditingItem(null); setAuditingItem(null); }}
             style={{ padding: '12px 20px', background: activeView === 'transform' ? '#95a5a6' : '#e67e22', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(230, 126, 34, 0.2)' }}
           >
             <Icon icon={activeView === 'transform' ? 'lucide:x' : 'lucide:flame'} />
             {activeView === 'transform' ? t('inv.btnCancel') : t('inv.btnRoast')}
           </button>
-          <button 
+          <button
             onClick={() => { setActiveView(activeView === 'add' ? 'list' : 'add'); setEditingItem(null); setAuditingItem(null); }}
             style={{ padding: '12px 20px', background: activeView === 'add' ? '#95a5a6' : 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}
           >
@@ -344,7 +344,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           </button>
         </div>
       </div>
-      
+
       {activeView === 'add' && !editingItem && !auditingItem && (
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--border)', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}>
           <h3 style={{ marginTop: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -354,15 +354,15 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
-              <input type="text" value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="text" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.stockQty')}</label>
-              <input type="number" value={newItem.current_stock} onChange={e => setNewItem({...newItem, current_stock: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="number" value={newItem.current_stock} onChange={e => setNewItem({ ...newItem, current_stock: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.unit')}</label>
-              <select value={newItem.unit} onChange={e => setNewItem({...newItem, unit: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+              <select value={newItem.unit} onChange={e => setNewItem({ ...newItem, unit: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
                 <option value="g">{t('inv.unitG')}</option>
                 <option value="ml">{t('inv.unitMl')}</option>
                 <option value="units">{t('inv.unitPieces')}</option>
@@ -370,7 +370,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.totalCost')}</label>
-              <input type="number" placeholder={t('inv.invoiceTotal')} value={newItem.total_cost} onChange={e => setNewItem({...newItem, total_cost: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="number" placeholder={t('inv.invoiceTotal')} value={newItem.total_cost} onChange={e => setNewItem({ ...newItem, total_cost: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <button onClick={handleAddItem} style={{ padding: '12px 24px', background: '#2ecc71', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(46, 204, 113, 0.2)' }}>{t('inv.btnSave')}</button>
           </div>
@@ -386,32 +386,32 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 2fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div style={{ minWidth: '150px' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.rawMaterial')}</label>
-              <select value={transformForm.sourceItemId} onChange={e => setTransformForm({...transformForm, sourceItemId: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+              <select value={transformForm.sourceItemId} onChange={e => setTransformForm({ ...transformForm, sourceItemId: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
                 <option value="">{t('inv.selectOption')}</option>
                 {sortedItems.map(item => <option key={item.id} value={item.id}>{item.name} ({t('inv.has')} {item.current_stock}{item.unit})</option>)}
               </select>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.usedQty')}</label>
-              <input type="number" value={transformForm.amountUsed} onChange={e => setTransformForm({...transformForm, amountUsed: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="number" value={transformForm.amountUsed} onChange={e => setTransformForm({ ...transformForm, amountUsed: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.shrink')}</label>
-              <input type="number" value={transformForm.shrinkagePerc} onChange={e => setTransformForm({...transformForm, shrinkagePerc: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="number" value={transformForm.shrinkagePerc} onChange={e => setTransformForm({ ...transformForm, shrinkagePerc: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.opCost')}</label>
-              <input type="number" placeholder="e.g. 275" value={transformForm.operationalCost} onChange={e => setTransformForm({...transformForm, operationalCost: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="number" placeholder="e.g. 275" value={transformForm.operationalCost} onChange={e => setTransformForm({ ...transformForm, operationalCost: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.targetItem')}</label>
-              <input 
-                type="text" 
-                list="inventory-names" 
-                placeholder={t('inv.typeNewOrSelect')} 
-                value={transformForm.targetItemName} 
-                onChange={e => setTransformForm({...transformForm, targetItemName: e.target.value})} 
-                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} 
+              <input
+                type="text"
+                list="inventory-names"
+                placeholder={t('inv.typeNewOrSelect')}
+                value={transformForm.targetItemName}
+                onChange={e => setTransformForm({ ...transformForm, targetItemName: e.target.value })}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
               />
               <datalist id="inventory-names">
                 {sortedItems.map(item => <option key={item.id} value={item.name} />)}
@@ -426,28 +426,27 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       {editingItem && (
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--brand-color)', boxShadow: '0 10px 30px rgba(52, 152, 219, 0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-             <h3 style={{ margin: 0, color: 'var(--brand-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-               <Icon icon="lucide:edit-3" />
-               {t('inv.editTitle')}
-             </h3>
-             <button onClick={() => setEditingItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
-               <Icon icon="lucide:x" />
-             </button>
+            <h3 style={{ margin: 0, color: 'var(--brand-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:edit-3" />
+              {t('inv.editTitle')}
+            </h3>
+            <button onClick={() => setEditingItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
+              <Icon icon="lucide:x" />
+            </button>
           </div>
-          
+
           <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
-              <input type="text" value={editingItem.name} onChange={e => setEditingItem({...editingItem, name: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="text" value={editingItem.name} onChange={e => setEditingItem({ ...editingItem, name: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-            
+
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.currentStock')}</label>
               <input type="number" value={editingItem.current_stock} onChange={e => {
                 const newStock = e.target.value;
-                const unitPrice = parseFloat(editingItem.unit_cost) || 0;
                 setEditingItem({
-                  ...editingItem, 
+                  ...editingItem,
                   current_stock: newStock,
                   total_cost: newStock === '' ? '' : formatForDisplay(Math.round((parseFloat(newStock) * toMillicents(editingItem.unit_cost)) / 100))
                 })
@@ -460,7 +459,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 const newUnit = e.target.value;
                 const stock = parseFloat(editingItem.current_stock) || 0;
                 setEditingItem({
-                  ...editingItem, 
+                  ...editingItem,
                   unit_cost: newUnit,
                   total_cost: newUnit === '' ? '' : formatForDisplay(Math.round((stock * toMillicents(newUnit)) / 100))
                 })
@@ -490,19 +489,19 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '16px', alignItems: 'flex-start' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.qtyBought')} ({restockingItem.unit})</label>
-              <input type="number" placeholder="0" value={restockingItem.qtyBought || ''} onChange={e => setRestockingItem({...restockingItem, qtyBought: e.target.value})} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <input type="number" placeholder="0" value={restockingItem.qtyBought || ''} onChange={e => setRestockingItem({ ...restockingItem, qtyBought: e.target.value })} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
-            
+
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.totalPaid')} ($)</label>
-              <input type="number" placeholder="0.00" value={restockingItem.totalPaid || ''} onChange={e => setRestockingItem({...restockingItem, totalPaid: e.target.value})} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
-              
+              <input type="number" placeholder="0.00" value={restockingItem.totalPaid || ''} onChange={e => setRestockingItem({ ...restockingItem, totalPaid: e.target.value })} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem' }}>
-                <input 
-                  type="checkbox" 
-                  checked={restockingItem.paidFromRegister || false} 
-                  onChange={e => setRestockingItem({...restockingItem, paidFromRegister: e.target.checked})} 
-                  style={{ width: '18px', height: '18px', accentColor: '#27ae60' }} 
+                <input
+                  type="checkbox"
+                  checked={restockingItem.paidFromRegister || false}
+                  onChange={e => setRestockingItem({ ...restockingItem, paidFromRegister: e.target.checked })}
+                  style={{ width: '18px', height: '18px', accentColor: '#27ae60' }}
                 />
                 {t('inv.paidFromRegister')}
               </label>
@@ -521,17 +520,17 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       {auditingItem && (
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 10px 30px rgba(231, 76, 60, 0.1)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-             <h3 style={{ margin: 0, color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '8px' }}>
-               <Icon icon="lucide:clipboard-check" />
-               {t('inv.auditTitle')}
-             </h3>
-             <button onClick={() => setAuditingItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
-               <Icon icon="lucide:x" />
-             </button>
+            <h3 style={{ margin: 0, color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:clipboard-check" />
+              {t('inv.auditTitle')}
+            </h3>
+            <button onClick={() => setAuditingItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
+              <Icon icon="lucide:x" />
+            </button>
           </div>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', alignItems: 'start' }}>
-            
+
             <div style={{ background: 'var(--bg-main)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)', textAlign: 'center' }}>
               <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase' }}>{t('inv.expectedStock')}</p>
               <div style={{ fontSize: '2rem', fontWeight: '800', color: 'var(--text-main)' }}>{auditingItem.current_stock} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>{auditingItem.unit}</span></div>
@@ -547,7 +546,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             {auditingItem.actualCount !== undefined && auditingItem.actualCount !== '' && (() => {
               const variance = parseFloat(auditingItem.actualCount) - auditingItem.current_stock;
               const isLoss = variance < 0;
-              
+
               const rawCost = auditingItem.unit_cost || 0;
               const unitCost = (rawCost > 0 && rawCost < 10) ? rawCost * 10000 : rawCost;
               const financialImpactInCents = Math.round(Math.abs(variance * unitCost) / 100);
@@ -566,14 +565,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   </div>
 
                   {isLoss && (
-                    <select value={auditingItem.reason || 'waste'} onChange={e => setAuditingItem({...auditingItem, reason: e.target.value})} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+                    <select value={auditingItem.reason || 'waste'} onChange={e => setAuditingItem({ ...auditingItem, reason: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
                       <option value="waste">{t('inv.reasonWaste')}</option>
                       <option value="expired">{t('inv.reasonExpired')}</option>
                       <option value="comp">{t('inv.reasonComp')}</option>
                       <option value="audit_correction">{t('inv.reasonAudit')}</option>
                     </select>
                   )}
-                  
+
                   <button onClick={handleSaveAudit} style={{ padding: '16px', background: isLoss ? '#e74c3c' : '#2ecc71', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1.1rem', boxShadow: `0 8px 20px ${isLoss ? 'rgba(231, 76, 60, 0.2)' : 'rgba(46, 204, 113, 0.2)'}` }}>
                     {isLoss ? t('inv.btnConfirmLoss') : t('inv.btnConfirmAdj')}
                   </button>
@@ -626,51 +625,51 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 </td>
                 <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button 
-                      onClick={() => { 
-                        setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false }); 
+                    <button
+                      onClick={() => {
+                        setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false });
                         setEditingItem(null);
                         setAuditingItem(null);
-                        setActiveView('list'); 
-                      }} 
+                        setActiveView('list');
+                      }}
                       title={t('inv.restock')}
                       style={{ padding: '10px', background: 'var(--bg-main)', color: '#27ae60', border: '1px solid rgba(39, 174, 96, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
                     >
                       <Icon icon="lucide:package-plus" style={{ fontSize: '1.2rem' }} />
                     </button>
 
-                    <button 
-                      onClick={() => { 
-                        setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' }); 
+                    <button
+                      onClick={() => {
+                        setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' });
                         setEditingItem(null);
                         setRestockingItem(null);
-                        setActiveView('list'); 
-                      }} 
+                        setActiveView('list');
+                      }}
                       title={t('inv.btnAudit')}
                       style={{ padding: '10px', background: 'var(--bg-main)', color: '#e67e22', border: '1px solid rgba(230, 126, 34, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
                     >
                       <Icon icon="lucide:clipboard-check" style={{ fontSize: '1.2rem' }} />
                     </button>
 
-                    <button 
-                      onClick={() => { 
+                    <button
+                      onClick={() => {
                         setEditingItem({
-                          ...item, 
+                          ...item,
                           unit_cost: fromMillicents(item.unit_cost || 0),
                           total_cost: formatForDisplay(Math.round((item.current_stock * (item.unit_cost || 0)) / 100))
-                        }); 
+                        });
                         setAuditingItem(null);
                         setRestockingItem(null);
-                        setActiveView('list'); 
-                      }} 
+                        setActiveView('list');
+                      }}
                       title={t('inv.btnEdit')}
                       style={{ padding: '10px', background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid rgba(52, 152, 219, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
                     >
                       <Icon icon="lucide:edit-2" style={{ fontSize: '1.2rem' }} />
                     </button>
-                    
-                    <button 
-                      onClick={() => handleDelete(item.id, item.name)} 
+
+                    <button
+                      onClick={() => handleDelete(item.id, item.name)}
                       title={t('inv.btnDelete')}
                       style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: '1px solid rgba(231, 76, 60, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
                     >
@@ -683,7 +682,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           </tbody>
         </table>
       </div>
-      
+
       <style>{`
         .hover-row:hover {
           background: rgba(0,0,0,0.01);

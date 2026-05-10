@@ -3,7 +3,7 @@ import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Icon } from '@iconify/react';
 import QuantityEditModal from './QuantityEditModal';
-import { formatForDisplay, toCents } from '../../utils/moneyUtils';
+import { formatForDisplay, normalizeMenuPrice, toCents } from '../../utils/moneyUtils';
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -79,7 +79,7 @@ function TicketArea({
                         </button>
                         <div>
                           <span>{item.emoji || '•'} {item.name}</span>
-                          <span style={{ marginLeft: '10px' }}>{formatForDisplay(toCents(item.basePrice) * (item.qty || 1))}</span>
+                          <span style={{ marginLeft: '10px' }}>{formatForDisplay(normalizeMenuPrice(item.basePrice) * (item.qty || 1))}</span>
                         </div>
                       </div>
                       <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
@@ -87,7 +87,7 @@ function TicketArea({
                     {item.selectedModifiers.map(mod => (
                       <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>
                         <span>+ {mod.name}{mod.textValue && (<strong style={{ color: 'var(--text-main)', marginLeft: '4px' }}>: "{mod.textValue}"</strong>)}</span>
-                        <span>{mod.price > 0 ? formatForDisplay(toCents(mod.price)) : ''}</span>
+                        <span>{mod.price > 0 ? formatForDisplay(normalizeMenuPrice(mod.price)) : ''}</span>
                       </div>
                     ))}
                   </li>
