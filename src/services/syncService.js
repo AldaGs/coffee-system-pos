@@ -3,14 +3,16 @@ import { db } from '../db';
 
 export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => {
   // Don't try if we are offline
-  if (!navigator.onLine) return;
+  if (!navigator.onLine) return false;
+
+  let hasAuthError = false;
 
   try {
     // Check if we have a valid session before starting
     const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
     if (sessionErr || !session) {
       console.warn("Background sync skipped: No active session or session error.", sessionErr?.message);
-      return;
+      return (sessionErr?.status === 400 || sessionErr?.status === 401);
     }
 
     // 1. Sync Sales (Pulling directly from Dexie)
@@ -25,61 +27,62 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
         console.log(`☁️ Synced ${cleanSales.length} offline sales.`);
       } else {
         console.error("Sales sync failed:", salesErr);
-        // If it's an auth error, we might want to trigger a refresh or logout
-        if (salesErr.status === 400 || salesErr.status === 401) {
-          console.error("Authentication error during sales sync. Session might be invalid.");
-        }
-      }
-    }
-    
-    // 2. Sync Expenses
-    if (expenseQueue && expenseQueue.length > 0) {
-      const cleanExpenses = expenseQueue.map(({ id: _UNUSED, ...rest }) => ({ ...rest, local_id: rest.local_id || crypto.randomUUID() })); // eslint-disable-line no-unused-vars
-      
-      const { error: expErr } = await supabase.from('expenses').upsert(cleanExpenses, { onConflict: 'local_id' });
-      if (!expErr) {
-        clearExpenseQueue();
-        console.log(`☁️ Synced ${cleanExpenses.length} offline expenses.`);
+        if (salesErr.status === 400 || salesErr.status === 401) hasAuthError = true;
       }
     }
 
-    // 3. Sync Inventory Logs (and apply the actual stock decrement to Supabase).
-    // Process per-log so we never re-run deduct_inventory after success: each log is
-    // deleted from Dexie only after BOTH the upsert and the RPC succeed.
+    // 2. Sync Expenses (From LocalStorage)
+    const localExpenseQueue = JSON.parse(localStorage.getItem('tinypos_expense_queue') || '[]');
+    const combinedExpenseQueue = [...(expenseQueue || []), ...localExpenseQueue];
+    
+    if (combinedExpenseQueue.length > 0) {
+      const { error: expErr } = await supabase.from('expenses').upsert(combinedExpenseQueue, { onConflict: 'id' });
+      if (!expErr) {
+        if (clearExpenseQueue) clearExpenseQueue();
+        localStorage.setItem('tinypos_expense_queue', '[]');
+        console.log(`☁️ Synced ${combinedExpenseQueue.length} offline expenses.`);
+      } else {
+        console.error("Expense sync failed:", expErr);
+        if (expErr.status === 400 || expErr.status === 401) hasAuthError = true;
+      }
+    }
+
+    // 3. Sync Inventory Logs
     const pendingInventory = await db.inventory_logs.toArray();
     if (pendingInventory.length > 0) {
-      // One lookup of cloud inventory IDs by name for the whole batch
-      const { data: cloudInventory, error: invFetchErr } = await supabase
-        .from('inventory').select('id, name');
-      if (invFetchErr) {
-        console.error("Inventory fetch failed:", invFetchErr);
-      } else {
-        const nameToId = new Map((cloudInventory || []).map(i => [i.name, i.id]));
-        let processed = 0;
-        for (const log of pendingInventory) {
-          const { id: dexieId, ...cleanLog } = log;
-          const { error: upsertErr } = await supabase
-            .from('inventory_logs')
-            .upsert([cleanLog], { onConflict: 'local_id' });
-          if (upsertErr) { console.error("Log upsert failed:", upsertErr); continue; }
+      const { data: cloudInventory } = await supabase.from('inventory').select('id, name');
+      const nameToId = new Map((cloudInventory || []).map(i => [i.name, i.id]));
+      let processed = 0;
 
-          // Apply the actual stock deduction (RPC is NOT idempotent — only run once per log).
-          if (cleanLog.deduction_type === 'sale') {
-            const itemId = nameToId.get(cleanLog.item_name);
-            if (itemId) {
-              const { error: rpcErr } = await supabase.rpc('deduct_inventory', {
-                item_id: Number(itemId),
-                qty: Number(cleanLog.qty_deducted)
-              });
-              if (rpcErr) { console.error("RPC deduct failed:", rpcErr); continue; }
+      for (const log of pendingInventory) {
+        const { id: dexieId, ...cleanLog } = log;
+        const { error: upsertErr } = await supabase.from('inventory_logs').upsert([cleanLog], { onConflict: 'local_id' });
+        
+        if (upsertErr) {
+          console.error("Log upsert failed:", upsertErr);
+          if (upsertErr.status === 400 || upsertErr.status === 401) hasAuthError = true;
+          continue;
+        }
+
+        if (cleanLog.deduction_type === 'sale') {
+          const itemId = nameToId.get(cleanLog.item_name);
+          if (itemId) {
+            const { error: rpcErr } = await supabase.rpc('deduct_inventory', {
+              item_id: Number(itemId),
+              qty: Number(cleanLog.qty_deducted)
+            });
+            if (rpcErr) { 
+              console.error("RPC deduct failed:", rpcErr);
+              if (rpcErr.status === 400 || rpcErr.status === 401) hasAuthError = true;
+              continue; 
             }
           }
-
-          await db.inventory_logs.delete(dexieId);
-          processed++;
         }
-        if (processed > 0) console.log(`☁️ Synced ${processed} offline inventory logs.`);
+
+        await db.inventory_logs.delete(dexieId);
+        processed++;
       }
+      if (processed > 0) console.log(`☁️ Synced ${processed} inventory logs.`);
     }
 
     // 4. Sync Updates (Refunds, Loyalty, Deletions)
@@ -89,14 +92,12 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
         try {
           let error = null;
           if (update.type === 'sale_update') {
-            // Prefer local_id; fall back to id for legacy rows that have no local_id.
             const query = update.local_id
               ? supabase.from('sales').update(update.data).eq('local_id', update.local_id)
               : supabase.from('sales').update(update.data).eq('id', update.cloud_id);
             const { error: err } = await query;
             error = err;
           } else if (update.type === 'loyalty_increment') {
-            // Read-modify-write: add the queued increment to whatever is on the server.
             const { data: existing, error: readErr } = await supabase
               .from('customers').select('visits').eq('phone', update.data.phone).maybeSingle();
             if (readErr) { error = readErr; }
@@ -110,17 +111,6 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
                 .insert([{ phone: update.data.phone, visits: update.data.increment || 0 }]);
               error = err;
             }
-          } else if (update.type === 'loyalty_update') {
-            // Legacy queued items from the old (buggy) format — migrate by treating
-            // the stored visits as an increment so we don't overwrite real totals.
-            const { data: existing } = await supabase
-              .from('customers').select('visits').eq('phone', update.data.phone).maybeSingle();
-            const incremented = (existing?.visits || 0) + (update.data.visits || 0);
-            const { error: err } = await supabase.from('customers').upsert(
-              { phone: update.data.phone, visits: incremented },
-              { onConflict: 'phone' }
-            );
-            error = err;
           } else if (update.type === 'ticket_deletion') {
             const { error: err } = await supabase.from('active_tickets').delete().eq('id', update.ticket_id);
             error = err;
@@ -128,15 +118,31 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
 
           if (!error) {
             await db.updateQueue.delete(update.id);
+          } else if (error.status === 400 || error.status === 401) {
+            hasAuthError = true;
           }
         } catch (updateErr) {
           console.error("Failed to sync update:", updateErr);
         }
       }
-      console.log(`☁️ Processed ${pendingUpdates.length} background updates.`);
+    }
+
+    // 5. Sync WhatsApp Queue
+    const waQueue = JSON.parse(localStorage.getItem('tinypos_wa_queue') || '[]');
+    if (waQueue.length > 0) {
+      const { error: waErr } = await supabase.from('whatsapp_queue').upsert(waQueue, { onConflict: 'id' });
+      if (!waErr) {
+        localStorage.setItem('tinypos_wa_queue', '[]');
+        console.log(`☁️ Synced ${waQueue.length} WhatsApp receipts.`);
+      } else {
+        console.error("WA sync failed:", waErr);
+        if (waErr.status === 400 || waErr.status === 401) hasAuthError = true;
+      }
     }
 
   } catch (err) {
-    console.error("Background sync failed:", err);
+    console.error("Global background sync error:", err);
   }
+
+  return hasAuthError;
 };

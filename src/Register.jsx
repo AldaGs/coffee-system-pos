@@ -302,13 +302,25 @@ function Register() {
   // --- UNIFIED BACKGROUND CLOUD SYNC ---
   useEffect(() => {
     // Wrap our service in a function so we can pass the React State modifiers
-    const runSync = () => attemptBackgroundSync(expenseQueue, () => setExpenseQueue([]));
+    const runSync = async () => {
+      const authError = await attemptBackgroundSync(expenseQueue, () => setExpenseQueue([]));
+      if (authError) {
+        console.warn("Auth error detected during sync background task.");
+        setHasValidSession(false);
+      } else {
+        // If it succeeded or failed for other reasons (network), we assume session is still okay
+        // unless we know for sure it's invalid.
+      }
+    };
 
     // Listen for the internet coming back online
     window.addEventListener('online', runSync);
 
     // And try automatically every 60 seconds
     const syncInterval = setInterval(runSync, 60000);
+
+    // Run once immediately on mount
+    runSync();
 
     return () => {
       window.removeEventListener('online', runSync);
