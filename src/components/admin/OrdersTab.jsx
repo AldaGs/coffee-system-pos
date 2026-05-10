@@ -260,9 +260,27 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
-                  <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
-                    #{order.id}
-                  </span>
+                  {order.order_name ? (
+                    <>
+                      <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
+                        {order.order_name}
+                      </span>
+                      {order.ticket_id && (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', background: 'var(--bg-main)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                          {order.ticket_id.slice(-6)}
+                        </span>
+                      )}
+                    </>
+                  ) : order.ticket_id ? (
+                    <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
+                      {order.ticket_id.slice(-6)}
+                    </span>
+                  ) : (
+                    <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
+                      #{order.id}
+                    </span>
+                  )}
+
                   {order.status === 'refunded' && (
                     <span style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(231, 76, 60, 0.2)' }}>
                       <Icon icon="lucide:x-circle" />
@@ -309,7 +327,6 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                 )}
               </div>
 
-              {/* RE-SHARE BUTTONS */}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   onClick={() => handlePrint(order)}
