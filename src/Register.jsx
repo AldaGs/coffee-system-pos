@@ -507,7 +507,7 @@ function Register() {
       setHasValidSession(!!session);
     };
     checkSession();
-    
+
     // Listen for auth changes locally too, to update the badge immediately
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setHasValidSession(!!session);
@@ -617,16 +617,12 @@ function Register() {
   const { handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);
   const { handleCheckLoyalty } = useLoyalty(hookDeps);
 
-
-
   // --- THEME INJECTION LOGIC ---
   useEffect(() => {
     if (posSettings) {
       updateTheme(posSettings);
     }
   }, [posSettings, updateTheme]);
-
-
 
 
   const handleNewTicket = () => {
@@ -723,7 +719,7 @@ function Register() {
           if (isNaN(customPrice) || customPrice < 0) {
             return showAlert(t('common.error'), t('check.alertInvalid'));
           }
-          
+
           if (item.allowedModifiers.length > 0) {
             setPendingItem({ ...item, basePrice: customPrice, selectedModifiers: [] });
             setIsModalOpen(true);
