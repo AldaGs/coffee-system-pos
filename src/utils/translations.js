@@ -686,6 +686,7 @@ export const translations = {
     "sync.expenses": "Gastos (Expenses)",
     "sync.wa": "WhatsApp Receipts",
     "sync.btnClose": "Close",
+    "sync.authErrorDesc": "Session expired or device unauthorized. Please restart or re-authorize to resume syncing.",
 
     // --- Ticket Area ---
     "ticket.noOrders": "No Active Orders",
@@ -1517,6 +1518,7 @@ export const translations = {
     "sync.expenses": "Gastos en Efectivo",
     "sync.wa": "Recibos de WhatsApp",
     "sync.btnClose": "Cerrar",
+    "sync.authErrorDesc": "Sesión expirada o dispositivo no autorizado. Por favor reinicia o re-autoriza para continuar sincronizando.",
 
     // --- Ticket Area ---
     "ticket.noOrders": "Sin Órdenes Activas",

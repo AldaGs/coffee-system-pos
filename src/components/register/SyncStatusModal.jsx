@@ -16,7 +16,7 @@ function SyncStatusModal({ isSyncModalOpen, setIsSyncModalOpen, isCurrentlyOffli
         {isCurrentlyOffline ? (
           <div style={{ background: '#fdf0ed', color: '#e74c3c', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #e74c3c' }}>
             <strong>{t('sync.offlineTitle')}</strong><br />
-            {t('sync.offlineDesc')}
+            {!navigator.onLine ? t('sync.offlineDesc') : t('sync.authErrorDesc') || "Tu sesión ha expirado o el dispositivo no está autorizado. Por favor, reinicia la app para re-autorizar."}
           </div>
         ) : (
           <div style={{ background: '#eafaf1', color: '#27ae60', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #27ae60' }}>

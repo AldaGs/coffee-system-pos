@@ -571,7 +571,23 @@ function Register() {
 
   // --- TICKET FILTERING & CART MATH (Hoisted above hooks that need them) ---
   const totalOfflineRecords = syncQueue.length + expenseQueue.length + waQueue.length;
-  const isCurrentlyOffline = !navigator.onLine;
+  const [hasValidSession, setHasValidSession] = useState(true);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setHasValidSession(!!session);
+    };
+    checkSession();
+    
+    // Listen for auth changes locally too, to update the badge immediately
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setHasValidSession(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const isCurrentlyOffline = !navigator.onLine || !hasValidSession;
 
   const visibleTickets = posSettings.ticketVisibility === 'isolated'
     ? tickets.filter(t => t.cashier_id === activeCashier?.id)

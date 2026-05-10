@@ -35,19 +35,35 @@ function App() {
   useEffect(() => {
     // ONLY check session if the database is actually installed and the client exists
     if (isInstalled && supabase) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
+      supabase.auth.getSession().then(({ data: { session }, error }) => {
+        if (error) {
+          console.error("Auth session check error:", error.message);
+          // If the token is invalid/not found, we must clear the local session 
+          // so the user can re-authorize.
+          if (error.message.includes('Refresh Token Not Found') || error.status === 400) {
+            supabase.auth.signOut().then(() => {
+              setSession(null);
+              setIsCheckingSession(false);
+            });
+            return;
+          }
+        }
         setSession(session);
         setIsCheckingSession(false);
       });
 
       // Listen for background logouts/logins
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        setSession(session);
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log("Auth State Change:", event);
+        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+          setSession(session);
+        } else if (session) {
+          setSession(session);
+        }
       });
 
       return () => subscription.unsubscribe();
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsCheckingSession(false);
     }
   }, [isInstalled]);

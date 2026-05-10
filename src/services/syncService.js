@@ -6,6 +6,13 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
   if (!navigator.onLine) return;
 
   try {
+    // Check if we have a valid session before starting
+    const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+    if (sessionErr || !session) {
+      console.warn("Background sync skipped: No active session or session error.", sessionErr?.message);
+      return;
+    }
+
     // 1. Sync Sales (Pulling directly from Dexie)
     const pendingSales = await db.syncQueue.toArray();
     if (pendingSales.length > 0) {
@@ -18,6 +25,10 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
         console.log(`☁️ Synced ${cleanSales.length} offline sales.`);
       } else {
         console.error("Sales sync failed:", salesErr);
+        // If it's an auth error, we might want to trigger a refresh or logout
+        if (salesErr.status === 400 || salesErr.status === 401) {
+          console.error("Authentication error during sales sync. Session might be invalid.");
+        }
       }
     }
     
