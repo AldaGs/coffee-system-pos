@@ -14,7 +14,8 @@ import { useCartStore } from './store/useCartStore';
 import { attemptBackgroundSync } from './services/syncService';
 import { logActivity } from './services/activityService';
 import { useTranslation } from './hooks/useTranslation';
-import { calculateExpectedCash, money } from './utils/posMath';
+import { calculateExpectedCash } from './utils/posMath';
+import { toCents, formatForDisplay } from './utils/moneyUtils';
 import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
@@ -68,6 +69,7 @@ function Register() {
   const { showAlert, showConfirm, showPrompt } = useDialog();
   const { updateTheme } = useTheme();
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [hasValidSession, setHasValidSession] = useState(true);
 
   // Refs to prevent Realtime re-subscription storms
   const activeTicketIdRef = useRef(null);
@@ -211,7 +213,7 @@ function Register() {
       return showAlert(t('expense.errMissing'), t('expense.errDesc'));
     }
 
-    const expenseAmount = parseFloat(expenseForm.amount);
+    const expenseAmount = toCents(expenseForm.amount);
 
     // 1. Build the local record
     const newExpense = {
@@ -247,11 +249,11 @@ function Register() {
     setExpenses([...expenses, newExpense]);
 
     // LOG ACTIVITY
-    logActivity('Gasto (Expense)', `Registró un gasto de $${expenseAmount.toFixed(2)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
+    logActivity('Gasto (Expense)', `Registró un gasto de ${formatForDisplay(expenseAmount)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
 
     setIsExpenseModalOpen(false);
     setExpenseForm({ amount: '', reason: '', category: 'General' });
-    showAlert(t('expense.success'), `${t('expense.successDesc')} $${expenseAmount.toFixed(2)}:\n${expenseForm.reason}`);
+    showAlert(t('expense.success'), `${t('expense.successDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`);
   };
 
   // --- DISCOUNT STATE & LOGIC ---
@@ -259,14 +261,14 @@ function Register() {
   const [discountForm, setDiscountForm] = useState({ type: 'percentage', value: '' });
 
   const handleApplyDiscount = async () => {
-    const val = parseFloat(discountForm.value);
+    const val = toCents(discountForm.value);
     if (isNaN(val) || val <= 0) return showAlert(t('discount.invalidTitle'), t('discount.invalidDesc'));
 
     if (activeTicket) {
       await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
 
       // LOG ACTIVITY
-      logActivity('Discount Applied', `A ${val}${discountForm.type === 'percentage' ? '%' : '$'} discount was applied to ticket: ${activeTicket.name}`);
+      logActivity('Discount Applied', `A ${discountForm.type === 'percentage' ? discountForm.value + '%' : formatForDisplay(val)} discount was applied to ticket: ${activeTicket.name}`);
     }
     setIsDiscountModalOpen(false);
     setDiscountForm({ type: 'percentage', value: '' }); // Reset form
@@ -581,9 +583,7 @@ function Register() {
   }, 0);
   const expectedCash = calculateExpectedCash(shiftCashSales, shiftCashRefunds, shiftTotalExpenses);
 
-  // --- TICKET FILTERING & CART MATH (Hoisted above hooks that need them) ---
   const totalOfflineRecords = syncQueue.length + expenseQueue.length + waQueue.length;
-  const [hasValidSession, setHasValidSession] = useState(true);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -608,10 +608,10 @@ function Register() {
   const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || visibleTickets[0];
 
   const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
-    let itemCost = item.basePrice;
-    item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-    const itemTotal = Math.round(itemCost * (item.qty || 1) * 100) / 100;
-    return Math.round((total + itemTotal) * 100) / 100;
+    let itemCost = toCents(item.basePrice);
+    item.selectedModifiers.forEach(mod => { itemCost += toCents(mod.price); });
+    const itemTotal = itemCost * (item.qty || 1);
+    return total + itemTotal;
   }, 0) : 0;
 
   let autoDiscountAmount = 0;
@@ -646,17 +646,18 @@ function Register() {
   let manualDiscountAmount = 0;
   if (activeTicket?.discount) {
     const subtotalAfterAuto = Math.max(0, cartSubtotal - autoDiscountAmount);
-    const discountVal = parseFloat(activeTicket.discount.value) || 0;
     if (activeTicket.discount.type === 'percentage') {
-      const safePct = Math.max(0, Math.min(discountVal, 100));
-      manualDiscountAmount = subtotalAfterAuto * (safePct / 100);
+      const discountPct = activeTicket.discount.value;
+      const safePct = Math.max(0, Math.min(discountPct, 100));
+      manualDiscountAmount = Math.round(subtotalAfterAuto * (safePct / 100));
     } else if (activeTicket.discount.type === 'flat') {
-      manualDiscountAmount = Math.max(0, Math.min(discountVal, subtotalAfterAuto));
+      const discountCents = toCents(activeTicket.discount.value);
+      manualDiscountAmount = Math.max(0, Math.min(discountCents, subtotalAfterAuto));
     }
   }
 
-  const totalDiscounts = money(autoDiscountAmount + manualDiscountAmount);
-  const cartTotal = money(Math.max(0, cartSubtotal - totalDiscounts));
+  const totalDiscounts = autoDiscountAmount + manualDiscountAmount;
+  const cartTotal = Math.max(0, cartSubtotal - totalDiscounts);
 
   // --- TICKET LIFECYCLE (Must be above hooks that reference them) ---
   const clearCurrentTicket = async () => {
@@ -887,7 +888,6 @@ function Register() {
     const newItem = {
       ...item,
       basePrice: customPrice !== undefined ? customPrice : item.basePrice,
-      // eslint-disable-next-line react-hooks/purity
       uniqueId: Date.now() + Math.random(),
       selectedModifiers: modifiers
     };

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 
 function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [] }) {
   const { t } = useTranslation();
@@ -17,7 +18,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
     filteredSales.forEach(sale => {
       if (sale.status !== 'refunded') {
-        tips += Number(sale.tip_amount) || 0;
+        tips += sale.tip_amount || 0;
       }
     });
 
@@ -26,8 +27,9 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       // Find the historical cost if available, otherwise fallback to current cost
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      const unitCost = log.unit_cost !== undefined && log.unit_cost !== null ? log.unit_cost : fallbackCost;
-      const financialImpact = log.qty_deducted * unitCost;
+      const unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      // Convert Millicents (10000x) * Qty -> Millicents. Then / 100 -> Cents.
+      const financialImpact = Math.round((log.qty_deducted * unitCost) / 100);
 
       if (log.deduction_type === 'sale') {
         // Match by timestamp (new reliable method) OR by ticket_id (legacy fallback)
@@ -62,16 +64,16 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     const net = gross - waste - totalExpenses;
 
     return { 
-      totalCOGS: Number(cogs.toFixed(2)), 
-      totalWastage: Number(waste.toFixed(2)), 
-      trueGrossProfit: Number(gross.toFixed(2)), 
-      trueNetProfit: Number(net.toFixed(2)), 
-      totalTips: Number(tips.toFixed(2)) 
+      totalCOGS: cogs, 
+      totalWastage: waste, 
+      trueGrossProfit: gross, 
+      trueNetProfit: net, 
+      totalTips: tips 
     };
   }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, timeFilter]);
 
   const totalInventoryValue = useMemo(() => {
-    return inventoryItems.reduce((sum, item) => sum + (item.current_stock * (item.unit_cost || 0)), 0);
+    return inventoryItems.reduce((sum, item) => sum + Math.round((item.current_stock * (item.unit_cost || 0)) / 100), 0);
   }, [inventoryItems]);
 
   const expensesByCategory = useMemo(() => {
@@ -170,7 +172,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.grossRevenue')}</h3>
             <Icon icon="lucide:trending-up" style={{ color: '#3498db', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-1px' }}>${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-1px' }}>{formatForDisplay(totalRevenue)}</p>
         </div>
         
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #e67e22' }}>
@@ -178,7 +180,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.cogs')}</h3>
             <Icon icon="lucide:shopping-bag" style={{ color: '#e67e22', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#e67e22', letterSpacing: '-1px' }}>-${totalCOGS.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#e67e22', letterSpacing: '-1px' }}>-{formatForDisplay(totalCOGS)}</p>
         </div>
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #2ecc71' }}>
@@ -186,7 +188,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.grossProfit')}</h3>
             <Icon icon="lucide:badge-dollar-sign" style={{ color: '#2ecc71', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#2ecc71', letterSpacing: '-1px' }}>${trueGrossProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#2ecc71', letterSpacing: '-1px' }}>{formatForDisplay(trueGrossProfit)}</p>
         </div>
       </div>
 
@@ -201,7 +203,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.wastage')}</h3>
             <Icon icon="lucide:trash-2" style={{ color: '#e74c3c', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#e74c3c', letterSpacing: '-1px' }}>-${totalWastage.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#e74c3c', letterSpacing: '-1px' }}>-{formatForDisplay(totalWastage)}</p>
         </div>
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #f39c12' }}>
@@ -209,7 +211,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.expenses')}</h3>
             <Icon icon="lucide:receipt" style={{ color: '#f39c12', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#f39c12', letterSpacing: '-1px' }}>-${(totalExpenses + totalRefunds).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#f39c12', letterSpacing: '-1px' }}>-{formatForDisplay(totalExpenses + totalRefunds)}</p>
         </div>
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #27ae60' }}>
@@ -217,7 +219,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.netProfit')}</h3>
             <Icon icon="lucide:rocket" style={{ color: '#27ae60', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#27ae60', letterSpacing: '-1px' }}>${trueNetProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#27ae60', letterSpacing: '-1px' }}>{formatForDisplay(trueNetProfit)}</p>
         </div>
 
         {/* --- TIPS CARD --- */}
@@ -226,7 +228,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.tips')}</h3>
             <Icon icon="lucide:heart-handshake" style={{ color: '#8e44ad', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#8e44ad', letterSpacing: '-1px' }}>${totalTips.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#8e44ad', letterSpacing: '-1px' }}>{formatForDisplay(totalTips)}</p>
         </div>
 
         {/* --- INVENTORY ASSET VALUE CARD --- */}
@@ -238,7 +240,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             </div>
             <Icon icon="lucide:boxes" style={{ color: '#9b59b6', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: '8px 0 0 0', fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#9b59b6', letterSpacing: '-1px' }}>${totalInventoryValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+          <p style={{ margin: '8px 0 0 0', fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#9b59b6', letterSpacing: '-1px' }}>{formatForDisplay(totalInventoryValue)}</p>
         </div>
       </div>
 
@@ -288,7 +290,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.3rem', fontWeight: '900', color: '#27ae60' }}>${data.sales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontSize: '1.3rem', fontWeight: '900', color: '#27ae60' }}>{formatForDisplay(data.sales)}</div>
                   </div>
                 </div>
               ))}
@@ -309,7 +311,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
               {Object.entries(expensesByCategory).sort((a, b) => b[1] - a[1]).map(([category, amount]) => (
                 <div key={category} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)' }}>
                   <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{category}</span>
-                  <span style={{ fontWeight: '800', color: '#f39c12' }}>${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span style={{ fontWeight: '800', color: '#f39c12' }}>{formatForDisplay(amount)}</span>
                 </div>
               ))}
             </div>

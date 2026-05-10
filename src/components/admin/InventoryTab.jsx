@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
 import { useTranslation } from '../../hooks/useTranslation';
 import { logActivity } from '../../services/activityService';
+import { toCents, toMillicents, fromMillicents, formatForDisplay } from '../../utils/moneyUtils';
 
 function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -29,15 +30,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     }
 
     const stockVal = parseFloat(newItem.current_stock);
-    // 2. Safely fallback to 0 if left blank
-    const costVal = newItem.total_cost === '' ? 0 : parseFloat(newItem.total_cost);
-    const calculatedUnitCost = stockVal > 0 ? (costVal / stockVal) : 0;
+    const costInCents = toCents(newItem.total_cost);
+    const unitCostInMillicents = stockVal > 0 ? Math.round((costInCents * 100) / stockVal) : 0;
 
     const itemToSave = {
       name: newItem.name,
       current_stock: stockVal,
       unit: newItem.unit,
-      unit_cost: calculatedUnitCost
+      unit_cost: unitCostInMillicents
     };
 
     try {
@@ -45,9 +45,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       if (error) throw error;
 
       // 3. ONLY create an expense if they actually entered a cost > 0
-      if (costVal > 0) {
+      if (costInCents > 0) {
         const purchaseExpense = {
-          amount: costVal,
+          amount: costInCents,
           reason: `Inventory Purchase: ${newItem.name} (${stockVal}${newItem.unit})`,
           category: 'Inventario',
           cashier_name: 'Inventory System' 
@@ -88,21 +88,24 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     const yieldMultiplier = (100 - shrinkPerc) / 100;
     const finalYieldQty = usedQty * yieldMultiplier;
     
-    const totalCostOfUsedRawMaterial = (usedQty * sourceItem.unit_cost) + opCost; 
-    const newRoastedUnitCost = totalCostOfUsedRawMaterial / finalYieldQty;
+    // unit_cost is in Millicents. opCost is in dollars.
+    const totalCostOfUsedInMillicents = Math.round(usedQty * sourceItem.unit_cost) + toMillicents(opCost); 
+    const newRoastedUnitMillicents = Math.round(totalCostOfUsedInMillicents / finalYieldQty);
 
     const existingTarget = inventoryItems.find(
       i => i.name.toLowerCase().trim() === transformForm.targetItemName.toLowerCase().trim()
     );
 
     let finalStockForTarget = finalYieldQty;
-    let finalUnitCost = newRoastedUnitCost;
+    let finalUnitCost = newRoastedUnitMillicents;
 
     if (existingTarget) {
       finalStockForTarget = existingTarget.current_stock + finalYieldQty;
-      const oldTotalValue = existingTarget.current_stock * (existingTarget.unit_cost || 0);
-      const newTotalValue = finalYieldQty * newRoastedUnitCost;
-      finalUnitCost = (oldTotalValue + newTotalValue) / finalStockForTarget;
+      const oldTotalValueInMillicents = Math.round(existingTarget.current_stock * (existingTarget.unit_cost || 0));
+      const newTotalValueInMillicents = Math.round(finalYieldQty * newRoastedUnitMillicents);
+      finalUnitCost = Math.round((oldTotalValueInMillicents + newTotalValueInMillicents) / finalStockForTarget);
+    } else {
+      finalUnitCost = newRoastedUnitMillicents;
     }
 
     try {
@@ -134,8 +137,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       setTransformForm({ sourceItemId: '', amountUsed: '', shrinkagePerc: 20, targetItemName: '', operationalCost: '' });
       
       const successMsg = existingTarget 
-        ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} $${finalUnitCost.toFixed(4)}/g.`
-        : `${t('inv.roastCompleteMsg')} ${finalYieldQty}g de ${targetItemPayload.name} ${t('inv.at')} $${finalUnitCost.toFixed(4)}/g.`;
+        ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} $${fromMillicents(finalUnitCost).toFixed(4)}/g.`
+        : `${t('inv.roastCompleteMsg')} ${finalYieldQty}g de ${targetItemPayload.name} ${t('inv.at')} $${fromMillicents(finalUnitCost).toFixed(4)}/g.`;
         
       showAlert(t('inv.alertTransformComplete'), successMsg);
 
@@ -157,8 +160,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         name: editingItem.name,
         current_stock: parseFloat(editingItem.current_stock),
         unit: editingItem.unit,
-        // 2. Safely fallback to 0 if left blank
-        unit_cost: editingItem.unit_cost === '' ? 0 : parseFloat(editingItem.unit_cost)
+        unit_cost: toMillicents(editingItem.unit_cost)
       };
 
       const { data, error } = await supabase.from('inventory').update(payload).eq('id', editingItem.id).select();
@@ -185,7 +187,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       return showAlert(t('inv.alertVerified'), t('inv.alertVerifiedDesc'));
     }
 
-    const financialImpact = variance * (auditingItem.unit_cost || 0);
+    const financialImpactInCents = Math.round((variance * (auditingItem.unit_cost || 0)) / 100);
     const deductionType = variance < 0 ? (auditingItem.reason || 'waste') : 'audit_correction';
 
     try {
@@ -208,11 +210,11 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       setAuditingItem(null); 
 
       const impactMsg = variance < 0 
-        ? `${t('inv.loggedLoss')} ${Math.abs(variance)}${auditingItem.unit} (-$${Math.abs(financialImpact).toFixed(2)})`
-        : `${t('inv.foundExtra')} ${variance}${auditingItem.unit} (+$${financialImpact.toFixed(2)})`;
+        ? `${t('inv.loggedLoss')} ${Math.abs(variance)}${auditingItem.unit} (-${formatForDisplay(Math.abs(financialImpactInCents))})`
+        : `${t('inv.foundExtra')} ${variance}${auditingItem.unit} (+${formatForDisplay(financialImpactInCents)})`;
 
       // LOG ACTIVITY
-      logActivity('inventory_audit', null, { name: auditingItem.name, variance, financial_impact: financialImpact });
+      logActivity('inventory_audit', null, { name: auditingItem.name, variance, financial_impact: financialImpactInCents });
 
       showAlert(t('inv.alertAuditComplete'), impactMsg);
 
@@ -225,28 +227,28 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   // --- 5. NEW: SAVE RESTOCK LOG ---
   const handleSaveRestock = async () => {
     const qtyBought = parseFloat(restockingItem.qtyBought);
-    const totalPaid = parseFloat(restockingItem.totalPaid);
+    const totalPaidInCents = toCents(restockingItem.totalPaid);
     
-    if (isNaN(qtyBought) || qtyBought <= 0 || isNaN(totalPaid) || totalPaid < 0) {
+    if (isNaN(qtyBought) || qtyBought <= 0 || isNaN(totalPaidInCents) || totalPaidInCents < 0) {
       return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc3'));
     }
 
     const oldStock = restockingItem.current_stock;
-    const oldCost = restockingItem.unit_cost || 0;
-    const oldTotalValue = oldStock * oldCost;
+    const oldCostInMillicents = restockingItem.unit_cost || 0;
+    const oldTotalValueInMillicents = Math.round(oldStock * oldCostInMillicents);
 
     const newStock = oldStock + qtyBought;
-    const newTotalValue = oldTotalValue + totalPaid;
-    const newUnitCost = newStock > 0 ? newTotalValue / newStock : 0;
+    const newTotalValueInMillicents = oldTotalValueInMillicents + (totalPaidInCents * 100);
+    const newUnitCostInMillicents = newStock > 0 ? Math.round(newTotalValueInMillicents / newStock) : 0;
 
-    if (newUnitCost < 0) {
+    if (newUnitCostInMillicents < 0) {
       return showAlert(t('common.error'), "Negative COGS: The calculated unit cost is negative. Please check your total paid amount.");
     }
 
 
     try {
       const { data, error } = await supabase.from('inventory')
-        .update({ current_stock: newStock, unit_cost: newUnitCost })
+        .update({ current_stock: newStock, unit_cost: newUnitCostInMillicents })
         .eq('id', restockingItem.id).select();
       if (error) throw error;
 
@@ -259,9 +261,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       };
       await supabase.from('inventory_logs').insert([restockLog]);
 
-      if (restockingItem.paidFromRegister && totalPaid > 0) {
+      if (restockingItem.paidFromRegister && totalPaidInCents > 0) {
         const expense = {
-          amount: totalPaid,
+          amount: totalPaidInCents,
           reason: `RESTOCK: ${restockingItem.name} (${qtyBought}${restockingItem.unit})`,
           category: 'Inventario',
           cashier_name: 'Inventory System'
@@ -270,7 +272,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       }
 
       // LOG ACTIVITY
-      logActivity('inventory_restock', null, { name: restockingItem.name, qty: qtyBought, unit: restockingItem.unit, cost: totalPaid });
+      logActivity('inventory_restock', null, { name: restockingItem.name, qty: qtyBought, unit: restockingItem.unit, cost: totalPaidInCents });
 
       await db.inventory.put(data[0]);
       setInventoryItems(inventoryItems.map(item => item.id === restockingItem.id ? data[0] : item));
@@ -445,7 +447,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 setEditingItem({
                   ...editingItem, 
                   current_stock: newStock,
-                  total_cost: newStock === '' ? '' : (parseFloat(newStock) * unitPrice).toFixed(2)
+                  total_cost: newStock === '' ? '' : formatForDisplay(Math.round((parseFloat(newStock) * toMillicents(editingItem.unit_cost)) / 100))
                 })
               }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
@@ -456,10 +458,10 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 const newUnit = e.target.value;
                 const stock = parseFloat(editingItem.current_stock) || 0;
                 setEditingItem({
-                  ...editingItem,
+                  ...editingItem, 
                   unit_cost: newUnit,
-                  total_cost: newUnit === '' ? '' : (parseFloat(newUnit) * stock).toFixed(2)
-                });
+                  total_cost: newUnit === '' ? '' : formatForDisplay(Math.round((stock * toMillicents(newUnit)) / 100))
+                })
               }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--brand-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
 
@@ -543,7 +545,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             {auditingItem.actualCount !== undefined && auditingItem.actualCount !== '' && (() => {
               const variance = parseFloat(auditingItem.actualCount) - auditingItem.current_stock;
               const isLoss = variance < 0;
-              const financialImpact = Math.abs(variance * (auditingItem.unit_cost || 0));
+              const financialImpactInCents = Math.round(Math.abs(variance * (auditingItem.unit_cost || 0)) / 100);
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -554,7 +556,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                     </div>
                     <div style={{ flex: 1, padding: '12px', background: isLoss ? 'rgba(231,76,60,0.05)' : 'rgba(46,204,113,0.05)', borderRadius: '12px', border: `1px solid ${isLoss ? 'rgba(231,76,60,0.2)' : 'rgba(46,204,113,0.2)'}`, textAlign: 'center' }}>
                       <p style={{ margin: '0 0 4px 0', fontSize: '0.75rem', color: isLoss ? '#e74c3c' : '#2ecc71', fontWeight: 'bold' }}>{t('inv.financialImpact')}</p>
-                      <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: isLoss ? '#e74c3c' : '#2ecc71' }}>{isLoss ? '-' : '+'}${financialImpact.toFixed(2)}</div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: isLoss ? '#e74c3c' : '#2ecc71' }}>{isLoss ? '-' : '+'}{formatForDisplay(financialImpactInCents)}</div>
                     </div>
                   </div>
 
@@ -615,7 +617,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   </div>
                 </td>
                 <td data-label={t('inv.thCost')} style={{ padding: '20px 24px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '1rem' }}>
-                  ${Number(item.unit_cost || 0).toFixed(4)} / {item.unit}
+                  ${fromMillicents(item.unit_cost || 0).toFixed(4)} / {item.unit}
                 </td>
                 <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -647,8 +649,13 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
                     <button 
                       onClick={() => { 
-                        setEditingItem({...item, total_cost: (item.current_stock * (item.unit_cost || 0)).toFixed(2)}); 
+                        setEditingItem({
+                          ...item, 
+                          unit_cost: fromMillicents(item.unit_cost || 0),
+                          total_cost: formatForDisplay(Math.round((item.current_stock * (item.unit_cost || 0)) / 100))
+                        }); 
                         setAuditingItem(null);
+                        setRestockingItem(null);
                         setActiveView('list'); 
                       }} 
                       title={t('inv.btnEdit')}

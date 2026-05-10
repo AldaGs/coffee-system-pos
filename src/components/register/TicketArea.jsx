@@ -3,6 +3,7 @@ import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Icon } from '@iconify/react';
 import QuantityEditModal from './QuantityEditModal';
+import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -78,7 +79,7 @@ function TicketArea({
                         </button>
                         <div>
                           <span>{item.emoji || '•'} {item.name}</span>
-                          <span style={{ marginLeft: '10px' }}>${(item.basePrice * (item.qty || 1)).toFixed(2)}</span>
+                          <span style={{ marginLeft: '10px' }}>{formatForDisplay(toCents(item.basePrice) * (item.qty || 1))}</span>
                         </div>
                       </div>
                       <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
@@ -86,7 +87,7 @@ function TicketArea({
                     {item.selectedModifiers.map(mod => (
                       <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>
                         <span>+ {mod.name}{mod.textValue && (<strong style={{ color: 'var(--text-main)', marginLeft: '4px' }}>: "{mod.textValue}"</strong>)}</span>
-                        <span>{mod.price > 0 ? `$${mod.price.toFixed(2)}` : ''}</span>
+                        <span>{mod.price > 0 ? formatForDisplay(toCents(mod.price)) : ''}</span>
                       </div>
                     ))}
                   </li>
@@ -97,24 +98,24 @@ function TicketArea({
             <div className="ticket-footer">
               <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
                 <span>{t('ticket.subtotal')}</span>
-                <span>${cartSubtotal.toFixed(2)}</span>
+                <span>{formatForDisplay(cartSubtotal)}</span>
               </div>
               {autoDiscountAmount > 0 && (
                 <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#27ae60' }}>
                   <span>{t('ticket.auto')} {activeAutoRuleName}</span>
-                  <span>-${autoDiscountAmount.toFixed(2)}</span>
+                  <span>-{formatForDisplay(autoDiscountAmount)}</span>
                 </div>
               )}
               {activeTicket.discount && (
                 <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#e74c3c' }}>
-                  <span>{t('ticket.discount')} ({activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : `$${activeTicket.discount.value}`})</span>
-                  <span>-${manualDiscountAmount.toFixed(2)}</span>
+                  <span>{t('ticket.discount')} ({activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : formatForDisplay(toCents(activeTicket.discount.value))})</span>
+                  <span>-{formatForDisplay(manualDiscountAmount)}</span>
                 </div>
               )}
               {(activeTicket.discount || autoDiscountAmount > 0) && (
                 <div className="total-row" style={{ marginBottom: '16px', fontSize: '1.5rem', color: 'var(--text-main)' }}>
                   <span>{t('ticket.total')}</span>
-                  <span>${cartTotal.toFixed(2)}</span>
+                  <span>{formatForDisplay(cartTotal)}</span>
                 </div>
               )}
               <div className="checkout-actions">

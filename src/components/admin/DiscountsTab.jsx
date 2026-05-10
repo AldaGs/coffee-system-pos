@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { toCents, formatForDisplay } from '../../utils/moneyUtils';
 
 function DiscountsTab({ menuData, newRule, setNewRule, saveMenuToCloud, showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -100,7 +101,8 @@ function DiscountsTab({ menuData, newRule, setNewRule, saveMenuToCloud, showAler
                 }
                 const updatedMenu = { ...menuData };
                 if (!updatedMenu.discountRules) updatedMenu.discountRules = [];
-                updatedMenu.discountRules.push({ ...newRule, id: Date.now(), value: parseFloat(newRule.value), isActive: true });
+                const val = newRule.type === 'percentage' ? parseFloat(newRule.value) : toCents(newRule.value);
+                updatedMenu.discountRules.push({ ...newRule, id: Date.now(), value: val, isActive: true });
                 saveMenuToCloud(updatedMenu);
                 setNewRule({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
                 showAlert(t('disc.alertSuccess'), t('disc.alertSuccessDesc'));
@@ -136,7 +138,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, saveMenuToCloud, showAler
                       <div style={{ fontWeight: '900', color: 'var(--text-main)', fontSize: '1.1rem' }}>{rule.name}</div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                         <span style={{ color: 'var(--brand-color)', fontWeight: 'bold' }}>
-                          {rule.type === 'percentage' ? `${rule.value}% ${t('disc.off')}` : `$${rule.value.toFixed(2)} ${t('disc.off')}`}
+                          {rule.type === 'percentage' ? `${rule.value}% ${t('disc.off')}` : `${formatForDisplay(rule.value)} ${t('disc.off')}`}
                         </span>
                         <span style={{ height: '3px', width: '3px', background: 'var(--border)', borderRadius: '50%' }} className="desktop-only" />
                         <span>{rule.targetType === 'cart' ? t('disc.entireOrder') : `${t('disc.itemLabel')} ${rule.targetValue}`}</span>

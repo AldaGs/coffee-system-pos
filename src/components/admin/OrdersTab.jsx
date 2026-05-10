@@ -8,6 +8,7 @@ import PinChallengeModal from '../register/PinChallengeModal';
 import { useDialog } from '../../hooks/useDialog';
 import { useMenuStore } from '../../store/useMenuStore';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from '../../utils/sharingUtils';
+import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
@@ -44,18 +45,18 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
     if (!order) return;
 
     const isFull = refundMode === 'all';
-    let rAmt = isFull ? Number(order.total_amount) - Number(order.refund_amount || 0) : parseFloat(refundAmount);
+    let rAmt = isFull ? (order.total_amount - (order.refund_amount || 0)) : toCents(refundAmount);
 
     if (!isFull && (isNaN(rAmt) || rAmt <= 0)) return showAlert(t('common.error'), t('orders.alertInvalidAmt'));
 
-    const prevRefund = Number(order.refund_amount || 0);
+    const prevRefund = order.refund_amount || 0;
     const totalAvailable = order.total_amount - prevRefund;
 
     rAmt = Math.min(rAmt, totalAvailable);
     if (rAmt <= 0) return showAlert(t('common.error'), t('orders.alertOverload'));
 
     let newStatus = 'completed';
-    if (Math.abs(order.total_amount - (prevRefund + rAmt)) < 0.01) {
+    if (order.total_amount === (prevRefund + rAmt)) {
       newStatus = 'refunded';
       rAmt = totalAvailable;
     } else {
@@ -317,12 +318,12 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
             <div className="mobile-flex-stack" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
               <div style={{ textAlign: 'inherit' }}>
                 <div style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)', textDecoration: order.status === 'refunded' ? 'line-through' : 'none', letterSpacing: '-1px' }}>
-                  ${Number(order.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatForDisplay(order.total_amount || 0)}
                 </div>
                 {order.refund_amount > 0 && (
                   <div style={{ color: '#e74c3c', fontWeight: '800', fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'inherit', gap: '4px' }}>
                     <Icon icon="lucide:undo-2" />
-                    -${Number(order.refund_amount).toFixed(2)} {t('orders.refundedLabel')}
+                    -{formatForDisplay(order.refund_amount)} {t('orders.refundedLabel')}
                   </div>
                 )}
               </div>
@@ -457,7 +458,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
               <label style={{ display: 'block', marginBottom: '12px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('orders.refundTotal')}</label>
               {refundMode === 'all' ? (
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)', textAlign: 'center', padding: '10px 0' }}>
-                  ${(Number(refundModal.order.total_amount) - Number(refundModal.order.refund_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatForDisplay(Number(refundModal.order.total_amount) - Number(refundModal.order.refund_amount || 0))}
                 </div>
               ) : (
                 <div style={{ position: 'relative' }}>

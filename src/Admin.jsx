@@ -27,6 +27,7 @@ import ActivityTab from './components/admin/ActivityTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
+import { toCents } from './utils/moneyUtils';
 
 function Admin() {
   const navigate = useNavigate();
@@ -478,7 +479,7 @@ function Admin() {
       const updatedItem = {
         ...existing,
         name: newItemForm.name,
-        basePrice: parseFloat(newItemForm.price || 0),
+        basePrice: toCents(newItemForm.price || 0),
         priceType: newItemForm.priceType || 'fixed',
         emoji: newItemForm.emoji || '',
         inventoryMode: newItemForm.inventoryMode || 'none',
@@ -511,7 +512,7 @@ function Admin() {
     const newDrink = {
       id: newItemForm.name.toLowerCase().replace(/\s+/g, '_'),
       name: newItemForm.name,
-      basePrice: parseFloat(newItemForm.price || 0),
+      basePrice: toCents(newItemForm.price || 0),
       priceType: newItemForm.priceType || 'fixed',
       emoji: newItemForm.emoji || '',
       allowedModifiers: [],
@@ -540,7 +541,7 @@ function Admin() {
     const newOption = {
       id: newModOption.name.toLowerCase().replace(/\s+/g, '_'),
       name: newModOption.name,
-      price: newModOption.isTextInput ? 0 : parseFloat(newModOption.price),
+      price: newModOption.isTextInput ? 0 : toCents(newModOption.price),
       isTextInput: newModOption.isTextInput,
       deductionTarget: newModOption.deductionTarget || null, // NEW: The item it consumes
       substitutionTarget: newModOption.substitutionTarget || null // NEW: The item it replaces
@@ -748,12 +749,12 @@ function Admin() {
       const items = sale.items_sold ? sale.items_sold.join(' | ') : 'Varios';
 
       if (sale.status === 'refunded') {
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Total', Monto: -parseFloat(sale.total_amount || 0), Método: method, Detalles: items });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Total', Monto: -parseFloat(((sale.total_amount || 0) / 100).toFixed(2)), Método: method, Detalles: items });
       } else if (sale.status === 'partial_refund') {
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(sale.total_amount || 0), Método: method, Detalles: items });
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Parcial', Monto: -parseFloat(sale.refund_amount || 0), Método: method, Detalles: 'Ajuste de ticket' });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(((sale.total_amount || 0) / 100).toFixed(2)), Método: method, Detalles: items });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Parcial', Monto: -parseFloat(((sale.refund_amount || 0) / 100).toFixed(2)), Método: method, Detalles: 'Ajuste de ticket' });
       } else {
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(sale.total_amount || 0), Método: method, Detalles: items });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(((sale.total_amount || 0) / 100).toFixed(2)), Método: method, Detalles: items });
       }
     });
 
@@ -765,7 +766,7 @@ function Admin() {
         Fecha: dateObj.toLocaleDateString(),
         Hora: dateObj.toLocaleTimeString(),
         'Tipo de Movimiento': exp.category ? `Gasto (${exp.category})` : 'Gasto (General)',
-        Monto: -parseFloat(exp.amount || 0),
+        Monto: -parseFloat(((exp.amount || 0) / 100).toFixed(2)),
         Método: 'Caja/Efectivo',
         Detalles: exp.reason || 'Sin detalles'
       });
@@ -817,6 +818,7 @@ function Admin() {
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
       const unitCost = log.unit_cost !== undefined && log.unit_cost !== null ? log.unit_cost : fallbackCost;
+      // Millicents * Qty = Millicents
       const financialImpact = log.qty_deducted * unitCost;
 
       if (log.deduction_type === 'sale') {
@@ -854,17 +856,16 @@ function Admin() {
       }
     });
 
-    const grossRevenue = totalRevenue + totalRefunds;
-    const trueNetProfit = totalRevenue - totalCOGS - totalWastage - totalExpenses;
+    const trueNetProfitInPesos = (totalRevenue / 100) - (totalCOGS / 10000) - (totalWastage / 10000) - (totalExpenses / 100);
 
     const resumenData = [
-      { Métrica: 'Ingresos Brutos', Valor: parseFloat(grossRevenue.toFixed(2)) },
-      { Métrica: 'Reembolsos', Valor: -parseFloat(totalRefunds.toFixed(2)) },
-      { Métrica: 'Ingresos Netos', Valor: parseFloat(totalRevenue.toFixed(2)) },
-      { Métrica: 'Costo de Bienes (COGS)', Valor: -parseFloat(totalCOGS.toFixed(2)) },
-      { Métrica: 'Mermas y Auditorías', Valor: -parseFloat(totalWastage.toFixed(2)) },
-      { Métrica: 'Gastos de Operación', Valor: -parseFloat(totalExpenses.toFixed(2)) },
-      { Métrica: 'Ganancia Neta Verdadera', Valor: parseFloat(trueNetProfit.toFixed(2)) }
+      { Métrica: 'Ingresos Brutos', Valor: parseFloat(((totalRevenue + totalRefunds) / 100).toFixed(2)) },
+      { Métrica: 'Reembolsos', Valor: -parseFloat((totalRefunds / 100).toFixed(2)) },
+      { Métrica: 'Ingresos Netos', Valor: parseFloat((totalRevenue / 100).toFixed(2)) },
+      { Métrica: 'Costo de Bienes (COGS)', Valor: -parseFloat((totalCOGS / 10000).toFixed(2)) },
+      { Métrica: 'Mermas y Auditorías', Valor: -parseFloat((totalWastage / 10000).toFixed(2)) },
+      { Métrica: 'Gastos de Operación', Valor: -parseFloat((totalExpenses / 100).toFixed(2)) },
+      { Métrica: 'Ganancia Neta Verdadera', Valor: parseFloat((trueNetProfitInPesos).toFixed(2)) }
     ];
 
     // Create Worksheets
@@ -1291,7 +1292,18 @@ function Admin() {
 
         {/* 5. GENERAL SETTINGS TAB */}
         {activeTab === 'settings' && (
-          <GeneralSettingsTab generalSettings={generalSettings} setGeneralSettings={setGeneralSettings} handleAppLogoUpload={handleAppLogoUpload} handleSaveGeneralSettings={handleSaveGeneralSettings} menuData={menuData} saveMenuToCloud={saveMenuToCloud} setLoyaltyForm={setLoyaltyForm} />
+          <GeneralSettingsTab 
+            generalSettings={generalSettings} 
+            setGeneralSettings={setGeneralSettings} 
+            handleAppLogoUpload={handleAppLogoUpload} 
+            handleSaveGeneralSettings={handleSaveGeneralSettings} 
+            menuData={menuData} 
+            saveMenuToCloud={saveMenuToCloud} 
+            setLoyaltyForm={setLoyaltyForm} 
+            inventoryItems={inventoryItems}
+            setInventoryItems={setInventoryItems}
+            dexieSales={dexieSales}
+          />
         )}
 
         {/* 6. RECIPE BUILDER TAB */}

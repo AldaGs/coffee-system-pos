@@ -1,25 +1,25 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
-import { money } from '../utils/posMath';
+import { toCents } from '../utils/moneyUtils';
 
 export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0 }) => {
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;
   const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
   
-  // Ensure we are working with rounded money values
-  const roundedTotal = money(cartTotal);
-  const roundedTip = money(tipAmount);
+  // Ensure we are working with integer cents
+  const centsTotal = toCents(cartTotal);
+  const centsTip = toCents(tipAmount);
   const localId = crypto.randomUUID();
 
   // 1. Build the CLOUD Data specifically matching your Supabase columns
   const currentSale = {
-    total_amount: roundedTotal,
+    total_amount: centsTotal,
     payment_method: masterMethodString,
-    splits: isSplit ? paymentsArray.map(p => ({ ...p, amount: money(p.amount) })) : null,
-    tip_amount: roundedTip,
+    splits: isSplit ? paymentsArray.map(p => ({ ...p, amount: toCents(p.amount) })) : null,
+    tip_amount: centsTip,
     items_sold: activeTicket.items.map(item => item.name),
-    items: activeTicket.items, // Full objects for re-sharing
+    items: activeTicket.items.map(item => ({ ...item, price: toCents(item.price) })), // Full objects for re-sharing
     discount: activeTicket.discount, // Discount info for re-sharing
     cashier_name: activeCashier?.name || 'Unknown Cashier',
     order_name: activeTicket.name || null,
@@ -63,7 +63,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
             deduction_type: "sale", 
             created_at: timestamp, 
             ticket_id: String(activeTicket.id), 
-            unit_cost: warehouseItem.unit_cost || 0,
+            unit_cost: toCents(warehouseItem.unit_cost || 0), // Standardizing unit cost to cents in logs
             local_id: crypto.randomUUID()
           });
 
@@ -92,7 +92,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   deduction_type: "sale", 
                   created_at: timestamp, 
                   ticket_id: String(activeTicket.id), 
-                  unit_cost: modItem.unit_cost || 0,
+                  unit_cost: toCents(modItem.unit_cost || 0),
                   local_id: crypto.randomUUID()
                 });
 
@@ -152,7 +152,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   deduction_type: "sale", 
                   created_at: timestamp, 
                   ticket_id: String(activeTicket.id), 
-                  unit_cost: whItem.unit_cost || 0,
+                  unit_cost: toCents(whItem.unit_cost || 0),
                   local_id: crypto.randomUUID()
                 });
 
@@ -191,4 +191,5 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   } 
 
   return { localAnalyticsRecord: finalizedSale, masterMethodString };
-};
+};
+

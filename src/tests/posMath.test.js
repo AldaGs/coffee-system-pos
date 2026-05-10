@@ -1,65 +1,73 @@
 // src/tests/posMath.test.js
 import { describe, it, expect } from 'vitest';
-import { calculateTaxBreakdown, calculateTransformationCost, calculateExpectedCash, money } from '../utils/posMath';
+import { calculateTaxBreakdown, calculateTransformationCost, calculateExpectedCash } from '../utils/posMath';
 
-describe('TinyPOS Core Mathematical Engines', () => {
-
-  describe('Precision Money Rounding (The EPSILON fix)', () => {
-    it('correctly rounds 1.005 to 1.01 (the classic floating point trap)', () => {
-      // Standard Math.round(1.005 * 100) / 100 usually fails and returns 1.00
-      expect(money(1.005)).toBe(1.01);
-    });
-
-    it('correctly rounds 1.105 to 1.11', () => {
-      expect(money(1.105)).toBe(1.11);
-    });
-
-    it('preserves integers', () => {
-      expect(money(100)).toBe(100);
-    });
-
-    it('handles negative numbers safely', () => {
-      expect(money(-1.005)).toBe(-1.01);
-    });
-  });
+describe('TinyPOS Core Mathematical Engines (Integer/Centavos Pattern)', () => {
 
   describe('Tax Extraction Engine', () => {
 
-    it('accurately extracts 16% SAT tax from a $116.00 total', () => {
-      const result = calculateTaxBreakdown(116.00, 16);
-      expect(result.subtotal).toBe(100.00);
-      expect(result.tax).toBe(16.00);
+    it('accurately extracts 16% SAT tax from a $116.00 (11600 cents) total', () => {
+      const result = calculateTaxBreakdown(11600, 16);
+      expect(result.subtotal).toBe(10000);
+      expect(result.tax).toBe(1600);
     });
 
-    it('handles decimal totals correctly with rounding', () => {
-      const result = calculateTaxBreakdown(45.50, 16);
-      expect(result.subtotal).toBe(39.22); 
-      expect(result.tax).toBe(6.28); 
+    it('handles decimal totals correctly with rounding (using cents)', () => {
+      // $45.50 = 4550 cents
+      const result = calculateTaxBreakdown(4550, 16);
+      // 4550 / 1.16 = 3922.41... -> 3922
+      // 4550 - 3922 = 628
+      expect(result.subtotal).toBe(3922); 
+      expect(result.tax).toBe(628); 
     });
   });
 
   describe('Inventory Transformation (Roasting Value-Added Cost)', () => {
-    it('calculates the true unit cost of roasted beans including $275 service fee and 20% shrinkage', () => {
-      // 5000g of raw beans @ $0.01/g ($50 total raw cost)
+    it('calculates the true unit cost using millicents (4 decimal precision)', () => {
+      // 5000g of raw beans @ $0.01/g (100 millicents/g)
       // 20% shrink = 4000g yield
-      // $50 raw cost + $275 op cost = $325 total cost
-      // $325 / 4000g = $0.0812 per gram
-      const result = calculateTransformationCost(5000, 0.01, 20, 275);
+      // Total raw cost = 5000 * 100 = 500,000 millicents
+      // $275 op cost = 27,500 cents = 2,750,000 millicents
+      // Total cost = 3,250,000 millicents
+      // 3,250,000 / 4000 = 812.5 millicents -> 813
+      
+      const rawUnitMillicents = 100; // $0.01 per gram
+      const operationalCents = 27500; // $275.00
+      
+      const result = calculateTransformationCost(5000, rawUnitMillicents, 20, operationalCents);
       
       expect(result.yieldQty).toBe(4000);
-      expect(result.newUnitCost).toBe(0.0813); // Rounds to 4 decimal places
+      expect(result.newUnitMillicents).toBe(813); 
     });
   });
 
   describe('Corte de Caja (Shift Reconciliation)', () => {
-    it('calculates expected cash accounting for sales, refunds, and daily expenses (gastos)', () => {
-      const cashSales = 1500.50;
-      const cashRefunds = 45.00;
-      const expenses = 250.00; // e.g., buying milk from petty cash
+    it('calculates expected cash accounting for sales, refunds, and daily expenses in cents', () => {
+      const cashSales = 150050; // $1500.50
+      const cashRefunds = 4500;  // $45.00
+      const expenses = 25000;    // $250.00
       
       const expected = calculateExpectedCash(cashSales, cashRefunds, expenses);
-      expect(expected).toBe(1205.50);
+      expect(expected).toBe(120550); // $1205.50
+    });
+
+    it('handles negative balances correctly (more expenses than sales)', () => {
+      const expected = calculateExpectedCash(1000, 2000, 500);
+      expect(expected).toBe(-1500);
+    });
+
+    it('handles zero values correctly', () => {
+      expect(calculateExpectedCash(0, 0, 0)).toBe(0);
     });
   });
 
-});
+  describe('Discount Capping Logic', () => {
+    it('prevents discounts from exceeding subtotal', () => {
+      const subtotal = 1000; // $10.00
+      const discount = 1500; // $15.00
+      const final = Math.max(0, subtotal - discount);
+      expect(final).toBe(0);
+    });
+  });
+
+});

@@ -1,5 +1,6 @@
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatForDisplay } from '../../utils/moneyUtils';
 
 function ModifierModal({ 
   isModalOpen, setIsModalOpen 
@@ -49,7 +50,7 @@ function ModifierModal({
                   className={`modifier-btn ${isSelected ? 'selected' : ''}`} 
                   style={{ margin: '4px' }}
                 >
-                  {option.name} {option.price > 0 && `(+$${option.price})`}
+                  {option.name} {option.price > 0 && `(+${formatForDisplay(option.price)})`}
                 </button>
               );
             })}

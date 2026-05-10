@@ -1,5 +1,6 @@
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatForDisplay } from '../../utils/moneyUtils';
 
 function MenuArea({ 
   activeCategory, setActiveCategory, 
@@ -102,7 +103,7 @@ function MenuArea({
           return currentProducts.map(item => (
             <button key={item.id} onClick={() => handleItemClick(item)} className="item-btn">
               <span className="item-name">{item.emoji || ''} {item.name}</span>
-              <span className="item-price">${item.basePrice}</span>
+              <span className="item-price">{formatForDisplay(item.basePrice)}</span>
             </button>
           ));
         })()}

@@ -1,5 +1,5 @@
 import { logActivity } from '../services/activityService';
-import { money } from '../utils/posMath';
+import { toCents, formatForDisplay } from '../utils/moneyUtils';
 
 /**
  * Hook to manage shift closing (Corte).
@@ -13,8 +13,8 @@ export const useShiftCorte = (posState) => {
   } = posState;
 
   const handleProcessCorte = async () => {
-    const cashInDrawer = parseFloat(countedCash) || 0;
-    const diff = money(cashInDrawer - expectedCash);
+    const cashInDrawer = toCents(countedCash);
+    const diff = cashInDrawer - expectedCash;
 
     const corteRecord = {
       cashier_id: activeCashier?.id,
@@ -44,7 +44,7 @@ export const useShiftCorte = (posState) => {
       // 3. UI feedback
       setIsCorteModalOpen(false);
       setCountedCash('');
-      showAlert(t('corte.successTitle'), t('corte.successDesc').replace('{{diff}}', diff.toFixed(2)));
+      showAlert(t('corte.successTitle'), t('corte.successDesc').replace('{{diff}}', formatForDisplay(diff)));
 
     } catch (error) {
       console.error("Corte failed:", error);

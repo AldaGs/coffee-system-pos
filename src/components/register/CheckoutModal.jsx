@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { usePos } from '../../utils/PosContext';
-import { money } from '../../utils/posMath';
 import { useTranslation } from '../../hooks/useTranslation';
+import { toCents, formatForDisplay } from '../../utils/moneyUtils';
 
 function CheckoutModal({ 
   isCheckoutModalOpen, splitPayments, splitMode, setSplitMode, 
@@ -17,14 +17,14 @@ function CheckoutModal({
   useEffect(() => {
     if (isCheckoutModalOpen) {
       if (tipAmount === 0 && cartTotal > 0 && tipPercentage > 0) {
-        setTipAmount(money(cartTotal * (tipPercentage / 100)));
+        setTipAmount(Math.round(cartTotal * (tipPercentage / 100)));
       }
     }
   }, [isCheckoutModalOpen, cartTotal, tipPercentage, tipAmount, setTipAmount]);
 
   if (!isCheckoutModalOpen) return null;
 
-  const totalDue = cartTotal + (Number(tipAmount) || 0);
+  const totalDue = cartTotal + (tipAmount || 0);
   const totalPaid = splitPayments.reduce((s, p) => s + p.amount, 0);
   const remaining = Math.max(0, totalDue - totalPaid);
 
@@ -36,15 +36,15 @@ function CheckoutModal({
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px', background: 'var(--bg-main)', padding: '15px', borderRadius: '8px' }}>
           <div>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>{t('check.totalDue')}</span>
-            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: 'var(--brand-color)' }}>${totalDue.toFixed(2)}</p>
+            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: 'var(--brand-color)' }}>{formatForDisplay(totalDue)}</p>
           </div>
           <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>{t('check.paid')}</span>
-            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#27ae60' }}>${totalPaid.toFixed(2)}</p>
+            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#27ae60' }}>{formatForDisplay(totalPaid)}</p>
           </div>
           <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>{t('check.remaining')}</span>
-            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#e74c3c' }}>${remaining.toFixed(2)}</p>
+            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#e74c3c' }}>{formatForDisplay(remaining)}</p>
           </div>
         </div>
 
@@ -65,14 +65,14 @@ function CheckoutModal({
                 } else {
                   const num = parseFloat(val);
                   setTipPercentage(num);
-                  setTipAmount(money(cartTotal * (num / 100)));
+                  setTipAmount(Math.round(cartTotal * (num / 100)));
                 }
               }} 
               style={{ border: 'none', background: 'transparent', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: 'bold', width: '50px', outline: 'none', textAlign: 'right' }} 
             />
             <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', marginLeft: '2px', marginRight: '8px' }}>%</span>
             <span style={{ color: 'var(--text-muted)', fontSize: '1rem', borderLeft: '1px solid var(--border)', paddingLeft: '8px' }}>
-              ( ${(Number(tipAmount) || 0).toFixed(2)} )
+              ( {formatForDisplay(tipAmount || 0)} )
             </span>
           </div>
         </div>
@@ -108,12 +108,12 @@ function CheckoutModal({
                 <button onClick={() => setNWays(Math.min(20, nWays + 1))} style={{ padding: '10px 20px', borderRadius: '8px', border: '2px solid var(--border)', background: 'transparent', color: 'var(--text-main)', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
               </div>
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--brand-color)' }}>${money(remaining / nWays).toFixed(2)}</span>
+                <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--brand-color)' }}>{formatForDisplay(Math.floor(remaining / nWays))}</span>
                 <span style={{ color: 'var(--text-muted)', display: 'block', marginTop: '5px' }}>{t('check.perPerson')}</span>
               </div>
               <div style={{ display: 'flex', gap: '12px' }}>
-                <button onClick={() => { handlePartialPayment(remaining / nWays, 'Cash'); setNWays(Math.max(1, nWays - 1)); }} style={{ flex: 1, padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>{t('check.cash')}</button>
-                <button onClick={() => { handlePartialPayment(remaining / nWays, 'Card'); setNWays(Math.max(1, nWays - 1)); }} style={{ flex: 1, padding: '16px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>{t('check.card')}</button>
+                <button onClick={() => { handlePartialPayment(Math.floor(remaining / nWays), 'Cash', null); setNWays(Math.max(1, nWays - 1)); }} style={{ flex: 1, padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>{t('check.cash')}</button>
+                <button onClick={() => { handlePartialPayment(Math.floor(remaining / nWays), 'Card', null); setNWays(Math.max(1, nWays - 1)); }} style={{ flex: 1, padding: '16px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>{t('check.card')}</button>
               </div>
             </div>
           )}
@@ -130,14 +130,14 @@ function CheckoutModal({
                   }
                   
                   // Apply proportional tip to this specific product
-                  const itemTip = money(itemTotal * ((Number(tipPercentage) || 0) / 100));
-                  const finalItemTotal = money(itemTotal + itemTip);
+                  const itemTip = Math.round(itemTotal * ((Number(tipPercentage) || 0) / 100));
+                  const finalItemTotal = itemTotal + itemTip;
 
                   return (
                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: isPaid ? 'rgba(0,0,0,0.05)' : 'var(--bg-main)', opacity: isPaid ? 0.6 : 1, borderRadius: '8px', border: '1px solid var(--border)' }}>
                       <div>
                         <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.1rem' }}>{item.name}</div>
-                        <div style={{ color: 'var(--brand-color)' }}>${finalItemTotal.toFixed(2)} {itemTip > 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(+${itemTip.toFixed(2)} {t('check.tipSuffix')})</span>}</div>
+                        <div style={{ color: 'var(--brand-color)' }}>{formatForDisplay(finalItemTotal)} {itemTip > 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(+{formatForDisplay(itemTip)} {t('check.tipSuffix')})</span>}</div>
                       </div>
                       {isPaid ? (
                         <span>{t('check.prodPaid')}</span>
@@ -159,11 +159,11 @@ function CheckoutModal({
               <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
                 <div style={{ flex: 2 }}>
                   <label style={{ display: 'block', marginBottom: '5px', color: 'var(--text-muted)' }}>{t('check.customSubtitle')}</label>
-                  <input type="number" placeholder="0.00" step="0.01" value={customVal} onChange={(e) => setCustomVal(e.target.value)} style={{ width: '100%', padding: '16px', fontSize: '1.5rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  <input type="text" placeholder="0.00" value={customVal} onChange={(e) => setCustomVal(e.target.value)} style={{ width: '100%', padding: '16px', fontSize: '1.5rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
-                  <button onClick={() => { const amt = parseFloat(customVal); if (amt > 0 && amt <= remaining + 0.01) { handlePartialPayment(amt, 'Cash'); setCustomVal(''); } else showAlert(t('common.error'), t('check.alertInvalid')); }} style={{ padding: '10px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.cash')}</button>
-                  <button onClick={() => { const amt = parseFloat(customVal); if (amt > 0 && amt <= remaining + 0.01) { handlePartialPayment(amt, 'Card'); setCustomVal(''); } else showAlert(t('common.error'), t('check.alertInvalid')); }} style={{ padding: '10px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.card')}</button>
+                  <button onClick={() => { const amt = toCents(customVal); if (amt > 0 && amt <= remaining) { handlePartialPayment(amt, 'Cash'); setCustomVal(''); } else showAlert(t('common.error'), t('check.alertInvalid')); }} style={{ padding: '10px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.cash')}</button>
+                  <button onClick={() => { const amt = toCents(customVal); if (amt > 0 && amt <= remaining) { handlePartialPayment(amt, 'Card'); setCustomVal(''); } else showAlert(t('common.error'), t('check.alertInvalid')); }} style={{ padding: '10px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.card')}</button>
                 </div>
               </div>
               {splitPayments.length > 0 && (
@@ -172,7 +172,7 @@ function CheckoutModal({
                   {splitPayments.map((p, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px dashed var(--border)', color: 'var(--text-muted)' }}>
                       <span>✅ {p.method}</span>
-                      <span>${p.amount.toFixed(2)}</span>
+                      <span>{formatForDisplay(p.amount)}</span>
                     </div>
                   ))}
                 </div>

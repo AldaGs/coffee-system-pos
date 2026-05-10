@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
+import { formatForDisplay, fromCents } from '../../utils/moneyUtils';
 
 function MenuEditorTab({ 
   menuData, newCategoryName, setNewCategoryName, handleAddCategory, 
@@ -259,7 +260,7 @@ function MenuEditorTab({
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{item.name}</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-                                <span style={{ color: '#27ae60', fontWeight: '900', fontSize: '0.85rem' }}>${item.basePrice.toFixed(2)}</span>
+                                <span style={{ color: '#27ae60', fontWeight: '900', fontSize: '0.85rem' }}>{formatForDisplay(item.basePrice)}</span>
                                 <span style={{ height: '3px', width: '3px', background: 'var(--border)', borderRadius: '50%' }} />
                                 {item.priceType === 'variable' && (
                                   <>
@@ -285,7 +286,7 @@ function MenuEditorTab({
                                   ...newItemForm,
                                   category: category,
                                   name: item.name,
-                                  price: String(item.basePrice ?? ''),
+                                  price: String(fromCents(item.basePrice ?? 0)),
                                   priceType: item.priceType || 'fixed',
                                   emoji: item.emoji || '☕',
                                   inventoryMode: item.inventoryMode || 'none',

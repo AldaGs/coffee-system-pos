@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatForDisplay } from '../../utils/moneyUtils';
 
 function ModifierLibraryTab({ 
   menuData, 
@@ -165,7 +166,7 @@ function ModifierLibraryTab({
                                   {t('mods.badgeText')}
                                 </span>
                               ) : (
-                                <span style={{ color: '#27ae60', fontWeight: '900', fontSize: '0.9rem' }}>+${opt.price.toFixed(2)}</span>
+                                <span style={{ color: '#27ae60', fontWeight: '900', fontSize: '0.9rem' }}>+{formatForDisplay(opt.price)}</span>
                               )}
                             </div>
                             

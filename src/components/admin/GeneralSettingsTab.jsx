@@ -6,8 +6,22 @@ import ExportKeysButton from '../ExportKeysButton';
 import DisconnectButton from '../DisconnectButton';
 import SignOutButton from '../SignOutButton';
 import SharedPinPad from '../shared/SharedPinPad';
+import { supabase } from '../../supabaseClient';
+import { db } from '../../db';
+import { formatForDisplay } from '../../utils/moneyUtils';
 
-function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogoUpload, handleSaveGeneralSettings, menuData, saveMenuToCloud, setLoyaltyForm }) {
+function GeneralSettingsTab({ 
+  generalSettings, 
+  setGeneralSettings, 
+  handleAppLogoUpload, 
+  handleSaveGeneralSettings, 
+  menuData, 
+  saveMenuToCloud, 
+  setLoyaltyForm,
+  inventoryItems = [],
+  setInventoryItems,
+  dexieSales = []
+}) {
 
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useDialog();
@@ -15,6 +29,9 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
   const [pinChallenge, setPinChallenge] = useState({ isOpen: false, onAuthorized: null });
   const [pinAttempt, setPinAttempt] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
+  const [repairList, setRepairList] = useState([]);
+  const [isRepairing, setIsRepairing] = useState(false);
 
   const closePinChallenge = () => {
     setPinChallenge({ isOpen: false, onAuthorized: null });
@@ -75,6 +92,126 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
       }
     }
     applyChange(false);
+  };
+
+  const handleScanForRepairs = () => {
+    const findings = [];
+    
+    // 1. Scan Drinks
+    Object.keys(menuData.categories).forEach(cat => {
+      menuData.categories[cat].forEach(item => {
+        if (item.basePrice > 0 && item.basePrice < 500) {
+          findings.push({ id: `drink_${item.id}`, type: 'drink', category: cat, itemId: item.id, name: item.name, oldVal: item.basePrice, newVal: item.basePrice * 100, checked: true });
+        }
+      });
+    });
+
+    // 2. Scan Modifiers
+    Object.keys(menuData.modifierGroups).forEach(group => {
+      menuData.modifierGroups[group].forEach(opt => {
+        if (!opt.isTextInput && opt.price > 0 && opt.price < 500) {
+          findings.push({ id: `mod_${opt.id}`, type: 'modifier', group, itemId: opt.id, name: opt.name, oldVal: opt.price, newVal: opt.price * 100, checked: true });
+        }
+      });
+    });
+
+    // 3. Scan Inventory Unit Costs (Legacy unit costs were floats < 10)
+    inventoryItems.forEach(item => {
+      if (item.unit_cost > 0 && item.unit_cost < 10) {
+        findings.push({ id: `inv_${item.id}`, type: 'inventory', itemId: item.id, name: item.name, oldVal: item.unit_cost, newVal: item.unit_cost * 100, checked: true });
+      }
+    });
+
+    // 4. Scan Sales History (DexieSales passed from Admin)
+    dexieSales.forEach(sale => {
+      if (sale.total_amount > 0 && sale.total_amount < 500) {
+        findings.push({ id: `sale_${sale.id}`, type: 'sale', itemId: sale.id, name: `Order #${sale.id}`, oldVal: sale.total_amount, newVal: sale.total_amount * 100, checked: true });
+      }
+    });
+
+    if (findings.length === 0) {
+      return showAlert('No Repairs Needed', 'All prices appear to be in the new integer format.');
+    }
+
+    setRepairList(findings);
+    setIsRepairModalOpen(true);
+  };
+
+  const handleExecuteRepairs = async () => {
+    setIsRepairing(true);
+    try {
+      const selected = repairList.filter(r => r.checked);
+      const updatedMenu = { ...menuData };
+      const invToUpdate = [];
+
+      for (const repair of selected) {
+        if (repair.type === 'drink') {
+          const cat = updatedMenu.categories[repair.category];
+          const item = cat.find(i => i.id === repair.itemId);
+          if (item) item.basePrice = repair.newVal;
+        } else if (repair.type === 'modifier') {
+          const group = updatedMenu.modifierGroups[repair.group];
+          const opt = group.find(o => o.id === repair.itemId);
+          if (opt) opt.price = repair.newVal;
+        } else if (repair.type === 'inventory') {
+          invToUpdate.push({ id: repair.itemId, unit_cost: repair.newVal });
+        } else if (repair.type === 'sale') {
+          const sale = dexieSales.find(s => s.id === repair.itemId);
+          if (sale) {
+            const updatedSale = { ...sale };
+            updatedSale.total_amount *= 100;
+            if (updatedSale.refund_amount) updatedSale.refund_amount *= 100;
+            if (updatedSale.tip_amount) updatedSale.tip_amount *= 100;
+            if (updatedSale.cash_tendered) updatedSale.cash_tendered *= 100;
+            
+            // Fix internal item prices for receipt re-printing
+            if (updatedSale.items && Array.isArray(updatedSale.items)) {
+              updatedSale.items = updatedSale.items.map(item => ({
+                ...item,
+                basePrice: (item.basePrice || 0) * 100,
+                selectedModifiers: (item.selectedModifiers || []).map(mod => ({
+                  ...mod,
+                  price: (mod.price || 0) * 100
+                }))
+              }));
+            }
+            
+            // Persist Sale
+            await db.sales.put(updatedSale);
+            if (navigator.onLine) {
+              await supabase.from('sales').update(updatedSale).eq('id', updatedSale.id);
+            }
+          }
+        }
+      }
+
+      // Save Menu
+      if (selected.some(r => r.type === 'drink' || r.type === 'modifier')) {
+        await saveMenuToCloud(updatedMenu);
+      }
+
+      // Save Inventory
+      for (const inv of invToUpdate) {
+        const { data, error } = await supabase.from('inventory').update({ unit_cost: inv.unit_cost }).eq('id', inv.id).select();
+        if (!error && data) {
+           await db.inventory.put(data[0]);
+        }
+      }
+
+      // Refresh Local Inventory State
+      if (invToUpdate.length > 0) {
+        const { data: freshInv } = await supabase.from('inventory').select('*');
+        if (freshInv) setInventoryItems(freshInv);
+      }
+
+      setIsRepairModalOpen(false);
+      showAlert('Success', `${selected.length} items repaired successfully.`);
+    } catch (err) {
+      console.error(err);
+      showAlert('Error', 'Failed to apply some repairs. Check console.');
+    } finally {
+      setIsRepairing(false);
+    }
   };
 
   const isAdvancedOn = generalSettings.isAdvancedMode === true;
@@ -406,6 +543,23 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
               <SignOutButton />
             </div>
 
+            <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
+              <h3 style={{ marginTop: 0, color: 'var(--text-main)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:wrench" style={{ color: 'var(--brand-color)' }} />
+                Financial Data Repair
+              </h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
+                If you see items with prices like $0.70 instead of $70.00, use this tool to scan and fix your legacy data.
+              </p>
+              <button 
+                onClick={handleScanForRepairs}
+                style={{ width: '100%', padding: '12px', background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid var(--brand-color)', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                <Icon icon="lucide:search" />
+                Scan for Legacy Prices
+              </button>
+            </div>
+
             <div style={{ 
               border: '2px solid rgba(231, 76, 60, 0.2)', 
               padding: '24px', 
@@ -442,6 +596,54 @@ function GeneralSettingsTab({ generalSettings, setGeneralSettings, handleAppLogo
           submitText={t('pin.btnVerify')}
           submitIcon="lucide:check-circle"
         />
+      )}
+
+      {/* --- REPAIR MODAL --- */}
+      {isRepairModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div className="fade-in" style={{ background: 'var(--bg-surface)', width: '100%', maxWidth: '600px', borderRadius: '32px', padding: '40px', border: '1px solid var(--border)', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+              <div>
+                <h2 style={{ margin: 0, color: 'var(--brand-color)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.8rem', fontWeight: '900' }}>
+                  <Icon icon="lucide:stethoscope" />
+                  Repair Legacy Prices
+                </h2>
+                <p style={{ margin: '8px 0 0 0', color: 'var(--text-muted)' }}>The items below look like they are using the old price format ($0.70 instead of $70.00).</p>
+              </div>
+              <button onClick={() => setIsRepairModalOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.5rem' }}><Icon icon="lucide:x" /></button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', marginBottom: '24px', paddingRight: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {repairList.map((item, idx) => (
+                  <label key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: item.checked ? '1px solid var(--brand-color)' : '1px solid var(--border)', cursor: 'pointer', opacity: item.checked ? 1 : 0.6 }}>
+                    <input type="checkbox" checked={item.checked} onChange={e => {
+                      const next = [...repairList];
+                      next[idx].checked = e.target.checked;
+                      setRepairList(next);
+                    }} style={{ width: '22px', height: '22px', accentColor: 'var(--brand-color)' }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: '900', color: 'var(--text-main)' }}>{item.name}</div>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                        Current: <span style={{ textDecoration: 'line-through' }}>{formatForDisplay(item.oldVal)}</span> → <span style={{ color: '#27ae60', fontWeight: 'bold' }}>{formatForDisplay(item.newVal)}</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 'bold', background: 'rgba(52, 152, 219, 0.1)', color: 'var(--brand-color)', padding: '4px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>{item.type}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              onClick={handleExecuteRepairs} 
+              disabled={isRepairing || !repairList.some(r => r.checked)}
+              style={{ width: '100%', padding: '20px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '18px', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', boxShadow: '0 10px 25px rgba(52, 152, 219, 0.3)', opacity: (isRepairing || !repairList.some(r => r.checked)) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+            >
+              <Icon icon={isRepairing ? "lucide:loader" : "lucide:check-circle"} className={isRepairing ? "spin" : ""} />
+              {isRepairing ? "Applying Repairs..." : `Repair ${repairList.filter(r => r.checked).length} Items`}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
