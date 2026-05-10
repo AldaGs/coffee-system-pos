@@ -26,6 +26,13 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
   return (
     <div id={id || "ticket-image-container"} style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.2' }}>
       <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+        {receiptSettings?.logo && (
+          <img 
+            src={receiptSettings.logo} 
+            alt="Store Logo" 
+            style={{ maxWidth: '150px', maxHeight: '80px', marginBottom: '10px' }} 
+          />
+        )}
         <h2 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>{receiptSettings?.storeName || 'Coffee POS'}</h2>
         <p style={{ margin: '0', fontSize: '12px' }}>{receiptSettings?.address || ''}</p>
         <p style={{ margin: '0', fontSize: '12px' }}>{receiptSettings?.phone || ''}</p>
@@ -45,11 +52,12 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
         {ticket.items.map((item, idx) => {
           const qty = item.qty || 1;
           const itemBase = scale(item.basePrice || 0);
+          const itemNameWithEmoji = `${item.emoji || '•'} ${item.name}`;
           
           return (
             <div key={idx} style={{ marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>{qty > 1 ? `${item.name} x${qty}` : item.name}</span>
+                <span>{qty > 1 ? `${itemNameWithEmoji} x${qty}` : itemNameWithEmoji}</span>
                 <span>${((itemBase * qty) / 100).toFixed(2)}</span>
               </div>
               {(item.selectedModifiers || []).map((mod, midx) => {
