@@ -1,5 +1,5 @@
 import { useTranslation } from '../../hooks/useTranslation';
-import { calculateTaxBreakdown } from '../../utils/taxUtils';
+import { calculateTaxBreakdown } from '../../utils/posMath';
 
 const TicketImage = ({ ticket, receiptSettings, total }) => {
   const { t } = useTranslation();
