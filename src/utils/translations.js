@@ -687,6 +687,8 @@ export const translations = {
     "sync.wa": "WhatsApp Receipts",
     "sync.btnClose": "Close",
     "sync.authErrorDesc": "Session expired or device unauthorized. Please restart or re-authorize to resume syncing.",
+    "sync.dataLossWarningTitle": "Offline Data Warning!",
+    "sync.dataLossWarningDesc": "You have {{count}} records pending to sync. Please connect to the internet to save them to the cloud before disconnecting the device.",
 
     // --- Ticket Area ---
     "ticket.noOrders": "No Active Orders",
@@ -1519,6 +1521,8 @@ export const translations = {
     "sync.wa": "Recibos de WhatsApp",
     "sync.btnClose": "Cerrar",
     "sync.authErrorDesc": "Sesión expirada o dispositivo no autorizado. Por favor reinicia o re-autoriza para continuar sincronizando.",
+    "sync.dataLossWarningTitle": "¡Advertencia de Datos Offline!",
+    "sync.dataLossWarningDesc": "Tienes {{count}} registros pendientes de sincronizar. Conéctate a internet para que se guarden en la nube antes de desconectar el equipo.",
 
     // --- Ticket Area ---
     "ticket.noOrders": "Sin Órdenes Activas",

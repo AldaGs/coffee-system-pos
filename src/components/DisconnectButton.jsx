@@ -9,19 +9,28 @@ export default function DisconnectButton() {
   const { showConfirm, showAlert } = useDialog();
   const { t } = useTranslation();
 
-  // 1. Check for unsynced offline data
-  // Note: Change 'syncQueue' if your Dexie table for offline items is named differently!
-  const unsyncedCount = useLiveQuery(() => {
-    if (db.syncQueue) return db.syncQueue.count();
-    return 0; 
+  // 1. Check for unsynced offline data across ALL queues
+  const unsyncedCount = useLiveQuery(async () => {
+    let count = 0;
+    if (db.syncQueue) count += await db.syncQueue.count();
+    if (db.inventory_logs) count += await db.inventory_logs.count();
+    if (db.updateQueue) count += await db.updateQueue.count();
+    
+    // Check localStorage queues too
+    const expQueue = JSON.parse(localStorage.getItem('tinypos_expense_queue') || '[]');
+    const waQueue = JSON.parse(localStorage.getItem('tinypos_wa_queue') || '[]');
+    count += expQueue.length;
+    count += waQueue.length;
+    
+    return count; 
   }, []) || 0;
 
   const handleDisconnect = async () => {
     // 2. THE SAFETY GATE: Prevent deleting unsaved offline money!
     if (unsyncedCount > 0) {
       return showAlert(
-        "¡Advertencia de Datos Offline!", 
-        `Tienes ${unsyncedCount} registros pendientes de sincronizar. Conéctate a internet para que se guarden en la nube antes de desconectar el equipo.`
+        t('sync.dataLossWarningTitle') || "¡Advertencia de Datos Offline!", 
+        t('sync.dataLossWarningDesc')?.replace('{{count}}', unsyncedCount) || `Tienes ${unsyncedCount} registros pendientes de sincronizar. Conéctate a internet para que se guarden en la nube antes de desconectar el equipo.`
       );
     }
 
