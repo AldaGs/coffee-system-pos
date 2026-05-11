@@ -196,9 +196,6 @@ function Register() {
 
       // LOG ACTIVITY
       logActivity('Discount Applied', `A ${discountForm.type === 'percentage' ? discountForm.value + '%' : formatForDisplay(val)} discount was applied to ticket: ${activeTicket.name}`);
-    } else if (activeTicket.discount.type === 'flat') {
-      const discountCents = activeTicket.discount.value; // It's already in cents! No normalizeMenuPrice needed here.
-      manualDiscountAmount = Math.max(0, Math.min(discountCents, subtotalAfterAuto));
     }
     setIsDiscountModalOpen(false);
     setDiscountForm({ type: 'percentage', value: '' }); // Reset form
@@ -591,7 +588,7 @@ function Register() {
       const safePct = Math.max(0, Math.min(discountPct, 100));
       manualDiscountAmount = Math.round(subtotalAfterAuto * (safePct / 100));
     } else if (activeTicket.discount.type === 'flat') {
-      const discountCents = normalizeMenuPrice(activeTicket.discount.value);
+      const discountCents = activeTicket.discount.value; // It's already in cents! No normalizeMenuPrice needed here.
       manualDiscountAmount = Math.max(0, Math.min(discountCents, subtotalAfterAuto));
     }
   }
