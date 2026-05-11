@@ -17,27 +17,29 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
     rawSubtotal += itemTotal * qty;
   });
 
-  const taxInfo = receiptSettings?.enableTaxBreakdown 
+  const taxInfo = receiptSettings?.enableTaxBreakdown
     ? calculateTaxBreakdown(total, receiptSettings.taxRate || 16)
     : null;
 
   return (
-    <div id={id || "ticket-image-container"} style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'monospace', fontSize: '14px', lineHeight: '1.2' }}>
+    <div id={id || "ticket-image-container"} style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'Courier New, Courier, monospace', fontSize: '14px', lineHeight: '1.2' }}>
       <div style={{ textAlign: 'center', marginBottom: '10px' }}>
         {receiptSettings?.logo && (
-          <img 
-            src={receiptSettings.logo} 
-            alt="Store Logo" 
-            style={{ maxWidth: '150px', maxHeight: '80px', marginBottom: '10px' }} 
+          <img
+            src={receiptSettings.logo}
+            alt="Store Logo"
+            style={{ maxWidth: '150px', maxHeight: '80px', marginBottom: '10px' }}
           />
         )}
-        <h2 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>{receiptSettings?.storeName || 'Coffee POS'}</h2>
+        <h2 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>{receiptSettings?.header || ''}</h2>
         {receiptSettings?.subheader && (
           <p style={{ margin: '0', fontSize: '12px', whiteSpace: 'pre-line' }}>{receiptSettings.subheader}</p>
         )}
-        </div>
+      </div>
 
-        <div style={{ margin: '10px 0', fontSize: '12px' }}>
+      <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
+
+      <div style={{ margin: '10px 0', fontSize: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Ticket: {ticket.name || ticket.order_name || `#${ticket.id}`}</span>
           <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
@@ -51,7 +53,7 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
         {ticket.items.map((item, idx) => {
           const qty = item.qty || 1;
           const itemNameWithEmoji = `${item.emoji || '•'} ${item.name}`;
-          
+
           return (
             <div key={idx} style={{ marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -100,12 +102,14 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
         </>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 'bold', marginTop: '5px' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', fontSize: '22px', fontWeight: 'bold', marginTop: '15px', borderTop: '2px solid black', paddingTop: '10px' }}>
         <span>TOTAL</span>
         <span>{formatForDisplay(total)}</span>
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px' }}>
+      <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
+
+      <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', fontStyle: 'italic' }}>
         <p>{receiptSettings?.footer || '¡Gracias por su compra!'}</p>
       </div>
     </div>
