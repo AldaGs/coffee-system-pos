@@ -41,6 +41,8 @@ import TicketImage from './components/register/TicketImage';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
 import { fetchAndMergeSales } from './services/salesSync';
 import { fetchActiveTickets } from './services/ticketSync';
+import { fromCents } from './utils/moneyUtils';
+
 
 const getOrCreateDeviceId = () => {
   let id = localStorage.getItem('tinypos_device_id');
@@ -748,7 +750,7 @@ function Register() {
             addToTicket(item, [], customPrice);
           }
         },
-        item.basePrice > 0 ? String(item.basePrice) : '',
+        item.basePrice > 0 ? String(fromCents(item.basePrice)) : '',
         t('common.save'),
         t('common.cancel'),
         'decimal'

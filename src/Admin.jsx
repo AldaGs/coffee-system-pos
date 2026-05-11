@@ -574,6 +574,56 @@ function Admin() {
 
   const toggleModifierForDrink = (modGroupKey) => { const updatedMenu = { ...menuData }; const categoryArray = updatedMenu.categories[editingDrink.categoryName]; const drinkIndex = categoryArray.findIndex(d => d.id === editingDrink.drink.id); const drinkToUpdate = categoryArray[drinkIndex]; const hasModifier = drinkToUpdate.allowedModifiers.includes(modGroupKey); if (hasModifier) { drinkToUpdate.allowedModifiers = drinkToUpdate.allowedModifiers.filter(key => key !== modGroupKey); } else { drinkToUpdate.allowedModifiers.push(modGroupKey); } saveMenuToCloud(updatedMenu); setEditingDrink({ ...editingDrink, drink: drinkToUpdate }); };
 
+  const handleUpdateModifierOption = (groupKey, oldOptionId, updatedOpt) => {
+    if (!updatedOpt.name || (!updatedOpt.isTextInput && updatedOpt.price === "")) {
+      return showAlert(t('menu.missingFieldsTitle'), t('menu.missingFieldsDesc'));
+    }
+    const updatedMenu = { ...menuData };
+    const optionIndex = updatedMenu.modifierGroups[groupKey].findIndex(o => o.id === oldOptionId);
+    if (optionIndex !== -1) {
+      updatedMenu.modifierGroups[groupKey][optionIndex] = {
+        id: updatedOpt.name.toLowerCase().replace(/\s+/g, '_'),
+        name: updatedOpt.name,
+        price: updatedOpt.isTextInput ? 0 : toCents(updatedOpt.price),
+        isTextInput: updatedOpt.isTextInput,
+        // CRITICAL FIXES HERE:
+        deductionTarget: updatedOpt.deductionTarget || null,
+        substitutionTarget: updatedOpt.substitutionTarget || null
+      };
+      saveMenuToCloud(updatedMenu);
+    }
+    setNewModOption({ groupKey: "", name: "", price: "0", isTextInput: false, deductionTarget: "", substitutionTarget: "" });
+  };
+
+  const handleRenameModifierGroup = (oldKey, newKey) => {
+    if (!newKey.trim()) return;
+    const formattedNewKey = newKey.toLowerCase().replace(/\s+/g, '_');
+    if (oldKey === formattedNewKey) return;
+
+    if (menuData.modifierGroups[formattedNewKey]) {
+      return showAlert(t('common.error'), t('mods.errorGroupExists'));
+    }
+
+    const updatedMenu = { ...menuData };
+
+    // 1. Move the group data
+    updatedMenu.modifierGroups[formattedNewKey] = updatedMenu.modifierGroups[oldKey];
+    delete updatedMenu.modifierGroups[oldKey];
+
+    // 2. CRITICAL FIX: Update ALL drinks that reference this group
+    Object.keys(updatedMenu.categories).forEach(cat => {
+      updatedMenu.categories[cat].forEach(drink => {
+        if (drink.allowedModifiers && Array.isArray(drink.allowedModifiers)) {
+          drink.allowedModifiers = drink.allowedModifiers.map(k =>
+            k === oldKey ? formattedNewKey : k
+          );
+        }
+      });
+    });
+
+    saveMenuToCloud(updatedMenu);
+  };
+
   // FIX: Upgraded to showConfirm!
   const handleDeleteDrink = (categoryName, drinkId, drinkName) => {
     showConfirm(t('menu.deleteDrinkTitle'), `${t('menu.deleteDrinkDesc')} (${drinkName})`, () => {
@@ -826,14 +876,9 @@ function Admin() {
     let totalWastage = 0;
 
     inventoryLogs.forEach(log => {
-      // FIXED:
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-
-      // Note: Change const to let here!
       let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
-
-      // RESTORE LEGACY DETECTOR: Historical logs still have decimal costs (e.g., 1.50)
       if (unitCost > 0 && unitCost < 10) {
         unitCost *= 10000;
       }
@@ -1287,6 +1332,8 @@ function Admin() {
             handleAddModifierOption={handleAddModifierOption}
             handleDeleteModifierGroup={handleDeleteModifierGroup}
             handleDeleteModifierOption={handleDeleteModifierOption}
+            handleRenameModifierGroup={handleRenameModifierGroup}
+            handleUpdateModifierOption={handleUpdateModifierOption}
           />
         )}
 

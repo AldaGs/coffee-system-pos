@@ -24,6 +24,7 @@ export const translations = {
 
     // --- General ---
     "common.save": "Save",
+    "common.saveChanges": "Save Changes",
     "common.cancel": "Cancel",
     "common.delete": "Delete",
     "common.upload": "Upload File",
@@ -374,6 +375,7 @@ export const translations = {
     "mods.labelGroup": "Belongs to",
     "mods.labelOption": "Name",
     "mods.labelPrice": "Price",
+    "mods.errorGroupExists": "A group with this name already exists.",
 
     // --- Orders Tab ---
     "orders.title": "Receipt History & Refunds",
@@ -862,6 +864,7 @@ export const translations = {
 
     // --- General ---
     "common.save": "Guardar",
+    "common.saveChanges": "Guardar Cambios",
     "common.cancel": "Cancelar",
     "common.delete": "Eliminar",
     "common.upload": "Cargar archivo",
@@ -1210,6 +1213,7 @@ export const translations = {
     "mods.labelGroup": "Pertenece al Grupo",
     "mods.labelOption": "Nombre",
     "mods.labelPrice": "Precio",
+    "mods.errorGroupExists": "Ya existe un grupo con este nombre.",
     "mods.consumes": "Consume",
 
     // --- Orders Tab ---

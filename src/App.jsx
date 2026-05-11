@@ -11,9 +11,6 @@ import { supabase } from './supabaseClient';
 import UpdateNotification from './components/shared/UpdateNotification';
 
 function App() {
-  if (window.location.pathname === '/calculator') {
-    return <RecipeCostCalculator />;
-  }
 
   // --- 1. NEW: CHECK FOR INSTALLATION ---
   // We now check for the specific keys that SetupScreen saves.
@@ -64,7 +61,7 @@ function App() {
 
       return () => subscription.unsubscribe();
     } else {
-      setIsCheckingSession(false);
+      setTimeout(() => setIsCheckingSession(false), 0);
     }
   }, [isInstalled]);
 
@@ -83,6 +80,10 @@ function App() {
   // ==========================================
   // --- RENDER PIPELINE ---
   // ==========================================
+
+  if (window.location.pathname === '/calculator') {
+    return <RecipeCostCalculator />;
+  }
 
   // --- NEW GATE: THE GUIDE ---
   if (showGuide) {

@@ -3,7 +3,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
 function ModifierModal({ 
-  isModalOpen, setIsModalOpen 
+  isModalOpen 
 }) {
   const { t } = useTranslation();
 
@@ -58,7 +58,7 @@ function ModifierModal({
         ))}
 
         <div className="modal-actions">
-          <button className="btn-cancel" onClick={() => setIsModalOpen(false)}>
+          <button className="btn-cancel" onClick={() => addToTicket(pendingItem, [], pendingItem.basePrice)}>
             {t('modModal.btnCancel')}
           </button>
           <button className="btn-confirm" onClick={() => addToTicket(pendingItem, pendingItem.selectedModifiers)}>
