@@ -27,7 +27,14 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       // Find the historical cost if available, otherwise fallback to current cost
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      const unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+
+      // Note: Change const to let here!
+      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+
+      // RESTORE LEGACY DETECTOR: Historical logs still have decimal costs (e.g., 1.50)
+      if (unitCost > 0 && unitCost < 10) {
+        unitCost *= 10000;
+      }
 
       // Convert Millicents (10000x) * Qty -> Millicents. Then / 100 -> Cents.
       const financialImpact = millicentsToCents(log.qty_deducted * unitCost);

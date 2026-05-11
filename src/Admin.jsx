@@ -27,7 +27,7 @@ import ActivityTab from './components/admin/ActivityTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
-import { toCents, fromMillicents, fromCents } from './utils/moneyUtils';
+import { toCents, fromMillicents, fromCents, millicentsToCents } from './utils/moneyUtils';
 
 function Admin() {
   const navigate = useNavigate();
@@ -826,10 +826,20 @@ function Admin() {
     let totalWastage = 0;
 
     inventoryLogs.forEach(log => {
+      // FIXED:
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      const unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
-      const financialImpact = Math.round(log.qty_deducted * unitCost);
+
+      // Note: Change const to let here!
+      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+
+      // RESTORE LEGACY DETECTOR: Historical logs still have decimal costs (e.g., 1.50)
+      if (unitCost > 0 && unitCost < 10) {
+        unitCost *= 10000;
+      }
+
+      // Convert Millicents (10000x) * Qty -> Millicents. Then / 100 -> Cents.
+      const financialImpact = millicentsToCents(log.qty_deducted * unitCost);
       if (log.deduction_type === 'sale') {
         if (relevantTimestamps.has(log.created_at) || relevantTicketIds.has(String(log.ticket_id))) {
           totalCOGS += financialImpact;
