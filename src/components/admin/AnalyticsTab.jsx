@@ -1,17 +1,17 @@
 import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { formatForDisplay } from '../../utils/moneyUtils';
+import { formatForDisplay, millicentsToCents } from '../../utils/moneyUtils';
 
 function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [] }) {
   const { t } = useTranslation();
-  
+
   // --- TRUE PROFIT MATH ENGINE ---
   const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit, totalTips } = useMemo(() => {
     // 1. Get the IDs and timestamps of the sales currently visible in the date filter
     const relevantTicketIds = new Set(filteredSales.map(sale => String(sale.id)));
     const relevantTimestamps = new Set(filteredSales.map(sale => sale.created_at));
-    
+
     let cogs = 0;
     let waste = 0;
     let tips = 0;
@@ -27,16 +27,10 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       // Find the historical cost if available, otherwise fallback to current cost
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
-      
-      // LEGACY DETECTOR: If cost is a float < 10, it's likely a legacy decimal.
-      // New Millicent format is always >= 100 for anything > $0.01.
-      if (unitCost > 0 && unitCost < 10) {
-        unitCost *= 10000;
-      }
+      const unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
 
       // Convert Millicents (10000x) * Qty -> Millicents. Then / 100 -> Cents.
-      const financialImpact = Math.round((log.qty_deducted * unitCost) / 100);
+      const financialImpact = millicentsToCents(log.qty_deducted * unitCost);
 
       if (log.deduction_type === 'sale') {
         // Match by timestamp (new reliable method) OR by ticket_id (legacy fallback)
@@ -70,17 +64,17 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     // gross already has refunds subtracted (totalRevenue is Net Revenue)
     const net = gross - waste - totalExpenses;
 
-    return { 
-      totalCOGS: cogs, 
-      totalWastage: waste, 
-      trueGrossProfit: gross, 
-      trueNetProfit: net, 
-      totalTips: tips 
+    return {
+      totalCOGS: cogs,
+      totalWastage: waste,
+      trueGrossProfit: gross,
+      trueNetProfit: net,
+      totalTips: tips
     };
   }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, timeFilter]);
 
   const totalInventoryValue = useMemo(() => {
-    return inventoryItems.reduce((sum, item) => sum + Math.round((item.current_stock * (item.unit_cost || 0)) / 100), 0);
+    return inventoryItems.reduce((sum, item) => sum + millicentsToCents(item.current_stock * (item.unit_cost || 0)), 0);
   }, [inventoryItems]);
 
   const expensesByCategory = useMemo(() => {
@@ -130,9 +124,9 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '6px 12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('analytics.dateStart')}</label>
-                <input 
-                  type="date" 
-                  value={dateRange?.start || ''} 
+                <input
+                  type="date"
+                  value={dateRange?.start || ''}
                   max={new Date().toISOString().split('T')[0]} // Prevents future dates
                   onChange={(e) => {
                     const newStart = e.target.value;
@@ -149,9 +143,9 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
               <span style={{ fontWeight: 'bold', color: 'var(--text-muted)', marginTop: '14px' }}>—</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <label style={{ fontSize: '0.70rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('analytics.dateEnd')}</label>
-                <input 
-                  type="date" 
-                  value={dateRange?.end || ''} 
+                <input
+                  type="date"
+                  value={dateRange?.end || ''}
                   min={dateRange?.start || ''} // BULLETPROOF: Native browser lock
                   max={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
@@ -181,7 +175,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-1px' }}>{formatForDisplay(totalRevenue)}</p>
         </div>
-        
+
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #e67e22' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.cogs')}</h3>
@@ -329,4 +323,4 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
   );
 }
 
-export default AnalyticsTab;
+export default AnalyticsTab;

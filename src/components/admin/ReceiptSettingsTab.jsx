@@ -1,5 +1,6 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { toCents, formatForDisplay } from '../../utils/moneyUtils';
 
 function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, handleSaveReceipt }) {
   const { t } = useTranslation();
@@ -112,11 +113,11 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                   <span>SUBTOTAL</span>
-                  <span>${(135 / (1 + ((receiptForm.taxRate || 16) / 100))).toFixed(2)}</span>
+                  <span>{formatForDisplay(toCents(135 / (1 + ((receiptForm.taxRate || 16) / 100))))}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
                   <span>IVA ({receiptForm.taxRate || 16}%)</span>
-                  <span>${(135 - (135 / (1 + ((receiptForm.taxRate || 16) / 100)))).toFixed(2)}</span>
+                  <span>{formatForDisplay(toCents(135 - (135 / (1 + ((receiptForm.taxRate || 16) / 100)))))}</span>
                 </div>
               </div>
             )}

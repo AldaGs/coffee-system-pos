@@ -78,3 +78,7 @@ export const formatForDisplay = (cents, lang = 'es') => {
     maximumFractionDigits: 2
   }).format(amount);
 };
+
+export const formatMillicentsForDisplay = (m) => '$' + (m / 10000).toFixed(4);
+
+export const millicentsToCents = (m) => Math.round(m / 100);

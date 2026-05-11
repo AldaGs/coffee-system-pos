@@ -27,7 +27,7 @@ import ActivityTab from './components/admin/ActivityTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
-import { toCents, formatForDisplay, fromCents } from './utils/moneyUtils';
+import { toCents, fromMillicents, fromCents } from './utils/moneyUtils';
 
 function Admin() {
   const navigate = useNavigate();
@@ -532,9 +532,9 @@ function Admin() {
     saveMenuToCloud(updatedMenu);
 
     // LOG ACTIVITY
-    logActivity('menu_item_added', null, { 
-      name: newItemForm.name, 
-      category: newItemForm.category, 
+    logActivity('menu_item_added', null, {
+      name: newItemForm.name,
+      category: newItemForm.category,
       price: toCents(newItemForm.price) // <-- Fixed!
     });
 
@@ -760,12 +760,12 @@ function Admin() {
       const items = sale.items_sold ? sale.items_sold.join(' | ') : 'Varios';
 
       if (sale.status === 'refunded') {
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Total', Monto: -parseFloat(((sale.total_amount || 0) / 100).toFixed(2)), Método: method, Detalles: items });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Total', Monto: -fromCents(sale.total_amount || 0), Método: method, Detalles: items });
       } else if (sale.status === 'partial_refund') {
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(((sale.total_amount || 0) / 100).toFixed(2)), Método: method, Detalles: items });
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Parcial', Monto: -parseFloat(((sale.refund_amount || 0) / 100).toFixed(2)), Método: method, Detalles: 'Ajuste de ticket' });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: fromCents(sale.total_amount || 0), Método: method, Detalles: items });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Reembolso Parcial', Monto: -fromCents(sale.refund_amount || 0), Método: method, Detalles: 'Ajuste de ticket' });
       } else {
-        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: parseFloat(((sale.total_amount || 0) / 100).toFixed(2)), Método: method, Detalles: items });
+        ingresosData.push({ Fecha: date, Hora: time, 'Tipo de Movimiento': 'Venta', Monto: fromCents(sale.total_amount || 0), Método: method, Detalles: items });
       }
     });
 
@@ -777,7 +777,7 @@ function Admin() {
         Fecha: dateObj.toLocaleDateString(),
         Hora: dateObj.toLocaleTimeString(),
         'Tipo de Movimiento': exp.category ? `Gasto (${exp.category})` : 'Gasto (General)',
-        Monto: -parseFloat(((exp.amount || 0) / 100).toFixed(2)),
+        Monto: -fromCents(exp.amount || 0),
         Método: 'Caja/Efectivo',
         Detalles: exp.reason || 'Sin detalles'
       });
@@ -828,11 +828,7 @@ function Admin() {
     inventoryLogs.forEach(log => {
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
-      
-      if (unitCost > 0 && unitCost < 10) {
-        unitCost *= 10000;
-      }
+      const unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
       const financialImpact = Math.round(log.qty_deducted * unitCost);
       if (log.deduction_type === 'sale') {
         if (relevantTimestamps.has(log.created_at) || relevantTicketIds.has(String(log.ticket_id))) {
@@ -869,18 +865,17 @@ function Admin() {
       }
     });
 
-    const trueNetProfitInPesos = (totalRevenue / 100) - (totalCOGS / 10000) - (totalWastage / 10000) - (totalExpenses / 100);
+    const trueNetProfitInPesos = fromCents(totalRevenue) - fromMillicents(totalCOGS) - fromMillicents(totalWastage) - fromCents(totalExpenses);
 
     const resumenData = [
-      { Métrica: 'Ingresos Brutos', Valor: parseFloat(((totalRevenue + totalRefunds) / 100).toFixed(2)) },
-      { Métrica: 'Reembolsos', Valor: -parseFloat((totalRefunds / 100).toFixed(2)) },
-      { Métrica: 'Ingresos Netos', Valor: parseFloat((totalRevenue / 100).toFixed(2)) },
-      { Métrica: 'Costo de Bienes (COGS)', Valor: -parseFloat((totalCOGS / 10000).toFixed(2)) },
-      { Métrica: 'Mermas y Auditorías', Valor: -parseFloat((totalWastage / 10000).toFixed(2)) },
-      { Métrica: 'Gastos de Operación', Valor: -parseFloat((totalExpenses / 100).toFixed(2)) },
-      { Métrica: 'Ganancia Neta Verdadera', Valor: parseFloat((trueNetProfitInPesos).toFixed(2)) }
+      { Métrica: 'Ingresos Brutos', Valor: fromCents(totalRevenue + totalRefunds) },
+      { Métrica: 'Reembolsos', Valor: -fromCents(totalRefunds) },
+      { Métrica: 'Ingresos Netos', Valor: fromCents(totalRevenue) },
+      { Métrica: 'Costo de Bienes (COGS)', Valor: -fromMillicents(totalCOGS) },
+      { Métrica: 'Mermas y Auditorías', Valor: -fromMillicents(totalWastage) },
+      { Métrica: 'Gastos de Operación', Valor: -fromCents(totalExpenses) },
+      { Métrica: 'Ganancia Neta Verdadera', Valor: trueNetProfitInPesos }
     ];
-
     // Create Worksheets
     const wsResumen = XLSX.utils.json_to_sheet(resumenData);
     const wsIngresos = XLSX.utils.json_to_sheet(ingresosData);
@@ -946,10 +941,10 @@ function Admin() {
       }
 
       // FIX: Database throws 22P02 if we try to shove "" into a numeric column
-            if (recipeToSave.custom_price === "" || isNaN(recipeToSave.custom_price)) {
+      if (recipeToSave.custom_price === "" || isNaN(recipeToSave.custom_price)) {
         recipeToSave.custom_price = null;
       } else {
-        recipeToSave.custom_price = toCents(recipeToSave.custom_price); 
+        recipeToSave.custom_price = toCents(recipeToSave.custom_price);
       }
 
       const { data, error } = await supabase.from('recipes').upsert(recipeToSave).select().single();
@@ -1307,14 +1302,14 @@ function Admin() {
 
         {/* 5. GENERAL SETTINGS TAB */}
         {activeTab === 'settings' && (
-          <GeneralSettingsTab 
-            generalSettings={generalSettings} 
-            setGeneralSettings={setGeneralSettings} 
-            handleAppLogoUpload={handleAppLogoUpload} 
-            handleSaveGeneralSettings={handleSaveGeneralSettings} 
-            menuData={menuData} 
-            saveMenuToCloud={saveMenuToCloud} 
-            setLoyaltyForm={setLoyaltyForm} 
+          <GeneralSettingsTab
+            generalSettings={generalSettings}
+            setGeneralSettings={setGeneralSettings}
+            handleAppLogoUpload={handleAppLogoUpload}
+            handleSaveGeneralSettings={handleSaveGeneralSettings}
+            menuData={menuData}
+            saveMenuToCloud={saveMenuToCloud}
+            setLoyaltyForm={setLoyaltyForm}
             inventoryItems={inventoryItems}
             setInventoryItems={setInventoryItems}
             dexieSales={dexieSales}

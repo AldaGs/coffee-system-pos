@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
+import { toCents, formatForDisplay } from '../utils/moneyUtils';
 
 const UNITS = ['g', 'ml', 'pza'];
 
@@ -181,8 +182,7 @@ export default function RecipeCostCalculator() {
                     </div>
 
                     <div style={{ padding: '12px', borderRadius: '10px', background: 'var(--bg-surface)', color: 'var(--text-main)', textAlign: 'right', fontWeight: '900', border: '1px solid var(--border)' }}>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>$</span>
-                      {rowCost.toFixed(2)}
+                      {formatForDisplay(toCents(rowCost))}
                     </div>
 
                     <button

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { toCents } from '../../utils/moneyUtils';
+import { toCents, fromMillicents, formatForDisplay, formatMillicentsForDisplay } from '../../utils/moneyUtils';
 
 function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, saveMenuToCloud, showAlert }) {
 
@@ -67,17 +67,11 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
         return sum + (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0) * 10000);
       } else {
         const matchedItem = inventoryItems?.find(inv => inv.name === ing.name);
-        let unitCost = matchedItem?.unit_cost || 0; // Millicents
-        
-        // LEGACY DETECTOR: If cost is a float < 10, it's likely a legacy decimal.
-        if (unitCost > 0 && unitCost < 10) {
-          unitCost *= 10000;
-        }
-        
+        const unitCost = matchedItem?.unit_cost || 0; // Strictly Millicents
         return sum + (parseFloat(ing.qty || 0) * unitCost);
       }
     }, 0);
-    return millicentSum / 10000; // Return as decimal dollars for easier UI math
+    return fromMillicents(millicentSum); // Return as decimal dollars for easier UI math
   };
 
   let linkedMenuItemName = null;
@@ -141,7 +135,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
             >
               <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{recipe.name}</span>
               <span style={{ fontSize: '0.85rem', opacity: 0.9, background: activeRecipe?.id === recipe.id ? 'rgba(255,255,255,0.2)' : 'var(--bg-surface)', padding: '4px 10px', borderRadius: '10px' }}>
-                ${calculateLiveCost(recipe.ingredients).toFixed(2)}
+                {formatForDisplay(toCents(calculateLiveCost(recipe.ingredients)))}
               </span>
             </button>
           ))}
@@ -310,16 +304,15 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         </div>
                       ) : (
                         <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', background: 'rgba(0,0,0,0.02)', borderRadius: '10px' }}>
-                          ${((matchedWarehouseItem?.unit_cost || 0) / 10000).toFixed(4)}
+                          ${fromMillicents(matchedWarehouseItem?.unit_cost || 0)}
                         </div>
                       )}
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <div style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'right', fontWeight: '900', border: '1px solid var(--border)' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginRight: '4px' }}>$</span>
                           {isManual
-                            ? (parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0)).toFixed(2)
-                            : (matchedWarehouseItem && ing.qty ? (parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0) / 10000).toFixed(2) : '0.00')
+                            ? formatForDisplay(toCents(parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0)))
+                            : formatMillicentsForDisplay(matchedWarehouseItem && ing.qty ? parseFloat(ing.qty) * (matchedWarehouseItem.unit_cost || 0) : 0)
                           }
                         </div>
 
@@ -361,15 +354,15 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       <div style={{ padding: '20px', background: 'var(--bg-main)', borderRadius: '16px', textAlign: 'center' }}>
                         <p style={{ color: 'var(--text-muted)', margin: '0 0 4px 0', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px', fontWeight: 'bold' }}>{t('recipe.totalCogs')}</p>
-                        <div style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-main)' }}>${liveTotalCost.toFixed(2)}</div>
+                        <div style={{ fontSize: '1.5rem', fontWeight: '900', color: 'var(--text-main)' }}>{formatForDisplay(toCents(liveTotalCost))}</div>
                       </div>
 
                       <div style={{ padding: '24px', background: 'rgba(46, 204, 113, 0.05)', borderRadius: '16px', border: '1px solid rgba(46, 204, 113, 0.2)', textAlign: 'center' }}>
                         <p style={{ color: '#27ae60', margin: '0 0 4px 0', fontWeight: '800', fontSize: '0.85rem' }}>{t('recipe.recPrice')}</p>
-                        <div style={{ fontSize: '3rem', fontWeight: '900', color: '#27ae60', letterSpacing: '-1px' }}>${recommendedPrice.toFixed(2)}</div>
+                        <div style={{ fontSize: '3rem', fontWeight: '900', color: '#27ae60', letterSpacing: '-1px' }}>{formatForDisplay(toCents(recommendedPrice))}</div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', color: '#27ae60', fontSize: '0.9rem', marginTop: '4px', fontWeight: 'bold' }}>
                           <Icon icon="lucide:trending-up" />
-                          {t('recipe.estProfit')} ${expectedProfit.toFixed(2)}
+                          {t('recipe.estProfit')} {formatForDisplay(toCents(expectedProfit))}
                         </div>
                       </div>
                     </div>
@@ -406,7 +399,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: `1px dashed ${netProfit >= 0 ? '#1abc9c' : '#e74c3c'}`, paddingBottom: '12px' }}>
                         <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{t('recipe.netProfitCup')}</span>
                         <span style={{ fontWeight: '900', fontSize: '1.8rem', color: netProfit >= 0 ? '#1abc9c' : '#e74c3c' }}>
-                          ${netProfit.toFixed(2)}
+                          {formatForDisplay(toCents(netProfit))}
                         </span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

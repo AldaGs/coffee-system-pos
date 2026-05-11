@@ -10,15 +10,14 @@ import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
-function GeneralSettingsTab({ 
-  generalSettings, 
-  setGeneralSettings, 
-  handleAppLogoUpload, 
-  handleSaveGeneralSettings, 
-  menuData, 
-  saveMenuToCloud, 
+function GeneralSettingsTab({
+  generalSettings,
+  setGeneralSettings,
+  handleAppLogoUpload,
+  handleSaveGeneralSettings,
+  menuData,
+  saveMenuToCloud,
   setLoyaltyForm,
-  inventoryItems = [],
   setInventoryItems,
   dexieSales = []
 }) {
@@ -94,9 +93,11 @@ function GeneralSettingsTab({
     applyChange(false);
   };
 
+  /*
+  // HANDLE FOR LEGACY CODE
   const handleScanForRepairs = () => {
     const findings = [];
-    
+
     // 1. Scan Drinks
     Object.keys(menuData.categories).forEach(cat => {
       menuData.categories[cat].forEach(item => {
@@ -115,27 +116,27 @@ function GeneralSettingsTab({
       });
     });
 
-    // 3. Scan Inventory Unit Costs (Legacy unit costs were floats < 10)
-    inventoryItems.forEach(item => {
-      if (item.unit_cost > 0 && item.unit_cost < 10) {
+    // 3. Scan Inventory
+    (menuData.inventory || []).forEach(item => {
+      if (item.unit_cost > 0 && item.unit_cost < 500) {
         findings.push({ id: `inv_${item.id}`, type: 'inventory', itemId: item.id, name: item.name, oldVal: item.unit_cost, newVal: item.unit_cost * 100, checked: true });
       }
     });
 
     // 4. Scan Sales History (DexieSales passed from Admin)
-    dexieSales.forEach(sale => {
-      if (sale.total_amount > 0 && sale.total_amount < 500) {
-        findings.push({ id: `sale_${sale.id}`, type: 'sale', itemId: sale.id, name: `Order #${sale.id}`, oldVal: sale.total_amount, newVal: sale.total_amount * 100, checked: true });
-      }
-    });
-
-    if (findings.length === 0) {
-      return showAlert('No Repairs Needed', 'All prices appear to be in the new integer format.');
+  dexieSales.forEach(sale => {
+    if (sale.total_amount > 0 && sale.total_amount < 500) {
+      findings.push({ id: `sale_${sale.id}`, type: 'sale', itemId: sale.id, name: `Order #${sale.id}`, oldVal: sale.total_amount, newVal: sale.total_amount * 100, checked: true });
     }
+  });
 
-    setRepairList(findings);
-    setIsRepairModalOpen(true);
-  };
+  if (findings.length === 0) {
+    return showAlert('No Repairs Needed', 'All prices appear to be in the new integer format.');
+  }
+
+  setRepairList(findings);
+  setIsRepairModalOpen(true);
+};*/
 
   const handleExecuteRepairs = async () => {
     setIsRepairing(true);
@@ -163,7 +164,7 @@ function GeneralSettingsTab({
             if (updatedSale.refund_amount) updatedSale.refund_amount *= 100;
             if (updatedSale.tip_amount) updatedSale.tip_amount *= 100;
             if (updatedSale.cash_tendered) updatedSale.cash_tendered *= 100;
-            
+
             // Fix internal item prices for receipt re-printing
             if (updatedSale.items && Array.isArray(updatedSale.items)) {
               updatedSale.items = updatedSale.items.map(item => ({
@@ -175,7 +176,7 @@ function GeneralSettingsTab({
                 }))
               }));
             }
-            
+
             // Persist Sale
             await db.sales.put(updatedSale);
             if (navigator.onLine) {
@@ -194,7 +195,7 @@ function GeneralSettingsTab({
       for (const inv of invToUpdate) {
         const { data, error } = await supabase.from('inventory').update({ unit_cost: inv.unit_cost }).eq('id', inv.id).select();
         if (!error && data) {
-           await db.inventory.put(data[0]);
+          await db.inventory.put(data[0]);
         }
       }
 
@@ -224,10 +225,10 @@ function GeneralSettingsTab({
       </div>
 
       <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'start' }}>
-        
+
         {/* --- LEFT COLUMN: CORE SETTINGS --- */}
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:terminal" style={{ color: 'var(--brand-color)' }} />
@@ -254,8 +255,8 @@ function GeneralSettingsTab({
                 <Icon icon="lucide:languages" style={{ color: 'var(--brand-color)' }} />
                 {t('settings.language')}
               </label>
-              <select 
-                value={generalSettings.language || 'en'} 
+              <select
+                value={generalSettings.language || 'en'}
                 onChange={(e) => setGeneralSettings({ ...generalSettings, language: e.target.value })}
                 style={{ width: '100%', boxSizing: 'border-box', padding: '12px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', cursor: 'pointer', outline: 'none' }}
               >
@@ -291,8 +292,8 @@ function GeneralSettingsTab({
                   <input type="file" accept="image/*" onChange={handleAppLogoUpload} style={{ display: 'none' }} />
                 </label>
                 {generalSettings.appBootLogo && (
-                  <button 
-                    onClick={() => setGeneralSettings({ ...generalSettings, appBootLogo: null })} 
+                  <button
+                    onClick={() => setGeneralSettings({ ...generalSettings, appBootLogo: null })}
                     style={{ background: 'rgba(231, 76, 60, 0.1)', border: 'none', color: '#e74c3c', padding: '10px 15px', borderRadius: '10px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}
                   >
                     <Icon icon="lucide:trash-2" />
@@ -300,13 +301,13 @@ function GeneralSettingsTab({
                   </button>
                 )}
               </div>
-              
+
               {generalSettings.appBootLogo ? (
                 <div style={{ padding: '15px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px dashed var(--border)', textAlign: 'center' }}>
-                  <img 
-                    src={generalSettings.appBootLogo} 
-                    alt="App Boot Logo" 
-                    style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }} 
+                  <img
+                    src={generalSettings.appBootLogo}
+                    alt="App Boot Logo"
+                    style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }}
                   />
                 </div>
               ) : (
@@ -337,13 +338,13 @@ function GeneralSettingsTab({
 
         {/* --- RIGHT COLUMN: WORKFLOW & HARDWARE --- */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          
+
           <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <h3 style={{ margin: '0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Icon icon="lucide:users" style={{ color: 'var(--brand-color)' }} />
               {t('settings.workflow')}
             </h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.visibility')}</label>
               <select
@@ -429,26 +430,26 @@ function GeneralSettingsTab({
                   <option value="yearly">{t('settings.resetYearly')}</option>
                 </select>
                 <small style={{ color: 'var(--text-muted)' }}>{t('settings.resetFreqDesc')}</small>
-                
+
                 <button
                   onClick={() => {
                     showConfirm(
-                      t('settings.resetTitle'), 
-                      t('settings.resetConfirm'), 
+                      t('settings.resetTitle'),
+                      t('settings.resetConfirm'),
                       () => {
                         localStorage.setItem('tinypos_nextOrderNum', 1);
                         showAlert(t('settings.resetSuccess'), t('settings.resetSuccessDesc'));
                       }
                     );
                   }}
-                  style={{ 
-                    padding: '12px 20px', 
-                    background: 'transparent', 
-                    color: '#e74c3c', 
-                    border: '2px solid rgba(231, 76, 60, 0.3)', 
-                    borderRadius: '12px', 
-                    cursor: 'pointer', 
-                    fontWeight: 'bold', 
+                  style={{
+                    padding: '12px 20px',
+                    background: 'transparent',
+                    color: '#e74c3c',
+                    border: '2px solid rgba(231, 76, 60, 0.3)',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
                     fontSize: '0.9rem',
                     display: 'flex',
                     alignItems: 'center',
@@ -529,7 +530,7 @@ function GeneralSettingsTab({
               <Icon icon="lucide:save" />
               {t('settings.btnSave')}
             </button>
-            
+
             <ExportKeysButton />
 
             {/*
@@ -561,12 +562,12 @@ function GeneralSettingsTab({
               </button>
             </div>
             */}
-            
-            <div style={{ 
-              border: '2px solid rgba(231, 76, 60, 0.2)', 
-              padding: '24px', 
-              borderRadius: '24px', 
-              backgroundColor: 'rgba(231, 76, 60, 0.05)' 
+
+            <div style={{
+              border: '2px solid rgba(231, 76, 60, 0.2)',
+              padding: '24px',
+              borderRadius: '24px',
+              backgroundColor: 'rgba(231, 76, 60, 0.05)'
             }}>
               <h3 style={{ marginTop: 0, color: '#d63031', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Icon icon="lucide:alert-triangle" />
@@ -575,7 +576,7 @@ function GeneralSettingsTab({
               <p style={{ color: '#d63031', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
                 {t('settings.disconnectDesc')}
               </p>
-              
+
               <DisconnectButton />
             </div>
           </div>
@@ -636,8 +637,8 @@ function GeneralSettingsTab({
               </div>
             </div>
 
-            <button 
-              onClick={handleExecuteRepairs} 
+            <button
+              onClick={handleExecuteRepairs}
               disabled={isRepairing || !repairList.some(r => r.checked)}
               style={{ width: '100%', padding: '20px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '18px', fontWeight: '900', fontSize: '1.2rem', cursor: 'pointer', boxShadow: '0 10px 25px rgba(52, 152, 219, 0.3)', opacity: (isRepairing || !repairList.some(r => r.checked)) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
             >

@@ -4,7 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
 import { useTranslation } from '../../hooks/useTranslation';
 import { logActivity } from '../../services/activityService';
-import { toCents, toMillicents, fromMillicents, formatForDisplay } from '../../utils/moneyUtils';
+import { toCents, toMillicents, fromMillicents, formatForDisplay, formatMillicentsForDisplay, millicentsToCents } from '../../utils/moneyUtils';
 
 function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -137,8 +137,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       setTransformForm({ sourceItemId: '', amountUsed: '', shrinkagePerc: 20, targetItemName: '', operationalCost: '' });
 
       const successMsg = existingTarget
-        ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} $${fromMillicents(finalUnitCost).toFixed(4)}/g.`
-        : `${t('inv.roastCompleteMsg')} ${finalYieldQty}g de ${targetItemPayload.name} ${t('inv.at')} $${fromMillicents(finalUnitCost).toFixed(4)}/g.`;
+        ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} ${formatMillicentsForDisplay(finalUnitCost)}/g.`
+        : `${t('inv.roastCompleteMsg')} ${finalYieldQty}g de ${targetItemPayload.name} ${t('inv.at')} ${formatMillicentsForDisplay(finalUnitCost)}/g.`;
 
       showAlert(t('inv.alertTransformComplete'), successMsg);
 
@@ -187,9 +187,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       return showAlert(t('inv.alertVerified'), t('inv.alertVerifiedDesc'));
     }
 
-    const rawCost = auditingItem.unit_cost || 0;
-    const unitCost = (rawCost > 0 && rawCost < 10) ? rawCost * 10000 : rawCost;
-    const financialImpactInCents = Math.round((variance * unitCost) / 100);
+    const unitCost = auditingItem.unit_cost || 0;
+    const financialImpactInCents = millicentsToCents(variance * unitCost);
     const deductionType = variance < 0 ? (auditingItem.reason || 'waste') : 'audit_correction';
 
     try {
@@ -448,7 +447,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 setEditingItem({
                   ...editingItem,
                   current_stock: newStock,
-                  total_cost: newStock === '' ? '' : formatForDisplay(Math.round((parseFloat(newStock) * toMillicents(editingItem.unit_cost)) / 100))
+                  total_cost: newStock === '' ? '' : formatForDisplay(millicentsToCents(parseFloat(newStock) * editingItem.unit_cost))
                 })
               }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
@@ -461,7 +460,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 setEditingItem({
                   ...editingItem,
                   unit_cost: newUnit,
-                  total_cost: newUnit === '' ? '' : formatForDisplay(Math.round((stock * toMillicents(newUnit)) / 100))
+                  total_cost: newUnit === '' ? '' : formatForDisplay(millicentsToCents(stock * toMillicents(newUnit)))
                 })
               }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--brand-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
@@ -547,9 +546,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               const variance = parseFloat(auditingItem.actualCount) - auditingItem.current_stock;
               const isLoss = variance < 0;
 
-              const rawCost = auditingItem.unit_cost || 0;
-              const unitCost = (rawCost > 0 && rawCost < 10) ? rawCost * 10000 : rawCost;
-              const financialImpactInCents = Math.round(Math.abs(variance * unitCost) / 100);
+              const unitCost = auditingItem.unit_cost || 0;
+              const financialImpactInCents = millicentsToCents(Math.abs(variance * unitCost));
 
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -621,7 +619,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   </div>
                 </td>
                 <td data-label={t('inv.thCost')} style={{ padding: '20px 24px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '1rem' }}>
-                  ${fromMillicents(item.unit_cost || 0).toFixed(4)} / {item.unit}
+                  {formatMillicentsForDisplay(item.unit_cost || 0)} / {item.unit}
                 </td>
                 <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -656,7 +654,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                         setEditingItem({
                           ...item,
                           unit_cost: fromMillicents(item.unit_cost || 0),
-                          total_cost: formatForDisplay(Math.round((item.current_stock * (item.unit_cost || 0)) / 100))
+                          total_cost: formatForDisplay(millicentsToCents(item.current_stock * (item.unit_cost || 0)))
                         });
                         setAuditingItem(null);
                         setRestockingItem(null);

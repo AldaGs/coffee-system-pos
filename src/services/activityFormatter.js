@@ -1,10 +1,11 @@
+import { formatForDisplay } from '../utils/moneyUtils';
+
 // Maps canonical activity action codes -> presentation (icon, color, label, description).
 // Descriptions are formatted from `metadata` at view time so they always follow the
 // current locale, instead of being baked in at write time. Legacy logs that already
 // store a pre-formatted `description` string still render via the fallback at the bottom.
 
-const fmt = (n, digits = 2) =>
-  Number((n || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+const fmt = (n) => formatForDisplay(n);
 
 const interp = (tpl, vars) =>
   String(tpl).replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined && vars[k] !== null ? vars[k] : ''));
