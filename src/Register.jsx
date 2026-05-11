@@ -177,7 +177,10 @@ function Register() {
   const [discountForm, setDiscountForm] = useState({ type: 'percentage', value: '' });
 
   const handleApplyDiscount = async () => {
-    const val = toCents(discountForm.value);
+    const val = discountForm.type === 'percentage' 
+    ? parseFloat(discountForm.value) 
+    : toCents(discountForm.value);
+
     if (isNaN(val) || val <= 0) return showAlert(t('discount.invalidTitle'), t('discount.invalidDesc'));
 
     if (activeTicket) {
@@ -185,6 +188,9 @@ function Register() {
 
       // LOG ACTIVITY
       logActivity('Discount Applied', `A ${discountForm.type === 'percentage' ? discountForm.value + '%' : formatForDisplay(val)} discount was applied to ticket: ${activeTicket.name}`);
+    } else if (activeTicket.discount.type === 'flat') {
+      const discountCents = activeTicket.discount.value; // It's already in cents! No normalizeMenuPrice needed here.
+      manualDiscountAmount = Math.max(0, Math.min(discountCents, subtotalAfterAuto));
     }
     setIsDiscountModalOpen(false);
     setDiscountForm({ type: 'percentage', value: '' }); // Reset form
@@ -537,17 +543,27 @@ function Register() {
     const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
     if (activeRules.length > 0 && cartSubtotal > 0) {
       activeRules.forEach(rule => {
+        // FOR CART LEVEL RULES
         if (rule.targetType === 'cart') {
-          const ruleValue = rule.type === 'percentage' ? cartSubtotal * (rule.value / 100) : rule.value;
+          const ruleValue = rule.type === 'percentage' 
+            ? cartSubtotal * (rule.value / 100) 
+            : normalizeMenuPrice(rule.value); // <-- Add normalizeMenuPrice here
+            
           autoDiscountAmount += ruleValue;
           activeAutoRuleName = rule.name;
-        } else if (rule.targetType === 'item') {
+        } 
+        // FOR ITEM LEVEL RULES
+        else if (rule.targetType === 'item') {
           activeTicket.items.forEach(item => {
             if (item.name === rule.targetValue) {
               const qty = item.qty || 1;
-              let itemCost = item.basePrice;
-              item.selectedModifiers.forEach(mod => { itemCost += mod.price; });
-              const ruleValue = rule.type === 'percentage' ? itemCost * qty * (rule.value / 100) : rule.value * qty;
+              let itemCost = item.basePrice; // Already in cents
+              item.selectedModifiers.forEach(mod => { itemCost += mod.price; }); // Already in cents
+              
+              const ruleValue = rule.type === 'percentage' 
+                ? itemCost * qty * (rule.value / 100) 
+                : normalizeMenuPrice(rule.value) * qty; // <-- Add normalizeMenuPrice here
+                
               autoDiscountAmount += ruleValue;
               activeAutoRuleName = rule.name;
             }
@@ -715,7 +731,7 @@ function Register() {
         `${t('menu.promptVariablePrice') || 'Enter Price for'} ${item.name}`,
         '',
         (inputValue) => {
-          const customPrice = parseFloat(inputValue);
+          const customPrice = toCents(inputValue);
           if (isNaN(customPrice) || customPrice < 0) {
             return showAlert(t('common.error'), t('check.alertInvalid'));
           }

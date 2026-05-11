@@ -1,4 +1,5 @@
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatForDisplay } from '../../utils/moneyUtils';
 
 function FlyingReceipt({ successTicket }) {
   const { t } = useTranslation();
@@ -13,14 +14,14 @@ function FlyingReceipt({ successTicket }) {
         {successTicket.items.map(item => (
           <div key={item.uniqueId} className="flying-receipt-row">
             <span>{item.emoji || '•'} {item.name}</span>
-            <span>${item.basePrice.toFixed(2)}</span>
+            <span>{formatForDisplay(item.basePrice)}</span>
           </div>
         ))}
       </div>
       <div style={{ borderTop: '1px dashed black', margin: '15px 0' }}></div>
       <div className="flying-receipt-row" style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>
         <span>{t('fly.total')}</span>
-        <span>${successTicket.total.toFixed(2)}</span>
+        <span>{formatForDisplay(successTicket.total)}</span>
       </div>
       <div style={{ textAlign: 'center', marginTop: '20px', color: '#666', fontSize: '0.9rem' }}>
         {t('fly.method')} {successTicket.method}

@@ -24,10 +24,14 @@ export const normalizeMenuPrice = (val) => {
   if (val === null || val === undefined || val === '') return 0;
   const num = typeof val === 'string' ? parseFloat(val) : val;
   if (isNaN(num)) return 0;
-  // If price is > 0 and < 2000, it's likely a legacy decimal dollar (e.g. 500.00)
-  // New centavo format for $500.00 is 50000.
-  if (num > 0 && num < 2000) return Math.round(num * 100);
-  return Math.round(num);
+  
+  // If it has a fractional part (e.g., 5.50 % 1 !== 0), it's definitely a legacy decimal.
+  // Or, if your business NEVER sells anything under $20.00, your old heuristic is okay, 
+  // but usually, a coffee shop has items under $20!
+  if (num % 1 !== 0) return Math.round(num * 100);
+  
+  // Best practice: Assume it's already in centavos if it's a whole number.
+  return Math.round(num); 
 };
 
 /**

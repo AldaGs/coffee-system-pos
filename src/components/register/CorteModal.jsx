@@ -1,4 +1,5 @@
 import { useTranslation } from '../../hooks/useTranslation';
+import { formatForDisplay } from '../../utils/moneyUtils';
 
 function CorteModal({ isCorteModalOpen, setIsCorteModalOpen, shiftCashSales, shiftCardSales, shiftTransferSales, shiftTotalExpenses, expectedCash, countedCash, setCountedCash, handleProcessCorte }) {
   const { t } = useTranslation();
@@ -16,19 +17,19 @@ function CorteModal({ isCorteModalOpen, setIsCorteModalOpen, shiftCashSales, shi
         <div style={{ background: 'var(--bg-main)', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--border)' }}>
           <h4 style={{ margin: '0 0 10px 0', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('corte.breakdown')}</h4>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
-            <span>{t('corte.cashSales')}</span> <span>${shiftCashSales.toFixed(2)}</span>
+            <span>{t('corte.cashSales')}</span> <span>{formatForDisplay(shiftCashSales)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
-            <span>{t('corte.cardSales')}</span> <span>${shiftCardSales.toFixed(2)}</span>
+            <span>{t('corte.cardSales')}</span> <span>{formatForDisplay(shiftCardSales)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
-            <span>{t('corte.transferSales')}</span> <span>${shiftTransferSales.toFixed(2)}</span>
+            <span>{t('corte.transferSales')}</span> <span>{formatForDisplay(shiftTransferSales)}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: '#e74c3c' }}>
-            <span>{t('corte.cashExpenses')}</span> <span>-${shiftTotalExpenses.toFixed(2)}</span>
+            <span>{t('corte.cashExpenses')}</span> <span style={{color: '#e74c3c'}}>-{formatForDisplay(shiftTotalExpenses)}</span>
           </div>
           <div style={{ borderTop: '2px dashed var(--border)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--text-main)' }}>
-            <span>{t('corte.expectedInDrawer')}</span><span style={{ color: '#27ae60' }}>${expectedCash.toFixed(2)}</span>
+            <span>{t('corte.expectedInDrawer')}</span><span style={{ color: '#27ae60' }}>{formatForDisplay(expectedCash)}</span>
           </div>
         </div>
 

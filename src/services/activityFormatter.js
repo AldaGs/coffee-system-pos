@@ -4,7 +4,7 @@
 // store a pre-formatted `description` string still render via the fallback at the bottom.
 
 const fmt = (n, digits = 2) =>
-  Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  Number((n || 0) / 100).toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 
 const interp = (tpl, vars) =>
   String(tpl).replace(/\{(\w+)\}/g, (_, k) => (vars[k] !== undefined && vars[k] !== null ? vars[k] : ''));

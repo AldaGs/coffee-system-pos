@@ -222,7 +222,14 @@ function Admin() {
 
         // 5. Fetch Recipes & Inventory
         const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
-        if (recipesData) setRecipes(recipesData);
+        if (recipesData) {
+          // Convert cents back to decimal strings for the Recipe Builder UI
+          const mappedRecipes = recipesData.map(r => ({
+            ...r,
+            custom_price: r.custom_price ? fromCents(r.custom_price).toString() : null
+          }));
+          setRecipes(mappedRecipes); // Use mappedRecipes instead of raw recipesData
+        }
 
         const { data: invData } = await supabase.from('inventory').select('*');
         if (invData) {
@@ -525,7 +532,11 @@ function Admin() {
     saveMenuToCloud(updatedMenu);
 
     // LOG ACTIVITY
-    logActivity('menu_item_added', null, { name: newItemForm.name, category: newItemForm.category, price: newItemForm.price });
+    logActivity('menu_item_added', null, { 
+      name: newItemForm.name, 
+      category: newItemForm.category, 
+      price: toCents(newItemForm.price) // <-- Fixed!
+    });
 
     resetItemForm();
   };
@@ -935,17 +946,19 @@ function Admin() {
       }
 
       // FIX: Database throws 22P02 if we try to shove "" into a numeric column
-      if (recipeToSave.custom_price === "" || isNaN(recipeToSave.custom_price)) {
+            if (recipeToSave.custom_price === "" || isNaN(recipeToSave.custom_price)) {
         recipeToSave.custom_price = null;
       } else {
-        recipeToSave.custom_price = parseFloat(recipeToSave.custom_price);
+        recipeToSave.custom_price = toCents(recipeToSave.custom_price); 
       }
 
-      const { data, error } = await supabase
-        .from('recipes')
-        .upsert(recipeToSave)
-        .select()
-        .single();
+      const { data, error } = await supabase.from('recipes').upsert(recipeToSave).select().single();
+      if (error) throw error;
+
+      // Convert the returned DB integer back to a decimal string so the UI doesn't jump to cents
+      if (data.custom_price) {
+        data.custom_price = fromCents(data.custom_price).toString();
+      }
 
       if (error) throw error;
 

@@ -32,9 +32,9 @@ export const numeroALetras = (numero) => {
     return strMiles + (rest > 0 ? ' ' + leerCentenas(rest) : '');
   };
 
-  const entero = Math.floor(numero);
-  // Guarantee 2 digits for cents (e.g. 10 instead of 1)
-  const centavos = Math.round((numero - entero) * 100).toString().padStart(2, '0');
+  const decimalNum = numero / 100;
+  const entero = Math.floor(decimalNum);
+  const centavos = (numero % 100).toString().padStart(2, '0');
   
   let letras = entero < 1000 ? leerCentenas(entero) : leerMiles(entero);
   if (entero === 0) letras = 'CERO';

@@ -8,18 +8,18 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
   
   // Ensure we are working with integer cents
-  const centsTotal = toCents(cartTotal);
-  const centsTip = toCents(tipAmount);
+  const centsTotal = cartTotal;
+  const centsTip = tipAmount;
   const localId = crypto.randomUUID();
 
   // 1. Build the CLOUD Data specifically matching your Supabase columns
   const currentSale = {
     total_amount: centsTotal,
     payment_method: masterMethodString,
-    splits: isSplit ? paymentsArray.map(p => ({ ...p, amount: toCents(p.amount) })) : null,
+    splits: isSplit ? paymentsArray.map(p => ({ ...p, amount: p.amount })) : null,
     tip_amount: centsTip,
     items_sold: activeTicket.items.map(item => item.name),
-    items: activeTicket.items.map(item => ({ ...item, price: toCents(item.price) })), // Full objects for re-sharing
+    items: activeTicket.items.map(item => ({ ...item, price: item.basePrice })),
     discount: activeTicket.discount, // Discount info for re-sharing
     cashier_name: activeCashier?.name || 'Unknown Cashier',
     order_name: activeTicket.name || null,
@@ -63,7 +63,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
             deduction_type: "sale", 
             created_at: timestamp, 
             ticket_id: String(activeTicket.id), 
-            unit_cost: toCents(warehouseItem.unit_cost || 0), // Standardizing unit cost to cents in logs
+            unit_cost: warehouseItem.unit_cost || 0,
             local_id: crypto.randomUUID()
           });
 
@@ -92,7 +92,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   deduction_type: "sale", 
                   created_at: timestamp, 
                   ticket_id: String(activeTicket.id), 
-                  unit_cost: toCents(modItem.unit_cost || 0),
+                  unit_cost: modItem.unit_cost || 0,
                   local_id: crypto.randomUUID()
                 });
 
@@ -152,7 +152,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   deduction_type: "sale", 
                   created_at: timestamp, 
                   ticket_id: String(activeTicket.id), 
-                  unit_cost: toCents(whItem.unit_cost || 0),
+                  unit_cost: whItem.unit_cost || 0,
                   local_id: crypto.randomUUID()
                 });
 
@@ -192,4 +192,4 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
 
   return { localAnalyticsRecord: finalizedSale, masterMethodString };
 };
-
+

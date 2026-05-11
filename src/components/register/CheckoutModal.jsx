@@ -124,10 +124,12 @@ function CheckoutModal({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', padding: '4px' }}>
                 {activeTicket.items.map(item => {
                   const isPaid = paidProductIds.includes(item.id);
-                  let itemTotal = item.basePrice;
+                  // FIXED:
+                  let unitCost = item.basePrice;
                   if (item.selectedModifiers) {
-                    itemTotal += Object.values(item.selectedModifiers).reduce((s, m) => s + (m.price || 0), 0);
+                    unitCost += Object.values(item.selectedModifiers).reduce((s, m) => s + (m.price || 0), 0);
                   }
+                  const itemTotal = unitCost * (item.qty || 1); // <-- Multiply by quantity!
                   
                   // Apply proportional tip to this specific product
                   const itemTip = Math.round(itemTotal * ((Number(tipPercentage) || 0) / 100));
