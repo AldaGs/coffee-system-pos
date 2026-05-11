@@ -531,7 +531,8 @@ function GeneralSettingsTab({
             </button>
             
             <ExportKeysButton />
-            
+
+            {/*
             <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>
               <h3 style={{ marginTop: 0, color: 'var(--text-main)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Icon icon="lucide:refresh-cw" style={{ color: '#f39c12' }} />
@@ -559,7 +560,8 @@ function GeneralSettingsTab({
                 Scan for Legacy Prices
               </button>
             </div>
-
+            */}
+            
             <div style={{ 
               border: '2px solid rgba(231, 76, 60, 0.2)', 
               padding: '24px', 
