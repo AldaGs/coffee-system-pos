@@ -27,7 +27,7 @@ import ActivityTab from './components/admin/ActivityTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
-import { toCents } from './utils/moneyUtils';
+import { toCents, formatForDisplay, fromCents } from './utils/moneyUtils';
 
 function Admin() {
   const navigate = useNavigate();

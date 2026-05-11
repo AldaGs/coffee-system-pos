@@ -1,6 +1,7 @@
 import { numeroALetras } from './numeroALetras';
 import { calculateTaxBreakdown } from './posMath';
 import * as htmlToImage from 'html-to-image';
+import { formatForDisplay } from './moneyUtils';
 
 export const convertLogoToESCPOS = async (base64Data) => {
   return new Promise((resolve) => {
@@ -121,21 +122,16 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
     let rawSubtotal = 0;
     for (const item of ticket.items) {
       const qty = item.qty || 1;
-      
-      // LEGACY DETECTOR for menu items
-      let itemBase = item.basePrice || 0;
-      if (itemBase > 0 && itemBase < 2000) itemBase *= 100;
-      
+      let itemBase = item.basePrice || 0; // Removed legacy detector
       let lineTotal = itemBase;
       
       const modRows = [];
       for (const mod of (item.selectedModifiers || [])) {
-        let modP = mod.price || 0;
-        if (modP > 0 && modP < 1000) modP *= 100;
+        let modP = mod.price || 0; // Removed legacy detector
         lineTotal += modP;
         
         const modLabel = `  + ${mod.name}${mod.textValue ? ': ' + mod.textValue : ''}`;
-        const modPriceStr = modP > 0 ? `+$${(modP / 100).toFixed(2)}` : "";
+        const modPriceStr = modP > 0 ? `+${formatForDisplay(modP)}` : ""; // Use formatForDisplay
         modRows.push({ label: modLabel, price: modPriceStr });
       }
       
@@ -143,7 +139,7 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
       rawSubtotal += lineTotal;
 
       const itemLabel = qty > 1 ? `${item.name} x${qty}` : item.name;
-      pushRow(itemLabel, `$${((itemBase * qty) / 100).toFixed(2)}`);
+      pushRow(itemLabel, formatForDisplay(itemBase * qty)); // Use formatForDisplay
 
       for (const row of modRows) {
         pushRow(row.label, row.price);
@@ -153,24 +149,24 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
     pushText("--------------------------------\n");
 
     if (rawSubtotal > total) {
-      pushRow(t('analytics.grossRevenue'), `$${(rawSubtotal / 100).toFixed(2)}`);
-      pushRow(t('disc.title'), `-$${((rawSubtotal - total) / 100).toFixed(2)}`);
+      pushRow(t('analytics.grossRevenue'), formatForDisplay(rawSubtotal)); // Use formatForDisplay
+      pushRow(t('disc.title'), `-${formatForDisplay(rawSubtotal - total)}`); // Use formatForDisplay
       pushText("--------------------------------\n");
     }
 
     if (receiptSettings.enableTaxBreakdown) {
       const taxRate = receiptSettings.taxRate || 16;
       const { subtotal: baseSubtotal, tax: extractedTax } = calculateTaxBreakdown(total, taxRate);
-      pushRow("Subtotal ", `$${(baseSubtotal / 100).toFixed(2)}`);
-      pushRow(`IVA (${taxRate}%)`, `$${(extractedTax / 100).toFixed(2)}`);
+      pushRow("Subtotal ", formatForDisplay(baseSubtotal)); // Use formatForDisplay
+      pushRow(`IVA (${taxRate}%)`, formatForDisplay(extractedTax)); // Use formatForDisplay
       pushText("--------------------------------\n");
     }
 
     pushCommand(ESC_ALIGN_CENTER);
     pushCommand(ESC_BOLD_ON);
-    pushText(`TOTAL: $${(total / 100).toFixed(2)}\n`);
+    pushText(`TOTAL: ${formatForDisplay(total)}\n`); // Use formatForDisplay
     pushCommand(ESC_BOLD_OFF);
-    pushText(`${numeroALetras(total / 100)}\n`);
+    pushText(`${numeroALetras(total)}\n`); // Note: numeroALetras was patched to expect centavos, so just pass `total`
     pushText("--------------------------------\n");
     pushText(`${receiptSettings.footer}\n`);
     pushText("\n\n\n");
@@ -223,15 +219,15 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
 
   ticket.items.forEach(item => {
     const qty = item.qty || 1;
-    const baseTotal = (item.basePrice * qty) / 100;
+    const baseTotal = item.basePrice * qty; // Removed division
     const qtyLabel = qty > 1 ? ` x${qty}` : '';
-    message += `${item.emoji || '☕'} ${item.name}${qtyLabel} - $${baseTotal.toFixed(2)}\n`;
+    message += `${item.emoji || '☕'} ${item.name}${qtyLabel} - ${formatForDisplay(baseTotal)}\n`; // Use formatForDisplay
     if (item.selectedModifiers && item.selectedModifiers.length > 0) {
       item.selectedModifiers.forEach(mod => {
         if (mod.textValue) {
           message += `  + ${mod.name}: "${mod.textValue}"\n`;
         } else {
-          message += `  + ${mod.name}${mod.price > 0 ? ` (+$${(mod.price / 100).toFixed(2)})` : ''}\n`;
+          message += `  + ${mod.name}${mod.price > 0 ? ` (+${formatForDisplay(mod.price)})` : ''}\n`; // Use formatForDisplay
         }
       });
     }
@@ -242,13 +238,13 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
   if (receiptSettings.enableTaxBreakdown) {
     const taxRate = receiptSettings.taxRate || 16;
     const { subtotal: baseSubtotal, tax: extractedTax } = calculateTaxBreakdown(total, taxRate);
-    message += `Subtotal: $${(baseSubtotal / 100).toFixed(2)}\n`;
-    message += `IVA (${taxRate}%): $${(extractedTax / 100).toFixed(2)}\n`;
+    message += `Subtotal: ${formatForDisplay(baseSubtotal)}\n`; // Use formatForDisplay
+    message += `IVA (${taxRate}%): ${formatForDisplay(extractedTax)}\n`; // Use formatForDisplay
   }
 
   message += `--------------------------\n`;
-  message += `*TOTAL: $${(total / 100).toFixed(2)}*\n`;
-  message += `_${numeroALetras(total / 100)}_\n`;
+  message += `*TOTAL: ${formatForDisplay(total)}*\n`; // Use formatForDisplay
+  message += `_${numeroALetras(total)}_\n`; // Use raw total (centavos)
 
   if (loyaltyData) {
     message += `--------------------------\n`;

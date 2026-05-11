@@ -32,13 +32,14 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
           />
         )}
         <h2 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>{receiptSettings?.storeName || 'Coffee POS'}</h2>
-        <p style={{ margin: '0', fontSize: '12px' }}>{receiptSettings?.address || ''}</p>
-        <p style={{ margin: '0', fontSize: '12px' }}>{receiptSettings?.phone || ''}</p>
-      </div>
+        {receiptSettings?.subheader && (
+          <p style={{ margin: '0', fontSize: '12px', whiteSpace: 'pre-line' }}>{receiptSettings.subheader}</p>
+        )}
+        </div>
 
-      <div style={{ margin: '10px 0', fontSize: '12px' }}>
+        <div style={{ margin: '10px 0', fontSize: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>Ticket: #{ticket.id}</span>
+          <span>Ticket: {ticket.name || ticket.order_name || `#${ticket.id}`}</span>
           <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
         </div>
         <div>{new Date(ticket.created_at).toLocaleTimeString()}</div>
