@@ -1,12 +1,11 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
-import { toCents } from '../utils/moneyUtils';
 
 export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0 }) => {
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;
   const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
-  
+
   // Ensure we are working with integer cents
   const centsTotal = cartTotal;
   const centsTip = tipAmount;
@@ -42,7 +41,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     // --- HYBRID INVENTORY DEDUCTION ENGINE ---
     for (const item of activeTicket.items) {
       const itemQty = item.qty || 1;
-      
+
       // ==========================================
       // A. STANDARD ITEMS (Make-to-Stock)
       // ==========================================
@@ -57,12 +56,12 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
             if (!data || data.length === 0) throw new Error(`Insufficient stock for ${warehouseItem.name}`);
           }
 
-          inventoryLogsToPush.push({ 
-            item_name: warehouseItem.name, 
-            qty_deducted: itemQty, 
-            deduction_type: "sale", 
-            created_at: timestamp, 
-            ticket_id: String(activeTicket.id), 
+          inventoryLogsToPush.push({
+            item_name: warehouseItem.name,
+            qty_deducted: itemQty,
+            deduction_type: "sale",
+            created_at: timestamp,
+            ticket_id: String(activeTicket.id),
             unit_cost: warehouseItem.unit_cost || 0,
             local_id: crypto.randomUUID()
           });
@@ -76,8 +75,8 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         if (item.selectedModifiers && item.selectedModifiers.length > 0) {
           for (const mod of item.selectedModifiers) {
             if (mod.deductionTargetId && !mod.substitutionTarget) {
-              const modItem = currentInventory.find(inv => String(inv.id) === String(mod.deductionTargetId)) 
-                             || currentInventory.find(inv => inv.name === mod.deductionTarget); // Fallback to name for legacy
+              const modItem = currentInventory.find(inv => String(inv.id) === String(mod.deductionTargetId))
+                || currentInventory.find(inv => inv.name === mod.deductionTarget); // Fallback to name for legacy
 
               if (modItem) {
                 if (navigator.onLine) {
@@ -86,12 +85,12 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   if (!data || data.length === 0) throw new Error(`Insufficient stock for modifier ${modItem.name}`);
                 }
 
-                inventoryLogsToPush.push({ 
-                  item_name: modItem.name, 
-                  qty_deducted: itemQty, 
-                  deduction_type: "sale", 
-                  created_at: timestamp, 
-                  ticket_id: String(activeTicket.id), 
+                inventoryLogsToPush.push({
+                  item_name: modItem.name,
+                  qty_deducted: itemQty,
+                  deduction_type: "sale",
+                  created_at: timestamp,
+                  ticket_id: String(activeTicket.id),
                   unit_cost: modItem.unit_cost || 0,
                   local_id: crypto.randomUUID()
                 });
@@ -103,8 +102,8 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
             }
           }
         }
-      } 
-      
+      }
+
       // ==========================================
       // B. RECIPE ITEMS (Make-to-Order)
       // ==========================================
@@ -112,10 +111,10 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
 
         if (recipe && recipe.ingredients) {
-          let cartBOM = recipe.ingredients.map(ing => ({ 
+          let cartBOM = recipe.ingredients.map(ing => ({
             id: ing.id, // Prefer ID
-            item_name: ing.name, 
-            qty: (parseFloat(ing.qty) || 0) * itemQty 
+            item_name: ing.name,
+            qty: (parseFloat(ing.qty) || 0) * itemQty
           }));
 
           // Process Modifier Substitutions/Additions
@@ -137,7 +136,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
           for (const ing of cartBOM) {
             if (ing.qty > 0) {
               const whItem = currentInventory.find(inv => String(inv.id) === String(ing.id))
-                             || currentInventory.find(inv => inv.name === ing.item_name);
+                || currentInventory.find(inv => inv.name === ing.item_name);
 
               if (whItem) {
                 if (navigator.onLine) {
@@ -146,12 +145,12 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   if (!data || data.length === 0) throw new Error(`Insufficient stock for ingredient ${whItem.name}`);
                 }
 
-                inventoryLogsToPush.push({ 
-                  item_name: whItem.name, 
-                  qty_deducted: ing.qty, 
-                  deduction_type: "sale", 
-                  created_at: timestamp, 
-                  ticket_id: String(activeTicket.id), 
+                inventoryLogsToPush.push({
+                  item_name: whItem.name,
+                  qty_deducted: ing.qty,
+                  deduction_type: "sale",
+                  created_at: timestamp,
+                  ticket_id: String(activeTicket.id),
                   unit_cost: whItem.unit_cost || 0,
                   local_id: crypto.randomUUID()
                 });
@@ -181,14 +180,14 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   } catch (error) {
     console.warn("Cloud sync deferred:", error.message);
     const { id: _UNUSED, ...safeOfflineSale } = finalizedSale;
-    
+
     await db.syncQueue.add(safeOfflineSale);
     if (inventoryLogsToPush.length > 0) {
       await db.inventory_logs.bulkPut(inventoryLogsToPush);
     }
     // If it was a stock error, we should probably re-throw to alert the UI
     if (error.message.includes("Insufficient stock")) throw error;
-  } 
+  }
 
   return { localAnalyticsRecord: finalizedSale, masterMethodString };
 };

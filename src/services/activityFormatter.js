@@ -93,7 +93,7 @@ const ACTIONS = {
       const sign = variance > 0 ? '+' : '';
       return interp(t('activity.desc.inventoryAudit'), {
         name: m.name || '—',
-        variance: `${sign}${fmt(variance, 2)}`,
+        variance: `${sign}${variance}`,
         impact: fmt(m.financial_impact ?? m.financialImpact)
       });
     }
