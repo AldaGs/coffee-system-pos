@@ -940,28 +940,52 @@ function Register() {
   // --- 1. LOCK SCREEN GUARD ---
   if (isLocked) {
     if (!selectedProfile) {
-      return <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} />;
+      return (
+        <>
+          <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} requirePin={requirePin} />
+          <PinChallengeModal
+            pinChallenge={pinChallenge}
+            setPinChallenge={setPinChallenge}
+            challengePinAttempt={challengePinAttempt}
+            setChallengePinAttempt={setChallengePinAttempt}
+            challengeError={challengeError}
+            setChallengeError={setChallengeError}
+            handleChallengeSubmit={handleChallengeSubmit}
+          />
+        </>
+      );
     }
 
     // If a cashier IS selected, show the new standardized PIN Pad
     return (
-      <SharedPinPad
-        variant="fullscreen"
-        avatarText={selectedProfile?.name?.charAt(0)}
-        title={`${t('reg.loginHi')} ${selectedProfile?.name}`}
-        subtitle={t('reg.loginEnterPin')}
-        pin={pinAttempt}
-        setPin={setPinAttempt}
-        error={phoneError}
-        setError={setPhoneError}
-        onSubmit={handleUnlockSubmit}
-        onCancel={() => {
-          setSelectedProfile(null);
-          setPinAttempt('');
-        }}
-        submitText={t('reg.btnLogin')}
-        submitIcon="lucide:log-in"
-      />
+      <>
+        <SharedPinPad
+          variant="fullscreen"
+          avatarText={selectedProfile?.name?.charAt(0)}
+          title={`${t('reg.loginHi')} ${selectedProfile?.name}`}
+          subtitle={t('reg.loginEnterPin')}
+          pin={pinAttempt}
+          setPin={setPinAttempt}
+          error={phoneError}
+          setError={setPhoneError}
+          onSubmit={handleUnlockSubmit}
+          onCancel={() => {
+            setSelectedProfile(null);
+            setPinAttempt('');
+          }}
+          submitText={t('reg.btnLogin')}
+          submitIcon="lucide:log-in"
+        />
+        <PinChallengeModal
+          pinChallenge={pinChallenge}
+          setPinChallenge={setPinChallenge}
+          challengePinAttempt={challengePinAttempt}
+          setChallengePinAttempt={setChallengePinAttempt}
+          challengeError={challengeError}
+          setChallengeError={setChallengeError}
+          handleChallengeSubmit={handleChallengeSubmit}
+        />
+      </>
     );
   }
 

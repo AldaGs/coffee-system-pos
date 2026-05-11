@@ -17,7 +17,7 @@ export const translations = {
     // --- Admin PIN Lock ---
     "admin.lockedTitle": "Admin Locked",
     "admin.lockedSubtitle": "Type your PIN or use the keypad.",
-    "admin.unlockBtn": "Unlock Dashboard [Enter]",
+    "admin.unlockBtn": "Unlock",
     "admin.activity": "Activity Log",
     "admin.error": "Error",
     "admin.loginSubtitle": "Access the administrative dashboard",
@@ -857,7 +857,7 @@ export const translations = {
     // --- Admin PIN Lock ---
     "admin.lockedTitle": "Admin Bloqueado",
     "admin.lockedSubtitle": "Ingresa tu PIN o usa el teclado.",
-    "admin.unlockBtn": "Desbloquear Panel [Enter]",
+    "admin.unlockBtn": "Desbloquear",
     "admin.activity": "Actividad",
     "admin.error": "Error",
     "admin.loginSubtitle": "Accede al panel de administración",

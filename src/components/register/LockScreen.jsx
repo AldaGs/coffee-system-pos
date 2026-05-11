@@ -1,13 +1,15 @@
 import { useTranslation } from '../../hooks/useTranslation';
+import { useNavigate } from 'react-router-dom';
 
 function LockScreen({ posSettings, cashiers, selectedProfile, setSelectedProfile, pinAttempt, setPinAttempt, handlePinKeyDown, phoneError, handleUnlockSubmit }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
 
   return (
-    <div style={{ height: '100dvh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+    <div style={{ position: 'relative', height: '100dvh', width: '100vw', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <h1 style={{ color: 'var(--brand-color)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '2px', fontSize: '1rem' }}>{posSettings?.name || "Register"}</h1>
       <h2 style={{ color: 'var(--text-main)', marginBottom: '40px', marginTop: 0 }}>{t('lock.who')}</h2>
-      
+
       {!selectedProfile ? (
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
           {cashiers.map(cashier => (
@@ -30,6 +32,16 @@ function LockScreen({ posSettings, cashiers, selectedProfile, setSelectedProfile
           </div>
         </div>
       )}
+
+      {/* Centered Admin Button at the bottom */}
+      <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)' }}>
+        <button
+          onClick={() => navigate('/admin')}
+          className="admin-btn"
+        >
+          {t('menuArea.admin')}
+        </button>
+      </div>
     </div>
   );
 }
