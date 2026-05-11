@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Icon } from '@iconify/react';
 
 function Dialog({ uiDialog, closeDialog }) {
   const [inputValue, setInputValue] = useState(uiDialog.inputValue || '');
@@ -65,8 +66,10 @@ function Dialog({ uiDialog, closeDialog }) {
         aria-describedby="dialog-message"
         onKeyDown={handleKeyDown}
       >
-        <div style={{ fontSize: '3.5rem', marginBottom: '10px' }} aria-hidden="true">
-          {uiDialog.type === 'alert' ? '🔔' : uiDialog.type === 'prompt' ? '📝' : '⚠️'}
+        <div style={{ fontSize: '3.5rem', marginBottom: '10px', color: 'var(--brand-color)' }} aria-hidden="true">
+          {uiDialog.type === 'alert' && <Icon icon="lucide:alert-circle" />}
+          {uiDialog.type === 'prompt' && <Icon icon="lucide:plus-circle" />}
+          {uiDialog.type === 'confirm' && <Icon icon="lucide:alert-triangle" />}
         </div>
         <h2 id="dialog-title" style={{ color: 'var(--text-main)', marginBottom: '16px', marginTop: 0 }}>{uiDialog.title}</h2>
         <p id="dialog-message" style={{ fontSize: '1.1rem', marginBottom: uiDialog.type === 'prompt' ? '16px' : '24px', color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{uiDialog.message}</p>

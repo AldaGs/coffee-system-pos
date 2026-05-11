@@ -523,6 +523,7 @@ export const translations = {
     "reg.promptTicketNameDesc": "Enter a name for this ticket (Optional).",
     "reg.btnCreateTicket": "Create",
     "reg.btnCancel": "Cancel",
+    "reg.btnSkip": "Skip",
 
     // --- Expenses (Gastos) ---
     "expense.errMissing": "Missing Info",
@@ -1363,6 +1364,7 @@ export const translations = {
     "reg.promptTicketNameDesc": "Ingresa un nombre para este ticket (Opcional).",
     "reg.btnCreateTicket": "Crear",
     "reg.btnCancel": "Cancelar",
+    "reg.btnSkip": "Saltar",
 
     // --- Expenses (Gastos) ---
     "expense.errMissing": "Falta Información",

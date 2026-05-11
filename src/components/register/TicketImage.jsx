@@ -1,6 +1,7 @@
 import { useTranslation } from '../../hooks/useTranslation';
 import { calculateTaxBreakdown } from '../../utils/posMath';
 import { formatForDisplay } from '../../utils/moneyUtils';
+import { numeroALetras } from '../../utils/numeroALetras';
 
 const TicketImage = ({ id, ticket, receiptSettings, total }) => {
   const { t } = useTranslation();
@@ -105,6 +106,10 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
       <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', fontSize: '22px', fontWeight: 'bold', marginTop: '15px', borderTop: '2px solid black', paddingTop: '10px' }}>
         <span>TOTAL</span>
         <span>{formatForDisplay(total)}</span>
+      </div>
+
+      <div style={{ textAlign: 'center', fontSize: '10px', fontWeight: 'bold', marginTop: '5px', textTransform: 'uppercase' }}>
+        {numeroALetras(total)}
       </div>
 
       <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>

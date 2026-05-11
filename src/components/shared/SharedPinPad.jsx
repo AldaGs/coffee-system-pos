@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Icon } from '@iconify/react';
 
 export default function SharedPinPad({
@@ -17,6 +17,33 @@ export default function SharedPinPad({
   submitIcon = 'lucide:log-in'
 }) {
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const submittingRef = useRef(false);
+
+  const handleSubmit = useCallback(async () => {
+    if (!onSubmit || submittingRef.current) return;
+    submittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      await onSubmit();
+    } finally {
+      submittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  }, [onSubmit]);
+
+  // --- AUTO SUBMIT ---
+  useEffect(() => {
+    if (pin.length === 4 && !error && !isSubmitting) {
+      // Use a small timeout to avoid calling setState synchronously within an effect
+      const timer = setTimeout(() => {
+        handleSubmit();
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [pin, error, isSubmitting, handleSubmit]);
+
   // --- UNIVERSAL KEYBOARD LISTENER ---
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -27,7 +54,7 @@ export default function SharedPinPad({
         setPin(prev => prev.slice(0, -1));
       } else if (e.key === 'Enter') {
         e.preventDefault();
-        if (pin.length === 4) onSubmit();
+        if (pin.length === 4) handleSubmit();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         onCancel();
@@ -36,11 +63,11 @@ export default function SharedPinPad({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pin, onSubmit, onCancel, setPin, setError]);
+  }, [pin, onCancel, setPin, setError, isSubmitting, handleSubmit]);
 
   // --- INNER CONTENT (The Premium UI) ---
   const content = (
-    <div className={`fade-in ${error ? 'shake' : ''}`} style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '16px', width: '100%', maxWidth: '400px', boxShadow: '0 30px 100px rgba(0,0,0,0.15)', textAlign: 'center', border: `2px solid ${error ? '#e74c3c' : 'var(--border)'}`, transition: 'all 0.3s' }}>
+    <div className={`fade-in ${error ? 'input-error-shake' : ''}`} style={{ background: 'var(--bg-surface)', padding: '32px', borderRadius: '16px', width: '100%', maxWidth: '400px', boxShadow: '0 30px 100px rgba(0,0,0,0.15)', textAlign: 'center', border: `2px solid ${error ? '#e74c3c' : 'var(--border)'}`, transition: 'all 0.3s' }}>
       
       {/* Dynamic Header: Avatar OR Icon */}
       {avatarText ? (
@@ -78,12 +105,18 @@ export default function SharedPinPad({
       </div>
 
       <button 
-        onClick={onSubmit}
-        disabled={pin.length !== 4}
-        style={{ width: '100%', padding: '20px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '20px', cursor: pin.length !== 4 ? 'not-allowed' : 'pointer', fontWeight: '900', fontSize: '1.3rem', boxShadow: pin.length === 4 ? '0 10px 25px rgba(52, 152, 219, 0.3)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', opacity: pin.length === 4 ? 1 : 0.5, transition: 'all 0.3s' }}
+        onClick={handleSubmit}
+        disabled={pin.length !== 4 || isSubmitting}
+        style={{ width: '100%', padding: '20px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '20px', cursor: (pin.length !== 4 || isSubmitting) ? 'not-allowed' : 'pointer', fontWeight: '900', fontSize: '1.3rem', boxShadow: pin.length === 4 ? '0 10px 25px rgba(52, 152, 219, 0.3)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', opacity: pin.length === 4 ? 1 : 0.5, transition: 'all 0.3s' }}
       >
-        <Icon icon={submitIcon} />
-        {submitText}
+        {isSubmitting ? (
+          <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px', borderColor: 'white', borderBottomColor: 'transparent' }} />
+        ) : (
+          <>
+            <Icon icon={submitIcon} />
+            {submitText}
+          </>
+        )}
       </button>
     </div>
   );
