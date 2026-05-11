@@ -3,6 +3,7 @@ import { attemptBackgroundSync } from '../services/syncService';
 import { logActivity } from '../services/activityService';
 import { useCartStore } from '../store/useCartStore';
 import { useMenuStore } from '../store/useMenuStore';
+import { db } from '../db';
 
 /**
  * Hook to manage the checkout lifecycle.
@@ -11,10 +12,18 @@ import { useMenuStore } from '../store/useMenuStore';
 export const useCheckout = (posState) => {
   const {
     activeTicket, cartTotal, activeCashier, tipAmount = 0,
-    clearCurrentTicket, setSuccessTicket, showAlert
+    clearCurrentTicket, setSuccessTicket, showAlert, showConfirm, t
   } = posState;
 
-  const { resetCheckoutState } = useCartStore();
+  const { 
+    resetCheckoutState, 
+    splitPayments, setSplitPayments, 
+    paidProductIds, setPaidProductIds, 
+    splitMode, setSplitMode, 
+    nWays, setNWays, 
+    setIsCheckoutModalOpen 
+  } = useCartStore();
+
   const { recipes } = useMenuStore();
 
   const handleConfirmPayment = async (paymentsArray) => {
@@ -62,6 +71,71 @@ export const useCheckout = (posState) => {
     }
   };
 
-  return { handleConfirmPayment };
-};
+  const handleOpenCheckout = () => {
+    if (!activeTicket) return;
+    setSplitPayments(activeTicket.savedSplitPayments || []);
+    setPaidProductIds(activeTicket.savedPaidProductIds || []);
+    setSplitMode(activeTicket.savedSplitMode || 'full');
+    setNWays(activeTicket.savedNWays || 2);
+    setIsCheckoutModalOpen(true);
+  };
 
+  const handleSavePartialPayments = async () => {
+    if (activeTicket) {
+      await db.active_tickets.update(activeTicket.id, { 
+        savedSplitPayments: splitPayments, 
+        savedPaidProductIds: paidProductIds, 
+        savedSplitMode: splitMode, 
+        savedNWays: nWays 
+      });
+    }
+    setIsCheckoutModalOpen(false);
+  };
+
+  const handleVoidPartialPayments = () => {
+    showConfirm(t('checkout.voidPartialTitle'), t('checkout.voidPartialDesc'), async () => {
+      if (activeTicket) {
+        await db.active_tickets.update(activeTicket.id, { 
+          savedSplitPayments: [], 
+          savedPaidProductIds: [], 
+          savedSplitMode: null, 
+          savedNWays: 2 
+        });
+      }
+      setSplitPayments([]);
+      setPaidProductIds([]);
+      setSplitMode('full');
+      setNWays(2);
+      setIsCheckoutModalOpen(false);
+    });
+  };
+
+  const handlePartialPayment = (amountToPay, method, itemsToMark = []) => {
+    // 1. Log the new payment slice
+    const newPayments = [...splitPayments, { amount: amountToPay, method }];
+    setSplitPayments(newPayments);
+
+    // 2. Mark any purchased items (For Product splitting mode)
+    if (itemsToMark?.length > 0) setPaidProductIds([...paidProductIds, ...itemsToMark]);
+
+    // 3. Test if the ticket is completed
+    const totalDue = cartTotal + (Number(tipAmount) || 0);
+    const totalPaidSoFar = newPayments.reduce((sum, p) => sum + p.amount, 0);
+    if (Math.abs(totalDue - totalPaidSoFar) < 0.01 || totalPaidSoFar >= totalDue) {
+      handleConfirmPayment(newPayments);
+    }
+  };
+
+  const handleCancelCheckout = () => {
+    resetCheckoutState();
+  };
+
+  return { 
+    handleConfirmPayment, 
+    handleOpenCheckout, 
+    handleSavePartialPayments, 
+    handleVoidPartialPayments, 
+    handlePartialPayment, 
+    handleCancelCheckout 
+  };
+};
