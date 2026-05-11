@@ -49,7 +49,7 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
       <div>
         {ticket.items.map((item, idx) => {
           const qty = item.qty || 1;
-          const itemBase = scale(item.basePrice || 0);
+          const itemBase = item.basePrice || 0;
           const itemNameWithEmoji = `${item.emoji || '•'} ${item.name}`;
           
           return (
@@ -59,7 +59,7 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
                 <span>{formatForDisplay(item.basePrice * qty)}</span>
               </div>
               {(item.selectedModifiers || []).map((mod, midx) => {
-                const modP = scale(mod.price || 0);
+                const modP = mod.price || 0;
                 return (
                   <div key={midx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', paddingLeft: '10px' }}>
                     <span>+ {mod.name}{mod.textValue ? `: "${mod.textValue}"` : ''}</span>
