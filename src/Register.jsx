@@ -39,7 +39,8 @@ import SyncStatusModal from './components/register/SyncStatusModal';
 import DiscountModal from './components/register/DiscountModal';
 import TicketImage from './components/register/TicketImage';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
-
+import { fetchAndMergeSales } from './services/salesSync';
+import { fetchActiveTickets } from './services/ticketSync';
 
 const getOrCreateDeviceId = () => {
   let id = localStorage.getItem('tinypos_device_id');
@@ -101,9 +102,16 @@ function Register() {
         if (Object.keys(safeCategories).length > 0) {
           setActiveCategory(Object.keys(safeCategories)[0]);
         }
+
+        // 3. Pull down active tickets from other devices into local Dexie
+        await fetchActiveTickets();
+
+        // 4. Pull down historical sales into local Dexie (for OrdersTab refunds)
+        await fetchAndMergeSales();
+
         setIsLoading(false);
       } catch (err) {
-        console.warn("Failed to fetch fresh menu, using cache.", err);
+        console.warn("Failed to fetch fresh menu or sync, using cache.", err);
         setIsLoading(false);
       }
     };
@@ -177,9 +185,9 @@ function Register() {
   const [discountForm, setDiscountForm] = useState({ type: 'percentage', value: '' });
 
   const handleApplyDiscount = async () => {
-    const val = discountForm.type === 'percentage' 
-    ? parseFloat(discountForm.value) 
-    : toCents(discountForm.value);
+    const val = discountForm.type === 'percentage'
+      ? parseFloat(discountForm.value)
+      : toCents(discountForm.value);
 
     if (isNaN(val) || val <= 0) return showAlert(t('discount.invalidTitle'), t('discount.invalidDesc'));
 
@@ -545,13 +553,13 @@ function Register() {
       activeRules.forEach(rule => {
         // FOR CART LEVEL RULES
         if (rule.targetType === 'cart') {
-          const ruleValue = rule.type === 'percentage' 
-            ? cartSubtotal * (rule.value / 100) 
+          const ruleValue = rule.type === 'percentage'
+            ? cartSubtotal * (rule.value / 100)
             : normalizeMenuPrice(rule.value); // <-- Add normalizeMenuPrice here
-            
+
           autoDiscountAmount += ruleValue;
           activeAutoRuleName = rule.name;
-        } 
+        }
         // FOR ITEM LEVEL RULES
         else if (rule.targetType === 'item') {
           activeTicket.items.forEach(item => {
@@ -559,11 +567,11 @@ function Register() {
               const qty = item.qty || 1;
               let itemCost = item.basePrice; // Already in cents
               item.selectedModifiers.forEach(mod => { itemCost += mod.price; }); // Already in cents
-              
-              const ruleValue = rule.type === 'percentage' 
-                ? itemCost * qty * (rule.value / 100) 
+
+              const ruleValue = rule.type === 'percentage'
+                ? itemCost * qty * (rule.value / 100)
                 : normalizeMenuPrice(rule.value) * qty; // <-- Add normalizeMenuPrice here
-                
+
               autoDiscountAmount += ruleValue;
               activeAutoRuleName = rule.name;
             }
