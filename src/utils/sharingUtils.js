@@ -32,6 +32,42 @@ export const convertLogoToESCPOS = async (base64Data) => {
       const imageData = ctx.getImageData(0, 0, width, height);
       const pixels = imageData.data;
 
+      // 1. Create a grayscale buffer (Float32 for precision during error distribution)
+      // We treat transparency as white since thermal paper is white.
+      const gs = new Float32Array(width * height);
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i];
+        const g = pixels[i + 1];
+        const b = pixels[i + 2];
+        const a = pixels[i + 3];
+        
+        // Luminance formula, but blend with white based on alpha
+        const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
+        const alpha = a / 255;
+        gs[i / 4] = brightness * alpha + 255 * (1 - alpha);
+      }
+
+      // 2. Floyd-Steinberg Dithering
+      // This converts grayscale to black/white dots to preserve visual detail
+      const bw = new Uint8Array(width * height);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const idx = y * width + x;
+          const oldPixel = gs[idx];
+          const newPixel = oldPixel < 128 ? 0 : 255;
+          bw[idx] = newPixel === 0 ? 1 : 0; // 1 is black in ESC/POS bit image
+          const error = oldPixel - newPixel;
+
+          // Distribute error to neighbors
+          if (x + 1 < width) gs[idx + 1] += error * 7 / 16;
+          if (y + 1 < height) {
+            if (x > 0) gs[idx + width - 1] += error * 3 / 16;
+            gs[idx + width] += error * 5 / 16;
+            if (x + 1 < width) gs[idx + width + 1] += error * 1 / 16;
+          }
+        }
+      }
+
       const widthBytes = width / 8;
       const xL = widthBytes % 256;
       const xH = Math.floor(widthBytes / 256);
@@ -41,27 +77,17 @@ export const convertLogoToESCPOS = async (base64Data) => {
       const header = [0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH];
       const imageBytes = [];
 
-      let currentByte = 0;
-      let bitIndex = 0;
-
-      for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-        const a = pixels[i + 3];
-
-        const isBlack = (a > 128) && ((r * 0.299 + g * 0.587 + b * 0.114) < 128);
-
-        if (isBlack) {
-          currentByte |= (1 << (7 - bitIndex));
-        }
-
-        bitIndex++;
-
-        if (bitIndex === 8) {
-          imageBytes.push(currentByte);
-          currentByte = 0;
-          bitIndex = 0;
+      // 3. Pack bits into bytes
+      for (let y = 0; y < height; y++) {
+        for (let xB = 0; xB < widthBytes; xB++) {
+          let byte = 0;
+          for (let bit = 0; bit < 8; bit++) {
+            const x = xB * 8 + bit;
+            if (bw[y * width + x]) {
+              byte |= (1 << (7 - bit));
+            }
+          }
+          imageBytes.push(byte);
         }
       }
 
