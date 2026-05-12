@@ -9,6 +9,31 @@ html, body {
   width: 100vw;
   overflow: hidden;
   /* Prevent scrollbars */
+
+  /* Dead background swallows edge-swipe gestures; interactive descendants
+     opt back in via the rule below. */
+  touch-action: none;
+}
+
+.pos-container button,
+.pos-container a,
+.pos-container input,
+.pos-container select,
+.pos-container textarea,
+.pos-container label,
+.pos-container [role="button"],
+.pos-container [role="tab"],
+.pos-container [role="menuitem"],
+.pos-container [tabindex] {
+  touch-action: manipulation;
+}
+
+/* Scrollable regions need to keep their native panning. */
+.pos-container [data-scroll],
+.pos-container .scrollable,
+.pos-container .menu-area,
+.pos-container .order-area {
+  touch-action: pan-y;
 }
 
 /* --- Menu Area (Left Side) --- */

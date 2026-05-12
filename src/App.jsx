@@ -34,23 +34,9 @@ function App() {
     };
     window.addEventListener('popstate', handlePopState);
 
-    // 3. Block Android/iOS edge-swipe gesture navigation during service.
-    // Cancels any touch that starts within the edge gutter where the OS
-    // interprets a horizontal swipe as back/forward navigation.
-    const EDGE_PX = 24;
-    const handleTouchStart = (e) => {
-      const t = e.touches && e.touches[0];
-      if (!t) return;
-      if (t.clientX <= EDGE_PX || t.clientX >= window.innerWidth - EDGE_PX) {
-        if (e.cancelable) e.preventDefault();
-      }
-    };
-    document.addEventListener('touchstart', handleTouchStart, { passive: false });
-
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
-      document.removeEventListener('touchstart', handleTouchStart);
     };
   }, []);
 
