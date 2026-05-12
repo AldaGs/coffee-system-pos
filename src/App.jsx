@@ -18,6 +18,28 @@ function App() {
     !!localStorage.getItem('tinypos_supabase_url') && !!localStorage.getItem('tinypos_supabase_anon_key')
   );
 
+  // --- PREVENT ACCIDENTAL REFRESH / NAVIGATION ---
+  useEffect(() => {
+    // 1. Prevent accidental refresh/close (shows browser warning)
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = ''; 
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // 2. Prevent mobile navigation shortcuts (like swipe back/forward)
+    window.history.pushState(null, '', window.location.href);
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.href);
+    };
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const [showGuide, setShowGuide] = useState(false); 
 
   // --- 2. SECURE SESSION STATE ---
@@ -116,7 +138,14 @@ function App() {
   // --- GATE 2: THE DEVICE AUTHORIZATION SCREEN ---
   // If they have keys, but the device isn't logged into the Kiosk account, lock them out!
   if (isCheckingSession) {
-    return <div style={{ height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: "var(--bg-main)", color: 'var(--text-main)' }}>Checking device authorization...</div>;
+    return (
+      <div className="loader-container">
+        <div className="spinner"></div>
+        <h2 style={{ marginTop: '20px', color: 'var(--text-main)', fontSize: '1.2rem', fontWeight: '600' }}>
+          Checking device authorization...
+        </h2>
+      </div>
+    );
   }
 
   if (!session) {
