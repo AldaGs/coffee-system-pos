@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { computeStarsForTicket } from '../hooks/useLoyalty';
+import { recordTipAccrual } from './tipsService';
 
 export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0, loyaltySettings = null }) => {
   // Determine the master string for backwards compatibility
@@ -29,6 +30,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     payment_method: masterMethodString,
     splits: isSplit ? paymentsArray.map(p => ({ ...p, amount: p.amount })) : null,
     tip_amount: centsTip,
+    tip_refunded: 0,
     items_sold: activeTicket.items.map(item => item.name),
     items: activeTicket.items.map(item => ({ ...item, price: item.basePrice })),
     discount: activeTicket.discount || activeTicket.autoDiscountRuleName ? {
@@ -208,6 +210,21 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     }
     // If it was a stock error, we should probably re-throw to alert the UI
     if (error.message.includes("Insufficient stock")) throw error;
+  }
+
+  // Record the tip accrual as a custodial-liability event. Best-effort:
+  // never block checkout on ledger failure (a missing event can be rebuilt
+  // from the sale row; a missing sale cannot be rebuilt from the event).
+  if (centsTip > 0) {
+    try {
+      await recordTipAccrual({
+        saleLocalId: localId,
+        tipCents: centsTip,
+        actor: activeCashier?.name || null
+      });
+    } catch (e) {
+      console.warn('tip accrual event failed', e);
+    }
   }
 
   return { localAnalyticsRecord: finalizedSale, masterMethodString };

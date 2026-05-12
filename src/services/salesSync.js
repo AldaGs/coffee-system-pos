@@ -25,4 +25,22 @@ export const fetchAndMergeSales = async () => {
   }
   if (dexieIdsToDelete.length > 0) await db.sales.bulkDelete(dexieIdsToDelete);
   await db.sales.bulkPut(salesHistory);
+
+  // Mirror tip ledger tables (small, append-only). Best-effort: an offline
+  // admin still has the local writes; this just pulls in events from other
+  // devices and refreshes after manual edits in the cloud console.
+  try {
+    const { data: payouts } = await supabase.from('tip_payouts').select('*');
+    if (payouts) {
+      await db.tip_payouts.clear();
+      await db.tip_payouts.bulkPut(payouts);
+    }
+    const { data: events } = await supabase.from('tip_events').select('*');
+    if (events) {
+      await db.tip_events.clear();
+      await db.tip_events.bulkPut(events);
+    }
+  } catch (e) {
+    console.warn('tip ledger sync skipped', e);
+  }
 };

@@ -82,3 +82,14 @@ export const formatForDisplay = (cents, lang = 'es') => {
 export const formatMillicentsForDisplay = (m) => '$' + (m / 10000).toFixed(4);
 
 export const millicentsToCents = (m) => Math.round(m / 100);
+
+// Legacy unit_cost rows were stored as decimal currency (e.g. 1.50 = $1.50).
+// Current rows are stored in millicents (e.g. 15000 = $1.50). Values below the
+// threshold are treated as legacy and rescaled. Keep this in ONE place so every
+// consumer (COGS, wastage, inventory value) interprets stock costs the same way.
+export const LEGACY_UNIT_COST_THRESHOLD = 10;
+export const normalizeUnitCostToMillicents = (raw) => {
+  const v = Number(raw) || 0;
+  if (v > 0 && v < LEGACY_UNIT_COST_THRESHOLD) return v * 10000;
+  return v;
+};

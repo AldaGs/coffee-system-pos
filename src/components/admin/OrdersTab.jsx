@@ -9,6 +9,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { useMenuStore } from '../../store/useMenuStore';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from '../../utils/sharingUtils';
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
+import { recordTipRefund } from '../../services/tipsService';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
@@ -25,6 +26,9 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   const [refundModal, setRefundModal] = useState({ isOpen: false, order: null });
   const [refundMode, setRefundMode] = useState('all'); // 'all' | 'custom'
   const [refundAmount, setRefundAmount] = useState('');
+  // 'none' = staff keeps tip, 'proportional' = tip * (refund/total), 'full' = refund entire remaining tip.
+  // Full refunds default to 'full' (no service was rendered); partials default to 'none'.
+  const [tipRefundMode, setTipRefundMode] = useState('full');
 
   const handleChallengeSubmit = async () => {
     const isValid = await verifyAdminPin(challengePinAttempt);
@@ -63,8 +67,38 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       newStatus = 'partial_refund';
     }
 
+    // Tip refund decision — staff are the trustees of the tip, so we never
+    // claw back tips silently. The operator picks the policy explicitly.
+    const tipTotal = Number(order.tip_amount) || 0;
+    const tipAlreadyRefunded = Number(order.tip_refunded) || 0;
+    const tipRemaining = Math.max(0, tipTotal - tipAlreadyRefunded);
+    let tipRefundDelta = 0;
+    if (tipRemaining > 0) {
+      if (isFull) {
+        // On a full refund, default to giving the tip back too unless the
+        // operator explicitly switched to 'none'/'proportional'.
+        if (tipRefundMode === 'none') tipRefundDelta = 0;
+        else if (tipRefundMode === 'proportional') {
+          const denom = order.total_amount || 0;
+          tipRefundDelta = denom > 0 ? Math.round(tipTotal * (rAmt / denom)) : 0;
+        } else {
+          tipRefundDelta = tipRemaining;
+        }
+      } else {
+        if (tipRefundMode === 'full') tipRefundDelta = tipRemaining;
+        else if (tipRefundMode === 'proportional') {
+          const denom = order.total_amount || 0;
+          tipRefundDelta = denom > 0 ? Math.round(tipTotal * (rAmt / denom)) : 0;
+        } else {
+          tipRefundDelta = 0;
+        }
+      }
+      tipRefundDelta = Math.min(tipRefundDelta, tipRemaining);
+    }
+
     try {
       const updateData = { status: newStatus, refund_amount: prevRefund + rAmt };
+      if (tipRefundDelta > 0) updateData.tip_refunded = tipAlreadyRefunded + tipRefundDelta;
       await db.sales.update(order.id, updateData);
 
       // Legacy orders (created before local_id existed) won't have a local_id —
@@ -86,6 +120,15 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
         await db.updateQueue.add(queueEntry);
       }
 
+      if (tipRefundDelta > 0) {
+        await recordTipRefund({
+          saleLocalId: order.local_id || null,
+          tipRefundedDeltaCents: tipRefundDelta,
+          actor: order.cashier_name || null,
+          reason: newStatus === 'refunded' ? 'full_refund' : 'partial_refund'
+        });
+      }
+
       setRefundModal({ isOpen: false, order: null });
       showAlert(t('toast.success'), t('toast.success'));
     } catch (err) {
@@ -95,7 +138,11 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
            type: 'sale_update',
            local_id: order.local_id || null,
            cloud_id: order.local_id ? null : order.id,
-           data: { status: newStatus, refund_amount: prevRefund + rAmt }
+           data: {
+             status: newStatus,
+             refund_amount: prevRefund + rAmt,
+             ...(tipRefundDelta > 0 ? { tip_refunded: tipAlreadyRefunded + tipRefundDelta } : {})
+           }
          });
          setRefundModal({ isOpen: false, order: null });
          return showAlert(t('toast.success'), t('toast.success') + " (Offline)");
@@ -360,6 +407,8 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                     onAuthorized: () => {
                       setRefundMode('all');
                       setRefundAmount('');
+                      // Sensible default: full refund -> return tip; partial -> keep tip with staff.
+                      setTipRefundMode('full');
                       setRefundModal({ isOpen: true, order: order });
                     }
                   });
@@ -485,6 +534,44 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                 </div>
               )}
             </div>
+
+            {((Number(refundModal.order.tip_amount) || 0) - (Number(refundModal.order.tip_refunded) || 0)) > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text-muted)' }}>
+                  {t('orders.tipRefundLabel')}
+                  <span style={{ marginLeft: 8, fontWeight: '700', color: 'var(--text-main)' }}>
+                    {formatForDisplay((Number(refundModal.order.tip_amount) || 0) - (Number(refundModal.order.tip_refunded) || 0))}
+                  </span>
+                </label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'none', label: t('orders.tipKeep') },
+                    { key: 'proportional', label: t('orders.tipProportional') },
+                    { key: 'full', label: t('orders.tipFull') }
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => setTipRefundMode(opt.key)}
+                      style={{
+                        flex: 1,
+                        minWidth: 100,
+                        padding: '12px',
+                        borderRadius: '10px',
+                        border: `2px solid ${tipRefundMode === opt.key ? 'var(--brand-color)' : 'var(--border)'}`,
+                        background: tipRefundMode === opt.key ? 'rgba(52, 152, 219, 0.05)' : 'transparent',
+                        color: tipRefundMode === opt.key ? 'var(--brand-color)' : 'var(--text-muted)',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem'
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ margin: '8px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('orders.tipRefundHelp')}</p>
+              </div>
+            )}
 
             <div className="modal-actions">
               <button onClick={() => setRefundModal({ isOpen: false, order: null })} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>

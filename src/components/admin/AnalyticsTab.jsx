@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { formatForDisplay, millicentsToCents } from '../../utils/moneyUtils';
+import { formatForDisplay, millicentsToCents, normalizeUnitCostToMillicents } from '../../utils/moneyUtils';
 
-function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, totalRefunds, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [] }) {
+function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [] }) {
   const { t } = useTranslation();
 
   // --- TRUE PROFIT MATH ENGINE ---
@@ -16,9 +16,28 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     let waste = 0;
     let tips = 0;
 
+    // Tips are a custodial liability, not revenue. "Tips earned this period"
+    // = tip_amount - tip_refunded for each sale. tip_refunded is the authoritative
+    // record set by the refund flow. Legacy rows (pre-ledger) fall back to a
+    // pro-rata heuristic against refund_amount so historical analytics stay
+    // sensible until the data is backfilled.
     filteredSales.forEach(sale => {
-      if (sale.status !== 'refunded') {
-        tips += sale.tip_amount || 0;
+      const tip = Number(sale.tip_amount) || 0;
+      if (!tip) return;
+      const hasLedger = sale.tip_refunded !== undefined && sale.tip_refunded !== null;
+      if (hasLedger) {
+        tips += Math.max(0, tip - Number(sale.tip_refunded));
+        return;
+      }
+      // Legacy fallback only.
+      if (sale.status === 'refunded') return;
+      if (sale.status === 'partial_refund') {
+        const total = Number(sale.total_amount) || 0;
+        const refund = Number(sale.refund_amount) || 0;
+        const keptRatio = total > 0 ? Math.max(0, 1 - refund / total) : 0;
+        tips += Math.round(tip * keptRatio);
+      } else {
+        tips += tip;
       }
     });
 
@@ -28,20 +47,21 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
 
-      // Note: Change const to let here!
-      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      const rawCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      const unitCost = normalizeUnitCostToMillicents(rawCost);
 
-      // RESTORE LEGACY DETECTOR: Historical logs still have decimal costs (e.g., 1.50)
-      if (unitCost > 0 && unitCost < 10) {
-        unitCost *= 10000;
-      }
-
-      // Convert Millicents (10000x) * Qty -> Millicents. Then / 100 -> Cents.
+      // Millicents * Qty -> Millicents. Then / 100 -> Cents.
       const financialImpact = millicentsToCents(log.qty_deducted * unitCost);
 
       if (log.deduction_type === 'sale') {
-        // Match by timestamp (new reliable method) OR by ticket_id (legacy fallback)
-        if (relevantTimestamps.has(log.created_at) || relevantTicketIds.has(String(log.ticket_id))) {
+        // Prefer ticket_id (authoritative); fall back to timestamp for legacy
+        // logs missing ticket_id. Timestamp-only match can over-attribute when
+        // two unrelated sales share a created_at instant.
+        const hasTicket = log.ticket_id !== undefined && log.ticket_id !== null && log.ticket_id !== '';
+        const matched = hasTicket
+          ? relevantTicketIds.has(String(log.ticket_id))
+          : relevantTimestamps.has(log.created_at);
+        if (matched) {
           cogs += financialImpact;
         }
       } else {
@@ -55,6 +75,14 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             const logDate = new Date(logDateStr);
             if (timeFilter === 'today') {
               if (logDate.toDateString() === now.toDateString()) waste += financialImpact;
+            } else if (timeFilter === 'custom') {
+              if (dateRange?.start && dateRange?.end) {
+                const start = new Date(dateRange.start); start.setHours(0, 0, 0, 0);
+                const end = new Date(dateRange.end); end.setHours(23, 59, 59, 999);
+                if (logDate >= start && logDate <= end) waste += financialImpact;
+              } else {
+                waste += financialImpact;
+              }
             } else {
               const daysDifference = (now - logDate) / (1000 * 60 * 60 * 24);
               if (timeFilter === 'week' && daysDifference <= 7) waste += financialImpact;
@@ -78,18 +106,38 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       trueNetProfit: net,
       totalTips: tips
     };
-  }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, timeFilter]);
+  }, [filteredSales, inventoryLogs, inventoryItems, totalRevenue, totalExpenses, timeFilter, dateRange]);
+
+  // Outstanding tip liability across ALL time (balance-sheet figure, period-independent).
+  // Accrued = SUM(tip_amount - tip_refunded) on every sale ever.
+  // Paid out = SUM(amount) on every tip_payouts row.
+  // Payable = Accrued - Paid out. Should be >= 0; negative means the shop
+  // paid out more than was collected (over-payment / data drift) — flag it.
+  const tipsPayable = useMemo(() => {
+    const accrued = (allSales || []).reduce((sum, s) => {
+      const tip = Number(s.tip_amount) || 0;
+      const refunded = Number(s.tip_refunded) || 0;
+      return sum + Math.max(0, tip - refunded);
+    }, 0);
+    const paid = (tipPayouts || []).reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    return { accrued, paid, balance: accrued - paid };
+  }, [allSales, tipPayouts]);
 
   const totalInventoryValue = useMemo(() => {
-    return inventoryItems.reduce((sum, item) => sum + millicentsToCents(item.current_stock * (item.unit_cost || 0)), 0);
+    return inventoryItems.reduce((sum, item) => {
+      const unitCost = normalizeUnitCostToMillicents(item.unit_cost);
+      return sum + millicentsToCents((item.current_stock || 0) * unitCost);
+    }, 0);
   }, [inventoryItems]);
 
   const expensesByCategory = useMemo(() => {
-    return filteredExpenses.reduce((acc, exp) => {
-      const category = exp.category || 'General';
-      acc[category] = (acc[category] || 0) + exp.amount;
-      return acc;
-    }, {});
+    return filteredExpenses
+      .filter(exp => !(exp.reason || '').startsWith('RESTOCK:'))
+      .reduce((acc, exp) => {
+        const category = exp.category || 'General';
+        acc[category] = (acc[category] || 0) + exp.amount;
+        return acc;
+      }, {});
   }, [filteredExpenses]);
 
   // Team Performance (extracted from JSX to fix Rules of Hooks violation)
@@ -98,7 +146,9 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       filteredSales.reduce((acc, order) => {
         const name = order.cashier_name || t('analytics.unknownCashier');
         if (!acc[name]) acc[name] = { sales: 0, tickets: 0 };
-        const netAmount = (order.total_amount || 0) - (order.refund_amount || 0);
+        const netAmount = order.status === 'refunded'
+          ? 0
+          : (order.total_amount || 0) - (order.refund_amount || 0);
         acc[name].sales += netAmount;
         acc[name].tickets += 1;
         return acc;
@@ -219,7 +269,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.expenses')}</h3>
             <Icon icon="lucide:receipt" style={{ color: '#f39c12', fontSize: '1.5rem' }} />
           </div>
-          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#f39c12', letterSpacing: '-1px' }}>-{formatForDisplay(totalExpenses + totalRefunds)}</p>
+          <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#f39c12', letterSpacing: '-1px' }}>-{formatForDisplay(totalExpenses)}</p>
         </div>
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #27ae60' }}>
@@ -237,6 +287,22 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <Icon icon="lucide:heart-handshake" style={{ color: '#8e44ad', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#8e44ad', letterSpacing: '-1px' }}>{formatForDisplay(totalTips)}</p>
+        </div>
+
+        {/* --- TIPS PAYABLE (LIABILITY) CARD --- */}
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #16a085' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.tipsPayable')}</h3>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{t('analytics.tipsPayableDesc')}</span>
+            </div>
+            <Icon icon="lucide:wallet" style={{ color: '#16a085', fontSize: '1.5rem' }} />
+          </div>
+          <p style={{ margin: '8px 0 0 0', fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: tipsPayable.balance < 0 ? '#e74c3c' : '#16a085', letterSpacing: '-1px' }}>{formatForDisplay(tipsPayable.balance)}</p>
+          <div style={{ display: 'flex', gap: 12, marginTop: 8, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <span>{t('analytics.tipsAccrued')}: <b>{formatForDisplay(tipsPayable.accrued)}</b></span>
+            <span>{t('analytics.tipsPaidOut')}: <b>{formatForDisplay(tipsPayable.paid)}</b></span>
+          </div>
         </div>
 
         {/* --- INVENTORY ASSET VALUE CARD --- */}

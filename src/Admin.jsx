@@ -24,10 +24,11 @@ import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
 import InventoryTab from './components/admin/InventoryTab.jsx';
 import ActivityTab from './components/admin/ActivityTab';
+import TipsTab from './components/admin/TipsTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
-import { toCents, fromMillicents, fromCents, millicentsToCents } from './utils/moneyUtils';
+import { toCents, fromCents, millicentsToCents, normalizeUnitCostToMillicents } from './utils/moneyUtils';
 
 function Admin() {
   const navigate = useNavigate();
@@ -683,6 +684,7 @@ function Admin() {
   // 1. Filter the raw data based on the selected timeframe
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const dexieSales = useLiveQuery(() => db.sales.toArray(), []) || [];
+  const tipPayouts = useLiveQuery(() => db.tip_payouts.toArray(), []) || [];
 
   const filteredSales = useMemo(() => {
     const now = new Date();
@@ -758,6 +760,8 @@ function Admin() {
       const daysDifference = (now - expDate) / (1000 * 60 * 60 * 24);
       if (timeFilter === 'week') return daysDifference <= 7;
       if (timeFilter === 'month') return daysDifference <= 30;
+      if (timeFilter === '6months') return daysDifference <= 180;
+      if (timeFilter === 'year') return daysDifference <= 365;
       return true;
     });
   }, [expenses, timeFilter, dateRange]);
@@ -767,8 +771,6 @@ function Admin() {
       .filter(exp => !(exp.reason || '').startsWith('RESTOCK:'))
       .reduce((sum, exp) => sum + exp.amount, 0);
   }, [filteredExpenses]);
-
-  const netProfit = totalRevenue - totalExpenses;
 
   // 3. Count Payment Methods
   const methodCounts = useMemo(() => {
@@ -878,15 +880,20 @@ function Admin() {
     inventoryLogs.forEach(log => {
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-      let unitCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
-      if (unitCost > 0 && unitCost < 10) {
-        unitCost *= 10000;
-      }
+      const rawCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      const unitCost = normalizeUnitCostToMillicents(rawCost);
 
-      // Convert Millicents (10000x) * Qty -> Millicents. Then / 100 -> Cents.
+      // Millicents * Qty -> Millicents. Then / 100 -> Cents.
       const financialImpact = millicentsToCents(log.qty_deducted * unitCost);
       if (log.deduction_type === 'sale') {
-        if (relevantTimestamps.has(log.created_at) || relevantTicketIds.has(String(log.ticket_id))) {
+        // Prefer ticket_id (authoritative); fall back to timestamp for legacy
+        // logs missing ticket_id. Timestamp-only match can over-attribute when
+        // two unrelated sales share a created_at instant.
+        const hasTicket = log.ticket_id !== undefined && log.ticket_id !== null && log.ticket_id !== '';
+        const matched = hasTicket
+          ? relevantTicketIds.has(String(log.ticket_id))
+          : relevantTimestamps.has(log.created_at);
+        if (matched) {
           totalCOGS += financialImpact;
         }
       } else {
@@ -920,14 +927,14 @@ function Admin() {
       }
     });
 
-    const trueNetProfitInPesos = fromCents(totalRevenue) - fromMillicents(totalCOGS) - fromMillicents(totalWastage) - fromCents(totalExpenses);
+    const trueNetProfitInPesos = fromCents(totalRevenue) - fromCents(totalCOGS) - fromCents(totalWastage) - fromCents(totalExpenses);
 
     const resumenData = [
       { Métrica: 'Ingresos Brutos', Valor: fromCents(totalRevenue + totalRefunds) },
       { Métrica: 'Reembolsos', Valor: -fromCents(totalRefunds) },
       { Métrica: 'Ingresos Netos', Valor: fromCents(totalRevenue) },
-      { Métrica: 'Costo de Bienes (COGS)', Valor: -fromMillicents(totalCOGS) },
-      { Métrica: 'Mermas y Auditorías', Valor: -fromMillicents(totalWastage) },
+      { Métrica: 'Costo de Bienes (COGS)', Valor: -fromCents(totalCOGS) },
+      { Métrica: 'Mermas y Auditorías', Valor: -fromCents(totalWastage) },
       { Métrica: 'Gastos de Operación', Valor: -fromCents(totalExpenses) },
       { Métrica: 'Ganancia Neta Verdadera', Valor: trueNetProfitInPesos }
     ];
@@ -1175,6 +1182,7 @@ function Admin() {
             { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
             { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
             { id: 'team', icon: 'lucide:users', label: t('admin.team') },
+            { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
             { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
           ].map(tab => {
@@ -1265,7 +1273,8 @@ function Admin() {
             totalRevenue={totalRevenue}
             totalExpenses={totalExpenses}
             totalRefunds={totalRefunds}
-            netProfit={netProfit}
+            allSales={dexieSales}
+            tipPayouts={tipPayouts}
             methodCounts={methodCounts}
             topItemsArray={topItemsArray}
             filteredSales={filteredSales}
@@ -1280,6 +1289,10 @@ function Admin() {
         {/* NEW ACTIVITY TAB */}
         {activeTab === 'activity' && (
           <ActivityTab />
+        )}
+
+        {activeTab === 'tips' && (
+          <TipsTab />
         )}
 
 
