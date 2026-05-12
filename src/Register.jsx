@@ -45,6 +45,7 @@ import DiscountModal from './components/register/DiscountModal';
 import TicketImage from './components/register/TicketImage';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
 import { fetchAndMergeSales } from './services/salesSync';
+import { fetchAndMergeExpenses } from './services/expenseSync';
 import { fetchActiveTickets } from './services/ticketSync';
 import { fromCents } from './utils/moneyUtils';
 
@@ -121,6 +122,10 @@ function Register() {
 
         // 4. Pull down historical sales into local Dexie (for OrdersTab refunds)
         await fetchAndMergeSales();
+
+        // 5. Pull down expenses from every device so shift calc covers the
+        // whole shop, not just this terminal's local writes.
+        await fetchAndMergeExpenses();
 
         setIsLoading(false);
       } catch (err) {

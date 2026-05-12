@@ -72,7 +72,8 @@ export function useExpenses({ activeCashier, t, showAlert }) {
       amount: expenseAmount,
       reason: expenseForm.reason,
       category: expenseForm.category || 'General',
-      cashier_name: activeCashier?.name || t('expense.unknownCashierFallback')
+      cashier_name: activeCashier?.name || t('expense.unknownCashierFallback'),
+      local_id: newExpense.id
     };
 
     try {

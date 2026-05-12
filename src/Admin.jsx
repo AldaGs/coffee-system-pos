@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { fetchAndMergeSales } from './services/salesSync';
+import { fetchAndMergeExpenses } from './services/expenseSync';
 import { useDialog } from './hooks/useDialog';
 import { useTheme } from './hooks/useTheme';
 import { useMenuStore } from './store/useMenuStore';
@@ -71,7 +72,10 @@ function Admin() {
   const [timeFilter, setTimeFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
-  const [expenses, setExpenses] = useState([]);
+  // Expenses are sourced from Dexie now — fetchAndMergeExpenses pulls every
+  // device's rows down on mount and useLiveQuery keeps the view fresh.
+  const expensesLive = useLiveQuery(() => db.expenses.toArray(), []);
+  const expenses = useMemo(() => expensesLive || [], [expensesLive]);
 
   // --- INSTANT RECEIPT SETTINGS ---
   const [receiptForm, setReceiptForm] = useState(() => {
@@ -198,18 +202,9 @@ function Admin() {
         const firstCategory = Object.keys(menuSettings.menu_data.categories)[0];
         if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
 
-        // 2. NEW: Fetch All Expenses (General + Inventory Purchases)
-        const { data: expensesData, error: expensesError } = await supabase
-          .from('expenses')
-          .select('*')
-          .order('created_at', { ascending: false }); // Show newest first
-
-        if (!expensesError && expensesData) {
-          setExpenses(expensesData);
-          // Register reads expenses from Dexie now (see hooks/useExpenses.js).
-          // No localStorage bridge needed; Admin keeps cloud rows in component
-          // state for its own filtering UI only.
-        }
+        // 2. Pull every device's expenses into Dexie. The useLiveQuery above
+        // will pick up the merged rows automatically.
+        await fetchAndMergeExpenses();
 
         // 3. Load UI Settings (Receipt, General, Loyalty)
         if (menuSettings.menu_data.receiptSettings) setReceiptForm(prev => ({ ...prev, ...menuSettings.menu_data.receiptSettings }));
