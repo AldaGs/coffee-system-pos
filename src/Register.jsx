@@ -28,6 +28,7 @@ import CheckoutModal from './components/register/CheckoutModal';
 import LoyaltyModal from './components/register/LoyaltyModal';
 import FlyingReceipt from './components/register/FlyingReceipt';
 import ExpenseModal from './components/register/ExpenseModal';
+import ToastNotifications from './components/register/ToastNotifications';
 import { usePresence } from './hooks/usePresence';
 import { useCheckout } from './hooks/useCheckout';
 import { useShiftCorte } from './hooks/useShiftCorte';
@@ -99,6 +100,12 @@ function Register() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingItem, setPendingItem] = useState(null);
   const [successTicket, setSuccessTicket] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  const showToast = (message, type = 'success') => {
+    const id = crypto.randomUUID();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  };
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
 
   // --- MENU FETCH & OFFLINE CACHE ENGINE ---
@@ -349,11 +356,12 @@ function Register() {
 
       if (isCashierMatch || isStaffAdmin) {
         // Success: Clear the challenge and run the intercepted action
+        pinAttempts.current = 0;
         setChallengePinAttempt('');
         setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
         if (pinChallenge.onAuthorized) pinChallenge.onAuthorized();
       } else {
-        // Fail: Trigger the shake animation
+        pinAttempts.current += 1;
         setChallengeError(true);
         setTimeout(() => setChallengeError(false), 500);
         setChallengePinAttempt('');
@@ -367,7 +375,9 @@ function Register() {
 
   // --- LOYALTY & WHATSAPP STATES ---
   const [loyaltyModal, setLoyaltyModal] = useState({ isOpen: false, step: 'phone', phone: '', data: null });
-  const [phoneError, setPhoneError] = useState(false); // NEW: Controls the shake
+  const [phoneError, setPhoneError] = useState(false); // shake on invalid phone in loyalty modal
+  const [pinShake, setPinShake] = useState(false);     // shake on wrong PIN (lock + challenge)
+  const pinAttempts = useRef(0);                       // monotonic wrong-PIN counter (telemetry hook)
 
   // --- CASHIER PROFILES (CLOUD SYNCED) ---
   // We read directly from the cloud menuData now!
@@ -399,6 +409,7 @@ function Register() {
       const isStaffAdmin = await verifyAdminPin(pinAttempt);
 
       if (isProfileMatch || isStaffAdmin) {
+        pinAttempts.current = 0;
         setIsLocked(false);
         setActiveCashier(selectedProfile);
         localStorage.setItem('tinypos_activeCashier', JSON.stringify(selectedProfile));
@@ -407,13 +418,12 @@ function Register() {
         setSessionTime(newSessionTime);
         localStorage.setItem('tinypos_session_time', newSessionTime.toString());
 
-        // Reset the lock screen for next time
         setPinAttempt('');
         setSelectedProfile(null);
       } else {
-        // Wrong PIN! Trigger the shake animation
-        setPhoneError(true);
-        setTimeout(() => setPhoneError(false), 500);
+        pinAttempts.current += 1;
+        setPinShake(true);
+        setTimeout(() => setPinShake(false), 500);
         setPinAttempt('');
       }
     } catch (err) {
@@ -848,6 +858,9 @@ function Register() {
     }
 
     // --- LOW STOCK CHECK ---
+    // Non-blocking toast when an ingredient drops at/under the configured
+    // threshold. Only fall back to a modal when an ingredient would go negative,
+    // which is the only case worth interrupting the cashier for.
     if (recipes) {
       const recipe = recipes.find(r => r.linked_menu_item === item.id);
       if (recipe && recipe.ingredients) {
@@ -855,9 +868,15 @@ function Register() {
         const threshold = posSettings?.lowStockThreshold || 0;
         for (const ing of recipe.ingredients) {
           const invItem = inventory.find(i => i.name === ing.name);
-          if (invItem && (invItem.current_stock - ing.qty) <= threshold) {
+          if (!invItem) continue;
+          const projected = invItem.current_stock - ing.qty;
+          if (projected < 0) {
             showAlert(t('register.lowStock'), t('register.lowStockDesc').replace('{{ingredient}}', invItem.name).replace('{{qty}}', threshold));
-            break; // Show only one alert per item added to avoid spamming the cashier
+            break;
+          }
+          if (projected <= threshold) {
+            showToast(t('register.lowStockDesc').replace('{{ingredient}}', invItem.name).replace('{{qty}}', threshold), 'warning');
+            break;
           }
         }
       }
@@ -990,7 +1009,7 @@ function Register() {
     if (!selectedProfile) {
       return (
         <>
-          <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} requirePin={requirePin} />
+          <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={pinShake} handleUnlockSubmit={handleUnlockSubmit} requirePin={requirePin} />
           <PinChallengeModal
             pinChallenge={pinChallenge}
             setPinChallenge={setPinChallenge}
@@ -1014,8 +1033,8 @@ function Register() {
           subtitle={t('reg.loginEnterPin')}
           pin={pinAttempt}
           setPin={setPinAttempt}
-          error={phoneError}
-          setError={setPhoneError}
+          error={pinShake}
+          setError={setPinShake}
           onSubmit={handleUnlockSubmit}
           onCancel={() => {
             setSelectedProfile(null);
@@ -1074,7 +1093,7 @@ function Register() {
           onClick={() => setIsMobileCartOpen(true)}
         >
           <Icon icon="lucide:shopping-cart" />
-          <span className="cart-badge">{activeTicket?.items?.length || 0}</span>
+          <span className="cart-badge">{activeTicket?.items?.reduce((n, i) => n + (i.qty || 1), 0) || 0}</span>
           <span>{formatForDisplay(cartTotal)}</span>
         </button>
 
@@ -1106,6 +1125,8 @@ function Register() {
         <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleRedeemReward={handleRedeemReward} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
 
         <FlyingReceipt successTicket={successTicket} />
+
+        <ToastNotifications toastNotifications={toasts} />
 
         <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} />
 

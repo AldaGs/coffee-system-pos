@@ -734,6 +734,9 @@ body.dark-mode {
   pointer-events: auto;
 }
 
+.toast-warning { background-color: #f39c12; }
+.toast-error   { background-color: #e74c3c; }
+
 @keyframes toast-slide-up {
   0% {
     transform: translateY(100px);
