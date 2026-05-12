@@ -5,8 +5,8 @@ import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import TicketImage from '../register/TicketImage';
 import PinChallengeModal from '../register/PinChallengeModal';
+import { usePinChallenge } from '../../hooks/usePinChallenge';
 import { useDialog } from '../../hooks/useDialog';
-import { useMenuStore } from '../../store/useMenuStore';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from '../../utils/sharingUtils';
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 import { recordTipRefund } from '../../services/tipsService';
@@ -14,13 +14,9 @@ import { recordTipRefund } from '../../services/tipsService';
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
   const { showAlert, showPrompt } = useDialog();
-  const { verifyAdminPin } = useMenuStore();
   const [sharingOrder, setSharingOrder] = useState(null);
 
-  // --- PIN CHALLENGE STATE ---
-  const [pinChallenge, setPinChallenge] = useState({ isOpen: false, title: "", onAuthorized: null });
-  const [challengePinAttempt, setChallengePinAttempt] = useState('');
-  const [challengeError, setChallengeError] = useState('');
+  const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
 
   // --- REFUND MODAL STATE ---
   const [refundModal, setRefundModal] = useState({ isOpen: false, order: null });
@@ -30,21 +26,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   // Full refunds default to 'full' (no service was rendered); partials default to 'none'.
   const [tipRefundMode, setTipRefundMode] = useState('full');
 
-  const handleChallengeSubmit = async () => {
-    const isValid = await verifyAdminPin(challengePinAttempt);
-    if (isValid) {
-      const authorizedCallback = pinChallenge.onAuthorized;
-      setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
-      setChallengePinAttempt('');
-      setChallengeError('');
-      if (authorizedCallback) authorizedCallback();
-    } else {
-      setChallengeError(t('orders.alertInvalidPin'));
-      setChallengePinAttempt('');
-    }
-  };
-
-  const handleProcessRefund = async () => {
+const handleProcessRefund = async () => {
     const { order } = refundModal;
     if (!order) return;
 
@@ -401,16 +383,12 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
 
               <button
                 onClick={() => {
-                  setPinChallenge({
-                    isOpen: true,
-                    title: t('orders.promptPin'),
-                    onAuthorized: () => {
-                      setRefundMode('all');
-                      setRefundAmount('');
-                      // Sensible default: full refund -> return tip; partial -> keep tip with staff.
-                      setTipRefundMode('full');
-                      setRefundModal({ isOpen: true, order: order });
-                    }
+                  requirePin(t('orders.promptPin'), () => {
+                    setRefundMode('all');
+                    setRefundAmount('');
+                    // Sensible default: full refund -> return tip; partial -> keep tip with staff.
+                    setTipRefundMode('full');
+                    setRefundModal({ isOpen: true, order: order });
                   });
                 }}
                 disabled={order.status === 'refunded'}
@@ -448,15 +426,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       </div>
 
       {/* PIN CHALLENGE MODAL */}
-      <PinChallengeModal
-        pinChallenge={pinChallenge}
-        setPinChallenge={setPinChallenge}
-        challengePinAttempt={challengePinAttempt}
-        setChallengePinAttempt={setChallengePinAttempt}
-        challengeError={challengeError}
-        setChallengeError={setChallengeError}
-        handleChallengeSubmit={handleChallengeSubmit}
-      />
+      <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={null} showAlert={showAlert} />
 
       {/* REFUND DETAILS MODAL */}
       {refundModal.isOpen && (
