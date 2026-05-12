@@ -47,3 +47,22 @@ db.version(9).stores({
   tip_payouts: '++id, created_at, local_id',
   tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id'
 });
+
+// --- V10: REGISTER STATE OUT OF LOCALSTORAGE ---
+// expenses:    durable per-shift expense ledger (was localStorage, prone to
+//              quota wipes and JSON.parse corruption).
+// shift_state: small key/value store for shift counters (nextOrderNum,
+//              lastResetDate, lastCorteTimestamp).
+db.version(10).stores({
+  sales: '++id, status, created_at, local_id',
+  menu: 'id',
+  syncQueue: '++id, local_id',
+  active_tickets: 'id',
+  inventory: 'id, name',
+  inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+  updateQueue: '++id, type, local_id',
+  tip_payouts: '++id, created_at, local_id',
+  tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id',
+  expenses: 'id, timestamp, cashierId',
+  shift_state: 'key'
+});

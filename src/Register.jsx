@@ -11,7 +11,6 @@ import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
-import { attemptBackgroundSync } from './services/syncService';
 import { logActivity } from './services/activityService';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
@@ -33,6 +32,9 @@ import { usePresence } from './hooks/usePresence';
 import { useCheckout } from './hooks/useCheckout';
 import { useShiftCorte } from './hooks/useShiftCorte';
 import { useLoyalty } from './hooks/useLoyalty';
+import { useSyncQueue } from './hooks/useSyncQueue';
+import { useExpenses } from './hooks/useExpenses';
+import { useShiftStateValue } from './hooks/useShiftState';
 
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
@@ -144,66 +146,12 @@ function Register() {
     fetchMenuAndRecipes();
   }, [setMenuData, setRecipes, setActiveCategory, setIsLoading]);
 
-  // --- EXPENSES (LOCAL STORAGE BACKED) ---
-  const [expenses, setExpenses] = useState(() => {
-    const saved = localStorage.getItem('tinypos_expenses');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ amount: '', reason: '' });
-
-  useEffect(() => {
-    localStorage.setItem('tinypos_expenses', JSON.stringify(expenses));
-  }, [expenses]);
-
-  // --- SAVE EXPENSE LOGIC ---
-  const handleSaveExpense = async () => {
-    if (!expenseForm.amount || !expenseForm.reason) {
-      return showAlert(t('expense.errMissing'), t('expense.errDesc'));
-    }
-
-    const expenseAmount = toCents(expenseForm.amount);
-
-    // 1. Build the local record
-    const newExpense = {
-      id: crypto.randomUUID(),
-      amount: expenseAmount,
-      reason: expenseForm.reason,
-      timestamp: new Date().toISOString(),
-      cashierId: activeCashier?.id || 'unknown',
-      cashierName: activeCashier?.name || t('expense.unknownCashier')
-    };
-
-    // 2. Build the cloud record (For when you create the 'expenses' table in Supabase)
-    const cloudExpense = {
-      amount: expenseAmount,
-      reason: expenseForm.reason,
-      category: expenseForm.category || 'General',
-      cashier_name: activeCashier?.name || t('expense.unknownCashierFallback')
-    };
-
-    try {
-      if (!navigator.onLine) throw new Error("Device is offline");
-
-      const { error } = await supabase.from('expenses').insert([cloudExpense]);
-      if (error) throw error;
-    } catch {
-      console.warn("Cloud expense failed. Moving to offline queue.");
-      // PUSH TO SECRET QUEUE INSTEAD OF FAILING!
-      setExpenseQueue(prev => [...prev, cloudExpense]);
-    }
-
-    // 3. ALWAYS DO THIS (Online or Offline)
-    setExpenses([...expenses, newExpense]);
-
-    // LOG ACTIVITY
-    logActivity('Gasto (Expense)', `Registró un gasto de ${formatForDisplay(expenseAmount)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
-
-    setIsExpenseModalOpen(false);
-    setExpenseForm({ amount: '', reason: '', category: 'General' });
-    showAlert(t('expense.success'), `${t('expense.successDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`);
-  };
+  const {
+    expenses, expenseQueue, setExpenseQueue,
+    isExpenseModalOpen, setIsExpenseModalOpen,
+    expenseForm, setExpenseForm,
+    handleSaveExpense
+  } = useExpenses({ activeCashier, t, showAlert });
 
   // --- DISCOUNT STATE & LOGIC ---
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -237,10 +185,6 @@ function Register() {
 
   // --- OFFLINE SYNC QUEUES & MODAL ---
   const syncQueue = useLiveQuery(() => db.syncQueue.toArray(), []) || [];
-  const [expenseQueue, setExpenseQueue] = useState(() => {
-    const saved = localStorage.getItem('tinypos_expense_queue');
-    return saved ? JSON.parse(saved) : [];
-  });
 
   const [waQueue] = useState(() => {
     const saved = localStorage.getItem('tinypos_wa_queue');
@@ -249,62 +193,24 @@ function Register() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('tinypos_expense_queue', JSON.stringify(expenseQueue));
     localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue));
-  }, [expenseQueue, waQueue]);
+  }, [waQueue]);
 
-  // --- UNIFIED BACKGROUND CLOUD SYNC ---
-  useEffect(() => {
-    // Wrap our service in a function so we can pass the React State modifiers
-    const runSync = async () => {
-      const authError = await attemptBackgroundSync(expenseQueue, () => setExpenseQueue([]));
-      if (authError) {
-        console.warn("Auth error detected during sync background task.");
-        setHasValidSession(false);
-      } else {
-        // If it succeeded or failed for other reasons (network), we assume session is still okay
-        // unless we know for sure it's invalid.
-      }
-    };
-
-    // Listen for the internet coming back online
-    window.addEventListener('online', runSync);
-
-    // And try automatically every 60 seconds
-    const syncInterval = setInterval(runSync, 60000);
-
-    // Run once immediately on mount
-    runSync();
-
-    return () => {
-      window.removeEventListener('online', runSync);
-      clearInterval(syncInterval);
-    };
-  }, [expenseQueue]);
-
-  // --- CORTE DE CAJA (END OF SHIFT) STATES ---
-  const [lastCorteTimestamp, setLastCorteTimestamp] = useState(() => {
-    // Default to the beginning of time if a corte has never been done
-    return localStorage.getItem('tinypos_last_corte') || new Date(0).toISOString();
+  useSyncQueue({
+    expenseQueue,
+    clearExpenseQueue: () => setExpenseQueue([]),
+    onAuthError: () => setHasValidSession(false)
   });
+
+  // --- CORTE / ORDER NUMBER — Dexie-backed (was localStorage) ---
+  const [lastCorteTimestamp, setLastCorteTimestamp] = useShiftStateValue('lastCorteTimestamp', new Date(0).toISOString());
   const [isCorteModalOpen, setIsCorteModalOpen] = useState(false);
   const [countedCash, setCountedCash] = useState("");
 
+  const [nextOrderNum, setNextOrderNum] = useShiftStateValue('nextOrderNum', 1);
+  const [lastResetDate, setLastResetDate] = useShiftStateValue('lastResetDate', new Date().toDateString());
 
-
-  // --- ORDER NUMBER ENGINE ---
-  const [nextOrderNum, setNextOrderNum] = useState(() => {
-    const saved = localStorage.getItem('tinypos_nextOrderNum');
-    return saved ? parseInt(saved) : 1;
-  });
-
-  const [lastResetDate, setLastResetDate] = useState(() => {
-    return localStorage.getItem('tinypos_lastResetDate') || new Date().toDateString();
-  });
-
-  // --- AUTO-RESET LOGIC ---
   useEffect(() => {
-    // FIX: Read directly from menuData so we don't care about variable order!
     const policy = menuData?.posSettings?.orderResetPolicy || 'daily';
     const today = new Date();
     const lastReset = new Date(lastResetDate);
@@ -319,14 +225,10 @@ function Register() {
     }
 
     if (shouldReset) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNextOrderNum(1);
       setLastResetDate(today.toDateString());
-      localStorage.setItem('tinypos_nextOrderNum', 1);
-      localStorage.setItem('tinypos_lastResetDate', today.toDateString());
     }
-    // FIX: Update the dependency array here too
-  }, [menuData?.posSettings?.orderResetPolicy, lastResetDate]);
+  }, [menuData?.posSettings?.orderResetPolicy, lastResetDate, setNextOrderNum, setLastResetDate]);
 
   // --- BOTTOM SHEET STATE ---
   const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
@@ -738,9 +640,7 @@ function Register() {
 
         setActiveTicketId(newId);
 
-        // Increment the global counter for the NEXT time
         setNextOrderNum(currentNum + 1);
-        localStorage.setItem('tinypos_nextOrderNum', currentNum + 1);
       },
       '',
       t('reg.btnCreateTicket'),

@@ -71,10 +71,7 @@ function Admin() {
   const [timeFilter, setTimeFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
-  const [expenses, setExpenses] = useState(() => {
-    const saved = localStorage.getItem('tinypos_expenses');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [expenses, setExpenses] = useState([]);
 
   // --- INSTANT RECEIPT SETTINGS ---
   const [receiptForm, setReceiptForm] = useState(() => {
@@ -209,8 +206,9 @@ function Admin() {
 
         if (!expensesError && expensesData) {
           setExpenses(expensesData);
-          // Sync back to localStorage so the Register tab sees them too
-          localStorage.setItem('tinypos_expenses', JSON.stringify(expensesData));
+          // Register reads expenses from Dexie now (see hooks/useExpenses.js).
+          // No localStorage bridge needed; Admin keeps cloud rows in component
+          // state for its own filtering UI only.
         }
 
         // 3. Load UI Settings (Receipt, General, Loyalty)

@@ -499,8 +499,9 @@ function GeneralSettingsTab({
                     showConfirm(
                       t('settings.resetTitle'),
                       t('settings.resetConfirm'),
-                      () => {
-                        localStorage.setItem('tinypos_nextOrderNum', 1);
+                      async () => {
+                        const { db } = await import('../../db');
+                        await db.shift_state.put({ key: 'nextOrderNum', value: 1 });
                         showAlert(t('settings.resetSuccess'), t('settings.resetSuccessDesc'));
                       }
                     );

@@ -39,7 +39,6 @@ export const useShiftCorte = (posState) => {
       // 2. Clear current session data locally
       const now = corteRecord.timestamp;
       setLastCorteTimestamp(now);
-      localStorage.setItem('tinypos_lastCorteTimestamp', now);
 
       // 3. UI feedback
       setIsCorteModalOpen(false);
