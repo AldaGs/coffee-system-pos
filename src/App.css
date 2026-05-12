@@ -1,3 +1,8 @@
+html, body {
+  /* Block Chrome/Android edge-swipe back/forward navigation. */
+  overscroll-behavior-x: none;
+}
+
 .pos-container {
   display: flex;
   height: 100vh;

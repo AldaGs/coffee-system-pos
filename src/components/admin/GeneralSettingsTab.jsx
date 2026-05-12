@@ -28,6 +28,41 @@ function GeneralSettingsTab({
   const [pinChallenge, setPinChallenge] = useState({ isOpen: false, onAuthorized: null });
   const [pinAttempt, setPinAttempt] = useState('');
   const [pinError, setPinError] = useState(false);
+
+  const [brandColorInput, setBrandColorInput] = useState(generalSettings.brandColor || '#000000');
+  const [brandColorInvalid, setBrandColorInvalid] = useState(false);
+
+  const parseColorToHex = (value) => {
+    if (!value) return null;
+    const v = value.trim();
+    let m = v.match(/^#?([0-9a-fA-F]{6})$/);
+    if (m) return `#${m[1].toLowerCase()}`;
+    m = v.match(/^#?([0-9a-fA-F]{3})$/);
+    if (m) {
+      const [r, g, b] = m[1];
+      return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+    }
+    m = v.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)$/i);
+    if (m) {
+      const [r, g, b] = [m[1], m[2], m[3]].map(Number);
+      if ([r, g, b].every((n) => n >= 0 && n <= 255)) {
+        const toHex = (n) => n.toString(16).padStart(2, '0');
+        return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+      }
+    }
+    return null;
+  };
+
+  const commitBrandColor = (raw) => {
+    const hex = parseColorToHex(raw);
+    if (hex) {
+      setGeneralSettings({ ...generalSettings, brandColor: hex });
+      setBrandColorInput(hex);
+      setBrandColorInvalid(false);
+    } else {
+      setBrandColorInvalid(true);
+    }
+  };
   const [isRepairModalOpen, setIsRepairModalOpen] = useState(false);
   const [repairList, setRepairList] = useState([]);
   const [isRepairing, setIsRepairing] = useState(false);
@@ -244,9 +279,37 @@ function GeneralSettingsTab({
                 <Icon icon="lucide:palette" style={{ color: 'var(--brand-color)' }} />
                 {t('settings.brandColor')}
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '8px', borderRadius: '12px', border: '1px solid var(--border)', width: '100%', boxSizing: 'border-box' }}>
-                <input type="color" value={generalSettings.brandColor} onChange={(e) => setGeneralSettings({ ...generalSettings, brandColor: e.target.value })} style={{ width: '40px', height: '40px', border: 'none', cursor: 'pointer', padding: 0, borderRadius: '8px', overflow: 'hidden', background: 'none' }} />
-                <span style={{ fontFamily: 'monospace', color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 'bold' }}>{generalSettings.brandColor.toUpperCase()}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--bg-main)', padding: '8px', borderRadius: '12px', border: `1px solid ${brandColorInvalid ? 'var(--danger, #e53935)' : 'var(--border)'}`, width: '100%', boxSizing: 'border-box' }}>
+                <input
+                  type="color"
+                  value={generalSettings.brandColor}
+                  onChange={(e) => {
+                    setGeneralSettings({ ...generalSettings, brandColor: e.target.value });
+                    setBrandColorInput(e.target.value);
+                    setBrandColorInvalid(false);
+                  }}
+                  style={{ width: '40px', height: '40px', border: 'none', cursor: 'pointer', padding: 0, borderRadius: '8px', overflow: 'hidden', background: 'none', flexShrink: 0 }}
+                />
+                <input
+                  type="text"
+                  value={brandColorInput}
+                  onChange={(e) => {
+                    setBrandColorInput(e.target.value);
+                    const hex = parseColorToHex(e.target.value);
+                    if (hex) {
+                      setGeneralSettings({ ...generalSettings, brandColor: hex });
+                      setBrandColorInvalid(false);
+                    } else {
+                      setBrandColorInvalid(true);
+                    }
+                  }}
+                  onBlur={(e) => commitBrandColor(e.target.value)}
+                  placeholder="#RRGGBB or rgb(r,g,b)"
+                  spellCheck={false}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  style={{ fontFamily: 'monospace', color: 'var(--text-main)', fontSize: '0.9rem', fontWeight: 'bold', flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', padding: '4px 0' }}
+                />
               </div>
             </div>
 
