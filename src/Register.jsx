@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
@@ -51,6 +51,23 @@ const getOrCreateDeviceId = () => {
     localStorage.setItem('tinypos_device_id', id);
   }
   return id;
+};
+
+// Mirror an active_ticket mutation to the cloud. If offline or the write fails,
+// stash the patch on db.updateQueue so attemptBackgroundSync can replay it.
+const pushActiveTicketUpdate = (ticketId, patch) => {
+  const enqueue = () => db.updateQueue.add({
+    type: 'active_ticket_update',
+    ticket_id: ticketId,
+    data: patch,
+    local_id: crypto.randomUUID()
+  }).catch(err => console.error('Failed to queue active_ticket_update:', err));
+
+  if (!navigator.onLine) { enqueue(); return; }
+
+  supabase.from('active_tickets').update(patch).eq('id', ticketId)
+    .then(({ error }) => { if (error) { console.warn('Cloud active_ticket update failed, queuing:', error); enqueue(); } })
+    .catch(err => { console.warn('Cloud active_ticket update threw, queuing:', err); enqueue(); });
 };
 
 
@@ -143,8 +160,7 @@ function Register() {
 
     // 1. Build the local record
     const newExpense = {
-      // eslint-disable-next-line react-hooks/purity
-      id: Date.now(),
+      id: crypto.randomUUID(),
       amount: expenseAmount,
       reason: expenseForm.reason,
       timestamp: new Date().toISOString(),
@@ -441,31 +457,37 @@ function Register() {
     if (!menuData || isLocked || posSettings.autoLockMinutes === 0) return;
 
     let timeoutId;
+    let lastReset = 0;
+    const THROTTLE_MS = 1000;
 
-    // Function that triggers the lock
     const lockScreen = () => setIsLocked(true);
 
-    // Function that resets the countdown every time they touch the screen
-    const resetTimer = () => {
+    const doReset = () => {
       clearTimeout(timeoutId);
-      // Convert minutes to milliseconds
       timeoutId = setTimeout(lockScreen, posSettings.autoLockMinutes * 60000);
     };
 
-    // Listen for any interaction
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('touchstart', resetTimer);
-    window.addEventListener('keydown', resetTimer);
+    // Throttled — a busy POS fires mousemove hundreds of times/min; we don't
+    // need to re-arm the timeout on every pixel.
+    const resetTimer = () => {
+      const now = Date.now();
+      if (now - lastReset < THROTTLE_MS) return;
+      lastReset = now;
+      doReset();
+    };
 
-    // Start the timer initially
-    resetTimer();
+    const passive = { passive: true };
+    window.addEventListener('mousemove', resetTimer, passive);
+    window.addEventListener('touchstart', resetTimer, passive);
+    window.addEventListener('keydown', resetTimer, passive);
 
-    // Cleanup listeners when component unmounts
+    doReset();
+
     return () => {
       clearTimeout(timeoutId);
-      window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('touchstart', resetTimer);
-      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('mousemove', resetTimer, passive);
+      window.removeEventListener('touchstart', resetTimer, passive);
+      window.removeEventListener('keydown', resetTimer, passive);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuData, isLocked, posSettings.autoLockMinutes]);
@@ -534,7 +556,7 @@ function Register() {
     ? tickets.filter(t => t.cashier_id === activeCashier?.id)
     : tickets;
 
-  const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || visibleTickets[0];
+  const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || null;
 
   const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
     let itemCost = normalizeMenuPrice(item.basePrice);
@@ -844,23 +866,13 @@ function Register() {
     const newItem = {
       ...item,
       basePrice: customPrice !== undefined ? customPrice : item.basePrice,
-      uniqueId: Date.now() + Math.random(),
+      uniqueId: crypto.randomUUID(),
       selectedModifiers: modifiers
     };
     const updatedItems = [...activeTicket.items, newItem];
 
-    // 1. Update locally
     await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-
-    // 2. NEW: Update cloud instantly
-    if (navigator.onLine) {
-      supabase.from('active_tickets').update({
-        items: updatedItems,
-        last_modified_by: myDeviceId
-      })
-        .eq('id', activeTicket.id)
-        .then();
-    }
+    pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, last_modified_by: myDeviceId });
 
     setIsModalOpen(false);
     setPendingItem(null);
@@ -874,13 +886,7 @@ function Register() {
       : activeTicket.items.map(i => i.uniqueId === itemUniqueId ? { ...i, qty: newQty } : i);
 
     await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-
-    if (navigator.onLine) {
-      supabase.from('active_tickets')
-        .update({ items: updatedItems, last_modified_by: myDeviceId })
-        .eq('id', activeTicket.id)
-        .then();
-    }
+    pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, last_modified_by: myDeviceId });
   };
 
   const handleRemoveItem = async (itemUniqueId) => {
@@ -888,19 +894,8 @@ function Register() {
 
     const updatedItems = activeTicket.items.filter(i => i.uniqueId !== itemUniqueId);
 
-    // 1. Update locally
     await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-
-    // 2. NEW: Update cloud instantly
-    if (navigator.onLine) {
-      supabase.from('active_tickets')
-        .update({
-          items: updatedItems,
-          last_modified_by: myDeviceId // Mark this update as yours
-        })
-        .eq('id', activeTicket.id)
-        .then();
-    }
+    pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, last_modified_by: myDeviceId });
   };
 
   // clearCurrentTicket and handleCancelTicket hoisted above hooks (see line ~641)
@@ -958,6 +953,38 @@ function Register() {
     sendFinalMessage(cleanPhone, null);
   };
 
+  const handleWheelScroll = (e) => {
+    if (e.deltaY !== 0) {
+      const canScrollLeft = e.currentTarget.scrollLeft > 0;
+      const canScrollRight = e.currentTarget.scrollLeft < (e.currentTarget.scrollWidth - e.currentTarget.clientWidth);
+      if ((e.deltaY < 0 && canScrollLeft) || (e.deltaY > 0 && canScrollRight)) {
+        e.preventDefault();
+        e.currentTarget.scrollLeft += e.deltaY;
+      }
+    }
+  };
+
+  // Bundle global state for the context wormhole. Memoized so that unrelated
+  // re-renders (e.g. a PIN keystroke) don't cascade through every context consumer.
+  const posState = useMemo(() => ({
+    cartTotal, activeTicket: enrichedActiveTicket, menuData, posSettings, activeCashier,
+    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
+    showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
+    activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
+    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
+    handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
+    handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
+    handleRedeemReward, handleDetachLoyalty, setLoyaltyModal, loyaltyModal,
+    pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [
+    cartTotal, enrichedActiveTicket, menuData, posSettings, activeCashier,
+    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
+    activeTicketId, visibleTickets, cartSubtotal,
+    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
+    loyaltyModal, pendingItem
+  ]);
+
   // --- 1. LOCK SCREEN GUARD ---
   if (isLocked) {
     if (!selectedProfile) {
@@ -1011,40 +1038,6 @@ function Register() {
   }
 
   if (!menuData) return <div>{t('reg.errMissingMenu')}</div>;
-
-
-  // --- MOUSE WHEEL HORIZONTAL SCROLL HELPERS ---
-  const handleWheelScroll = (e) => {
-    // If the user scrolls the wheel vertically, move the container horizontally
-    // BUT only if we are actually hovering a scrollable horizontal container
-    if (e.deltaY !== 0) {
-      const canScrollLeft = e.currentTarget.scrollLeft > 0;
-      const canScrollRight = e.currentTarget.scrollLeft < (e.currentTarget.scrollWidth - e.currentTarget.clientWidth);
-
-      if ((e.deltaY < 0 && canScrollLeft) || (e.deltaY > 0 && canScrollRight)) {
-        e.preventDefault(); // Only hijack if we can actually scroll
-        e.currentTarget.scrollLeft += e.deltaY;
-      }
-    }
-  };
-
-  // Bundle global state for the context wormhole
-  const posState = {
-    cartTotal, activeTicket: enrichedActiveTicket, menuData, posSettings, activeCashier,
-    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
-    showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
-    activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
-    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
-    handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
-    handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
-    handleRedeemReward, handleDetachLoyalty, setLoyaltyModal, loyaltyModal,
-
-    // --- NEW: ModifierModal Data & Functions ---
-    pendingItem,
-    handleToggleModifier,
-    handleTextModifierChange,
-    addToTicket
-  };
 
   return (
     <PosContext.Provider value={posState}>
