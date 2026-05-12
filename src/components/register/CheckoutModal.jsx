@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
-import { toCents, formatForDisplay } from '../../utils/moneyUtils';
+import { toCents, formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 
 function CheckoutModal({ 
   isCheckoutModalOpen, splitPayments, splitMode, setSplitMode, 
@@ -11,7 +11,7 @@ function CheckoutModal({
   tipAmount, setTipAmount, tipPercentage, setTipPercentage
 }) {
   const { t } = useTranslation();
-  const { cartTotal, activeTicket, showAlert } = usePos();
+  const { cartTotal, cartSubtotal, autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, manualDiscountAmount, activeTicket, showAlert } = usePos();
 
 
   useEffect(() => {
@@ -118,43 +118,94 @@ function CheckoutModal({
             </div>
           )}
 
-          {splitMode === 'product' && (
-            <div>
-              <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>{t('check.prodSubtitle')}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', padding: '4px' }}>
-                {activeTicket.items.map(item => {
-                  const isPaid = paidProductIds.includes(item.id);
-                  // FIXED:
-                  let unitCost = item.basePrice;
-                  if (item.selectedModifiers) {
-                    unitCost += Object.values(item.selectedModifiers).reduce((s, m) => s + (m.price || 0), 0);
-                  }
-                  const itemTotal = unitCost * (item.qty || 1); // <-- Multiply by quantity!
-                  
-                  // Apply proportional tip to this specific product
-                  const itemTip = Math.round(itemTotal * ((Number(tipPercentage) || 0) / 100));
-                  const finalItemTotal = itemTotal + itemTip;
+          {splitMode === 'product' && (() => {
+            const autoCart = autoDiscountCart || 0;
+            const autoByUid = autoDiscountByItemUid || {};
+            const manualAmt = manualDiscountAmount || 0;
+            const totalDiscounts = (autoDiscountAmount || 0) + manualAmt;
+            const hasDiscount = totalDiscounts > 0 && cartSubtotal > 0;
+            const tipPct = Number(tipPercentage) || 0;
 
-                  return (
-                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: isPaid ? 'rgba(0,0,0,0.05)' : 'var(--bg-main)', opacity: isPaid ? 0.6 : 1, borderRadius: '8px', border: '1px solid var(--border)' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.1rem' }}>{item.name}</div>
-                        <div style={{ color: 'var(--brand-color)' }}>{formatForDisplay(finalItemTotal)} {itemTip > 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(+{formatForDisplay(itemTip)} {t('check.tipSuffix')})</span>}</div>
-                      </div>
-                      {isPaid ? (
-                        <span>{t('check.prodPaid')}</span>
-                      ) : (
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button onClick={() => handlePartialPayment(finalItemTotal, 'Cash', [item.id])} style={{ padding: '8px 12px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.cash')}</button>
-                          <button onClick={() => handlePartialPayment(finalItemTotal, 'Card', [item.id])} style={{ padding: '8px 12px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.card')}</button>
+            // Step 1: gross + auto allocation (item-rule = specific, cart-rule = proportional by gross).
+            const stage1 = activeTicket.items.map(item => {
+              let unitCost = normalizeMenuPrice(item.basePrice);
+              if (item.selectedModifiers) {
+                unitCost += Object.values(item.selectedModifiers)
+                  .reduce((s, m) => s + normalizeMenuPrice(m.price || 0), 0);
+              }
+              const itemGross = unitCost * (item.qty || 1);
+              const itemAutoItem = autoByUid[item.uniqueId] || 0;
+              const itemAutoCart = (autoCart > 0 && cartSubtotal > 0)
+                ? Math.round(itemGross * autoCart / cartSubtotal)
+                : 0;
+              const itemAuto = Math.min(itemGross, itemAutoItem + itemAutoCart);
+              const itemAfterAuto = itemGross - itemAuto;
+              return { item, itemGross, itemAuto, itemAfterAuto };
+            });
+
+            // Step 2: manual discount distributed proportionally over (gross − auto),
+            // mirroring Register.jsx's subtotalAfterAuto base.
+            const sumAfterAuto = stage1.reduce((s, r) => s + r.itemAfterAuto, 0);
+            const rows = stage1.map(r => {
+              const itemManual = (manualAmt > 0 && sumAfterAuto > 0)
+                ? Math.round(r.itemAfterAuto * manualAmt / sumAfterAuto)
+                : 0;
+              const itemDiscount = r.itemAuto + itemManual;
+              const itemNet = Math.max(0, r.itemGross - itemDiscount);
+              return { item: r.item, itemGross: r.itemGross, itemDiscount, itemNet };
+            });
+
+            // Reconcile penny-rounding residual onto the last unpaid line so
+            // Σ unpaid itemNet + Σ paid itemNet === cartTotal exactly.
+            if (hasDiscount) {
+              const sumNet = rows.reduce((s, r) => s + r.itemNet, 0);
+              const residual = cartTotal - sumNet;
+              if (residual !== 0) {
+                for (let i = rows.length - 1; i >= 0; i--) {
+                  if (!paidProductIds.includes(rows[i].item.id)) {
+                    rows[i].itemNet = Math.max(0, rows[i].itemNet + residual);
+                    break;
+                  }
+                }
+              }
+            }
+
+            return (
+              <div>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>{t('check.prodSubtitle')}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', padding: '4px' }}>
+                  {rows.map(({ item, itemGross, itemDiscount, itemNet }) => {
+                    const isPaid = paidProductIds.includes(item.id);
+                    const itemTip = Math.round(itemNet * tipPct / 100);
+                    const finalItemTotal = itemNet + itemTip;
+
+                    return (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: isPaid ? 'rgba(0,0,0,0.05)' : 'var(--bg-main)', opacity: isPaid ? 0.6 : 1, borderRadius: '8px', border: '1px solid var(--border)' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.1rem' }}>{item.name}</div>
+                          {itemDiscount > 0 && (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              <span style={{ textDecoration: 'line-through' }}>{formatForDisplay(itemGross)}</span>
+                              <span style={{ marginLeft: '6px', color: '#e74c3c' }}>−{formatForDisplay(itemDiscount)}</span>
+                            </div>
+                          )}
+                          <div style={{ color: 'var(--brand-color)' }}>{formatForDisplay(finalItemTotal)} {itemTip > 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>(+{formatForDisplay(itemTip)} {t('check.tipSuffix')})</span>}</div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        {isPaid ? (
+                          <span>{t('check.prodPaid')}</span>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Cash', [item.id])} style={{ padding: '8px 12px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.cash')}</button>
+                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Card', [item.id])} style={{ padding: '8px 12px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.card')}</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {splitMode === 'custom' && (
             <div>

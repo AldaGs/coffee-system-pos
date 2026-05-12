@@ -544,6 +544,8 @@ function Register() {
   }, 0) : 0;
 
   let autoDiscountAmount = 0;
+  let autoDiscountCart = 0;
+  const autoDiscountByItemUid = {};
   let activeAutoRuleName = "";
 
   if (posSettings?.isAdvancedMode) {
@@ -557,6 +559,7 @@ function Register() {
             : normalizeMenuPrice(rule.value); // <-- Add normalizeMenuPrice here
 
           autoDiscountAmount += ruleValue;
+          autoDiscountCart += ruleValue;
           activeAutoRuleName = rule.name;
         }
         // FOR ITEM LEVEL RULES
@@ -572,6 +575,7 @@ function Register() {
                 : normalizeMenuPrice(rule.value) * qty; // <-- Add normalizeMenuPrice here
 
               autoDiscountAmount += ruleValue;
+              autoDiscountByItemUid[item.uniqueId] = (autoDiscountByItemUid[item.uniqueId] || 0) + ruleValue;
               activeAutoRuleName = rule.name;
             }
           });
@@ -580,7 +584,16 @@ function Register() {
     }
   }
 
+  const autoUnclamped = autoDiscountAmount;
   autoDiscountAmount = Math.max(0, Math.min(autoDiscountAmount, cartSubtotal));
+  // If global clamp reduced the total, scale the breakdown proportionally so the parts still sum.
+  if (autoUnclamped > autoDiscountAmount && autoUnclamped > 0) {
+    const scale = autoDiscountAmount / autoUnclamped;
+    autoDiscountCart = Math.round(autoDiscountCart * scale);
+    Object.keys(autoDiscountByItemUid).forEach(uid => {
+      autoDiscountByItemUid[uid] = Math.round(autoDiscountByItemUid[uid] * scale);
+    });
+  }
 
   let manualDiscountAmount = 0;
   if (activeTicket?.discount) {
@@ -1020,7 +1033,7 @@ function Register() {
     isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
     showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
     activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
-    autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
+    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
     handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
     handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
 
