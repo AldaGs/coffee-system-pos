@@ -1,9 +1,25 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
-import { toCents, formatForDisplay } from '../../utils/moneyUtils';
+import { formatForDisplay } from '../../utils/moneyUtils';
+import { calculateTaxBreakdown } from '../../utils/posMath';
+import { numeroALetras } from '../../utils/numeroALetras';
 
 function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, handleSaveReceipt }) {
   const { t } = useTranslation();
+
+  const previewItems = [
+    { emoji: '☕', name: 'Americano', qty: 1, basePrice: 4500, selectedModifiers: [] },
+    { emoji: '🥛', name: 'Flat White', qty: 1, basePrice: 5500, selectedModifiers: [{ name: 'Oat milk', price: 500 }] },
+    { emoji: '🥐', name: 'Croissant', qty: 1, basePrice: 3500, selectedModifiers: [] },
+  ];
+  const previewTotal = previewItems.reduce((sum, it) => {
+    const modSum = (it.selectedModifiers || []).reduce((s, m) => s + (m.price || 0), 0);
+    return sum + (it.basePrice + modSum) * (it.qty || 1);
+  }, 0);
+  const previewTaxInfo = receiptForm.enableTaxBreakdown
+    ? calculateTaxBreakdown(previewTotal, receiptForm.taxRate || 16)
+    : null;
+  const previewNow = new Date();
 
   return (
     <div className="admin-section fade-in">
@@ -100,32 +116,79 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
             <Icon icon="lucide:eye" style={{ color: 'var(--brand-color)' }} />
             {t('receipt.previewTitle')}
           </h3>
-          <div style={{ width: '100%', maxWidth: '300px', padding: '32px 24px', background: '#fdfdfd', border: '1px solid #ddd', fontFamily: "'Courier New', Courier, monospace", textAlign: 'center', whiteSpace: 'pre-wrap', color: 'black', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderRadius: '4px' }}>
-            {receiptForm.logo && <img src={receiptForm.logo} alt={t('receipt.logoAlt')} style={{ maxWidth: '100%', maxHeight: '80px', objectFit: 'contain', filter: 'grayscale(100%) contrast(200%)', marginBottom: '16px' }} />}
-            <div style={{ fontWeight: 'bold', fontSize: '1.4rem', textTransform: 'uppercase', marginBottom: '4px' }}>{receiptForm.header}</div>
-            <div style={{ fontSize: '0.9rem' }}>{receiptForm.subheader}</div>
-            <div style={{ margin: '16px 0', fontSize: '0.8rem', opacity: 0.5 }}>---------------------------------</div>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem' }}>1x AMERICANO          $45.00</div>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem' }}>1x FLAT WHITE         $55.00</div>
-            <div style={{ textAlign: 'left', fontSize: '0.9rem' }}>1x CROISSANT          $35.00</div>
-            <div style={{ margin: '16px 0', fontSize: '0.8rem', opacity: 0.5 }}>---------------------------------</div>
-            {receiptForm.enableTaxBreakdown && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span>SUBTOTAL</span>
-                  <span>{formatForDisplay(toCents(135 / (1 + ((receiptForm.taxRate || 16) / 100))))}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                  <span>IVA ({receiptForm.taxRate || 16}%)</span>
-                  <span>{formatForDisplay(toCents(135 - (135 / (1 + ((receiptForm.taxRate || 16) / 100)))))}</span>
-                </div>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 'bold', marginBottom: '16px' }}>
-              <span>TOTAL</span>
-              <span>$135.00</span>
+          <div style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'Courier New, Courier, monospace', fontSize: '14px', lineHeight: '1.2', border: '1px solid #ddd', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', borderRadius: '4px' }}>
+            <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+              {receiptForm.logo && (
+                <img src={receiptForm.logo} alt={t('receipt.logoAlt')} style={{ maxWidth: '150px', maxHeight: '80px', marginBottom: '10px' }} />
+              )}
+              <h2 style={{ margin: '0 0 5px 0', fontSize: '18px' }}>{receiptForm.header || ''}</h2>
+              {receiptForm.subheader && (
+                <p style={{ margin: '0', fontSize: '12px', whiteSpace: 'pre-line' }}>{receiptForm.subheader}</p>
+              )}
             </div>
-            <div style={{ fontSize: '0.85rem', fontStyle: 'italic', borderTop: '1px dashed #ddd', paddingTop: '12px' }}>{receiptForm.footer}</div>
+
+            <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
+
+            <div style={{ margin: '10px 0', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Ticket: #PREVIEW</span>
+                <span>{previewNow.toLocaleDateString()}</span>
+              </div>
+              <div>{previewNow.toLocaleTimeString()}</div>
+            </div>
+
+            <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
+
+            <div>
+              {previewItems.map((item, idx) => {
+                const qty = item.qty || 1;
+                const itemNameWithEmoji = `${item.emoji || '•'} ${item.name}`;
+                return (
+                  <div key={idx} style={{ marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{qty > 1 ? `${itemNameWithEmoji} x${qty}` : itemNameWithEmoji}</span>
+                      <span>{formatForDisplay(item.basePrice * qty)}</span>
+                    </div>
+                    {(item.selectedModifiers || []).map((mod, midx) => (
+                      <div key={midx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', paddingLeft: '10px' }}>
+                        <span>+ {mod.name}</span>
+                        <span>{mod.price > 0 ? `+${formatForDisplay(mod.price)}` : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
+
+            {previewTaxInfo && (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Subtotal</span>
+                  <span>{formatForDisplay(previewTaxInfo.subtotal)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{receiptForm.taxLabel || 'IVA'} ({receiptForm.taxRate || 16}%)</span>
+                  <span>{formatForDisplay(previewTaxInfo.tax)}</span>
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', fontSize: '22px', fontWeight: 'bold', marginTop: '15px', borderTop: '2px solid black', paddingTop: '10px' }}>
+              <span>TOTAL</span>
+              <span>{formatForDisplay(previewTotal)}</span>
+            </div>
+
+            <div style={{ textAlign: 'center', fontSize: '10px', fontWeight: 'bold', marginTop: '5px', textTransform: 'uppercase' }}>
+              {numeroALetras(previewTotal)}
+            </div>
+
+            <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
+
+            <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', fontStyle: 'italic' }}>
+              <p>{receiptForm.footer || '¡Gracias por su compra!'}</p>
+            </div>
           </div>
         </div>
 
