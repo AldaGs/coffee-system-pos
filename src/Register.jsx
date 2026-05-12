@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
@@ -11,7 +11,6 @@ import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
-import { attemptBackgroundSync } from './services/syncService';
 import { logActivity } from './services/activityService';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
@@ -28,10 +27,16 @@ import CheckoutModal from './components/register/CheckoutModal';
 import LoyaltyModal from './components/register/LoyaltyModal';
 import FlyingReceipt from './components/register/FlyingReceipt';
 import ExpenseModal from './components/register/ExpenseModal';
+import ToastNotifications from './components/register/ToastNotifications';
 import { usePresence } from './hooks/usePresence';
 import { useCheckout } from './hooks/useCheckout';
 import { useShiftCorte } from './hooks/useShiftCorte';
 import { useLoyalty } from './hooks/useLoyalty';
+import { useSyncQueue } from './hooks/useSyncQueue';
+import { useExpenses } from './hooks/useExpenses';
+import { useShiftStateValue } from './hooks/useShiftState';
+import { useTickets } from './hooks/useTickets';
+import { usePinChallenge } from './hooks/usePinChallenge';
 
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
@@ -40,6 +45,7 @@ import DiscountModal from './components/register/DiscountModal';
 import TicketImage from './components/register/TicketImage';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
 import { fetchAndMergeSales } from './services/salesSync';
+import { fetchAndMergeExpenses } from './services/expenseSync';
 import { fetchActiveTickets } from './services/ticketSync';
 import { fromCents } from './utils/moneyUtils';
 
@@ -82,6 +88,12 @@ function Register() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingItem, setPendingItem] = useState(null);
   const [successTicket, setSuccessTicket] = useState(null);
+  const [toasts, setToasts] = useState([]);
+  const showToast = (message, type = 'success') => {
+    const id = crypto.randomUUID();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
+  };
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
 
   // --- MENU FETCH & OFFLINE CACHE ENGINE ---
@@ -111,6 +123,10 @@ function Register() {
         // 4. Pull down historical sales into local Dexie (for OrdersTab refunds)
         await fetchAndMergeSales();
 
+        // 5. Pull down expenses from every device so shift calc covers the
+        // whole shop, not just this terminal's local writes.
+        await fetchAndMergeExpenses();
+
         setIsLoading(false);
       } catch (err) {
         console.warn("Failed to fetch fresh menu or sync, using cache.", err);
@@ -120,67 +136,12 @@ function Register() {
     fetchMenuAndRecipes();
   }, [setMenuData, setRecipes, setActiveCategory, setIsLoading]);
 
-  // --- EXPENSES (LOCAL STORAGE BACKED) ---
-  const [expenses, setExpenses] = useState(() => {
-    const saved = localStorage.getItem('tinypos_expenses');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [expenseForm, setExpenseForm] = useState({ amount: '', reason: '' });
-
-  useEffect(() => {
-    localStorage.setItem('tinypos_expenses', JSON.stringify(expenses));
-  }, [expenses]);
-
-  // --- SAVE EXPENSE LOGIC ---
-  const handleSaveExpense = async () => {
-    if (!expenseForm.amount || !expenseForm.reason) {
-      return showAlert(t('expense.errMissing'), t('expense.errDesc'));
-    }
-
-    const expenseAmount = toCents(expenseForm.amount);
-
-    // 1. Build the local record
-    const newExpense = {
-      // eslint-disable-next-line react-hooks/purity
-      id: Date.now(),
-      amount: expenseAmount,
-      reason: expenseForm.reason,
-      timestamp: new Date().toISOString(),
-      cashierId: activeCashier?.id || 'unknown',
-      cashierName: activeCashier?.name || t('expense.unknownCashier')
-    };
-
-    // 2. Build the cloud record (For when you create the 'expenses' table in Supabase)
-    const cloudExpense = {
-      amount: expenseAmount,
-      reason: expenseForm.reason,
-      category: expenseForm.category || 'General',
-      cashier_name: activeCashier?.name || t('expense.unknownCashierFallback')
-    };
-
-    try {
-      if (!navigator.onLine) throw new Error("Device is offline");
-
-      const { error } = await supabase.from('expenses').insert([cloudExpense]);
-      if (error) throw error;
-    } catch {
-      console.warn("Cloud expense failed. Moving to offline queue.");
-      // PUSH TO SECRET QUEUE INSTEAD OF FAILING!
-      setExpenseQueue(prev => [...prev, cloudExpense]);
-    }
-
-    // 3. ALWAYS DO THIS (Online or Offline)
-    setExpenses([...expenses, newExpense]);
-
-    // LOG ACTIVITY
-    logActivity('Gasto (Expense)', `Registró un gasto de ${formatForDisplay(expenseAmount)}: ${expenseForm.reason}`, { category: expenseForm.category, amount: expenseAmount });
-
-    setIsExpenseModalOpen(false);
-    setExpenseForm({ amount: '', reason: '', category: 'General' });
-    showAlert(t('expense.success'), `${t('expense.successDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`);
-  };
+  const {
+    expenses, expenseQueue, setExpenseQueue,
+    isExpenseModalOpen, setIsExpenseModalOpen,
+    expenseForm, setExpenseForm,
+    handleSaveExpense
+  } = useExpenses({ activeCashier, t, showAlert });
 
   // --- DISCOUNT STATE & LOGIC ---
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -214,10 +175,6 @@ function Register() {
 
   // --- OFFLINE SYNC QUEUES & MODAL ---
   const syncQueue = useLiveQuery(() => db.syncQueue.toArray(), []) || [];
-  const [expenseQueue, setExpenseQueue] = useState(() => {
-    const saved = localStorage.getItem('tinypos_expense_queue');
-    return saved ? JSON.parse(saved) : [];
-  });
 
   const [waQueue] = useState(() => {
     const saved = localStorage.getItem('tinypos_wa_queue');
@@ -226,62 +183,24 @@ function Register() {
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem('tinypos_expense_queue', JSON.stringify(expenseQueue));
     localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue));
-  }, [expenseQueue, waQueue]);
+  }, [waQueue]);
 
-  // --- UNIFIED BACKGROUND CLOUD SYNC ---
-  useEffect(() => {
-    // Wrap our service in a function so we can pass the React State modifiers
-    const runSync = async () => {
-      const authError = await attemptBackgroundSync(expenseQueue, () => setExpenseQueue([]));
-      if (authError) {
-        console.warn("Auth error detected during sync background task.");
-        setHasValidSession(false);
-      } else {
-        // If it succeeded or failed for other reasons (network), we assume session is still okay
-        // unless we know for sure it's invalid.
-      }
-    };
-
-    // Listen for the internet coming back online
-    window.addEventListener('online', runSync);
-
-    // And try automatically every 60 seconds
-    const syncInterval = setInterval(runSync, 60000);
-
-    // Run once immediately on mount
-    runSync();
-
-    return () => {
-      window.removeEventListener('online', runSync);
-      clearInterval(syncInterval);
-    };
-  }, [expenseQueue]);
-
-  // --- CORTE DE CAJA (END OF SHIFT) STATES ---
-  const [lastCorteTimestamp, setLastCorteTimestamp] = useState(() => {
-    // Default to the beginning of time if a corte has never been done
-    return localStorage.getItem('tinypos_last_corte') || new Date(0).toISOString();
+  useSyncQueue({
+    expenseQueue,
+    clearExpenseQueue: () => setExpenseQueue([]),
+    onAuthError: () => setHasValidSession(false)
   });
+
+  // --- CORTE / ORDER NUMBER — Dexie-backed (was localStorage) ---
+  const [lastCorteTimestamp, setLastCorteTimestamp] = useShiftStateValue('lastCorteTimestamp', new Date(0).toISOString());
   const [isCorteModalOpen, setIsCorteModalOpen] = useState(false);
   const [countedCash, setCountedCash] = useState("");
 
+  const [nextOrderNum, setNextOrderNum] = useShiftStateValue('nextOrderNum', 1);
+  const [lastResetDate, setLastResetDate] = useShiftStateValue('lastResetDate', new Date().toDateString());
 
-
-  // --- ORDER NUMBER ENGINE ---
-  const [nextOrderNum, setNextOrderNum] = useState(() => {
-    const saved = localStorage.getItem('tinypos_nextOrderNum');
-    return saved ? parseInt(saved) : 1;
-  });
-
-  const [lastResetDate, setLastResetDate] = useState(() => {
-    return localStorage.getItem('tinypos_lastResetDate') || new Date().toDateString();
-  });
-
-  // --- AUTO-RESET LOGIC ---
   useEffect(() => {
-    // FIX: Read directly from menuData so we don't care about variable order!
     const policy = menuData?.posSettings?.orderResetPolicy || 'daily';
     const today = new Date();
     const lastReset = new Date(lastResetDate);
@@ -296,14 +215,10 @@ function Register() {
     }
 
     if (shouldReset) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNextOrderNum(1);
       setLastResetDate(today.toDateString());
-      localStorage.setItem('tinypos_nextOrderNum', 1);
-      localStorage.setItem('tinypos_lastResetDate', today.toDateString());
     }
-    // FIX: Update the dependency array here too
-  }, [menuData?.posSettings?.orderResetPolicy, lastResetDate]);
+  }, [menuData?.posSettings?.orderResetPolicy, lastResetDate, setNextOrderNum, setLastResetDate]);
 
   // --- BOTTOM SHEET STATE ---
   const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
@@ -311,47 +226,14 @@ function Register() {
   // --- DEVICE IDENTITY & SESSION ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // --- SECURITY PIN CHALLENGE STATE ---
-  const [pinChallenge, setPinChallenge] = useState({ isOpen: false, title: "", onAuthorized: null });
-  const [challengePinAttempt, setChallengePinAttempt] = useState('');
-  const [challengeError, setChallengeError] = useState(false);
-
-  // Helper function to intercept high-privilege actions
-  const requirePin = (title, onAuthorizedAction) => {
-    setPinChallenge({ isOpen: true, title, onAuthorized: onAuthorizedAction });
-  };
-
-  const handleChallengeSubmit = async () => {
-    const { verifyPin, verifyAdminPin } = useMenuStore.getState();
-
-    try {
-      // 1. Is it the currently logged-in cashier's PIN?
-      const isCashierMatch = await verifyPin(activeCashier?.id, challengePinAttempt);
-
-      // 2. NEW: Does this PIN belong to ANY profile where isAdmin is true or Master PIN?
-      const isStaffAdmin = await verifyAdminPin(challengePinAttempt);
-
-      if (isCashierMatch || isStaffAdmin) {
-        // Success: Clear the challenge and run the intercepted action
-        setChallengePinAttempt('');
-        setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
-        if (pinChallenge.onAuthorized) pinChallenge.onAuthorized();
-      } else {
-        // Fail: Trigger the shake animation
-        setChallengeError(true);
-        setTimeout(() => setChallengeError(false), 500);
-        setChallengePinAttempt('');
-      }
-    } catch (err) {
-      showAlert(t('security.pinErrorTitle'), err.message);
-      setChallengePinAttempt('');
-    }
-  };
+  const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
 
 
   // --- LOYALTY & WHATSAPP STATES ---
   const [loyaltyModal, setLoyaltyModal] = useState({ isOpen: false, step: 'phone', phone: '', data: null });
-  const [phoneError, setPhoneError] = useState(false); // NEW: Controls the shake
+  const [phoneError, setPhoneError] = useState(false); // shake on invalid phone in loyalty modal
+  const [pinShake, setPinShake] = useState(false);     // shake on wrong PIN (lock + challenge)
+  const pinAttempts = useRef(0);                       // monotonic wrong-PIN counter (telemetry hook)
 
   // --- CASHIER PROFILES (CLOUD SYNCED) ---
   // We read directly from the cloud menuData now!
@@ -383,6 +265,7 @@ function Register() {
       const isStaffAdmin = await verifyAdminPin(pinAttempt);
 
       if (isProfileMatch || isStaffAdmin) {
+        pinAttempts.current = 0;
         setIsLocked(false);
         setActiveCashier(selectedProfile);
         localStorage.setItem('tinypos_activeCashier', JSON.stringify(selectedProfile));
@@ -391,13 +274,12 @@ function Register() {
         setSessionTime(newSessionTime);
         localStorage.setItem('tinypos_session_time', newSessionTime.toString());
 
-        // Reset the lock screen for next time
         setPinAttempt('');
         setSelectedProfile(null);
       } else {
-        // Wrong PIN! Trigger the shake animation
-        setPhoneError(true);
-        setTimeout(() => setPhoneError(false), 500);
+        pinAttempts.current += 1;
+        setPinShake(true);
+        setTimeout(() => setPinShake(false), 500);
         setPinAttempt('');
       }
     } catch (err) {
@@ -441,31 +323,37 @@ function Register() {
     if (!menuData || isLocked || posSettings.autoLockMinutes === 0) return;
 
     let timeoutId;
+    let lastReset = 0;
+    const THROTTLE_MS = 1000;
 
-    // Function that triggers the lock
     const lockScreen = () => setIsLocked(true);
 
-    // Function that resets the countdown every time they touch the screen
-    const resetTimer = () => {
+    const doReset = () => {
       clearTimeout(timeoutId);
-      // Convert minutes to milliseconds
       timeoutId = setTimeout(lockScreen, posSettings.autoLockMinutes * 60000);
     };
 
-    // Listen for any interaction
-    window.addEventListener('mousemove', resetTimer);
-    window.addEventListener('touchstart', resetTimer);
-    window.addEventListener('keydown', resetTimer);
+    // Throttled — a busy POS fires mousemove hundreds of times/min; we don't
+    // need to re-arm the timeout on every pixel.
+    const resetTimer = () => {
+      const now = Date.now();
+      if (now - lastReset < THROTTLE_MS) return;
+      lastReset = now;
+      doReset();
+    };
 
-    // Start the timer initially
-    resetTimer();
+    const passive = { passive: true };
+    window.addEventListener('mousemove', resetTimer, passive);
+    window.addEventListener('touchstart', resetTimer, passive);
+    window.addEventListener('keydown', resetTimer, passive);
 
-    // Cleanup listeners when component unmounts
+    doReset();
+
     return () => {
       clearTimeout(timeoutId);
-      window.removeEventListener('mousemove', resetTimer);
-      window.removeEventListener('touchstart', resetTimer);
-      window.removeEventListener('keydown', resetTimer);
+      window.removeEventListener('mousemove', resetTimer, passive);
+      window.removeEventListener('touchstart', resetTimer, passive);
+      window.removeEventListener('keydown', resetTimer, passive);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuData, isLocked, posSettings.autoLockMinutes]);
@@ -534,7 +422,18 @@ function Register() {
     ? tickets.filter(t => t.cashier_id === activeCashier?.id)
     : tickets;
 
-  const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || visibleTickets[0];
+  const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || null;
+
+  const {
+    handleNewTicket, handleRenameTicket, clearCurrentTicket, handleCancelTicket,
+    addToTicket, handleUpdateItemQty, handleRemoveItem
+  } = useTickets({
+    myDeviceId, activeCashier, posSettings, recipes,
+    activeTicket, setActiveTicketId, tickets,
+    nextOrderNum, setNextOrderNum,
+    showAlert, showConfirm, showPrompt, showToast, t,
+    setPendingItem, setIsModalOpen
+  });
 
   const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
     let itemCost = normalizeMenuPrice(item.basePrice);
@@ -611,35 +510,6 @@ function Register() {
   const totalDiscounts = autoDiscountAmount + manualDiscountAmount;
   const cartTotal = Math.max(0, cartSubtotal - totalDiscounts);
 
-  // --- TICKET LIFECYCLE (Must be above hooks that reference them) ---
-  const clearCurrentTicket = async () => {
-    if (!activeTicket) return;
-    const ticketIdToDelete = activeTicket.id;
-    await db.active_tickets.delete(ticketIdToDelete);
-    if (navigator.onLine) {
-      try {
-        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
-      } catch (err) {
-        console.error("Cloud delete failed:", err);
-      }
-    }
-    const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
-    if (remainingTickets.length > 0) {
-      const nextVisible = remainingTickets.find(t => posSettings.ticketVisibility === 'open' || t.cashier_id === activeCashier?.id);
-      setActiveTicketId(nextVisible ? nextVisible.id : null);
-    } else {
-      setActiveTicketId(null);
-    }
-  };
-
-  const handleCancelTicket = () => {
-    if (activeTicket.items.length === 0) {
-      clearCurrentTicket();
-      return;
-    }
-    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => clearCurrentTicket());
-  };
-
   const enrichedActiveTicket = activeTicket ? {
     ...activeTicket,
     autoDiscountRuleName: activeAutoRuleName || null,
@@ -668,90 +538,6 @@ function Register() {
     }
   }, [posSettings, updateTheme]);
 
-
-  const handleNewTicket = () => {
-    showPrompt(
-      t('reg.promptTicketName'),
-      t('reg.promptTicketNameDesc'),
-      async (inputValue) => {
-        const newId = Date.now();
-        const currentNum = nextOrderNum; // Grab the global counter
-
-        // Grab the first 3 letters of this specific device's ID
-        const prefix = myDeviceId.substring(0, 3).toUpperCase();
-
-        // If they provided a name, use it + the number. Otherwise use default.
-        const customName = inputValue ? inputValue.trim() : '';
-        const ticketName = customName ? `${prefix} - ${customName} (#${currentNum})` : `${prefix} - #${currentNum}`;
-
-        const newTicket = {
-          id: newId,
-          name: ticketName,
-          items: [],
-          cashier_id: activeCashier?.id,
-          last_modified_by: myDeviceId
-        };
-
-        // 1. Save locally
-        await db.active_tickets.add(newTicket);
-
-        // 2. Push new ticket to the cloud
-        if (navigator.onLine) {
-          try {
-            await supabase.from('active_tickets').insert([newTicket]);
-          } catch (err) {
-            console.error("Cloud create failed:", err);
-          }
-        }
-
-        setActiveTicketId(newId);
-
-        // Increment the global counter for the NEXT time
-        setNextOrderNum(currentNum + 1);
-        localStorage.setItem('tinypos_nextOrderNum', currentNum + 1);
-      },
-      '',
-      t('reg.btnCreateTicket'),
-      t('reg.btnCancel')
-    );
-  };
-
-  const handleRenameTicket = () => {
-    if (!activeTicket) return;
-    showPrompt(
-      t('reg.promptTicketName'),
-      t('reg.promptTicketNameDesc'),
-      async (inputValue) => {
-        if (!inputValue || !inputValue.trim()) return;
-        const customName = inputValue.trim();
-
-        // Try to extract the original index (#X) if it exists. 
-        const match = activeTicket.name.match(/\(#(\d+)\)$/);
-        const match2 = activeTicket.name.match(/- #(\d+)$/);
-        const currentNum = match ? match[1] : (match2 ? match2[1] : '?');
-
-        const prefix = myDeviceId.substring(0, 3).toUpperCase();
-        const newName = `${prefix} - ${customName} (#${currentNum})`;
-
-        const updatedTicket = { ...activeTicket, name: newName };
-
-        // Save locally
-        await db.active_tickets.update(activeTicket.id, updatedTicket);
-
-        // Push cloud
-        if (navigator.onLine) {
-          try {
-            await supabase.from('active_tickets').update({ name: newName }).eq('id', activeTicket.id);
-          } catch (err) {
-            console.error("Cloud rename failed:", err);
-          }
-        }
-      },
-      '',
-      t('ticket.btnRename'),
-      t('reg.btnCancel')
-    );
-  };
 
   const handleItemClick = (item) => {
     if (item.priceType === 'variable') {
@@ -817,98 +603,6 @@ function Register() {
     setPendingItem({ ...pendingItem, selectedModifiers: updatedModifiers });
   };
 
-  const addToTicket = async (item, modifiers, customPrice) => {
-    if (!activeTicket) {
-      showAlert(t('cart.noActiveOrderTitle'), t('cart.noActiveOrderDesc'));
-      setIsModalOpen(false);
-      setPendingItem(null);
-      return;
-    }
-
-    // --- LOW STOCK CHECK ---
-    if (recipes) {
-      const recipe = recipes.find(r => r.linked_menu_item === item.id);
-      if (recipe && recipe.ingredients) {
-        const inventory = await db.inventory.toArray();
-        const threshold = posSettings?.lowStockThreshold || 0;
-        for (const ing of recipe.ingredients) {
-          const invItem = inventory.find(i => i.name === ing.name);
-          if (invItem && (invItem.current_stock - ing.qty) <= threshold) {
-            showAlert(t('register.lowStock'), t('register.lowStockDesc').replace('{{ingredient}}', invItem.name).replace('{{qty}}', threshold));
-            break; // Show only one alert per item added to avoid spamming the cashier
-          }
-        }
-      }
-    }
-
-    const newItem = {
-      ...item,
-      basePrice: customPrice !== undefined ? customPrice : item.basePrice,
-      uniqueId: Date.now() + Math.random(),
-      selectedModifiers: modifiers
-    };
-    const updatedItems = [...activeTicket.items, newItem];
-
-    // 1. Update locally
-    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-
-    // 2. NEW: Update cloud instantly
-    if (navigator.onLine) {
-      supabase.from('active_tickets').update({
-        items: updatedItems,
-        last_modified_by: myDeviceId
-      })
-        .eq('id', activeTicket.id)
-        .then();
-    }
-
-    setIsModalOpen(false);
-    setPendingItem(null);
-  };
-
-  const handleUpdateItemQty = async (itemUniqueId, newQty) => {
-    if (!activeTicket) return;
-
-    const updatedItems = newQty === 0
-      ? activeTicket.items.filter(i => i.uniqueId !== itemUniqueId)
-      : activeTicket.items.map(i => i.uniqueId === itemUniqueId ? { ...i, qty: newQty } : i);
-
-    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-
-    if (navigator.onLine) {
-      supabase.from('active_tickets')
-        .update({ items: updatedItems, last_modified_by: myDeviceId })
-        .eq('id', activeTicket.id)
-        .then();
-    }
-  };
-
-  const handleRemoveItem = async (itemUniqueId) => {
-    if (!activeTicket) return;
-
-    const updatedItems = activeTicket.items.filter(i => i.uniqueId !== itemUniqueId);
-
-    // 1. Update locally
-    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-
-    // 2. NEW: Update cloud instantly
-    if (navigator.onLine) {
-      supabase.from('active_tickets')
-        .update({
-          items: updatedItems,
-          last_modified_by: myDeviceId // Mark this update as yours
-        })
-        .eq('id', activeTicket.id)
-        .then();
-    }
-  };
-
-  // clearCurrentTicket and handleCancelTicket hoisted above hooks (see line ~641)
-
-
-
-  // Utilities moved to src/utils/sharingUtils.js
-
   const printRawReceipt = async (ticket, total) => {
     const receiptSettings = menuData?.receiptSettings || {
       header: posSettings?.name || "",
@@ -958,21 +652,45 @@ function Register() {
     sendFinalMessage(cleanPhone, null);
   };
 
+  const handleWheelScroll = (e) => {
+    if (e.deltaY !== 0) {
+      const canScrollLeft = e.currentTarget.scrollLeft > 0;
+      const canScrollRight = e.currentTarget.scrollLeft < (e.currentTarget.scrollWidth - e.currentTarget.clientWidth);
+      if ((e.deltaY < 0 && canScrollLeft) || (e.deltaY > 0 && canScrollRight)) {
+        e.preventDefault();
+        e.currentTarget.scrollLeft += e.deltaY;
+      }
+    }
+  };
+
+  // Bundle global state for the context wormhole. Memoized so that unrelated
+  // re-renders (e.g. a PIN keystroke) don't cascade through every context consumer.
+  const posState = useMemo(() => ({
+    cartTotal, activeTicket: enrichedActiveTicket, menuData, posSettings, activeCashier,
+    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
+    showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
+    activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
+    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
+    handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
+    handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
+    handleRedeemReward, handleDetachLoyalty, setLoyaltyModal, loyaltyModal,
+    pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [
+    cartTotal, enrichedActiveTicket, menuData, posSettings, activeCashier,
+    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
+    activeTicketId, visibleTickets, cartSubtotal,
+    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
+    loyaltyModal, pendingItem
+  ]);
+
   // --- 1. LOCK SCREEN GUARD ---
   if (isLocked) {
     if (!selectedProfile) {
       return (
         <>
-          <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={phoneError} handleUnlockSubmit={handleUnlockSubmit} requirePin={requirePin} />
-          <PinChallengeModal
-            pinChallenge={pinChallenge}
-            setPinChallenge={setPinChallenge}
-            challengePinAttempt={challengePinAttempt}
-            setChallengePinAttempt={setChallengePinAttempt}
-            challengeError={challengeError}
-            setChallengeError={setChallengeError}
-            handleChallengeSubmit={handleChallengeSubmit}
-          />
+          <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={pinShake} handleUnlockSubmit={handleUnlockSubmit} requirePin={requirePin} />
+          <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
         </>
       );
     }
@@ -987,8 +705,8 @@ function Register() {
           subtitle={t('reg.loginEnterPin')}
           pin={pinAttempt}
           setPin={setPinAttempt}
-          error={phoneError}
-          setError={setPhoneError}
+          error={pinShake}
+          setError={setPinShake}
           onSubmit={handleUnlockSubmit}
           onCancel={() => {
             setSelectedProfile(null);
@@ -997,54 +715,12 @@ function Register() {
           submitText={t('reg.btnLogin')}
           submitIcon="lucide:log-in"
         />
-        <PinChallengeModal
-          pinChallenge={pinChallenge}
-          setPinChallenge={setPinChallenge}
-          challengePinAttempt={challengePinAttempt}
-          setChallengePinAttempt={setChallengePinAttempt}
-          challengeError={challengeError}
-          setChallengeError={setChallengeError}
-          handleChallengeSubmit={handleChallengeSubmit}
-        />
+        <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
       </>
     );
   }
 
   if (!menuData) return <div>{t('reg.errMissingMenu')}</div>;
-
-
-  // --- MOUSE WHEEL HORIZONTAL SCROLL HELPERS ---
-  const handleWheelScroll = (e) => {
-    // If the user scrolls the wheel vertically, move the container horizontally
-    // BUT only if we are actually hovering a scrollable horizontal container
-    if (e.deltaY !== 0) {
-      const canScrollLeft = e.currentTarget.scrollLeft > 0;
-      const canScrollRight = e.currentTarget.scrollLeft < (e.currentTarget.scrollWidth - e.currentTarget.clientWidth);
-
-      if ((e.deltaY < 0 && canScrollLeft) || (e.deltaY > 0 && canScrollRight)) {
-        e.preventDefault(); // Only hijack if we can actually scroll
-        e.currentTarget.scrollLeft += e.deltaY;
-      }
-    }
-  };
-
-  // Bundle global state for the context wormhole
-  const posState = {
-    cartTotal, activeTicket: enrichedActiveTicket, menuData, posSettings, activeCashier,
-    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
-    showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
-    activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
-    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
-    handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
-    handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
-    handleRedeemReward, handleDetachLoyalty, setLoyaltyModal, loyaltyModal,
-
-    // --- NEW: ModifierModal Data & Functions ---
-    pendingItem,
-    handleToggleModifier,
-    handleTextModifierChange,
-    addToTicket
-  };
 
   return (
     <PosContext.Provider value={posState}>
@@ -1081,7 +757,7 @@ function Register() {
           onClick={() => setIsMobileCartOpen(true)}
         >
           <Icon icon="lucide:shopping-cart" />
-          <span className="cart-badge">{activeTicket?.items?.length || 0}</span>
+          <span className="cart-badge">{activeTicket?.items?.reduce((n, i) => n + (i.qty || 1), 0) || 0}</span>
           <span>{formatForDisplay(cartTotal)}</span>
         </button>
 
@@ -1114,19 +790,13 @@ function Register() {
 
         <FlyingReceipt successTicket={successTicket} />
 
+        <ToastNotifications toastNotifications={toasts} />
+
         <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} />
 
         <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
 
-        <PinChallengeModal
-          pinChallenge={pinChallenge}
-          setPinChallenge={setPinChallenge}
-          challengePinAttempt={challengePinAttempt}
-          setChallengePinAttempt={setChallengePinAttempt}
-          challengeError={challengeError}
-          setChallengeError={setChallengeError} /* <--- ADD THIS LINE! */
-          handleChallengeSubmit={handleChallengeSubmit}
-        />
+        <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
 
         <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 

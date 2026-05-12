@@ -36,7 +36,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     const combinedExpenseQueue = [...(expenseQueue || []), ...localExpenseQueue];
     
     if (combinedExpenseQueue.length > 0) {
-      const { error: expErr } = await supabase.from('expenses').upsert(combinedExpenseQueue, { onConflict: 'id' });
+      const { error: expErr } = await supabase.from('expenses').upsert(combinedExpenseQueue, { onConflict: 'local_id' });
       if (!expErr) {
         if (clearExpenseQueue) clearExpenseQueue();
         localStorage.setItem('tinypos_expense_queue', '[]');
@@ -113,6 +113,9 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
             }
           } else if (update.type === 'ticket_deletion') {
             const { error: err } = await supabase.from('active_tickets').delete().eq('id', update.ticket_id);
+            error = err;
+          } else if (update.type === 'active_ticket_update') {
+            const { error: err } = await supabase.from('active_tickets').update(update.data).eq('id', update.ticket_id);
             error = err;
           }
 

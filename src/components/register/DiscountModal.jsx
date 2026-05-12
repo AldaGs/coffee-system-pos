@@ -32,13 +32,23 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
           <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>
             {discountForm.type === 'percentage' ? t('discModal.labelPerc') : t('discModal.labelFlat')}
           </label>
-          <input 
-            type="number" 
-            step={discountForm.type === 'percentage' ? "1" : "0.01"} 
-            placeholder={discountForm.type === 'percentage' ? t('discModal.placePerc') : t('discModal.placeFlat')} 
-            value={discountForm.value} 
-            onChange={(e) => setDiscountForm({ ...discountForm, value: e.target.value })} 
-            style={{ width: '100%', padding: '15px', fontSize: '1.5rem', textAlign: 'center', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)' }} 
+          <input
+            type="number"
+            min="0"
+            max={discountForm.type === 'percentage' ? "100" : undefined}
+            step={discountForm.type === 'percentage' ? "1" : "0.01"}
+            placeholder={discountForm.type === 'percentage' ? t('discModal.placePerc') : t('discModal.placeFlat')}
+            value={discountForm.value}
+            onChange={(e) => {
+              const raw = e.target.value;
+              if (discountForm.type === 'percentage' && raw !== '') {
+                const n = parseFloat(raw);
+                if (!isNaN(n) && n > 100) return setDiscountForm({ ...discountForm, value: '100' });
+                if (!isNaN(n) && n < 0)   return setDiscountForm({ ...discountForm, value: '0' });
+              }
+              setDiscountForm({ ...discountForm, value: raw });
+            }}
+            style={{ width: '100%', padding: '15px', fontSize: '1.5rem', textAlign: 'center', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
           />
         </div>
 
