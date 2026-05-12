@@ -35,6 +35,8 @@ import { useLoyalty } from './hooks/useLoyalty';
 import { useSyncQueue } from './hooks/useSyncQueue';
 import { useExpenses } from './hooks/useExpenses';
 import { useShiftStateValue } from './hooks/useShiftState';
+import { useTickets } from './hooks/useTickets';
+import { usePinChallenge } from './hooks/usePinChallenge';
 
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
@@ -54,23 +56,6 @@ const getOrCreateDeviceId = () => {
     localStorage.setItem('tinypos_device_id', id);
   }
   return id;
-};
-
-// Mirror an active_ticket mutation to the cloud. If offline or the write fails,
-// stash the patch on db.updateQueue so attemptBackgroundSync can replay it.
-const pushActiveTicketUpdate = (ticketId, patch) => {
-  const enqueue = () => db.updateQueue.add({
-    type: 'active_ticket_update',
-    ticket_id: ticketId,
-    data: patch,
-    local_id: crypto.randomUUID()
-  }).catch(err => console.error('Failed to queue active_ticket_update:', err));
-
-  if (!navigator.onLine) { enqueue(); return; }
-
-  supabase.from('active_tickets').update(patch).eq('id', ticketId)
-    .then(({ error }) => { if (error) { console.warn('Cloud active_ticket update failed, queuing:', error); enqueue(); } })
-    .catch(err => { console.warn('Cloud active_ticket update threw, queuing:', err); enqueue(); });
 };
 
 
@@ -236,43 +221,7 @@ function Register() {
   // --- DEVICE IDENTITY & SESSION ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // --- SECURITY PIN CHALLENGE STATE ---
-  const [pinChallenge, setPinChallenge] = useState({ isOpen: false, title: "", onAuthorized: null });
-  const [challengePinAttempt, setChallengePinAttempt] = useState('');
-  const [challengeError, setChallengeError] = useState(false);
-
-  // Helper function to intercept high-privilege actions
-  const requirePin = (title, onAuthorizedAction) => {
-    setPinChallenge({ isOpen: true, title, onAuthorized: onAuthorizedAction });
-  };
-
-  const handleChallengeSubmit = async () => {
-    const { verifyPin, verifyAdminPin } = useMenuStore.getState();
-
-    try {
-      // 1. Is it the currently logged-in cashier's PIN?
-      const isCashierMatch = await verifyPin(activeCashier?.id, challengePinAttempt);
-
-      // 2. NEW: Does this PIN belong to ANY profile where isAdmin is true or Master PIN?
-      const isStaffAdmin = await verifyAdminPin(challengePinAttempt);
-
-      if (isCashierMatch || isStaffAdmin) {
-        // Success: Clear the challenge and run the intercepted action
-        pinAttempts.current = 0;
-        setChallengePinAttempt('');
-        setPinChallenge({ isOpen: false, title: "", onAuthorized: null });
-        if (pinChallenge.onAuthorized) pinChallenge.onAuthorized();
-      } else {
-        pinAttempts.current += 1;
-        setChallengeError(true);
-        setTimeout(() => setChallengeError(false), 500);
-        setChallengePinAttempt('');
-      }
-    } catch (err) {
-      showAlert(t('security.pinErrorTitle'), err.message);
-      setChallengePinAttempt('');
-    }
-  };
+  const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
 
 
   // --- LOYALTY & WHATSAPP STATES ---
@@ -470,6 +419,17 @@ function Register() {
 
   const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || null;
 
+  const {
+    handleNewTicket, handleRenameTicket, clearCurrentTicket, handleCancelTicket,
+    addToTicket, handleUpdateItemQty, handleRemoveItem
+  } = useTickets({
+    myDeviceId, activeCashier, posSettings, recipes,
+    activeTicket, setActiveTicketId, tickets,
+    nextOrderNum, setNextOrderNum,
+    showAlert, showConfirm, showPrompt, showToast, t,
+    setPendingItem, setIsModalOpen
+  });
+
   const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
     let itemCost = normalizeMenuPrice(item.basePrice);
     item.selectedModifiers.forEach(mod => { itemCost += normalizeMenuPrice(mod.price); });
@@ -545,35 +505,6 @@ function Register() {
   const totalDiscounts = autoDiscountAmount + manualDiscountAmount;
   const cartTotal = Math.max(0, cartSubtotal - totalDiscounts);
 
-  // --- TICKET LIFECYCLE (Must be above hooks that reference them) ---
-  const clearCurrentTicket = async () => {
-    if (!activeTicket) return;
-    const ticketIdToDelete = activeTicket.id;
-    await db.active_tickets.delete(ticketIdToDelete);
-    if (navigator.onLine) {
-      try {
-        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
-      } catch (err) {
-        console.error("Cloud delete failed:", err);
-      }
-    }
-    const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
-    if (remainingTickets.length > 0) {
-      const nextVisible = remainingTickets.find(t => posSettings.ticketVisibility === 'open' || t.cashier_id === activeCashier?.id);
-      setActiveTicketId(nextVisible ? nextVisible.id : null);
-    } else {
-      setActiveTicketId(null);
-    }
-  };
-
-  const handleCancelTicket = () => {
-    if (activeTicket.items.length === 0) {
-      clearCurrentTicket();
-      return;
-    }
-    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => clearCurrentTicket());
-  };
-
   const enrichedActiveTicket = activeTicket ? {
     ...activeTicket,
     autoDiscountRuleName: activeAutoRuleName || null,
@@ -602,88 +533,6 @@ function Register() {
     }
   }, [posSettings, updateTheme]);
 
-
-  const handleNewTicket = () => {
-    showPrompt(
-      t('reg.promptTicketName'),
-      t('reg.promptTicketNameDesc'),
-      async (inputValue) => {
-        const newId = Date.now();
-        const currentNum = nextOrderNum; // Grab the global counter
-
-        // Grab the first 3 letters of this specific device's ID
-        const prefix = myDeviceId.substring(0, 3).toUpperCase();
-
-        // If they provided a name, use it + the number. Otherwise use default.
-        const customName = inputValue ? inputValue.trim() : '';
-        const ticketName = customName ? `${prefix} - ${customName} (#${currentNum})` : `${prefix} - #${currentNum}`;
-
-        const newTicket = {
-          id: newId,
-          name: ticketName,
-          items: [],
-          cashier_id: activeCashier?.id,
-          last_modified_by: myDeviceId
-        };
-
-        // 1. Save locally
-        await db.active_tickets.add(newTicket);
-
-        // 2. Push new ticket to the cloud
-        if (navigator.onLine) {
-          try {
-            await supabase.from('active_tickets').insert([newTicket]);
-          } catch (err) {
-            console.error("Cloud create failed:", err);
-          }
-        }
-
-        setActiveTicketId(newId);
-
-        setNextOrderNum(currentNum + 1);
-      },
-      '',
-      t('reg.btnCreateTicket'),
-      t('reg.btnCancel')
-    );
-  };
-
-  const handleRenameTicket = () => {
-    if (!activeTicket) return;
-    showPrompt(
-      t('reg.promptTicketName'),
-      t('reg.promptTicketNameDesc'),
-      async (inputValue) => {
-        if (!inputValue || !inputValue.trim()) return;
-        const customName = inputValue.trim();
-
-        // Try to extract the original index (#X) if it exists. 
-        const match = activeTicket.name.match(/\(#(\d+)\)$/);
-        const match2 = activeTicket.name.match(/- #(\d+)$/);
-        const currentNum = match ? match[1] : (match2 ? match2[1] : '?');
-
-        const prefix = myDeviceId.substring(0, 3).toUpperCase();
-        const newName = `${prefix} - ${customName} (#${currentNum})`;
-
-        const updatedTicket = { ...activeTicket, name: newName };
-
-        // Save locally
-        await db.active_tickets.update(activeTicket.id, updatedTicket);
-
-        // Push cloud
-        if (navigator.onLine) {
-          try {
-            await supabase.from('active_tickets').update({ name: newName }).eq('id', activeTicket.id);
-          } catch (err) {
-            console.error("Cloud rename failed:", err);
-          }
-        }
-      },
-      '',
-      t('ticket.btnRename'),
-      t('reg.btnCancel')
-    );
-  };
 
   const handleItemClick = (item) => {
     if (item.priceType === 'variable') {
@@ -748,80 +597,6 @@ function Register() {
     }
     setPendingItem({ ...pendingItem, selectedModifiers: updatedModifiers });
   };
-
-  const addToTicket = async (item, modifiers, customPrice) => {
-    if (!activeTicket) {
-      showAlert(t('cart.noActiveOrderTitle'), t('cart.noActiveOrderDesc'));
-      setIsModalOpen(false);
-      setPendingItem(null);
-      return;
-    }
-
-    // --- LOW STOCK CHECK ---
-    // Non-blocking toast when an ingredient drops at/under the configured
-    // threshold. Only fall back to a modal when an ingredient would go negative,
-    // which is the only case worth interrupting the cashier for.
-    if (recipes) {
-      const recipe = recipes.find(r => r.linked_menu_item === item.id);
-      if (recipe && recipe.ingredients) {
-        const inventory = await db.inventory.toArray();
-        const threshold = posSettings?.lowStockThreshold || 0;
-        for (const ing of recipe.ingredients) {
-          const invItem = inventory.find(i => i.name === ing.name);
-          if (!invItem) continue;
-          const projected = invItem.current_stock - ing.qty;
-          if (projected < 0) {
-            showAlert(t('register.lowStock'), t('register.lowStockDesc').replace('{{ingredient}}', invItem.name).replace('{{qty}}', threshold));
-            break;
-          }
-          if (projected <= threshold) {
-            showToast(t('register.lowStockDesc').replace('{{ingredient}}', invItem.name).replace('{{qty}}', threshold), 'warning');
-            break;
-          }
-        }
-      }
-    }
-
-    const newItem = {
-      ...item,
-      basePrice: customPrice !== undefined ? customPrice : item.basePrice,
-      uniqueId: crypto.randomUUID(),
-      selectedModifiers: modifiers
-    };
-    const updatedItems = [...activeTicket.items, newItem];
-
-    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-    pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, last_modified_by: myDeviceId });
-
-    setIsModalOpen(false);
-    setPendingItem(null);
-  };
-
-  const handleUpdateItemQty = async (itemUniqueId, newQty) => {
-    if (!activeTicket) return;
-
-    const updatedItems = newQty === 0
-      ? activeTicket.items.filter(i => i.uniqueId !== itemUniqueId)
-      : activeTicket.items.map(i => i.uniqueId === itemUniqueId ? { ...i, qty: newQty } : i);
-
-    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-    pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, last_modified_by: myDeviceId });
-  };
-
-  const handleRemoveItem = async (itemUniqueId) => {
-    if (!activeTicket) return;
-
-    const updatedItems = activeTicket.items.filter(i => i.uniqueId !== itemUniqueId);
-
-    await db.active_tickets.update(activeTicket.id, { items: updatedItems });
-    pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, last_modified_by: myDeviceId });
-  };
-
-  // clearCurrentTicket and handleCancelTicket hoisted above hooks (see line ~641)
-
-
-
-  // Utilities moved to src/utils/sharingUtils.js
 
   const printRawReceipt = async (ticket, total) => {
     const receiptSettings = menuData?.receiptSettings || {
@@ -910,15 +685,7 @@ function Register() {
       return (
         <>
           <LockScreen posSettings={posSettings} cashiers={cashiers} selectedProfile={selectedProfile} setSelectedProfile={setSelectedProfile} pinAttempt={pinAttempt} setPinAttempt={setPinAttempt} handlePinKeyDown={handlePinKeyDown} phoneError={pinShake} handleUnlockSubmit={handleUnlockSubmit} requirePin={requirePin} />
-          <PinChallengeModal
-            pinChallenge={pinChallenge}
-            setPinChallenge={setPinChallenge}
-            challengePinAttempt={challengePinAttempt}
-            setChallengePinAttempt={setChallengePinAttempt}
-            challengeError={challengeError}
-            setChallengeError={setChallengeError}
-            handleChallengeSubmit={handleChallengeSubmit}
-          />
+          <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
         </>
       );
     }
@@ -943,15 +710,7 @@ function Register() {
           submitText={t('reg.btnLogin')}
           submitIcon="lucide:log-in"
         />
-        <PinChallengeModal
-          pinChallenge={pinChallenge}
-          setPinChallenge={setPinChallenge}
-          challengePinAttempt={challengePinAttempt}
-          setChallengePinAttempt={setChallengePinAttempt}
-          challengeError={challengeError}
-          setChallengeError={setChallengeError}
-          handleChallengeSubmit={handleChallengeSubmit}
-        />
+        <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
       </>
     );
   }
@@ -1032,15 +791,7 @@ function Register() {
 
         <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
 
-        <PinChallengeModal
-          pinChallenge={pinChallenge}
-          setPinChallenge={setPinChallenge}
-          challengePinAttempt={challengePinAttempt}
-          setChallengePinAttempt={setChallengePinAttempt}
-          challengeError={challengeError}
-          setChallengeError={setChallengeError} /* <--- ADD THIS LINE! */
-          handleChallengeSubmit={handleChallengeSubmit}
-        />
+        <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
 
         <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 
