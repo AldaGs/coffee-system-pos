@@ -370,7 +370,7 @@ function Admin() {
     showConfirm(t('loyalty.deleteTitle') || 'Wipe Loyalty Data?', confirmMessage, async () => {
       try {
         setIsSaving(true);
-        const { error } = await supabase.from('customers').update({ visits: 0 }).not('phone', 'is', null);
+        const { error } = await supabase.from('customers').update({ visits: 0, completed_at: null }).not('phone', 'is', null);
         if (error) throw error;
 
         showAlert(t('common.success'), t('loyalty.wipedMsg'));

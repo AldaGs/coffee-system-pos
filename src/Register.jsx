@@ -653,12 +653,13 @@ function Register() {
     shiftTotalExpenses, activeCashier, myDeviceId, setIsCorteModalOpen,
     setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm,
     loyaltyModal, setLoyaltyModal, activeTicket: enrichedActiveTicket, menuData, setPhoneError,
+    loyaltySettings: menuData?.loyaltySettings || null,
     cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket
   };
 
   const { handleProcessCorte } = useShiftCorte(hookDeps);
   const { handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);
-  const { handleCheckLoyalty } = useLoyalty(hookDeps);
+  const { handleCheckLoyalty, handleRedeemReward, handleDetachLoyalty } = useLoyalty(hookDeps);
 
   // --- THEME INJECTION LOGIC ---
   useEffect(() => {
@@ -1036,6 +1037,7 @@ function Register() {
     autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
     handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
     handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
+    handleRedeemReward, handleDetachLoyalty, setLoyaltyModal, loyaltyModal,
 
     // --- NEW: ModifierModal Data & Functions ---
     pendingItem,
@@ -1108,7 +1110,7 @@ function Register() {
           setTipPercentage={setTipPercentage}
         />
 
-        <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
+        <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleRedeemReward={handleRedeemReward} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
 
         <FlyingReceipt successTicket={successTicket} />
 

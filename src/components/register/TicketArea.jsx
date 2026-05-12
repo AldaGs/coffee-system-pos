@@ -3,6 +3,7 @@ import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Icon } from '@iconify/react';
 import QuantityEditModal from './QuantityEditModal';
+import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 
 function TicketArea({
@@ -79,7 +80,16 @@ function TicketArea({
                         </button>
                         <div>
                           <span>{item.emoji || '•'} {item.name}</span>
-                          <span style={{ marginLeft: '10px' }}>{formatForDisplay(normalizeMenuPrice(item.basePrice) * (item.qty || 1))}</span>
+                          {item.loyaltyOriginalPrice ? (
+                            <span style={{ marginLeft: '10px' }}>
+                              <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', marginRight: '6px' }}>
+                                {formatForDisplay(normalizeMenuPrice(item.loyaltyOriginalPrice) * (item.qty || 1))}
+                              </span>
+                              <span style={{ color: '#ff1493', fontWeight: 'bold' }}>★ {t('ticket.freeLoyalty') || 'FREE — Loyalty'}</span>
+                            </span>
+                          ) : (
+                            <span style={{ marginLeft: '10px' }}>{formatForDisplay(normalizeMenuPrice(item.basePrice) * (item.qty || 1))}</span>
+                          )}
                         </div>
                       </div>
                       <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
@@ -96,6 +106,7 @@ function TicketArea({
             </ul>
 
             <div className="ticket-footer">
+              <CustomerStrip />
               <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
                 <span>{t('ticket.subtotal')}</span>
                 <span>{formatForDisplay(cartSubtotal)}</span>

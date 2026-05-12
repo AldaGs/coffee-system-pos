@@ -1,7 +1,7 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 
-function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoyalty, handleGuestReceipt, phoneError, sendFinalMessage, isAdvancedMode }) {
+function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoyalty, handleRedeemReward, handleGuestReceipt, phoneError, sendFinalMessage, isAdvancedMode }) {
   const { t } = useTranslation();
 
   if (!loyaltyModal.isOpen) return null;
@@ -63,6 +63,12 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
 
         {loyaltyModal.step === 'result' && loyaltyModal.data && (
           <div>
+            {loyaltyModal.data.isCompleted && (
+              <div style={{ padding: '12px', marginBottom: '16px', background: 'rgba(46, 204, 113, 0.1)', color: '#27ae60', border: '1px solid rgba(46, 204, 113, 0.3)', borderRadius: '8px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                <Icon icon="lucide:check-circle" />
+                {t('loy.programCompleted') || 'This customer has completed the program.'}
+              </div>
+            )}
             {loyaltyModal.data.isRewardReady ? (
               <div style={{ background: 'rgba(255, 20, 147, 0.05)', border: '2px solid #ff1493', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
                 <div style={{ marginBottom: '10px' }}>
@@ -73,10 +79,20 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
                   <strong>{t('loy.tellCustomer')}</strong><br />
                   {t('loy.rewardMsg').replace('{{num}}', loyaltyModal.data.visits).replace('{{reward}}', loyaltyModal.data.reward)}
                 </p>
+                {loyaltyModal.data.isProjection && (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '12px 0 0 0', fontStyle: 'italic' }}>
+                    ★ {loyaltyModal.data.currentVisits} → {loyaltyModal.data.visits} {t('loy.afterPay') || '(after payment)'}
+                  </p>
+                )}
               </div>
             ) : (
               <div style={{ background: 'var(--bg-main)', border: '2px solid var(--border)', padding: '20px', borderRadius: '12px', marginBottom: '20px' }}>
                 <h2 style={{ color: 'var(--brand-color)', margin: '0 0 10px 0' }}>{t('loy.visitLabel')}{loyaltyModal.data.visits}</h2>
+                {loyaltyModal.data.isProjection && (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 8px 0', fontStyle: 'italic' }}>
+                    ★ {loyaltyModal.data.currentVisits} + {loyaltyModal.data.earnedToday} {t('loy.afterPay') || '(after payment)'}
+                  </p>
+                )}
                 <div style={{ fontSize: '1.5rem', margin: '10px 0', display: 'flex', justifyContent: 'center', gap: '5px' }}>
                   {[...Array(loyaltyModal.data.visits % loyaltyModal.data.target || loyaltyModal.data.target)].map((_, i) => (
                     <Icon key={i} icon="lucide:star" style={{ color: '#f1c40f' }} />
@@ -89,6 +105,21 @@ function LoyaltyModal({ loyaltyModal, setLoyaltyModal, menuData, handleCheckLoya
                     .replace('{{needed}}', loyaltyModal.data.target - (loyaltyModal.data.visits % loyaltyModal.data.target))
                     .replace('{{reward}}', loyaltyModal.data.reward)}
                 </p>
+              </div>
+            )}
+            {loyaltyModal.data.canRedeem && (
+              <button
+                onClick={handleRedeemReward}
+                style={{ width: '100%', padding: '15px', background: '#ff1493', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}
+              >
+                <Icon icon="lucide:gift" style={{ fontSize: '1.4rem' }} />
+                {t('loy.btnApplyReward') || 'Apply free reward'}
+              </button>
+            )}
+            {loyaltyModal.data.justRedeemed && (
+              <div style={{ padding: '12px', marginBottom: '10px', background: 'rgba(46, 204, 113, 0.1)', color: '#27ae60', borderRadius: '8px', fontWeight: 'bold' }}>
+                <Icon icon="lucide:check-circle" style={{ marginRight: '6px' }} />
+                {t('loy.redeemedNotice') || 'Reward applied to this ticket.'}
               </div>
             )}
             <button onClick={() => sendFinalMessage(loyaltyModal.phone.replace(/\D/g, ''), loyaltyModal.data)} style={{ width: '100%', padding: '15px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>

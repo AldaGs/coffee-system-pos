@@ -1,7 +1,8 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { computeStarsForTicket } from '../hooks/useLoyalty';
 
-export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0 }) => {
+export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0, loyaltySettings = null }) => {
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;
   const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
@@ -10,6 +11,17 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   const centsTotal = cartTotal;
   const centsTip = tipAmount;
   const localId = crypto.randomUUID();
+
+  // Loyalty accrual: if a phone is attached to this ticket AND the loyalty program
+  // qualifies the cart, record the phone + stars on the sale row. A server-side
+  // trigger (trg_award_loyalty) will increment customers.visits exactly once on INSERT.
+  // Retries via upsert(onConflict: local_id) do NOT re-fire the trigger.
+  const loyaltyPhone = activeTicket?.loyalty_phone || null;
+  const loyaltyActive = loyaltySettings?.isActive === true || loyaltySettings?.isActive === "true";
+  const loyaltyStars = (loyaltyPhone && loyaltyActive)
+    ? computeStarsForTicket(activeTicket, loyaltySettings)
+    : 0;
+  const loyaltyRedeemed = loyaltyPhone ? (activeTicket?.loyalty_stars_pending || 0) : 0;
 
   // 1. Build the CLOUD Data specifically matching your Supabase columns
   const currentSale = {
@@ -28,7 +40,11 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     cashier_name: activeCashier?.name || 'Unknown Cashier',
     order_name: activeTicket.name || null,
     ticket_id: String(activeTicket.id),
-    local_id: localId
+    local_id: localId,
+    loyalty_phone: (loyaltyStars > 0 || loyaltyRedeemed > 0) ? loyaltyPhone : null,
+    loyalty_stars_awarded: loyaltyStars,
+    loyalty_stars_redeemed: loyaltyRedeemed,
+    loyalty_program_type: (loyaltyStars > 0 || loyaltyRedeemed > 0) ? (loyaltySettings?.programType || 'multiple') : null
   };
 
   // --- PREPARE THE DATA ---

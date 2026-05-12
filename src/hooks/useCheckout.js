@@ -11,7 +11,7 @@ import { db } from '../db';
  */
 export const useCheckout = (posState) => {
   const {
-    activeTicket, cartTotal, activeCashier, tipAmount = 0,
+    activeTicket, cartTotal, activeCashier, tipAmount = 0, loyaltySettings = null,
     clearCurrentTicket, setSuccessTicket, showAlert, showConfirm, t
   } = posState;
 
@@ -35,7 +35,8 @@ export const useCheckout = (posState) => {
         paymentsArray,
         activeCashier,
         recipes,
-        tipAmount
+        tipAmount,
+        loyaltySettings
       });
 
       // 2. Handle the UI Side Effects (React state, animations, resets)
