@@ -175,8 +175,28 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
     pushText("--------------------------------\n");
 
     if (rawSubtotal > total) {
-      pushRow(t('analytics.grossRevenue'), formatForDisplay(rawSubtotal)); // Use formatForDisplay
-      pushRow(t('disc.title'), `-${formatForDisplay(rawSubtotal - total)}`); // Use formatForDisplay
+      const autoRuleName = ticket.autoDiscountRuleName || ticket.discount?.autoRuleName;
+      let autoAmt = ticket.autoDiscountAmount ?? ticket.discount?.autoDiscountAmount ?? 0;
+      let manualAmt = ticket.manualDiscountAmount ?? ticket.discount?.manualDiscountAmount ?? 0;
+
+      if (autoAmt === 0 && manualAmt === 0) {
+        if (autoRuleName) {
+          autoAmt = rawSubtotal - total;
+        } else {
+          manualAmt = rawSubtotal - total;
+        }
+      }
+
+      const manualLabel = ticket.discount?.type === 'percentage'
+        ? `${t('ticket.discount', 'Descuento')} (${ticket.discount.value}%)`
+        : t('ticket.discount', 'Descuento');
+
+      if (autoAmt > 0) {
+        pushRow(`${t('ticket.auto', 'Auto:')} ${autoRuleName}`, `-${formatForDisplay(autoAmt)}`);
+      }
+      if (manualAmt > 0) {
+        pushRow(manualLabel, `-${formatForDisplay(manualAmt)}`);
+      }
       pushText("--------------------------------\n");
     }
 
@@ -243,8 +263,15 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
   message += `${t('wa.date')} ${date.toLocaleString(lang === 'es' ? 'es-MX' : 'en-US')}\n`;
   message += `--------------------------\n`;
 
+  let rawSubtotal = 0;
   ticket.items.forEach(item => {
     const qty = item.qty || 1;
+    let lineTotal = item.basePrice || 0;
+    (item.selectedModifiers || []).forEach(mod => {
+      lineTotal += mod.price || 0;
+    });
+    rawSubtotal += lineTotal * qty;
+
     const baseTotal = item.basePrice * qty; // Removed division
     const qtyLabel = qty > 1 ? ` x${qty}` : '';
     message += `${item.emoji || '☕'} ${item.name}${qtyLabel} - ${formatForDisplay(baseTotal)}\n`; // Use formatForDisplay
@@ -260,6 +287,32 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
   });
 
   message += `--------------------------\n`;
+
+  if (rawSubtotal > total) {
+    const autoRuleName = ticket.autoDiscountRuleName || ticket.discount?.autoRuleName;
+    let autoAmt = ticket.autoDiscountAmount ?? ticket.discount?.autoDiscountAmount ?? 0;
+    let manualAmt = ticket.manualDiscountAmount ?? ticket.discount?.manualDiscountAmount ?? 0;
+
+    if (autoAmt === 0 && manualAmt === 0) {
+      if (autoRuleName) {
+        autoAmt = rawSubtotal - total;
+      } else {
+        manualAmt = rawSubtotal - total;
+      }
+    }
+
+    const manualLabel = ticket.discount?.type === 'percentage'
+      ? `${t('ticket.discount', 'Descuento')} (${ticket.discount.value}%)`
+      : t('ticket.discount', 'Descuento');
+
+    if (autoAmt > 0) {
+      message += `${t('ticket.auto', 'Auto:')} ${autoRuleName}: -${formatForDisplay(autoAmt)}\n`;
+    }
+    if (manualAmt > 0) {
+      message += `${manualLabel}: -${formatForDisplay(manualAmt)}\n`;
+    }
+    message += `--------------------------\n`;
+  }
 
   if (receiptSettings.enableTaxBreakdown) {
     const taxRate = receiptSettings.taxRate || 16;

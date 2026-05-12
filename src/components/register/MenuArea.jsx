@@ -1,6 +1,7 @@
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
+import { Icon } from '@iconify/react';
 
 function MenuArea({ 
   activeCategory, setActiveCategory, 
@@ -25,7 +26,7 @@ function MenuArea({
           
           {(isCurrentlyOffline || totalOfflineRecords > 0) && (
             <button onClick={() => setIsSyncModalOpen(true)} className={`pop-in ${isCurrentlyOffline ? 'status-badge-offline' : 'status-badge-syncing'}`} style={{ padding: '8px 12px', background: isCurrentlyOffline ? '#e74c3c' : '#f39c12', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {isCurrentlyOffline ? '📵' : '☁️'}
+              <Icon icon={isCurrentlyOffline ? "lucide:wifi-off" : "lucide:upload-cloud"} style={{ fontSize: '1.2rem' }} />
               {totalOfflineRecords > 0 && (<span style={{ background: 'white', color: 'black', padding: '2px 8px', borderRadius: '12px', fontSize: '0.85rem' }}>{totalOfflineRecords}</span>)}
             </button>
           )}
@@ -49,8 +50,8 @@ function MenuArea({
           )}
 
           <div className={`action-buttons-container ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-            <span style={{ background: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '9999px', fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--brand-color)', border: '1px solid var(--border)' }}>
-              👤 {activeCashier?.name}
+            <span style={{ background: 'var(--bg-surface)', padding: '8px 12px', borderRadius: '9999px', fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--brand-color)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Icon icon="lucide:user" style={{ fontSize: '1.1rem' }} /> {activeCashier?.name}
             </span>
             
             {posSettings?.isAdvancedMode && (

@@ -3,7 +3,7 @@ import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Icon } from '@iconify/react';
 import QuantityEditModal from './QuantityEditModal';
-import { formatForDisplay, normalizeMenuPrice, toCents } from '../../utils/moneyUtils';
+import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -20,12 +20,12 @@ function TicketArea({
     handleRemoveItem, handleOpenCheckout, handleCancelTicket,
     requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket
   } = usePos();
-  
+
   return (
     <>
       {/* 1. Mobile Dark Overlay */}
-      <div 
-        className={`ticket-overlay desktop-hidden ${isMobileCartOpen ? 'open' : ''}`} 
+      <div
+        className={`ticket-overlay desktop-hidden ${isMobileCartOpen ? 'open' : ''}`}
         onClick={() => setIsMobileCartOpen(false)}
       ></div>
 
@@ -35,8 +35,8 @@ function TicketArea({
         {/* 3. Mobile Close Button / Header */}
         <div className="mobile-ticket-header desktop-hidden" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid var(--border)' }}>
           <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Current Order</h2>
-          <button 
-            onClick={() => setIsMobileCartOpen(false)} 
+          <button
+            onClick={() => setIsMobileCartOpen(false)}
             style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)' }}
           >
             ✕
@@ -108,7 +108,7 @@ function TicketArea({
               )}
               {activeTicket.discount && (
                 <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#e74c3c' }}>
-                  <span>{t('ticket.discount')} ({activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : formatForDisplay(toCents(activeTicket.discount.value))})</span>
+                  <span>{t('ticket.discount')} ({activeTicket.discount.type === 'percentage' ? `${activeTicket.discount.value}%` : formatForDisplay(activeTicket.discount.value)})</span>
                   <span>-{formatForDisplay(manualDiscountAmount)}</span>
                 </div>
               )}

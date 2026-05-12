@@ -110,6 +110,7 @@ import users from '@iconify-icons/lucide/users';
 import users2 from '@iconify-icons/lucide/users-2';
 import x from '@iconify-icons/lucide/x';
 import xCircle from '@iconify-icons/lucide/x-circle';
+import wifiOff from '@iconify-icons/lucide/wifi-off';
 import zap from '@iconify-icons/lucide/zap';
 
 // MDI ICONS
@@ -228,6 +229,7 @@ const icons = {
   'lucide:users-2': users2,
   'lucide:x': x,
   'lucide:x-circle': xCircle,
+  'lucide:wifi-off': wifiOff,
   'lucide:zap': zap,
   'mdi:github': github,
   'mdi:whatsapp': whatsapp,

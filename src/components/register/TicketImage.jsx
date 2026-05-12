@@ -76,19 +76,41 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
 
       <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
 
-      {rawSubtotal > total && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>{t('analytics.grossRevenue')}</span>
-            <span>{formatForDisplay(rawSubtotal)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>{t('disc.title')}</span>
-            <span>-{formatForDisplay(rawSubtotal - total)}</span>
-          </div>
-          <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
-        </>
-      )}
+      {rawSubtotal > total && (() => {
+        const autoRuleName = ticket.autoDiscountRuleName || ticket.discount?.autoRuleName;
+        let autoAmt = ticket.autoDiscountAmount ?? ticket.discount?.autoDiscountAmount ?? 0;
+        let manualAmt = ticket.manualDiscountAmount ?? ticket.discount?.manualDiscountAmount ?? 0;
+
+        if (autoAmt === 0 && manualAmt === 0) {
+          if (autoRuleName) {
+            autoAmt = rawSubtotal - total;
+          } else {
+            manualAmt = rawSubtotal - total;
+          }
+        }
+
+        const manualLabel = ticket.discount?.type === 'percentage'
+          ? `${t('ticket.discount', 'Descuento')} (${ticket.discount.value}%)`
+          : t('ticket.discount', 'Descuento');
+
+        return (
+          <>
+            {autoAmt > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{t('ticket.auto', 'Auto:')} {autoRuleName}</span>
+                <span>-{formatForDisplay(autoAmt)}</span>
+              </div>
+            )}
+            {manualAmt > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>{manualLabel}</span>
+                <span>-{formatForDisplay(manualAmt)}</span>
+              </div>
+            )}
+            <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
+          </>
+        );
+      })()}
 
       {taxInfo && (
         <>

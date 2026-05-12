@@ -19,7 +19,12 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     tip_amount: centsTip,
     items_sold: activeTicket.items.map(item => item.name),
     items: activeTicket.items.map(item => ({ ...item, price: item.basePrice })),
-    discount: activeTicket.discount, // Discount info for re-sharing
+    discount: activeTicket.discount || activeTicket.autoDiscountRuleName ? {
+      ...(activeTicket.discount || {}),
+      autoRuleName: activeTicket.autoDiscountRuleName || null,
+      autoDiscountAmount: activeTicket.autoDiscountAmount || 0,
+      manualDiscountAmount: activeTicket.manualDiscountAmount || 0
+    } : null, // Discount info for re-sharing
     cashier_name: activeCashier?.name || 'Unknown Cashier',
     order_name: activeTicket.name || null,
     ticket_id: String(activeTicket.id),

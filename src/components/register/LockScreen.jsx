@@ -38,6 +38,11 @@ function LockScreen({ posSettings, cashiers, selectedProfile, setSelectedProfile
         <button
           onClick={() => navigate('/admin')}
           className="admin-btn"
+          style={{
+            width: 'calc(100vw - 200px)',
+            maxWidth: '500px',
+            borderRadius: '9999px'
+          }}
         >
           {t('menuArea.admin')}
         </button>

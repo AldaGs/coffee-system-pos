@@ -627,12 +627,19 @@ function Register() {
     showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => clearCurrentTicket());
   };
 
+  const enrichedActiveTicket = activeTicket ? {
+    ...activeTicket,
+    autoDiscountRuleName: activeAutoRuleName || null,
+    autoDiscountAmount: autoDiscountAmount || 0,
+    manualDiscountAmount: manualDiscountAmount || 0
+  } : null;
+
   // --- HOOK DEPENDENCIES (all computed values now available) ---
   const hookDeps = {
     expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales,
     shiftTotalExpenses, activeCashier, myDeviceId, setIsCorteModalOpen,
     setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm,
-    loyaltyModal, setLoyaltyModal, activeTicket, menuData, setPhoneError,
+    loyaltyModal, setLoyaltyModal, activeTicket: enrichedActiveTicket, menuData, setPhoneError,
     cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket
   };
 
@@ -917,7 +924,7 @@ function Register() {
       enableTaxBreakdown: false,
       taxRate: 16
     };
-    sendFinalMessageUtil(phone, activeTicket, cartTotal, { t, lang, receiptSettings, loyaltyData });
+    sendFinalMessageUtil(phone, enrichedActiveTicket, cartTotal, { t, lang, receiptSettings, loyaltyData });
     setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
   };
 
@@ -1009,7 +1016,7 @@ function Register() {
 
   // Bundle global state for the context wormhole
   const posState = {
-    cartTotal, activeTicket, menuData, posSettings, activeCashier,
+    cartTotal, activeTicket: enrichedActiveTicket, menuData, posSettings, activeCashier,
     isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
     showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
     activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
@@ -1112,10 +1119,10 @@ function Register() {
 
         {/* Hidden TicketImage for PNG Capture */}
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>
-          {activeTicket && (
+          {enrichedActiveTicket && (
             <TicketImage
               id="ticket-to-capture"
-              ticket={activeTicket}
+              ticket={enrichedActiveTicket}
               total={cartTotal}
               receiptSettings={menuData?.receiptSettings || {}}
             />
