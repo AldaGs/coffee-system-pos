@@ -86,11 +86,11 @@ export function useExpenses({ activeCashier, t, showAlert }) {
 
     await db.expenses.put(newExpense);
 
-    logActivity(
-      'Gasto (Expense)',
-      `Registró un gasto de ${formatForDisplay(expenseAmount)}: ${expenseForm.reason}`,
-      { category: expenseForm.category, amount: expenseAmount }
-    );
+    logActivity('expense_added', null, {
+      amount: expenseAmount,
+      reason: expenseForm.reason,
+      category: expenseForm.category || 'General'
+    });
 
     setIsExpenseModalOpen(false);
     setExpenseForm({ amount: '', reason: '', category: 'General' });
