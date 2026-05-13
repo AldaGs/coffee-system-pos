@@ -442,6 +442,11 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       // --- STEP C: Create the Admin Auth User (GOD MODE) ---
       setLoadingStep('Creando usuario administrador...');
 
+      // Persist the service_role key so the Admin "Dispositivos" tab can
+      // provision new hardware logins via the /api/add-device proxy without
+      // re-running the PAT/OAuth setup.
+      try { localStorage.setItem('tinypos_supabase_service_role', serviceRoleObj.api_key); } catch {}
+
       // Initialize client using the SERVICE ROLE key instead of the anon key
       const adminClient = createClient(projectUrl, serviceRoleObj.api_key);
 
@@ -493,9 +498,16 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       
       const anonKeyObj = keysData.find(k => k.name === 'anon');
       if (!anonKeyObj) throw new Error("Llave anónima no encontrada");
-      
+
+      // Save service_role too (used by the Admin "Dispositivos" tab to mint
+      // hardware logins via the /api/add-device proxy).
+      const serviceRoleObj = keysData.find(k => k.name === 'service_role');
+      if (serviceRoleObj) {
+        try { localStorage.setItem('tinypos_supabase_service_role', serviceRoleObj.api_key); } catch {}
+      }
+
       // Calculate the Project URL
-      const projectRef = projects.find(p => p.id === selectedProject)?.id; 
+      const projectRef = projects.find(p => p.id === selectedProject)?.id;
       const projectUrl = `https://${projectRef}.supabase.co`;
 
       // Pass the keys back to App.jsx so it saves them to localStorage and reloads!
