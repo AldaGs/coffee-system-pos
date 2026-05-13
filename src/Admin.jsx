@@ -1357,7 +1357,7 @@ function Admin() {
 
         {/* --- DEVICES TAB --- */}
         {activeTab === 'devices' && (
-          <DevicesTab />
+          <DevicesTab showAlert={showAlert} showConfirm={showConfirm} />
         )}
 
         {/* 5. GENERAL SETTINGS TAB */}

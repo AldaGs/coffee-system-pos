@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
+import PendingSyncCard from './PendingSyncCard';
 
 const DEVICE_EMAIL_DOMAIN = 'device.tinypos.com';
 
@@ -35,7 +36,7 @@ function projectRefFromUrl(url) {
   }
 }
 
-function DevicesTab() {
+function DevicesTab({ showAlert, showConfirm }) {
   const { t } = useTranslation();
   const [deviceName, setDeviceName] = useState('');
   const [password, setPassword] = useState('');
@@ -435,6 +436,8 @@ function DevicesTab() {
           </div>
         </div>
       )}
+
+      <PendingSyncCard showAlert={showAlert} showConfirm={showConfirm} />
     </div>
   );
 }
