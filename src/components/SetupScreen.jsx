@@ -1,230 +1,1038 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
+import { supabase } from '../supabaseClient'; // Ensure this points to your standard client
+import { createClient } from '@supabase/supabase-js';
 
 export default function SetupScreen({ initialMode, onBack, onComplete, onShowGuide }) {
   const isConnectingExisting = initialMode === 'connect';
+
+  // State for standard connection
   const [formData, setFormData] = useState({ supabaseUrl: '', anonKey: '' });
+
+  // State for Holy Grail OAuth Flow
+  const [setupToken, setSetupToken] = useState(null);
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState('');
+
+  // New Admin Auth credentials
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [customAlert, setCustomAlert] = useState({ show: false, message: '', type: '' });
 
-  const fileInputRef = useRef(null);
+  // 1. Check for the OAuth Token on boot
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('setup_token');
+
+    if (token) {
+      setSetupToken(token);
+      // Strip the token from the URL so it doesn't linger
+      window.history.replaceState({}, document.title, "/");
+      fetchProjects(token);
+    }
+  }, []);
 
   const showAlert = (message, type = 'error') => {
     setCustomAlert({ show: true, message, type });
     setTimeout(() => setCustomAlert({ show: false, message: '', type: '' }), 4000);
   };
 
-  // --- THE EXPORTER ---
-  const exportKeysToFile = (url, key) => {
-    const data = JSON.stringify({ url, key });
-    const encoded = btoa(data); // Base64 encode
-    const blob = new Blob([encoded], { type: "text/plain" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "keys.tiny";
-    link.click();
-  };
-
-  // --- THE IMPORTER ---
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const decoded = atob(event.target.result); // Base64 decode
-        const { url, key } = JSON.parse(decoded);
-
-        if (!url || !key) throw new Error("El archivo no contiene los datos requeridos.");
-
-        localStorage.setItem('tinypos_supabase_url', url.trim());
-        localStorage.setItem('tinypos_supabase_anon_key', key.trim());
-
-        showAlert("¡Llaves cargadas con éxito!", "success");
-        setTimeout(() => onComplete(), 1500);
-      } catch (err) {
-        showAlert("¡Archivo keys.tiny inválido!", err);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = null; // Reset input
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // 2. Fetch User's Projects using the Management API
+  const fetchProjects = async (token) => {
     setLoading(true);
-
+    setLoadingStep('Buscando tus proyectos...');
     try {
-      if (!isConnectingExisting) {
-        // MODE 1: Fresh Installation (Provisioning via RPC stub)
-        showAlert("¡TinyPOS Inicializado!", "success");
-        exportKeysToFile(formData.supabaseUrl.trim(), formData.anonKey.trim());
-      } else {
-        // MODE 2: Manual Connect
-        showAlert("¡Dispositivo Conectado!", "success");
-      }
+      // CHANGED: We now call our own backend proxy instead of api.supabase.com
+      const res = await fetch('/api/get-projects', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
+      const data = await res.json();
+      console.log("Supabase API Response:", data);
 
-      localStorage.setItem('tinypos_supabase_url', formData.supabaseUrl.trim());
-      localStorage.setItem('tinypos_supabase_anon_key', formData.anonKey.trim());
+      if (!res.ok) throw new Error(data.message || 'Error fetching projects');
 
-      setTimeout(() => onComplete(), 1500);
+      setProjects(data);
+      if (data.length > 0) setSelectedProject(data[0].id);
+
     } catch (err) {
-      showAlert(err.message, "error");
+      showAlert(err.message, 'error');
     } finally {
       setLoading(false);
+      setLoadingStep('');
     }
   };
 
-  return (
-    <div style={{
+  // 3. The Grand Install Function
+  const handleHolyGrailInstall = async (e) => {
+    e.preventDefault();
+    if (!selectedProject || !adminEmail || !adminPassword) {
+      return showAlert("Por favor, llena todos los campos", "error");
+    }
+
+    setLoading(true);
+
+    try {
+      // --- STEP A: Fetch the Anon Key for the selected project ---
+      setLoadingStep('Obteniendo credenciales seguras...');
+
+      const keysRes = await fetch(`/api/get-keys?projectRef=${selectedProject}`, {
+        headers: { Authorization: `Bearer ${setupToken}` }
+      });
+
+      const keysData = await keysRes.json();
+      console.log("Respuesta de API Keys:", keysData); // <--- NUEVO SNITCH
+
+      if (!keysRes.ok) {
+        // Now it will throw the actual Supabase error message!
+        throw new Error(keysData.message || keysData.error || "No se pudieron obtener las credenciales");
+      }
+
+      const anonKeyObj = keysData.find(k => k.name === 'anon');
+      const serviceRoleObj = keysData.find(k => k.name === 'service_role');
+      if (!anonKeyObj || !serviceRoleObj) throw new Error("Llaves de API no encontradas");
+
+      const projectRef = projects.find(p => p.id === selectedProject)?.id;
+      const projectUrl = `https://${projectRef}.supabase.co`;
+
+      // --- STEP B: Inject the SQL Schema ---
+      setLoadingStep('Instalando base de datos (Esto tomará unos segundos)...');
+
+      const schemaQuery = `
+        -- ==========================================
+        -- EXTENSIONS
+        -- ==========================================
+        CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+        -- ==========================================
+        -- TABLES
+        -- ==========================================
+
+        CREATE TABLE IF NOT EXISTS public.active_tickets (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          name text,
+          items jsonb,
+          cashier_id bigint,
+          created_at timestamp with time zone DEFAULT now(),
+          discount jsonb,
+          savedSplitPayments jsonb,
+          savedPaidProductIds jsonb,
+          savedSplitMode text,
+          savedNWays bigint,
+          last_modified_by text,
+          loyalty_phone text,
+          loyalty_stars_pending integer DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS public.customers (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          phone character varying NOT NULL UNIQUE,
+          visits bigint NOT NULL DEFAULT 0,
+          created_at timestamp with time zone DEFAULT now(),
+          completed_at timestamp with time zone
+        );
+
+        CREATE TABLE IF NOT EXISTS public.expenses (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          amount numeric NOT NULL,
+          reason text,
+          category text DEFAULT 'General',
+          cashier_name text,
+          local_id uuid UNIQUE,
+          created_at timestamp with time zone DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.inventory (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          name text NOT NULL UNIQUE,
+          current_stock numeric DEFAULT 0,
+          unit text,
+          created_at timestamp with time zone DEFAULT now(),
+          unit_cost numeric DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS public.inventory_logs (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          item_name text NOT NULL,
+          qty_deducted numeric NOT NULL,
+          deduction_type text NOT NULL,
+          ticket_id text,
+          unit_cost numeric DEFAULT 0,
+          local_id uuid UNIQUE,
+          created_at timestamp with time zone DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.activity_logs (
+          id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+          created_at timestamp with time zone DEFAULT now(),
+          cashier_name text,
+          action_type text,
+          description text,
+          metadata jsonb
+        );
+
+        CREATE TABLE IF NOT EXISTS public.recipes (
+          id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+          name text NOT NULL,
+          linked_menu_item text,
+          target_margin numeric DEFAULT 25.0,
+          custom_price numeric,
+          ingredients jsonb NOT NULL DEFAULT '[]'::jsonb,
+          created_at timestamp with time zone DEFAULT now(),
+          updated_at timestamp with time zone DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.sales (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          created_at timestamp with time zone NOT NULL DEFAULT now(),
+          total_amount numeric,
+          payment_method text,
+          items_sold jsonb,
+          cashier_name text,
+          status text DEFAULT 'paid',
+          order_name text,
+          refund_amount numeric DEFAULT 0,
+          tip_amount numeric DEFAULT 0,
+          tip_refunded numeric DEFAULT 0,
+          splits jsonb,
+          items jsonb,
+          discount jsonb,
+          local_id uuid UNIQUE,
+          ticket_id text,
+          loyalty_phone text,
+          loyalty_stars_awarded integer DEFAULT 0,
+          loyalty_stars_redeemed integer DEFAULT 0,
+          loyalty_program_type text
+        );
+
+        CREATE TABLE IF NOT EXISTS public.shop_settings (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          created_at timestamp with time zone NOT NULL DEFAULT now(),
+          menu_data jsonb
+        );
+
+        -- Secure PIN Storage (hashed via pgcrypto)
+        CREATE TABLE IF NOT EXISTS public.cashier_pins (
+          cashier_id bigint PRIMARY KEY,
+          pin_hash text NOT NULL,
+          created_at timestamp with time zone DEFAULT now()
+        );
+
+        -- ==========================================
+        -- REFUND SAFETY CONSTRAINT
+        -- ==========================================
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'refund_limit_check' AND table_name = 'sales'
+          ) THEN
+            ALTER TABLE public.sales ADD CONSTRAINT refund_limit_check CHECK (refund_amount <= total_amount);
+          END IF;
+        END $$;
+
+        -- ==========================================
+        -- TIPS LIABILITY: schema upgrade for existing installs + new ledger tables
+        -- ==========================================
+        ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS tip_refunded numeric DEFAULT 0;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints
+            WHERE constraint_name = 'tip_refund_limit_check' AND table_name = 'sales'
+          ) THEN
+            ALTER TABLE public.sales ADD CONSTRAINT tip_refund_limit_check CHECK (tip_refunded <= tip_amount);
+          END IF;
+        END $$;
+
+        -- Records each disbursement of pooled tips to staff. The liability
+        -- (SUM(tip_amount - tip_refunded) on sales) decreases by SUM(amount) on
+        -- tip_payouts. The shop should periodically pay this out to zero.
+        CREATE TABLE IF NOT EXISTS public.tip_payouts (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          amount numeric NOT NULL CHECK (amount > 0),
+          method text DEFAULT 'cash',
+          recipient text,
+          note text,
+          cashier_name text,
+          local_id uuid UNIQUE,
+          created_at timestamp with time zone DEFAULT now()
+        );
+
+        -- Immutable audit ledger for every tip movement. INSERT-only; never updated.
+        -- event_type: 'accrual' (sale tip), 'refund' (tip refunded to customer),
+        --             'payout' (paid to staff), 'adjustment' (manual correction).
+        -- delta_cents is signed: + increases liability (accrual), - decreases (refund/payout).
+        CREATE TABLE IF NOT EXISTS public.tip_events (
+          id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+          event_type text NOT NULL CHECK (event_type IN ('accrual','refund','payout','adjustment')),
+          delta_cents numeric NOT NULL,
+          sale_local_id uuid,
+          payout_local_id uuid,
+          reason text,
+          actor text,
+          local_id uuid UNIQUE,
+          created_at timestamp with time zone DEFAULT now()
+        );
+        CREATE INDEX IF NOT EXISTS idx_tip_events_created ON public.tip_events (created_at);
+        CREATE INDEX IF NOT EXISTS idx_tip_events_type ON public.tip_events (event_type);
+
+        ALTER TABLE public.tip_payouts ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.tip_events ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Hardware can access tip_payouts" ON public.tip_payouts;
+        DROP POLICY IF EXISTS "Hardware can access tip_events" ON public.tip_events;
+        CREATE POLICY "Hardware can access tip_payouts" ON public.tip_payouts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access tip_events" ON public.tip_events FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+        -- ==========================================
+        -- SEED INITIAL SETTINGS
+        -- ==========================================
+        INSERT INTO public.shop_settings (id, menu_data)
+        VALUES (
+          1,
+          '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "tinypos", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "1234"}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
+        )
+        ON CONFLICT (id) DO NOTHING;
+
+        -- Seed the default Admin PIN (hashed)
+        INSERT INTO public.cashier_pins (cashier_id, pin_hash)
+        VALUES (0, crypt('1234', gen_salt('bf'))),
+              (1, crypt('1234', gen_salt('bf')))
+        ON CONFLICT (cashier_id) DO NOTHING;
+
+        -- ==========================================
+        -- ROW LEVEL SECURITY (RLS) & POLICIES
+        -- ==========================================
+
+        -- 1. Enable RLS on every table
+        ALTER TABLE public.active_tickets ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.inventory ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.inventory_logs ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.recipes ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.shop_settings ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE public.cashier_pins ENABLE ROW LEVEL SECURITY;
+
+        -- 2. Create Policies for POS Hardware (Drop first to avoid 500 errors on re-run)
+        DROP POLICY IF EXISTS "Hardware can access active_tickets" ON public.active_tickets;
+        DROP POLICY IF EXISTS "Hardware can access customers" ON public.customers;
+        DROP POLICY IF EXISTS "Hardware can access expenses" ON public.expenses;
+        DROP POLICY IF EXISTS "Hardware can access inventory" ON public.inventory;
+        DROP POLICY IF EXISTS "Hardware can access inventory_logs" ON public.inventory_logs;
+        DROP POLICY IF EXISTS "Hardware can access activity_logs" ON public.activity_logs;
+        DROP POLICY IF EXISTS "Hardware can access recipes" ON public.recipes;
+        DROP POLICY IF EXISTS "Hardware can access sales" ON public.sales;
+        DROP POLICY IF EXISTS "Hardware can access shop_settings" ON public.shop_settings;
+        DROP POLICY IF EXISTS "Hardware can access cashier_pins" ON public.cashier_pins;
+
+        CREATE POLICY "Hardware can access active_tickets" ON public.active_tickets FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access customers" ON public.customers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access expenses" ON public.expenses FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access inventory" ON public.inventory FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access inventory_logs" ON public.inventory_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access activity_logs" ON public.activity_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access recipes" ON public.recipes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access sales" ON public.sales FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access shop_settings" ON public.shop_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE POLICY "Hardware can access cashier_pins" ON public.cashier_pins FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+        -- ==========================================
+        -- RPC FUNCTIONS
+        -- ==========================================
+
+        -- Secure PIN verification (compares against bcrypt hash)
+        CREATE OR REPLACE FUNCTION verify_pin(p_cashier_id BIGINT, p_pin TEXT)
+        RETURNS BOOLEAN AS $$
+        DECLARE
+            v_hash TEXT;
+        BEGIN
+            SELECT pin_hash INTO v_hash FROM public.cashier_pins WHERE cashier_id = p_cashier_id;
+            IF v_hash IS NULL THEN RETURN FALSE; END IF;
+            RETURN v_hash = crypt(p_pin, v_hash);
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+        -- Loyalty trigger: fires AFTER INSERT on sales, exactly once per sale.
+        -- Idempotent by construction — sales upserts use onConflict: local_id, so retries
+        -- don't fire INSERT triggers on conflict. Behavior:
+        --   1. ACCRUE: customers.visits += loyalty_stars_awarded (clamped at 0).
+        --   2. REDEEM: customers.visits -= loyalty_stars_redeemed (clamped at 0).
+        --      Net change per sale = awarded - redeemed.
+        --   3. SINGLE-MODE LOCKOUT: if customer.completed_at IS NOT NULL, suppress accrual
+        --      (frozen customers can't earn more stars; redemption still works).
+        --   4. FREEZE: if loyalty_program_type = 'single' AND redemption occurred,
+        --      set customers.completed_at = now() to lock the customer out of future accrual.
+        --      Admin "Reset stars" clears completed_at to start a fresh campaign.
+        CREATE OR REPLACE FUNCTION public.award_loyalty_visits()
+        RETURNS TRIGGER AS $$
+        DECLARE
+          v_awarded integer := COALESCE(NEW.loyalty_stars_awarded, 0);
+          v_redeemed integer := COALESCE(NEW.loyalty_stars_redeemed, 0);
+          v_completed timestamp with time zone;
+          v_net integer;
+        BEGIN
+          IF NEW.loyalty_phone IS NULL OR (v_awarded = 0 AND v_redeemed = 0) THEN
+            RETURN NEW;
+          END IF;
+
+          SELECT completed_at INTO v_completed FROM public.customers WHERE phone = NEW.loyalty_phone;
+
+          IF v_completed IS NOT NULL AND v_awarded > 0 THEN
+            v_awarded := 0;
+          END IF;
+
+          v_net := v_awarded - v_redeemed;
+
+          INSERT INTO public.customers (phone, visits)
+          VALUES (NEW.loyalty_phone, GREATEST(0, v_net))
+          ON CONFLICT (phone) DO UPDATE
+            SET visits = GREATEST(0, public.customers.visits + v_net);
+
+          IF NEW.loyalty_program_type = 'single' AND v_redeemed > 0 THEN
+            UPDATE public.customers SET completed_at = now() WHERE phone = NEW.loyalty_phone;
+          END IF;
+
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+        DROP TRIGGER IF EXISTS trg_award_loyalty ON public.sales;
+        CREATE TRIGGER trg_award_loyalty
+          AFTER INSERT ON public.sales
+          FOR EACH ROW
+          EXECUTE FUNCTION public.award_loyalty_visits();
+
+        -- Atomic inventory deduction (prevents race conditions)
+        DROP FUNCTION IF EXISTS deduct_inventory(BIGINT, NUMERIC);
+        CREATE OR REPLACE FUNCTION deduct_inventory(item_id BIGINT, qty NUMERIC)
+        RETURNS TABLE (
+          out_id BIGINT,
+          out_name TEXT,
+          out_current_stock NUMERIC
+        ) AS $$
+        BEGIN
+          RETURN QUERY
+          UPDATE public.inventory AS inv
+          SET current_stock = inv.current_stock - qty
+          WHERE inv.id = item_id AND inv.current_stock >= qty
+          RETURNING inv.id, inv.name, inv.current_stock;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+      `;
+
+      const sqlRes = await fetch(`/api/run-sql?projectRef=${selectedProject}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${setupToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: schemaQuery }),
+      });
+
+      const sqlData = await sqlRes.json().catch(() => ({}));
+      if (!sqlRes.ok) throw new Error(sqlData.message || 'Falló la instalación de la base de datos');
+
+      // --- STEP C: Create the Admin Auth User (GOD MODE) ---
+      setLoadingStep('Creando usuario administrador...');
+
+      // Initialize client using the SERVICE ROLE key instead of the anon key
+      const adminClient = createClient(projectUrl, serviceRoleObj.api_key);
+
+      // Use the auth.admin namespace to bypass email confirmation
+      const { error: authError } = await adminClient.auth.admin.createUser({
+        email: adminEmail,
+        password: adminPassword,
+        email_confirm: true
+      });
+
+      if (authError) throw new Error(`Error en Auth: ${authError.message}`);
+
+      // --- STEP D: Complete! Boot the app ---
+      setLoadingStep('¡Todo listo! Arrancando tinypos...');
+
+      // Wait a moment for UX
+      await new Promise(r => setTimeout(r, 1000));
+
+      // Pass the new keys to App.jsx to save and boot
+      onComplete(projectUrl, anonKeyObj.api_key);
+
+    } catch (err) {
+      console.error(err);
+      showAlert(err.message, 'error');
+    } finally {
+      setLoading(false);
+      setLoadingStep('');
+    }
+  };
+
+
+  const handleStandardConnect = async (e) => {
+    e.preventDefault();
+    if (!selectedProject) {
+      return showAlert("Por favor selecciona un proyecto", "error");
+    }
+
+    setLoading(true);
+    setLoadingStep('Obteniendo credenciales del dispositivo...');
+
+    try {
+      // We reuse the exact same proxy we built for the installation!
+      const keysRes = await fetch(`/api/get-keys?projectRef=${selectedProject}`, {
+        headers: { Authorization: `Bearer ${setupToken}` }
+      });
+      
+      const keysData = await keysRes.json();
+      if (!keysRes.ok) throw new Error("No se pudieron obtener las credenciales");
+      
+      const anonKeyObj = keysData.find(k => k.name === 'anon');
+      if (!anonKeyObj) throw new Error("Llave anónima no encontrada");
+      
+      // Calculate the Project URL
+      const projectRef = projects.find(p => p.id === selectedProject)?.id; 
+      const projectUrl = `https://${projectRef}.supabase.co`;
+
+      // Pass the keys back to App.jsx so it saves them to localStorage and reloads!
+      onComplete(projectUrl, anonKeyObj.api_key);
+
+    } catch (err) {
+      console.error(err);
+      showAlert(err.message, 'error');
+    } finally {
+      setLoading(false);
+      setLoadingStep('');
+    }
+  };
+
+  // ==========================================
+  // RENDER UI
+  // ==========================================
+
+  // --- STYLE TOKENS ---
+  const styles = {
+    page: {
       display: 'flex',
-      height: '100dvh',
-      backgroundColor: "var(--bg-app, #f8fafc)",
+      minHeight: '100dvh',
+      backgroundColor: 'var(--bg-app)',
       justifyContent: 'center',
       alignItems: 'center',
       fontFamily: 'var(--font-main, system-ui)',
+      padding: '20px',
+      boxSizing: 'border-box',
+    },
+    card: {
+      background: 'var(--bg-surface)',
+      padding: '40px',
+      borderRadius: '24px',
+      width: '100%',
+      maxWidth: '440px',
+      boxShadow: '0 20px 50px rgba(0,0,0,0.18)',
+      border: '1px solid var(--border)',
       position: 'relative',
-      overflowY: 'auto',
-      WebkitOverflowScrolling: 'touch'
-    }}>
+    },
+    backBtn: {
+      background: 'transparent',
+      border: 'none',
+      color: 'var(--text-muted)',
+      cursor: 'pointer',
+      marginBottom: '24px',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '6px 10px',
+      borderRadius: '8px',
+      fontSize: '0.9rem',
+      fontWeight: 600,
+      transition: 'background 0.15s ease, color 0.15s ease',
+    },
+    iconBubble: {
+      width: '72px',
+      height: '72px',
+      background: 'rgba(242, 139, 5, 0.12)',
+      color: 'var(--brand-color)',
+      borderRadius: '20px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '2.2rem',
+      margin: '0 auto 16px',
+    },
+    title: {
+      margin: '0 0 8px 0',
+      color: 'var(--text-main)',
+      fontSize: '1.6rem',
+      fontWeight: 800,
+      textAlign: 'center',
+      letterSpacing: '-0.01em',
+    },
+    subtitle: {
+      color: 'var(--text-muted)',
+      margin: 0,
+      fontSize: '0.95rem',
+      textAlign: 'center',
+      lineHeight: 1.5,
+    },
+    label: {
+      fontWeight: 700,
+      color: 'var(--text-main)',
+      fontSize: '0.85rem',
+      display: 'block',
+      marginBottom: '8px',
+    },
+    inputWrap: { position: 'relative' },
+    inputIcon: {
+      position: 'absolute',
+      left: '14px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      color: 'var(--text-muted)',
+      fontSize: '1.1rem',
+      pointerEvents: 'none',
+    },
+    input: {
+      width: '100%',
+      padding: '13px 14px 13px 42px',
+      borderRadius: '12px',
+      border: '1px solid var(--border)',
+      background: 'var(--bg-main)',
+      color: 'var(--text-main)',
+      fontSize: '1rem',
+      boxSizing: 'border-box',
+      outline: 'none',
+      transition: 'border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease',
+    },
+    select: {
+      width: '100%',
+      padding: '13px 14px 13px 42px',
+      borderRadius: '12px',
+      border: '1px solid var(--border)',
+      background: 'var(--bg-main)',
+      color: 'var(--text-main)',
+      fontSize: '1rem',
+      boxSizing: 'border-box',
+      outline: 'none',
+      appearance: 'none',
+      cursor: 'pointer',
+      transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+    },
+    stepCard: {
+      background: 'var(--bg-main)',
+      padding: '18px',
+      borderRadius: '16px',
+      border: '1px solid var(--border)',
+    },
+    stepHeader: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      marginBottom: '12px',
+    },
+    stepBadge: {
+      width: '26px',
+      height: '26px',
+      borderRadius: '50%',
+      background: 'var(--brand-color)',
+      color: '#fff',
+      fontSize: '0.8rem',
+      fontWeight: 800,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    primaryBtn: {
+      padding: '16px',
+      background: 'var(--brand-color)',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '14px',
+      cursor: 'pointer',
+      fontWeight: 700,
+      fontSize: '1.05rem',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '10px',
+      boxShadow: '0 8px 24px rgba(242, 139, 5, 0.35)',
+      transition: 'box-shadow 0.2s ease, transform 0.05s ease, opacity 0.2s ease',
+    },
+    successBtn: {
+      padding: '16px',
+      background: 'var(--color-success)',
+      color: '#fff',
+      border: 'none',
+      borderRadius: '14px',
+      cursor: 'pointer',
+      fontWeight: 700,
+      fontSize: '1.05rem',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '10px',
+      boxShadow: '0 8px 22px rgba(39, 174, 96, 0.3)',
+      transition: 'box-shadow 0.2s ease, opacity 0.2s ease',
+    },
+    helperText: {
+      fontSize: '0.8rem',
+      color: 'var(--text-muted)',
+      margin: '0 0 12px 0',
+      lineHeight: 1.45,
+    },
+  };
 
-      {/* Alert Banner */}
-      {customAlert.show && (
-        <div className="fade-in" style={{
-          position: 'absolute', top: '40px', left: '50%', transform: 'translateX(-50%)',
-          background: customAlert.type === 'success' ? '#27ae60' : '#e74c3c',
-          color: 'white', padding: '16px 24px', borderRadius: '12px', fontWeight: 'bold',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '10px'
-        }}>
-          <Icon icon={customAlert.type === 'success' ? 'lucide:check-circle' : 'lucide:alert-circle'} />
-          {customAlert.message}
-        </div>
-      )}
+  const isFullScreenLoading = loading && (loadingStep || isConnectingExisting);
 
-      {/* Back Button */}
-      <button
-        onClick={onBack}
-        style={{
-          position: 'absolute',
-          top: '20px',
-          left: '20px',
-          background: 'white',
-          border: '1px solid #e2e8f0',
-          color: '#0d3a66',
-          fontSize: '0.95rem',
-          fontWeight: '700',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '10px 20px',
-          borderRadius: '30px',
-          boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-          transition: 'all 0.2s ease'
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(-3px)'; e.currentTarget.style.background = '#f8fafc'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.background = 'white'; }}
-      >
-        <Icon icon="lucide:arrow-left" strokeWidth={3} />
-        Regresar
-      </button>
+  return (
+    <>
+      {/* Local style block — pseudo-selectors and keyframes can't be inlined */}
+      <style>{`
+        .setup-input:focus,
+        .setup-select:focus {
+          border-color: var(--brand-color) !important;
+          box-shadow: 0 0 0 4px rgba(242, 139, 5, 0.15);
+          background: var(--bg-surface) !important;
+        }
+        .setup-back:hover {
+          background: var(--bg-main);
+          color: var(--text-main);
+        }
+        .setup-cta-supabase {
+          position: relative;
+          overflow: hidden;
+        }
+        .setup-cta-supabase::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          box-shadow: 0 0 0 0 rgba(62, 179, 112, 0.55);
+          animation: setup-pulse 2.2s ease-out infinite;
+          pointer-events: none;
+        }
+        .setup-cta-supabase:hover {
+          box-shadow: 0 14px 32px rgba(62, 179, 112, 0.45);
+        }
+        @keyframes setup-pulse {
+          0%   { box-shadow: 0 0 0 0   rgba(62, 179, 112, 0.55); }
+          70%  { box-shadow: 0 0 0 18px rgba(62, 179, 112, 0);   }
+          100% { box-shadow: 0 0 0 0   rgba(62, 179, 112, 0);    }
+        }
+        @keyframes setup-text-pulse {
+          0%, 100% { opacity: 0.55; }
+          50%      { opacity: 1; }
+        }
+        .setup-loading-text {
+          animation: setup-text-pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes setup-toast-in {
+          from { opacity: 0; transform: translate(-50%, -12px); }
+          to   { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .setup-toast {
+          animation: setup-toast-in 0.25s ease-out both;
+        }
+        .setup-primary-cta:hover {
+          box-shadow: 0 12px 30px rgba(242, 139, 5, 0.45);
+        }
+        .setup-success-cta:hover {
+          box-shadow: 0 12px 30px rgba(39, 174, 96, 0.45);
+        }
+        .setup-primary-cta:disabled,
+        .setup-success-cta:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+      `}</style>
 
-      <div className="fade-in" style={{ background: 'white', padding: 'clamp(20px, 5vw, 48px)', borderRadius: '24px', width: '100%', maxWidth: '500px', boxShadow: '0 25px 60px rgba(0,0,0,0.1)', border: '1px solid #f1f5f9' }}>
+      <div style={styles.page}>
+        <div className="fade-in" style={styles.card}>
 
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ width: '68px', height: '68px', background: 'linear-gradient(210deg, #0d3a66, #4770d6)', color: 'white', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', margin: '0 auto 16px' }}>
-            <img
-              src="/icon.svg"
-              alt="tinypos"
-              style={{ width: '74px', height: '74px', borderRadius: '10px' }}
-            />
-          </div>
-          <h2 style={{ margin: '0', color: '#0d3a66', fontSize: '1.8rem', fontWeight: '900' }}>{isConnectingExisting ? "Conectar Dispositivo" : "Bienvenido a tinypos"}</h2>
-          <p style={{ color: '#64748b', marginTop: '8px' }}>Configura tu terminal para comenzar.</p>
-        </div>
-
-        {/* --- HELP BANNER --- */}
-        {!isConnectingExisting && (
-          <button
-            type="button"
-            onClick={onShowGuide}
-            style={{
-              width: '100%', padding: '16px', marginBottom: '24px',
-              backgroundColor: '#eff6ff', color: '#2980b9',
-              border: '1px solid #bfdbfe', borderRadius: '12px',
-              fontWeight: '800', fontSize: '0.95rem', cursor: 'pointer',
-              display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px',
-              transition: 'background-color 0.2s ease', flexDirection: "column"
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dbeafe'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#eff6ff'}
-          >
-
-            <div style={{ display: 'flex', flexDirection: "row", alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
-              <Icon icon="lucide:help-circle" fontSize="1.2rem" />
-              <span>
-                ¿Dónde obtengo estos datos?
-              </span>
-            </div>
-            <span>
-              Ver guía paso a paso
-            </span>
-          </button>
-        )}
-
-        {/* KEYS.TINY UPLOAD BUTTON (Only in Connect Mode) */}
-        {isConnectingExisting && (
-          <div style={{ marginBottom: '32px' }}>
-            <input type="file" accept=".tiny" ref={fileInputRef} onChange={handleFileUpload} style={{ display: 'none' }} />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current.click()}
-              style={{ width: '100%', padding: '18px', backgroundColor: '#f1f5f9', color: '#0d3a66', border: '2px dashed #cbd5e1', borderRadius: '14px', fontWeight: '800', fontSize: '1.1rem', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', transition: 'all 0.2s ease' }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--brand-color, #3498db)'; e.currentTarget.style.backgroundColor = '#eff6ff'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+          {/* --- TOAST ALERT --- */}
+          {customAlert.show && (
+            <div
+              className="setup-toast"
+              style={{
+                position: 'absolute',
+                top: '-14px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                minWidth: '260px',
+                maxWidth: '90%',
+                padding: '12px 16px',
+                background: customAlert.type === 'error' ? 'var(--color-danger)' : 'var(--color-success)',
+                color: '#fff',
+                borderRadius: '12px',
+                boxShadow: '0 12px 28px rgba(0,0,0,0.18)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                zIndex: 10,
+              }}
             >
-              <Icon icon="lucide:folder-open" />
-              Cargar archivo keys.tiny
-            </button>
-            <div style={{ textAlign: 'center', margin: '20px 0', color: '#94a3b8', fontSize: '0.85rem', fontWeight: '700', letterSpacing: '1px' }}>— O INGRESA MANUALMENTE —</div>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontWeight: '800', color: '#334155', fontSize: '0.9rem' }}>URL del Proyecto Supabase</label>
-            <input placeholder="https://xxxxxx.supabase.co" value={formData.supabaseUrl} onChange={e => setFormData({ ...formData, supabaseUrl: e.target.value })} required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outlineColor: 'var(--brand-color, #3498db)' }} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label style={{ fontWeight: '800', color: '#334155', fontSize: '0.9rem' }}>Clave Anon de Supabase</label>
-            <input placeholder="sb_publishable_xxx..." type="password" value={formData.anonKey} onChange={e => setFormData({ ...formData, anonKey: e.target.value })} required style={{ padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '1rem', outlineColor: 'var(--brand-color, #3498db)' }} />
-          </div>
-
-          {!isConnectingExisting && (
-            <div style={{ padding: '12px', background: 'rgba(52, 152, 219, 0.05)', borderRadius: '12px', border: '1px solid rgba(52, 152, 219, 0.2)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              <p style={{ margin: 0 }}><b>Nota:</b> Asegúrate de que el esquema de base de datos esté listo antes de continuar.</p>
+              <Icon
+                icon={customAlert.type === 'error' ? 'lucide:alert-triangle' : 'lucide:check-circle-2'}
+                width="18"
+              />
+              <span style={{ flex: 1 }}>{customAlert.message}</span>
             </div>
           )}
 
-
-          <button type="submit" disabled={loading} style={{ padding: '18px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '14px', cursor: 'pointer', fontWeight: '800', marginTop: '12px', opacity: loading ? 0.7 : 1, fontSize: '1.15rem', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-            {loading ? (
-              <>
-                <Icon icon="lucide:loader-2" className="spin" />
-                <span>Procesando...</span>
-              </>
-            ) : (
-              <>
-                <Icon icon={isConnectingExisting ? "lucide:link" : "lucide:rocket"} />
-                <span>{isConnectingExisting ? "Conectar Manualmente" : "Inicializar TinyPOS"}</span>
-              </>
-            )}
+          {/* --- BACK BUTTON --- */}
+          <button
+            type="button"
+            onClick={onBack}
+            className="setup-back"
+            style={styles.backBtn}
+          >
+            <Icon icon="lucide:arrow-left" /> Volver
           </button>
-        </form>
 
+          {/* --- FULL-SCREEN LOADING VIEW --- */}
+          {isFullScreenLoading ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '24px',
+              padding: '40px 8px 16px',
+              textAlign: 'center',
+            }}>
+              <div className="spinner" />
+              <div>
+                <h3 style={{
+                  margin: '0 0 6px 0',
+                  color: 'var(--text-main)',
+                  fontSize: '1.15rem',
+                  fontWeight: 700,
+                }}>
+                  Trabajando…
+                </h3>
+                <p
+                  className="setup-loading-text"
+                  style={{
+                    margin: 0,
+                    color: 'var(--text-muted)',
+                    fontSize: '0.95rem',
+                    minHeight: '1.2em',
+                  }}
+                >
+                  {loadingStep || 'Un momento…'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* --- HEADER --- */}
+              <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+                <div style={styles.iconBubble}>
+                  <Icon icon={isConnectingExisting ? 'lucide:plug-zap' : 'lucide:sparkles'} />
+                </div>
+                <h2 style={styles.title}>
+                  {isConnectingExisting ? 'Vincular Dispositivo' : 'Instalación Automática'}
+                </h2>
+                <p style={styles.subtitle}>
+                  {isConnectingExisting
+                    ? 'Autoriza con Supabase y elige el proyecto existente al que quieres vincular este dispositivo.'
+                    : 'Autoriza a tinypos y configuraremos tu base de datos en segundos.'}
+                </p>
+              </div>
+
+              {/* --- SCENARIO A: PRE-OAUTH (both modes need the token) --- */}
+              {!setupToken && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                  <div style={{
+                    background: 'var(--bg-main)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '14px',
+                    padding: '14px 16px',
+                    display: 'flex',
+                    gap: '12px',
+                    alignItems: 'flex-start',
+                  }}>
+                    <Icon icon="lucide:shield-check" style={{ color: 'var(--color-success)', fontSize: '1.3rem', marginTop: '2px', flexShrink: 0 }} />
+                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.88rem', lineHeight: 1.5 }}>
+                      {isConnectingExisting
+                        ? 'Conexión segura. tinypos sólo leerá las llaves del proyecto que elijas — no modificará tu base de datos.'
+                        : 'Conexión segura. tinypos sólo solicitará los permisos mínimos para crear las tablas necesarias.'}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Stash the current mode so the post-OAuth return into App.jsx
+                      // can restore 'connect' vs 'new' instead of always defaulting to 'new'.
+                      try { sessionStorage.setItem('tinypos_setup_mode', initialMode); } catch (_) {}
+
+                      const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
+                      const redirectUri = `${window.location.origin}/api/auth/callback`;
+
+                      // List the exact permissions we checked in the dashboard
+                      const requiredScopes = "api_gateway_keys_read api_keys_read database_read database_write";
+
+                      // We use encodeURIComponent to safely put the spaces into the URL
+                      window.location.href = `https://api.supabase.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=install&scope=${encodeURIComponent(requiredScopes)}`;
+                    }}
+                    className="setup-cta-supabase"
+                    style={{
+                      padding: '18px',
+                      background: '#3eb370',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '14px',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontSize: '1.05rem',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      gap: '10px',
+                      boxShadow: '0 10px 28px rgba(62, 179, 112, 0.4)',
+                      transition: 'box-shadow 0.2s ease',
+                    }}
+                  >
+                    <Icon icon="mdi:database-sync" width="22" />
+                    Conectar con Supabase
+                  </button>
+
+                  {onShowGuide && (
+                    <button
+                      type="button"
+                      onClick={onShowGuide}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        fontSize: '0.88rem',
+                        textDecoration: 'underline',
+                        padding: '4px',
+                      }}
+                    >
+                      ¿No tienes una cuenta de Supabase?
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* --- SCENARIO B: POST-OAUTH — install (new) OR link (connect) --- */}
+              {setupToken && (
+                <form
+                  onSubmit={isConnectingExisting ? handleStandardConnect : handleHolyGrailInstall}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+                >
+
+                  {/* Step 1 — Project */}
+                  <div style={styles.stepCard}>
+                    <div style={styles.stepHeader}>
+                      <div style={styles.stepBadge}>1</div>
+                      <label style={{ ...styles.label, marginBottom: 0 }}>Selecciona tu Proyecto</label>
+                    </div>
+
+                    {projects.length === 0 ? (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '12px 14px',
+                        background: 'rgba(231, 76, 60, 0.08)',
+                        border: '1px solid rgba(231, 76, 60, 0.25)',
+                        borderRadius: '10px',
+                        color: 'var(--color-danger)',
+                        fontSize: '0.85rem',
+                      }}>
+                        <Icon icon="lucide:alert-circle" width="18" />
+                        <span>No se encontraron proyectos. Crea uno vacío en Supabase primero.</span>
+                      </div>
+                    ) : (
+                      <div style={styles.inputWrap}>
+                        <Icon icon="lucide:database" style={styles.inputIcon} />
+                        <select
+                          className="setup-select"
+                          value={selectedProject}
+                          onChange={e => setSelectedProject(e.target.value)}
+                          required
+                          style={{
+                            ...styles.select,
+                            backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3e%3cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e")`,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'right 16px center',
+                            paddingRight: '42px',
+                          }}
+                        >
+                          <option value="" disabled>Selecciona un proyecto...</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Step 2 — Admin (only when installing from scratch) */}
+                  {!isConnectingExisting && (
+                  <div style={styles.stepCard}>
+                    <div style={styles.stepHeader}>
+                      <div style={styles.stepBadge}>2</div>
+                      <label style={{ ...styles.label, marginBottom: 0 }}>Crea tu cuenta de Administrador</label>
+                    </div>
+                    <p style={styles.helperText}>
+                      Esta será tu llave maestra (RLS) para entrar al sistema.
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <div style={styles.inputWrap}>
+                        <Icon icon="lucide:mail" style={styles.inputIcon} />
+                        <input
+                          className="setup-input"
+                          type="email"
+                          placeholder="Correo electrónico"
+                          value={adminEmail}
+                          onChange={e => setAdminEmail(e.target.value)}
+                          required
+                          style={styles.input}
+                        />
+                      </div>
+                      <div style={styles.inputWrap}>
+                        <Icon icon="lucide:lock" style={styles.inputIcon} />
+                        <input
+                          className="setup-input"
+                          type="password"
+                          placeholder="Contraseña segura"
+                          value={adminPassword}
+                          onChange={e => setAdminPassword(e.target.value)}
+                          required
+                          style={styles.input}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading || projects.length === 0}
+                    className="setup-success-cta"
+                    style={{ ...styles.successBtn, marginTop: '4px' }}
+                  >
+                    <Icon icon={isConnectingExisting ? 'lucide:log-in' : 'lucide:rocket'} width="20" />
+                    <span>{isConnectingExisting ? 'Acceder a tinypos' : 'Instalar tinypos'}</span>
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

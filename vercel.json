@@ -1,7 +1,18 @@
 {
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
       "source": "/(.*)",
+      "has": [
+        {
+          "type": "header",
+          "key": "accept",
+          "value": "(?!.*text/event-stream).*"
+        }
+      ],
       "destination": "/index.html"
     }
   ],

@@ -48,7 +48,16 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [setupMode, setSetupMode] = useState(null); // Will be 'new' or 'connect'
+
+  // Automatically jump to the Setup Screen if returning from Supabase OAuth.
+  // The original mode ('new' | 'connect') was stashed in sessionStorage before
+  // redirecting to Supabase, so we restore it on return and clear it afterwards.
+  const [setupMode, setSetupMode] = useState(() => {
+    if (!window.location.search.includes('setup_token')) return null;
+    const stashed = sessionStorage.getItem('tinypos_setup_mode');
+    sessionStorage.removeItem('tinypos_setup_mode');
+    return stashed === 'connect' ? 'connect' : 'new';
+  });
 
   // --- 3. CHECK SUPABASE AUTH STATUS ---
   useEffect(() => {
@@ -126,9 +135,16 @@ function App() {
       <SetupScreen
         initialMode={setupMode}
         onBack={() => setSetupMode(null)}
-        onComplete={() => {
+        onComplete={(newUrl, newAnonKey) => {
+          // 1. Save the keys EXACTLY where App.jsx looks for them
+          localStorage.setItem('tinypos_supabase_url', newUrl);
+          localStorage.setItem('tinypos_supabase_anon_key', newAnonKey);
+          
+          // 2. Update state
           setIsInstalled(true);
-          window.location.reload();
+          
+          // 3. Hard redirect to the root to clear the URL and reboot the main client
+          window.location.href = '/';
         }}
         onShowGuide={() => setShowGuide(true)}
       />
