@@ -1153,7 +1153,7 @@ function Admin() {
             <Icon icon="lucide:x" />
           </button>
         </div>
-        <nav style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1, gap: '4px', overflowY: 'auto', minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
+        <nav className="admin-aside-nav" style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1, gap: '4px', overflowY: 'auto', minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
           {[
             { id: 'analytics', icon: 'lucide:bar-chart-3', label: t('admin.analytics') },
             { id: 'orders', icon: 'lucide:receipt', label: t('admin.orders') },

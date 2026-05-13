@@ -818,6 +818,14 @@ body.dark-mode {
   transition: transform 0.3s ease;
 }
 
+.admin-aside-nav {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/old Edge */
+}
+.admin-aside-nav::-webkit-scrollbar {
+  display: none; /* Chromium, Safari */
+}
+
 .admin-main {
   flex: 1;
   padding: 40px;
