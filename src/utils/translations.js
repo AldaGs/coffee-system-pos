@@ -256,6 +256,8 @@ export const translations = {
     "inv.qtyBought": "Quantity Bought",
     "inv.totalPaid": "Total Amount Paid",
     "inv.paidFromRegister": "Paid from Cash Register (Corte de Caja)",
+    "inv.paidFromRegisterOn": "This restock will be recorded as a cash expense in today's Corte.",
+    "inv.paidFromRegisterOff": "Paid with outside money — won't appear as a cash expense. Cost still flows through COGS as items sell.",
     "inv.alertRestockComplete": "Restock Complete",
 
     // --- Analytics Tab ---
@@ -601,6 +603,11 @@ export const translations = {
     "expense.success": "Expense Recorded",
     "expense.successDesc": "Successfully logged out of the drawer for:",
     "expense.unknownCashier": "Unknown Cashier",
+    "expense.saving": "Saving…",
+    "expense.queuedTitle": "Saved offline — will sync",
+    "expense.queuedDesc": "You're offline. The expense was saved on this device and will upload automatically when the connection is back:",
+    "expense.errCloudTitle": "Could not save to cloud",
+    "expense.errCloudDesc": "The expense is saved on this device but failed to reach the cloud. Try again or contact support if it persists.",
 
     // --- Corte de Caja ---
     "corte.balanced": "Perfectly Balanced",
@@ -1229,6 +1236,8 @@ export const translations = {
     "inv.qtyBought": "Cantidad Comprada",
     "inv.totalPaid": "Monto Total Pagado",
     "inv.paidFromRegister": "Pagado con dinero de la caja (Corte de Caja)",
+    "inv.paidFromRegisterOn": "Este resurtido se registrará como gasto en efectivo en el Corte de hoy.",
+    "inv.paidFromRegisterOff": "Pagado con dinero externo — no aparecerá como gasto en efectivo. El costo igual se refleja en COGS al vender.",
     "inv.alertRestockComplete": "Abastecimiento Completo",
 
     // --- Analytics Tab ---
@@ -1575,6 +1584,11 @@ export const translations = {
     "expense.success": "Gasto Registrado",
     "expense.successDesc": "Se registró correctamente la salida de caja por:",
     "expense.unknownCashier": "Cajero Desconocido",
+    "expense.saving": "Guardando…",
+    "expense.queuedTitle": "Guardado sin conexión — se sincronizará",
+    "expense.queuedDesc": "No hay conexión. El gasto se guardó en este dispositivo y se enviará automáticamente cuando vuelva la conexión:",
+    "expense.errCloudTitle": "No se pudo guardar en la nube",
+    "expense.errCloudDesc": "El gasto se guardó en este dispositivo pero no llegó a la nube. Intenta de nuevo o contacta a soporte si persiste.",
 
     // --- Corte de Caja ---
     "corte.balanced": "Perfectamente Balanceado",

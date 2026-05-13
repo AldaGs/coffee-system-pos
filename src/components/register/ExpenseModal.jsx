@@ -1,6 +1,6 @@
 import { useTranslation } from '../../hooks/useTranslation';
 
-function ExpenseModal({ isExpenseModalOpen, setIsExpenseModalOpen, expenseForm, setExpenseForm, handleSaveExpense }) {
+function ExpenseModal({ isExpenseModalOpen, setIsExpenseModalOpen, expenseForm, setExpenseForm, handleSaveExpense, isSavingExpense = false }) {
   const { t } = useTranslation();
 
   if (!isExpenseModalOpen) return null;
@@ -32,8 +32,19 @@ function ExpenseModal({ isExpenseModalOpen, setIsExpenseModalOpen, expenseForm, 
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>{t('exp.reason')}</label>
             <input type="text" placeholder={t('exp.reasonPlaceholder')} value={expenseForm.reason} onChange={(e) => setExpenseForm({ ...expenseForm, reason: e.target.value })} style={{ width: '100%', padding: '15px', fontSize: '1.2rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }} />
           </div>
-          <button onClick={handleSaveExpense} style={{ width: '100%', padding: '16px', background: 'var(--action-primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', marginTop: '10px' }}>
-            {t('exp.btnWithdraw')}
+          <button
+            onClick={handleSaveExpense}
+            disabled={isSavingExpense}
+            style={{
+              width: '100%', padding: '16px',
+              background: isSavingExpense ? 'var(--text-muted)' : 'var(--action-primary)',
+              color: 'white', border: 'none', borderRadius: '8px',
+              cursor: isSavingExpense ? 'not-allowed' : 'pointer',
+              opacity: isSavingExpense ? 0.7 : 1,
+              fontWeight: 'bold', fontSize: '1.1rem', marginTop: '10px'
+            }}
+          >
+            {isSavingExpense ? t('expense.saving') : t('exp.btnWithdraw')}
           </button>
         </div>
       </div>

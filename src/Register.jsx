@@ -142,8 +142,9 @@ function Register() {
     expenses, expenseQueue, setExpenseQueue,
     isExpenseModalOpen, setIsExpenseModalOpen,
     expenseForm, setExpenseForm,
-    handleSaveExpense
-  } = useExpenses({ activeCashier, t, showAlert });
+    handleSaveExpense,
+    isSavingExpense
+} = useExpenses({ activeCashier, t, showAlert });
 
   // --- DISCOUNT STATE & LOGIC ---
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
@@ -794,7 +795,7 @@ function Register() {
 
         <ToastNotifications toastNotifications={toasts} />
 
-        <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} />
+        <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} isSavingExpense={isSavingExpense} />
 
         <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
 

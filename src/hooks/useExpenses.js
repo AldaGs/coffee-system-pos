@@ -51,11 +51,17 @@ export function useExpenses({ activeCashier, t, showAlert }) {
 
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ amount: '', reason: '' });
+  const [isSavingExpense, setIsSavingExpense] = useState(false);
 
   const handleSaveExpense = async () => {
+    // Guard against rapid double/triple-tap on the Save button. Without this
+    // the user can fire three inserts in 50ms — exactly what we saw in the
+    // activity_logs for the "Anuncio Lavado" incident.
+    if (isSavingExpense) return;
     if (!expenseForm.amount || !expenseForm.reason) {
       return showAlert(t('expense.errMissing'), t('expense.errDesc'));
     }
+    setIsSavingExpense(true);
 
     const expenseAmount = toCents(expenseForm.amount);
 
@@ -76,11 +82,15 @@ export function useExpenses({ activeCashier, t, showAlert }) {
       local_id: newExpense.id
     };
 
+    let cloudOk = false;
+    let cloudErr = null;
     try {
       if (!navigator.onLine) throw new Error('Device is offline');
       const { error } = await supabase.from('expenses').insert([cloudExpense]);
       if (error) throw error;
+      cloudOk = true;
     } catch (err) {
+      cloudErr = err;
       console.warn('Cloud expense failed. Moving to offline queue.', {
         code: err?.code,
         status: err?.status,
@@ -96,15 +106,36 @@ export function useExpenses({ activeCashier, t, showAlert }) {
     logActivity('expense_added', null, {
       amount: expenseAmount,
       reason: expenseForm.reason,
-      category: expenseForm.category || 'General'
+      category: expenseForm.category || 'General',
+      cloud_ok: cloudOk
     });
 
     setIsExpenseModalOpen(false);
     setExpenseForm({ amount: '', reason: '', category: 'General' });
-    showAlert(
-      t('expense.success'),
-      `${t('expense.successDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`
-    );
+
+    if (cloudOk) {
+      showAlert(
+        t('expense.success'),
+        `${t('expense.successDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`
+      );
+    } else if (!navigator.onLine) {
+      // Expected case: user is offline. Reassure, don't alarm.
+      showAlert(
+        t('expense.queuedTitle'),
+        `${t('expense.queuedDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`
+      );
+    } else {
+      // Online but cloud rejected. Surface the real error so the user can act
+      // (re-auth, contact support, etc.) instead of silently piling up queue.
+      const code = cloudErr?.code || cloudErr?.status || 'unknown';
+      const details = cloudErr?.message || cloudErr?.details || '';
+      showAlert(
+        t('expense.errCloudTitle'),
+        `${t('expense.errCloudDesc')}\n${formatForDisplay(expenseAmount)}: ${expenseForm.reason}\n\n[${code}] ${details}`
+      );
+    }
+
+    setIsSavingExpense(false);
   };
 
   return {
@@ -115,6 +146,7 @@ export function useExpenses({ activeCashier, t, showAlert }) {
     setIsExpenseModalOpen,
     expenseForm,
     setExpenseForm,
-    handleSaveExpense
+    handleSaveExpense,
+    isSavingExpense
   };
 }

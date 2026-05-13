@@ -293,8 +293,18 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   const handleDelete = (id, name) => {
     showConfirm(t('inv.confirmDelete'), `${t('inv.confirmDeleteDesc')} ${name}?`, async () => {
+      // Capture stock + cost before deletion so the audit trail still has
+      // enough context to reconcile later (otherwise a deleted item just
+      // vanishes from the system with no record of what was lost).
+      const item = inventoryItems.find(i => i.id === id);
       await supabase.from('inventory').delete().eq('id', id);
       await db.inventory.delete(id);
+      logActivity('inventory_deleted', null, {
+        name,
+        stock_at_delete: item?.current_stock ?? null,
+        unit: item?.unit ?? null,
+        unit_cost_at_delete: item?.unit_cost ?? null
+      });
       setInventoryItems(inventoryItems.filter(item => item.id !== id));
     });
   };
@@ -499,15 +509,37 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.totalPaid')} ($)</label>
               <input type="number" placeholder="0.00" value={restockingItem.totalPaid || ''} onChange={e => setRestockingItem({ ...restockingItem, totalPaid: e.target.value })} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem' }}>
-                <input
-                  type="checkbox"
-                  checked={restockingItem.paidFromRegister || false}
-                  onChange={e => setRestockingItem({ ...restockingItem, paidFromRegister: e.target.checked })}
-                  style={{ width: '18px', height: '18px', accentColor: '#27ae60' }}
-                />
-                {t('inv.paidFromRegister')}
-              </label>
+              {(() => {
+                const isOn = !!restockingItem.paidFromRegister;
+                return (
+                  <label
+                    htmlFor="paid-from-register-toggle"
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '12px', marginTop: '14px',
+                      padding: '14px', borderRadius: '12px', cursor: 'pointer',
+                      background: isOn ? 'rgba(39, 174, 96, 0.10)' : 'rgba(231, 76, 60, 0.08)',
+                      border: `2px solid ${isOn ? '#27ae60' : '#e74c3c'}`,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <input
+                      id="paid-from-register-toggle"
+                      type="checkbox"
+                      checked={isOn}
+                      onChange={e => setRestockingItem({ ...restockingItem, paidFromRegister: e.target.checked })}
+                      style={{ width: '22px', height: '22px', accentColor: '#27ae60', marginTop: '2px', flexShrink: 0 }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span style={{ fontWeight: 800, color: isOn ? '#27ae60' : '#c0392b', fontSize: '0.95rem' }}>
+                        {t('inv.paidFromRegister')}
+                      </span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                        {isOn ? t('inv.paidFromRegisterOn') : t('inv.paidFromRegisterOff')}
+                      </span>
+                    </div>
+                  </label>
+                );
+              })()}
             </div>
 
             <div style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'flex-start' }}>
