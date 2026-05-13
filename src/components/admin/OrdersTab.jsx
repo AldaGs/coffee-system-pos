@@ -10,6 +10,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from '../../utils/sharingUtils';
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 import { recordTipRefund } from '../../services/tipsService';
+import { logActivity } from '../../services/activityService';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
@@ -111,6 +112,18 @@ const handleProcessRefund = async () => {
         });
       }
 
+      logActivity('refund_issued', null, {
+        full: newStatus === 'refunded',
+        refund_amount: rAmt,
+        tip_refunded: tipRefundDelta,
+        new_status: newStatus,
+        ticket_id: order.ticket_id || null,
+        ticket_label: order.order_name || (order.ticket_id ? order.ticket_id.slice(-6) : String(order.id)),
+        sale_local_id: order.local_id || null,
+        original_total: order.total_amount,
+        original_cashier: order.cashier_name || null
+      });
+
       setRefundModal({ isOpen: false, order: null });
       showAlert(t('toast.success'), t('toast.success'));
     } catch (err) {
@@ -125,6 +138,18 @@ const handleProcessRefund = async () => {
              refund_amount: prevRefund + rAmt,
              ...(tipRefundDelta > 0 ? { tip_refunded: tipAlreadyRefunded + tipRefundDelta } : {})
            }
+         });
+         logActivity('refund_issued', null, {
+           full: newStatus === 'refunded',
+           refund_amount: rAmt,
+           tip_refunded: tipRefundDelta,
+           new_status: newStatus,
+           ticket_id: order.ticket_id || null,
+           ticket_label: order.order_name || (order.ticket_id ? order.ticket_id.slice(-6) : String(order.id)),
+           sale_local_id: order.local_id || null,
+           original_total: order.total_amount,
+           original_cashier: order.cashier_name || null,
+           offline: true
          });
          setRefundModal({ isOpen: false, order: null });
          return showAlert(t('toast.success'), t('toast.success') + " (Offline)");

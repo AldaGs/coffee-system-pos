@@ -109,6 +109,35 @@ const ACTIONS = {
       cost: fmt(m.cost)
     })
   },
+  inventory_deleted: {
+    icon: 'lucide:package-x',
+    color: '#c0392b',
+    labelKey: 'activity.action.inventoryDeleted',
+    describe: (m, t) => interp(t('activity.desc.inventoryDeleted'), {
+      name: m.name || '—',
+      stock: m.stock_at_delete ?? 0,
+      unit: m.unit || '',
+      cost: fmt(m.unit_cost_at_delete)
+    })
+  },
+  refund_issued: {
+    icon: 'lucide:rotate-ccw',
+    color: '#e74c3c',
+    labelKey: 'activity.action.refundIssued',
+    describe: (m, t) => interp(t(m.full ? 'activity.desc.refundFull' : 'activity.desc.refundPartial'), {
+      amount: fmt(m.refund_amount),
+      ticket: m.ticket_label || '—',
+      tip: fmt(m.tip_refunded || 0)
+    })
+  },
+  settings_updated: {
+    icon: 'lucide:settings',
+    color: '#7f8c8d',
+    labelKey: 'activity.action.settingsUpdated',
+    describe: (m, t) => interp(t('activity.desc.settingsUpdated'), {
+      section: t(`activity.settingsSection.${m.section}`) || m.section || '—'
+    })
+  },
   corte: {
     icon: 'lucide:clipboard-list',
     color: '#34495e',

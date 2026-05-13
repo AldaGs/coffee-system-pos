@@ -868,7 +868,13 @@ export const translations = {
     "activity.action.inventoryAudit": "Inventory audit",
     "activity.action.inventoryRestock": "Inventory restocked",
     "activity.action.corte": "Shift closeout",
+    "activity.action.inventoryDeleted": "Inventory item deleted",
+    "activity.action.refundIssued": "Refund issued",
+    "activity.action.settingsUpdated": "Settings updated",
     "activity.action.unknown": "Activity",
+    "activity.settingsSection.general": "General",
+    "activity.settingsSection.receipt": "Receipt",
+    "activity.settingsSection.loyalty": "Loyalty",
 
     "activity.desc.sale": "{amount} charged via {method} ({items} items)",
     "activity.desc.discount": "{value} off on ticket {ticket}",
@@ -884,6 +890,10 @@ export const translations = {
     "activity.desc.corteExact": "Drawer matched: {expected} expected, {actual} counted",
     "activity.desc.corteOver": "Drawer over by {diff} (expected {expected}, counted {actual})",
     "activity.desc.corteShort": "Drawer short by {diff} (expected {expected}, counted {actual})",
+    "activity.desc.inventoryDeleted": "Deleted {name} ({stock}{unit} on hand, unit cost {cost})",
+    "activity.desc.refundFull": "Full refund of {amount} on ticket {ticket} (tip refunded {tip})",
+    "activity.desc.refundPartial": "Partial refund of {amount} on ticket {ticket} (tip refunded {tip})",
+    "activity.desc.settingsUpdated": "{section} settings updated",
 
     // --- Toast Notifications ---
     "toast.success": "Success",
@@ -1883,7 +1893,13 @@ export const translations = {
     "activity.action.inventoryAudit": "Auditoría de inventario",
     "activity.action.inventoryRestock": "Reabastecimiento",
     "activity.action.corte": "Corte de caja",
+    "activity.action.inventoryDeleted": "Insumo eliminado",
+    "activity.action.refundIssued": "Reembolso emitido",
+    "activity.action.settingsUpdated": "Configuración actualizada",
     "activity.action.unknown": "Actividad",
+    "activity.settingsSection.general": "General",
+    "activity.settingsSection.receipt": "Recibo",
+    "activity.settingsSection.loyalty": "Lealtad",
 
     "activity.desc.sale": "Cobro de {amount} con {method} ({items} artículos)",
     "activity.desc.discount": "Descuento de {value} en el ticket {ticket}",
@@ -1899,6 +1915,10 @@ export const translations = {
     "activity.desc.corteExact": "Caja cuadrada: {expected} esperado, {actual} contado",
     "activity.desc.corteOver": "Sobrante de {diff} (esperado {expected}, contado {actual})",
     "activity.desc.corteShort": "Faltante de {diff} (esperado {expected}, contado {actual})",
+    "activity.desc.inventoryDeleted": "Se eliminó {name} ({stock}{unit} disponibles, costo unitario {cost})",
+    "activity.desc.refundFull": "Reembolso total de {amount} en ticket {ticket} (propina reembolsada {tip})",
+    "activity.desc.refundPartial": "Reembolso parcial de {amount} en ticket {ticket} (propina reembolsada {tip})",
+    "activity.desc.settingsUpdated": "Configuración de {section} actualizada",
 
     // --- Toast Notifications ---
     "toast.success": "Éxito",

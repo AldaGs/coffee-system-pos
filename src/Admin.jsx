@@ -302,6 +302,7 @@ function Admin() {
   const handleSaveReceipt = () => {
     const updatedMenu = { ...menuData, receiptSettings: receiptForm };
     saveMenuToCloud(updatedMenu);
+    logActivity('settings_updated', null, { section: 'receipt' });
     showAlert(t('common.success'), t('receipt.saveSuccessDesc'));
   };
 
@@ -340,6 +341,7 @@ function Admin() {
         link.href = generalSettings.appBootLogo;
       }
 
+      logActivity('settings_updated', null, { section: 'general' });
       showAlert(t('common.success'), t('settings.saveSuccessDesc'));
     } catch (err) {
       console.error(err);
@@ -358,6 +360,7 @@ function Admin() {
 
     const updatedMenu = { ...menuData, loyaltySettings: loyaltyForm };
     saveMenuToCloud(updatedMenu);
+    logActivity('settings_updated', null, { section: 'loyalty' });
     showAlert(t('common.success'), t('loyalty.saveSuccessDesc'));
   };
 
