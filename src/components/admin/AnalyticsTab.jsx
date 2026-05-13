@@ -130,6 +130,68 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     return { accrued, paid, balance: accrued - paid };
   }, [allSales, tipPayouts]);
 
+  // COGS by sold product + count of items sold with no inventory tracking.
+  // Allocation: each sale-type log is attributed to its ticket; the ticket's
+  // total cost is then split across its line items proportionally to each
+  // line's revenue (basePrice * qty). Items without inventoryMode/recipe
+  // linkage are flagged separately so the user knows COGS is understated.
+  const { cogsByProduct, untrackedItemCount } = useMemo(() => {
+    const relevantTicketIds = new Set(
+      filteredSales
+        .map(sale => sale.ticket_id)
+        .filter(tid => tid !== undefined && tid !== null && tid !== '')
+        .map(String)
+    );
+
+    const costByTicket = new Map();
+    inventoryLogs.forEach(log => {
+      if (log.deduction_type !== 'sale') return;
+      if (!log.ticket_id) return;
+      const tid = String(log.ticket_id);
+      if (!relevantTicketIds.has(tid)) return;
+      const matchedItem = inventoryItems.find(i => i.name === log.item_name);
+      const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
+      const rawCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      const unitCost = normalizeUnitCostToMillicents(rawCost);
+      const impact = millicentsToCents(log.qty_deducted * unitCost);
+      costByTicket.set(tid, (costByTicket.get(tid) || 0) + impact);
+    });
+
+    const byProduct = {};
+    let untrackedQty = 0;
+
+    filteredSales.forEach(sale => {
+      const tid = sale.ticket_id ? String(sale.ticket_id) : null;
+      const ticketCogs = (tid && costByTicket.get(tid)) || 0;
+      const items = Array.isArray(sale.items) ? sale.items : [];
+      if (items.length === 0) return;
+
+      const lineValues = items.map(it => (Number(it.basePrice ?? it.price) || 0) * (Number(it.qty) || 1));
+      const totalLineValue = lineValues.reduce((s, v) => s + v, 0);
+
+      items.forEach((it, idx) => {
+        const name = it.name || 'Unknown';
+        const qty = Number(it.qty) || 1;
+        const tracked =
+          (it.inventoryMode === 'standard' && it.linkedWarehouseId) ||
+          (it.inventoryMode === 'recipe' && it.linkedRecipeId);
+        if (!tracked) untrackedQty += qty;
+
+        const share = totalLineValue > 0 ? lineValues[idx] / totalLineValue : 1 / items.length;
+        const itemCogs = ticketCogs * share;
+        if (!byProduct[name]) byProduct[name] = { qty: 0, cogs: 0 };
+        byProduct[name].qty += qty;
+        byProduct[name].cogs += itemCogs;
+      });
+    });
+
+    const sorted = Object.entries(byProduct)
+      .filter(([, v]) => v.cogs > 0)
+      .sort((a, b) => b[1].cogs - a[1].cogs);
+
+    return { cogsByProduct: sorted, untrackedItemCount: untrackedQty };
+  }, [filteredSales, inventoryLogs, inventoryItems]);
+
   const totalInventoryValue = useMemo(() => {
     return inventoryItems.reduce((sum, item) => {
       const unitCost = normalizeUnitCostToMillicents(item.unit_cost);
@@ -246,6 +308,12 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             <Icon icon="lucide:shopping-bag" style={{ color: '#e67e22', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#e67e22', letterSpacing: '-1px' }}>-{formatForDisplay(totalCOGS)}</p>
+          {untrackedItemCount > 0 && (
+            <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(243, 156, 18, 0.1)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: '#b9770e' }}>
+              <Icon icon="lucide:alert-triangle" style={{ flexShrink: 0 }} />
+              <span>{t('analytics.untrackedWarning').replace('{count}', untrackedItemCount)}</span>
+            </div>
+          )}
         </div>
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #2ecc71' }}>
@@ -373,6 +441,29 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '1.3rem', fontWeight: '900', color: '#27ae60' }}>{formatForDisplay(data.sales)}</div>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* COGS BY PRODUCT */}
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
+            <Icon icon="lucide:shopping-bag" style={{ color: '#e67e22' }} />
+            {t('analytics.cogsByProduct')}
+          </h3>
+          {cogsByProduct.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noCogsData')}</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {cogsByProduct.map(([productName, data]) => (
+                <div key={productName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                    <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{productName}</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{data.qty} {t('analytics.sold')}</span>
+                  </div>
+                  <span style={{ fontWeight: '800', color: '#e67e22' }}>-{formatForDisplay(data.cogs)}</span>
                 </div>
               ))}
             </div>

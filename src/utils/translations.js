@@ -291,6 +291,10 @@ export const translations = {
     "analytics.sales": "Sales",
     "analytics.invValue": "Inventory Asset Value",
     "analytics.invValueDesc": "Total money invested in current stock",
+    "analytics.cogsByProduct": "COGS by Product",
+    "analytics.noCogsData": "No tracked product costs in this period.",
+    "analytics.untrackedWarning": "{count} item(s) sold without inventory tracking — COGS may be understated.",
+    "analytics.cost": "cost",
 
     // --- Discounts Tab ---
     "disc.title": "Automated Discount Rules",
@@ -1254,6 +1258,10 @@ export const translations = {
     "analytics.sales": "Ventas",
     "analytics.invValue": "Valor del Inventario",
     "analytics.invValueDesc": "Dinero total invertido en stock actual",
+    "analytics.cogsByProduct": "Costos por Producto",
+    "analytics.noCogsData": "Sin costos registrados en este periodo.",
+    "analytics.untrackedWarning": "{count} producto(s) vendidos sin seguimiento de inventario — el COGS puede estar subestimado.",
+    "analytics.cost": "costo",
 
     // --- Discounts Tab ---
     "disc.title": "Reglas de Descuento Automáticas",
