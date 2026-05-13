@@ -953,7 +953,16 @@ export const translations = {
     "devices.done": "Done",
     "devices.copy": "Copy",
     "devices.copied": "Copied",
-    "devices.copyAria": "Copy {label}"
+    "devices.copyAria": "Copy {label}",
+
+    // --- Devices: OAuth (burn-after-reading) ---
+    "devices.authBanner": "For your security, the admin key is not cached on this device. You'll briefly authorize Supabase to provision the new device, and the credential is discarded right after.",
+    "devices.authorize": "Authorize to add devices",
+    "devices.authorizing": "Opening Supabase...",
+    "devices.provisioning": "Provisioning device...",
+    "devices.errorMissingProject": "Could not determine the Supabase project. Reinstall the app.",
+    "devices.errorFetchKeys": "Could not fetch the admin key from Supabase.",
+    "devices.errorAuthExpired": "Authorization expired. Please try again."
   },
   es: {
     // --- Admin General ---
@@ -1907,6 +1916,15 @@ export const translations = {
     "devices.done": "Listo",
     "devices.copy": "Copiar",
     "devices.copied": "Copiado",
-    "devices.copyAria": "Copiar {label}"
+    "devices.copyAria": "Copiar {label}",
+
+    // --- Devices: OAuth (burn-after-reading) ---
+    "devices.authBanner": "Por seguridad, la llave de administrador no se guarda en este dispositivo. Autorizarás brevemente con Supabase para registrar el nuevo dispositivo, y la credencial se descarta enseguida.",
+    "devices.authorize": "Autorizar para agregar dispositivos",
+    "devices.authorizing": "Abriendo Supabase...",
+    "devices.provisioning": "Registrando dispositivo...",
+    "devices.errorMissingProject": "No se pudo determinar el proyecto de Supabase. Reinstala la aplicación.",
+    "devices.errorFetchKeys": "No se pudo obtener la llave de administrador desde Supabase.",
+    "devices.errorAuthExpired": "La autorización expiró. Intenta de nuevo."
   }
 };

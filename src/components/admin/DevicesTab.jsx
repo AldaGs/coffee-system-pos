@@ -1,8 +1,20 @@
 import { Icon } from '@iconify/react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 
 const DEVICE_EMAIL_DOMAIN = 'device.tinypos.com';
+
+// Session-scoped keys for the burn-after-reading OAuth round-trip.
+// `pat` holds the short-lived Supabase Management API token; `pending` holds
+// the form values the user typed before being sent to Supabase to authorize.
+// Both are cleared as soon as the device has been provisioned (or on failure).
+const SS_PAT = 'tinypos_devices_pat';
+const SS_PENDING = 'tinypos_pending_device';
+const SS_OAUTH_FLAG = 'tinypos_devices_oauth_pending';
+
+// Scope: only what's needed to read the project's api keys. Compare with the
+// install flow which additionally needs database read/write.
+const DEVICES_OAUTH_SCOPES = 'api_keys_read';
 
 function slugifyDeviceName(name) {
   return (name || '')
@@ -13,12 +25,23 @@ function slugifyDeviceName(name) {
     .slice(0, 32);
 }
 
+function projectRefFromUrl(url) {
+  // Supabase project URLs are `https://<ref>.supabase.co`.
+  try {
+    const host = new URL(url).hostname;
+    return host.split('.')[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 function DevicesTab() {
   const { t } = useTranslation();
   const [deviceName, setDeviceName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitStep, setSubmitStep] = useState(''); // 'authorizing' | 'provisioning' | ''
   const [error, setError] = useState('');
   const [created, setCreated] = useState(null);
   const [copied, setCopied] = useState(null);
@@ -27,10 +50,115 @@ function DevicesTab() {
   const previewEmail = slug ? `${slug}@${DEVICE_EMAIL_DOMAIN}` : '';
 
   const supabaseUrl = typeof window !== 'undefined' ? localStorage.getItem('tinypos_supabase_url') : null;
-  const serviceRoleKey = typeof window !== 'undefined' ? localStorage.getItem('tinypos_supabase_service_role') : null;
-  const missingServiceRole = !serviceRoleKey;
 
-  const handleSubmit = async (e) => {
+  // Guards against running the post-OAuth resume more than once if React
+  // re-runs effects (StrictMode dev double-invoke, fast refresh, etc.).
+  const resumedRef = useRef(false);
+
+  // ---- Core: trade PAT → service_role → user, then burn -------------------
+  const provisionDevice = async (pat, pending) => {
+    setError('');
+    setSubmitting(true);
+    setSubmitStep('provisioning');
+
+    const cleanup = () => {
+      try {
+        sessionStorage.removeItem(SS_PAT);
+        sessionStorage.removeItem(SS_PENDING);
+      } catch { /* noop */ }
+    };
+
+    try {
+      const url = pending.supabaseUrl || supabaseUrl;
+      const projectRef = projectRefFromUrl(url);
+      if (!projectRef) {
+        throw new Error(t('devices.errorMissingProject'));
+      }
+
+      // 1. Fetch the project's API keys with the short-lived PAT.
+      const keysRes = await fetch(`/api/get-keys?projectRef=${encodeURIComponent(projectRef)}`, {
+        headers: { Authorization: `Bearer ${pat}` },
+      });
+      if (keysRes.status === 401 || keysRes.status === 403) {
+        throw new Error(t('devices.errorAuthExpired'));
+      }
+      const keysData = await keysRes.json().catch(() => ({}));
+      if (!keysRes.ok) {
+        throw new Error(keysData?.message || keysData?.error || t('devices.errorFetchKeys'));
+      }
+      const serviceRoleObj = Array.isArray(keysData)
+        ? keysData.find((k) => k.name === 'service_role')
+        : null;
+      if (!serviceRoleObj?.api_key) {
+        throw new Error(t('devices.errorFetchKeys'));
+      }
+
+      // 2. Hand the in-memory key to the proxy. It's never written to disk.
+      const addRes = await fetch('/api/add-device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supabaseUrl: url,
+          serviceRoleKey: serviceRoleObj.api_key,
+          email: pending.email,
+          password: pending.password,
+        }),
+      });
+      const addData = await addRes.json().catch(() => ({}));
+      if (!addRes.ok || !addData.success) {
+        throw new Error(addData.error || t('devices.errorCreateFailed'));
+      }
+
+      setCreated({
+        deviceName: pending.deviceName,
+        email: pending.email,
+        password: pending.password,
+      });
+      setDeviceName('');
+      setPassword('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      // Burn: regardless of success or failure, the elevated credential
+      // and the pending payload are removed.
+      cleanup();
+      setSubmitting(false);
+      setSubmitStep('');
+    }
+  };
+
+  // ---- Post-OAuth resume ---------------------------------------------------
+  // If the user just came back from Supabase OAuth, App.jsx has already moved
+  // the token into sessionStorage and stripped it from the URL. Here we
+  // detect the pending state, fetch the service_role, mint the device, and
+  // wipe everything.
+  useEffect(() => {
+    if (resumedRef.current) return;
+    const pat = typeof window !== 'undefined' ? sessionStorage.getItem(SS_PAT) : null;
+    const pendingRaw = typeof window !== 'undefined' ? sessionStorage.getItem(SS_PENDING) : null;
+    if (!pat || !pendingRaw) return;
+    resumedRef.current = true;
+
+    let pending;
+    try {
+      pending = JSON.parse(pendingRaw);
+    } catch {
+      sessionStorage.removeItem(SS_PAT);
+      sessionStorage.removeItem(SS_PENDING);
+      return;
+    }
+
+    // Intentional: we want provisioning to begin as soon as the tab mounts
+    // post-OAuth. The cascading-render warning is acceptable here because the
+    // state updates only happen once per round-trip. `provisionDevice` is a
+    // stable closure on this render — running on mount is exactly what we want.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    provisionDevice(pat, pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- Submit: validate, stash, redirect to Supabase OAuth ---------------
+  const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
 
@@ -42,32 +170,33 @@ function DevicesTab() {
       setError(t('devices.errorShortPassword'));
       return;
     }
-    if (!supabaseUrl || !serviceRoleKey) {
+    if (!supabaseUrl) {
       setError(t('devices.errorMissingCreds'));
       return;
     }
 
     const email = `${slug}@${DEVICE_EMAIL_DOMAIN}`;
 
-    setSubmitting(true);
+    // Stash the form values so we can resume after the OAuth round-trip.
+    // sessionStorage is tab-scoped and cleared on close — acceptable for a
+    // short-lived hand-off. The PAT itself only lands in sessionStorage on
+    // return and is wiped the moment provisioning completes.
     try {
-      const response = await fetch('/api/add-device', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supabaseUrl, serviceRoleKey, email, password }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || t('devices.errorCreateFailed'));
-      }
-      setCreated({ deviceName: deviceName.trim(), email, password });
-      setDeviceName('');
-      setPassword('');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSubmitting(false);
-    }
+      sessionStorage.setItem(SS_PENDING, JSON.stringify({
+        deviceName: deviceName.trim(),
+        email,
+        password,
+        supabaseUrl,
+      }));
+      sessionStorage.setItem(SS_OAUTH_FLAG, '1');
+    } catch { /* noop */ }
+
+    setSubmitting(true);
+    setSubmitStep('authorizing');
+
+    const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
+    const redirectUri = `${window.location.origin}/api/auth/callback`;
+    window.location.href = `https://api.supabase.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=devices&scope=${encodeURIComponent(DEVICES_OAUTH_SCOPES)}`;
   };
 
   const copyToClipboard = async (text, label) => {
@@ -89,25 +218,22 @@ function DevicesTab() {
         </p>
       </div>
 
-      {missingServiceRole && (
-        <div style={{
-          background: 'rgba(241, 196, 15, 0.08)',
-          border: '1px solid rgba(241, 196, 15, 0.3)',
-          color: '#b8860b',
-          padding: '14px 18px',
-          borderRadius: '12px',
-          marginBottom: '24px',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '12px',
-          fontSize: '0.92rem',
-        }}>
-          <Icon icon="lucide:alert-triangle" style={{ fontSize: '1.2rem', flexShrink: 0, marginTop: '2px' }} />
-          <div>
-            <strong>{t('devices.reconnectTitle')}</strong> {t('devices.reconnectDesc')}
-          </div>
-        </div>
-      )}
+      {/* Burn-after-reading explainer — always shown above the form. */}
+      <div style={{
+        background: 'rgba(52, 152, 219, 0.06)',
+        border: '1px solid rgba(52, 152, 219, 0.25)',
+        color: 'var(--text-main)',
+        padding: '14px 18px',
+        borderRadius: '12px',
+        marginBottom: '24px',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: '12px',
+        fontSize: '0.92rem',
+      }}>
+        <Icon icon="lucide:shield-check" style={{ fontSize: '1.2rem', flexShrink: 0, marginTop: '2px', color: '#3498db' }} />
+        <div>{t('devices.authBanner')}</div>
+      </div>
 
       <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
 
@@ -176,11 +302,16 @@ function DevicesTab() {
 
             <button
               type="submit"
-              disabled={submitting || missingServiceRole}
-              style={{ padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: submitting || missingServiceRole ? 'not-allowed' : 'pointer', fontWeight: '900', fontSize: '1.1rem', marginTop: '8px', boxShadow: '0 8px 20px rgba(52, 152, 219, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: submitting || missingServiceRole ? 0.6 : 1 }}
+              disabled={submitting}
+              style={{ padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: '900', fontSize: '1.05rem', marginTop: '8px', boxShadow: '0 8px 20px rgba(52, 152, 219, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: submitting ? 0.7 : 1 }}
             >
-              <Icon icon={submitting ? 'lucide:loader-2' : 'lucide:plus'} style={{ animation: submitting ? 'spin 1s linear infinite' : 'none' }} />
-              {submitting ? t('devices.submitting') : t('devices.submit')}
+              <Icon
+                icon={submitting ? 'lucide:loader-2' : 'lucide:shield-check'}
+                style={{ animation: submitting ? 'spin 1s linear infinite' : 'none' }}
+              />
+              {submitting
+                ? (submitStep === 'provisioning' ? t('devices.provisioning') : t('devices.authorizing'))
+                : t('devices.authorize')}
             </button>
           </div>
         </form>

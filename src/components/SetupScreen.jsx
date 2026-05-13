@@ -442,12 +442,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       // --- STEP C: Create the Admin Auth User (GOD MODE) ---
       setLoadingStep('Creando usuario administrador...');
 
-      // Persist the service_role key so the Admin "Dispositivos" tab can
-      // provision new hardware logins via the /api/add-device proxy without
-      // re-running the PAT/OAuth setup.
-      try { localStorage.setItem('tinypos_supabase_service_role', serviceRoleObj.api_key); } catch {}
-
-      // Initialize client using the SERVICE ROLE key instead of the anon key
+      // Burn-after-reading: the service_role key lives only in this closure.
+      // We never write it to localStorage — daily POS operation must run on
+      // the anon key alone. The Admin "Dispositivos" tab re-fetches a
+      // short-lived PAT via OAuth each time it needs to provision hardware.
       const adminClient = createClient(projectUrl, serviceRoleObj.api_key);
 
       // Use the auth.admin namespace to bypass email confirmation
@@ -499,12 +497,9 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       const anonKeyObj = keysData.find(k => k.name === 'anon');
       if (!anonKeyObj) throw new Error("Llave anónima no encontrada");
 
-      // Save service_role too (used by the Admin "Dispositivos" tab to mint
-      // hardware logins via the /api/add-device proxy).
-      const serviceRoleObj = keysData.find(k => k.name === 'service_role');
-      if (serviceRoleObj) {
-        try { localStorage.setItem('tinypos_supabase_service_role', serviceRoleObj.api_key); } catch {}
-      }
+      // Burn-after-reading: we do NOT persist service_role to localStorage.
+      // Device provisioning re-authorizes via OAuth on demand from the
+      // Admin "Dispositivos" tab.
 
       // Calculate the Project URL
       const projectRef = projects.find(p => p.id === selectedProject)?.id;
