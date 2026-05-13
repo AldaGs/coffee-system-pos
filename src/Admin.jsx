@@ -11,6 +11,7 @@ import { useDialog } from './hooks/useDialog';
 import { useTheme } from './hooks/useTheme';
 import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
+import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 
 import AnalyticsTab from './components/admin/AnalyticsTab';
 import OrdersTab from './components/admin/OrdersTab';
@@ -26,12 +27,14 @@ import EditDrinkModal from './components/admin/EditDrinkModal';
 import InventoryTab from './components/admin/InventoryTab.jsx';
 import ActivityTab from './components/admin/ActivityTab';
 import TipsTab from './components/admin/TipsTab';
+import DevicesTab from './components/admin/DevicesTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
 import { toCents, fromCents, millicentsToCents, normalizeUnitCostToMillicents } from './utils/moneyUtils';
 
 function Admin() {
+  usePreventAccidentalExit();
   const navigate = useNavigate();
   const { showAlert, showConfirm } = useDialog();
   const { updateTheme } = useTheme();
@@ -1175,6 +1178,7 @@ function Admin() {
             { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
             { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
             { id: 'team', icon: 'lucide:users', label: t('admin.team') },
+            { id: 'devices', icon: 'lucide:tablet-smartphone', label: t('admin.devices') },
             { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
             { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
@@ -1361,6 +1365,11 @@ function Admin() {
         {/* --- TEAM & CASHIER MANAGEMENT TAB --- */}
         {activeTab === 'team' && (
           <TeamTab newCashier={newCashier} setNewCashier={setNewCashier} handleAddCashier={handleAddCashier} cashiers={cashiers} handleDeleteCashier={handleDeleteCashier} />
+        )}
+
+        {/* --- DEVICES TAB --- */}
+        {activeTab === 'devices' && (
+          <DevicesTab />
         )}
 
         {/* 5. GENERAL SETTINGS TAB */}

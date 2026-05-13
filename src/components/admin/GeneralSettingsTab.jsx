@@ -595,7 +595,7 @@ function GeneralSettingsTab({
               {t('settings.btnSave')}
             </button>
 
-            <ExportKeysButton />
+            {/* Legacy tool: <ExportKeysButton /> */}
 
             {/*
             <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '24px', border: '1px solid var(--border)' }}>

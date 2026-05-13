@@ -1,18 +1,17 @@
-import postgres from 'postgres';
-
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
-
-  const { connectionString } = req.body;
-
-  if (!connectionString || !connectionString.includes('postgresql://')) {
-    return res.status(400).json({ error: 'Invalid PostgreSQL connection string.' });
+  // 1. Only allow POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  // Connect to the user's provided database
-  const sql = postgres(connectionString, { ssl: 'require' });
+  // 2. We now expect a PAT (Personal Access Token) and the Project Ref
+  const { accessToken, projectRef } = req.body;
 
-  // 1. Put the entire SQL dump directly into a string variable!
+  if (!accessToken || !projectRef) {
+    return res.status(400).json({ error: 'Missing accessToken or projectRef. Please provide both.' });
+  }
+
+  // 3. YOUR EXACT SQL REMAINS UNTOUCHED
   const schemaQuery = `
     -- ==========================================
     -- EXTENSIONS
@@ -145,6 +144,36 @@ export default async function handler(req, res) {
         ALTER TABLE public.sales ADD CONSTRAINT refund_limit_check CHECK (refund_amount <= total_amount);
       END IF;
     END $$;
+
+    -- ==========================================
+    -- ANALYTICS: backfill ticket_id on legacy sale logs so COGS attribution
+    -- works for installs that predate ticket_id (migration 009). Only fills
+    -- unambiguous matches; colliding timestamps stay NULL to avoid
+    -- misattribution.
+    -- ==========================================
+    WITH log_matches AS (
+      SELECT
+        il.id AS log_id,
+        (SELECT s.ticket_id
+           FROM public.sales s
+          WHERE s.created_at = il.created_at
+            AND s.ticket_id IS NOT NULL
+            AND s.ticket_id <> ''
+          LIMIT 1) AS resolved_ticket_id,
+        (SELECT COUNT(*)
+           FROM public.sales s
+          WHERE s.created_at = il.created_at
+            AND s.ticket_id IS NOT NULL
+            AND s.ticket_id <> '') AS match_count
+      FROM public.inventory_logs il
+      WHERE il.deduction_type = 'sale'
+        AND (il.ticket_id IS NULL OR il.ticket_id = '')
+    )
+    UPDATE public.inventory_logs il
+    SET ticket_id = lm.resolved_ticket_id
+    FROM log_matches lm
+    WHERE il.id = lm.log_id
+      AND lm.match_count = 1;
 
     -- ==========================================
     -- TIPS LIABILITY: schema upgrade for existing installs + new ledger tables
@@ -339,15 +368,36 @@ export default async function handler(req, res) {
     $$ LANGUAGE plpgsql SECURITY DEFINER;
   `;
 
-  try {
-    // 2. Execute the string directly
-    await sql.unsafe(schemaQuery);
-    await sql.end();
+try {
+    // 4. Send the SQL directly to Supabase's Management API
+    const response = await fetch(
+      `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: schemaQuery }),
+      }
+    );
 
-    res.status(200).json({ success: true, message: 'Database structures created successfully!' });
+    // 5. Handle the API Response
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      console.error("Supabase API Error:", data);
+      return res.status(response.status).json({ 
+        success: false, 
+        error: data.message || 'Failed to execute query on Supabase.' 
+      });
+    }
+
+    // 6. Success!
+    return res.status(200).json({ success: true, message: 'Database installed successfully!' });
+
   } catch (error) {
-    await sql.end();
-    console.error("Installation Error:", error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error("Installation network/server failed:", error);
+    return res.status(500).json({ success: false, error: 'Internal Server Error' });
   }
 }

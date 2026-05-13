@@ -18,29 +18,7 @@ function App() {
     !!localStorage.getItem('tinypos_supabase_url') && !!localStorage.getItem('tinypos_supabase_anon_key')
   );
 
-  // --- PREVENT ACCIDENTAL REFRESH / NAVIGATION ---
-  useEffect(() => {
-    // 1. Prevent accidental refresh/close (shows browser warning)
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = ''; 
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    // 2. Prevent mobile navigation shortcuts (like swipe back/forward)
-    window.history.pushState(null, '', window.location.href);
-    const handlePopState = () => {
-      window.history.pushState(null, '', window.location.href);
-    };
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
-  const [showGuide, setShowGuide] = useState(false); 
+  const [showGuide, setShowGuide] = useState(false);
 
   // --- 2. SECURE SESSION STATE ---
   const [session, setSession] = useState(null);
@@ -48,7 +26,40 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [setupMode, setSetupMode] = useState(null); // Will be 'new' or 'connect'
+
+  // Automatically jump to the Setup Screen if returning from Supabase OAuth.
+  // The original mode ('new' | 'connect') was stashed in sessionStorage before
+  // redirecting to Supabase, so we restore it on return and clear it afterwards.
+  //
+  // Devices-OAuth round-trip: the Admin "Dispositivos" tab sets a separate
+  // flag (`tinypos_devices_oauth_pending`) before redirecting. When we see
+  // that flag on return we route the token into sessionStorage for the
+  // DevicesTab to consume — never into setup mode — and never to disk.
+  const [setupMode, setSetupMode] = useState(() => {
+    // One-time scrubbing for users upgrading from the prior version where
+    // the service_role key was cached on disk. We're moving to a strict
+    // burn-after-reading model, so any leftover key is wiped.
+    try { localStorage.removeItem('tinypos_supabase_service_role'); } catch { /* noop */ }
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('setup_token');
+    if (!token) return null;
+
+    const devicesFlow = sessionStorage.getItem('tinypos_devices_oauth_pending') === '1';
+    if (devicesFlow) {
+      try {
+        sessionStorage.setItem('tinypos_devices_pat', token);
+        sessionStorage.removeItem('tinypos_devices_oauth_pending');
+      } catch { /* noop */ }
+      // Strip the token from the visible URL so it can't leak.
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return null;
+    }
+
+    const stashed = sessionStorage.getItem('tinypos_setup_mode');
+    sessionStorage.removeItem('tinypos_setup_mode');
+    return stashed === 'connect' ? 'connect' : 'new';
+  });
 
   // --- 3. CHECK SUPABASE AUTH STATUS ---
   useEffect(() => {
@@ -126,9 +137,16 @@ function App() {
       <SetupScreen
         initialMode={setupMode}
         onBack={() => setSetupMode(null)}
-        onComplete={() => {
+        onComplete={(newUrl, newAnonKey) => {
+          // 1. Save the keys EXACTLY where App.jsx looks for them
+          localStorage.setItem('tinypos_supabase_url', newUrl);
+          localStorage.setItem('tinypos_supabase_anon_key', newAnonKey);
+          
+          // 2. Update state
           setIsInstalled(true);
-          window.location.reload();
+          
+          // 3. Hard redirect to the root to clear the URL and reboot the main client
+          window.location.href = '/';
         }}
         onShowGuide={() => setShowGuide(true)}
       />

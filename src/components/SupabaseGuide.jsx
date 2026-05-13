@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Icon } from '@iconify/react';
 
 // ─── Design tokens matching tinypos LandingPage ───────────────────────────────
@@ -40,13 +40,6 @@ const styles = {
     display: 'flex', alignItems: 'center', gap: '10px',
     textDecoration: 'none', color: C.text,
   },
-  navLogoIcon: {
-    width: 34, height: 34,
-    background: C.brand, color: 'white',
-    borderRadius: 9, display: 'flex',
-    alignItems: 'center', justifyContent: 'center',
-    fontSize: '1.2rem',
-  },
   navLogoText: { fontSize: '1.4rem', fontWeight: 900, letterSpacing: '-0.5px' },
   navBack: {
     display: 'flex', alignItems: 'center', gap: 6,
@@ -60,8 +53,8 @@ const styles = {
 
   // ── Hero ──
   hero: {
-    backgroundColor: '#fdfdfd', // Removed dark gradient
-    padding: '72px 5% 40px',
+    backgroundColor: '#fdfdfd',
+    padding: '72px 5% 48px',
     textAlign: 'center',
     position: 'relative',
     overflow: 'hidden',
@@ -70,32 +63,25 @@ const styles = {
     display: 'inline-flex', alignItems: 'center', gap: 6,
     background: 'rgba(242,139,5,0.1)',
     border: '1px solid rgba(242,139,5,0.2)',
-    color: '#f28b05', // Brand Orange
+    color: '#f28b05',
     padding: '6px 14px', borderRadius: 20,
     fontSize: '0.75rem', fontWeight: 700,
     letterSpacing: '0.06em', textTransform: 'uppercase',
     marginBottom: 24,
   },
   heroTitle: {
-    fontSize: 'clamp(2rem, 5vw, 3rem)', color: '#0d3a66', // Dark text
+    fontSize: 'clamp(2rem, 5vw, 3rem)', color: '#0d3a66',
     fontWeight: 900, lineHeight: 1.1,
     marginBottom: 16, letterSpacing: '-1px',
   },
   heroSubtitle: {
-    fontSize: '1.1rem', color: '#546e7a', // Muted slate text
-    maxWidth: 560, margin: '0 auto 40px',
+    fontSize: '1.1rem', color: '#546e7a',
+    maxWidth: 600, margin: '0 auto',
     lineHeight: 1.6,
   },
 
-  // ── Progress indicator ──
-  progressRow: {
-    display: 'flex', justifyContent: 'center',
-    gap: 0, flexWrap: 'wrap',
-    maxWidth: 720, margin: '0 auto',
-  },
-
   // ── Main content ──
-  main: { maxWidth: 780, margin: '0 auto', padding: '56px 5% 80px' },
+  main: { maxWidth: 820, margin: '0 auto', padding: '40px 5% 80px' },
 
   // ── Section ──
   sectionLabel: {
@@ -109,48 +95,32 @@ const styles = {
   },
   sectionDesc: {
     fontSize: '0.95rem', color: C.muted,
-    lineHeight: 1.7, marginBottom: 32,
-    maxWidth: 600,
+    lineHeight: 1.7, marginBottom: 28,
+    maxWidth: 640,
   },
 
-  // ── Step card ──
-  stepCard: {
+  // ── Feature card ──
+  featureCard: {
     background: C.surface,
     border: `1px solid ${C.border}`,
     borderRadius: 16,
+    padding: '28px',
     marginBottom: 16,
-    overflow: 'hidden',
     transition: 'box-shadow 0.2s',
   },
-  stepHeader: {
-    display: 'flex', alignItems: 'center',
-    gap: 16, padding: '20px 24px',
-    cursor: 'pointer', userSelect: 'none',
-  },
-  stepNum: {
-    width: 36, height: 36, borderRadius: '50%',
+  featureIcon: (color) => ({
+    width: 48, height: 48, borderRadius: 12,
+    background: `${color}15`, color,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontWeight: 900, fontSize: '0.9rem', flexShrink: 0,
+    fontSize: '1.4rem', marginBottom: 16,
+  }),
+  featureTitle: {
+    fontSize: '1.15rem', fontWeight: 900,
+    color: C.text, marginBottom: 8, letterSpacing: '-0.3px',
   },
-  stepTitle: { fontSize: '1rem', fontWeight: 800, flex: 1, color: C.text },
-  stepBody: { padding: '0 24px 24px', borderTop: `1px solid ${C.border}` },
-  stepDesc: {
-    fontSize: '0.875rem', color: C.muted,
-    lineHeight: 1.75, marginTop: 16, marginBottom: 20,
+  featureDesc: {
+    fontSize: '0.9rem', color: C.muted, lineHeight: 1.7,
   },
-
-  // ── Screenshot placeholder ──
-  screenshotBox: {
-    background: '#f1f5f9',
-    border: `2px dashed ${C.border}`,
-    borderRadius: 12,
-    padding: '28px 20px',
-    textAlign: 'center',
-    marginBottom: 16,
-    color: C.muted,
-    fontSize: '0.82rem',
-  },
-  screenshotIcon: { fontSize: '2rem', marginBottom: 8, display: 'block' },
 
   // ── Callout ──
   callout: (type) => ({
@@ -165,44 +135,15 @@ const styles = {
     color: type === 'warn' ? C.warn : type === 'tip' ? C.blue : C.green,
   }),
   calloutText: {
-    fontSize: '0.83rem', lineHeight: 1.7, color: C.text,
+    fontSize: '0.85rem', lineHeight: 1.7, color: C.text, margin: 0,
   },
 
-  // ── Code snippet ──
-  codeBox: {
-    background: '#0d3a66',
-    color: '#e2e8f0',
-    borderRadius: 10,
-    padding: '14px 18px',
-    fontFamily: 'monospace',
-    fontSize: '0.82rem',
-    lineHeight: 1.7,
-    marginBottom: 14,
-    overflowX: 'auto',
-    position: 'relative',
-  },
-  codeLabel: {
-    position: 'absolute', top: 10, right: 12,
-    fontSize: '0.6rem', textTransform: 'uppercase',
-    letterSpacing: '0.1em', color: 'rgba(255,255,255,0.3)',
-  },
-
-  // ── Warning banner ──
-  warnBanner: {
-    background: C.warnLight,
-    border: `1px solid #fde68a`,
-    borderLeft: `4px solid ${C.warn}`,
-    borderRadius: 10, padding: '16px 20px',
-    marginBottom: 24,
-    display: 'flex', gap: 12, alignItems: 'flex-start',
-  },
-
-  // ── CTA (Bottom Box) ──
+  // ── CTA ──
   ctaBox: {
-    background: 'white', // Removed dark gradient
+    background: 'white',
     border: '1px solid #e2e8f0',
     boxShadow: '0 20px 50px rgba(0,0,0,0.05)',
-    borderRadius: 24, padding: '48px',
+    borderRadius: 24, padding: '48px 32px',
     textAlign: 'center', color: '#0d3a66',
     marginTop: 56,
   },
@@ -213,7 +154,7 @@ const styles = {
   ctaDesc: {
     color: '#546e7a',
     fontSize: '0.95rem', marginBottom: 28,
-    lineHeight: 1.6,
+    lineHeight: 1.6, maxWidth: 480, margin: '0 auto 28px',
   },
   btnPrimary: {
     padding: '16px 36px',
@@ -231,379 +172,6 @@ const styles = {
   },
 };
 
-// ─── Step data ────────────────────────────────────────────────────────────────
-function ZoomableImg({ src, alt }) {
-  const [open, setOpen] = useState(false);
-  const [zoomed, setZoomed] = useState(false);
-  const imgRef = useRef(null);
-  const gesture = useRef({
-    scale: 1, tx: 0, ty: 0,
-    startDist: 0, startScale: 1, startTx: 0, startTy: 0,
-    panStart: null,
-  });
-
-  const isTouch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
-
-  const applyTransform = () => {
-    const s = gesture.current;
-    if (imgRef.current) {
-      imgRef.current.style.transform = `translate(${s.tx}px, ${s.ty}px) scale(${s.scale})`;
-    }
-  };
-
-  const resetGesture = () => {
-    gesture.current.scale = 1;
-    gesture.current.tx = 0;
-    gesture.current.ty = 0;
-    if (imgRef.current) imgRef.current.style.transform = '';
-  };
-
-  const close = () => { setOpen(false); setZoomed(false); resetGesture(); };
-
-  const onTouchStart = (e) => {
-    if (e.touches.length === 2) {
-      const [a, b] = e.touches;
-      gesture.current.startDist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
-      gesture.current.startScale = gesture.current.scale;
-      gesture.current.startTx = gesture.current.tx;
-      gesture.current.startTy = gesture.current.ty;
-    } else if (e.touches.length === 1 && gesture.current.scale > 1) {
-      gesture.current.panStart = {
-        x: e.touches[0].clientX - gesture.current.tx,
-        y: e.touches[0].clientY - gesture.current.ty,
-      };
-    }
-  };
-
-  const onTouchMove = (e) => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const [a, b] = e.touches;
-      const dist = Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY);
-      if (gesture.current.startDist > 0) {
-        const next = gesture.current.startScale * (dist / gesture.current.startDist);
-        gesture.current.scale = Math.max(1, Math.min(5, next));
-        applyTransform();
-      }
-    } else if (e.touches.length === 1 && gesture.current.scale > 1 && gesture.current.panStart) {
-      e.preventDefault();
-      gesture.current.tx = e.touches[0].clientX - gesture.current.panStart.x;
-      gesture.current.ty = e.touches[0].clientY - gesture.current.panStart.y;
-      applyTransform();
-    }
-  };
-
-  const onTouchEnd = (e) => {
-    gesture.current.panStart = null;
-    if (gesture.current.scale <= 1.02) resetGesture();
-    if (e.touches.length === 0 && gesture.current.scale <= 1.02) {
-      // allow tap-to-close handled by backdrop
-    }
-  };
-
-  return (
-    <>
-      <img
-        src={src}
-        alt={alt}
-        onClick={() => setOpen(true)}
-        style={{
-          maxWidth: '100%',
-          maxHeight: '90vh',
-          objectFit: 'contain',
-          display: 'block',
-          cursor: 'zoom-in',
-        }}
-      />
-      {open && (
-        <div
-          onClick={close}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(0,0,0,0.92)',
-            display: 'flex',
-            alignItems: (!isTouch && zoomed) ? 'flex-start' : 'center',
-            justifyContent: (!isTouch && zoomed) ? 'flex-start' : 'center',
-            padding: (!isTouch && zoomed) ? 0 : 16,
-            overflow: isTouch ? 'hidden' : 'auto',
-            WebkitOverflowScrolling: 'touch',
-            touchAction: isTouch ? 'none' : 'auto',
-          }}
-        >
-          <img
-            ref={imgRef}
-            src={src}
-            alt={alt}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!isTouch) setZoomed(z => !z);
-            }}
-            onTouchStart={isTouch ? onTouchStart : undefined}
-            onTouchMove={isTouch ? onTouchMove : undefined}
-            onTouchEnd={isTouch ? onTouchEnd : undefined}
-            style={isTouch ? {
-              maxWidth: '100%',
-              maxHeight: '100%',
-              objectFit: 'contain',
-              display: 'block',
-              touchAction: 'none',
-              transformOrigin: 'center center',
-              willChange: 'transform',
-              userSelect: 'none',
-              WebkitUserSelect: 'none',
-            } : (zoomed ? {
-              width: 'auto', maxWidth: 'none', height: 'auto',
-              display: 'block', cursor: 'zoom-out',
-            } : {
-              maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
-              display: 'block', cursor: 'zoom-in',
-            })}
-          />
-          <button
-            onClick={close}
-            aria-label="Cerrar"
-            style={{
-              position: 'fixed', top: 16, right: 16,
-              width: 40, height: 40, borderRadius: '50%',
-              border: 'none', background: 'rgba(255,255,255,0.95)',
-              color: '#0d3a66', fontSize: '1.2rem', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              zIndex: 1,
-            }}
-          >
-            <Icon icon="lucide:x" />
-          </button>
-        </div>
-      )}
-    </>
-  );
-}
-
-const STEPS = [
-  {
-    num: 1,
-    title: 'Crea tu cuenta gratuita en Supabase',
-    color: '#3498db',
-    icon: 'lucide:user-plus',
-    content: () => (
-      <>
-        <p style={styles.stepDesc}>
-          Supabase es como contratar a un experto en bases de datos — pero gratis.
-          Ellos guardan toda la información de tu negocio (ventas, inventario, clientes)
-          de forma segura en la nube.
-        </p>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-1.jpg" alt="Paso 1 Supabase" />
-          </div>
-        </div>
-        <p style={{ fontSize: '0.85rem', color: C.muted, textAlign: 'center', marginBottom: '24px' }}>
-          Ve a <strong>supabase.com</strong> y haz clic en <em>"Start your project"</em>
-        </p>
-
-        <Callout type="tip" icon="lucide:info">
-          Puedes registrarte con tu cuenta de Google o GitHub — no necesitas crear una contraseña nueva.
-        </Callout>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-2.jpg" alt="Paso 2 Supabase" />
-          </div>
-          <br />Supabase te enviará un correo de confirmación. <strong>Ábrelo y haz clic en el enlace</strong> antes de continuar.
-        </div>
-
-        <Callout type="warn" icon="lucide:alert-triangle">
-          Si no ves el correo en 2 minutos, revisa tu carpeta de <strong>Spam</strong>.
-          A veces termina ahí.
-        </Callout>
-      </>
-    ),
-  },
-  {
-    num: 2,
-    title: 'Crea tu proyecto',
-    color: '#9b59b6',
-    icon: 'lucide:folder-plus',
-    content: () => (
-      <>
-        <p style={styles.stepDesc}>
-          Un "proyecto" en Supabase es simplemente tu base de datos.
-          Tendrás uno por negocio.
-        </p>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-3.jpg" alt="Paso 3 Supabase" />
-          </div>
-          <br />En el panel principal, haz clic en <em>"New project"</em>
-        </div>
-
-        <p style={{ ...styles.stepDesc, marginBottom: 12 }}>Llena el formulario así:</p>
-
-        <div style={{ ...styles.codeBox, marginBottom: 14 }}>
-          <span style={styles.codeLabel}>Ejemplo</span>
-          <span style={{ color: '#94a3b8' }}>Nombre del proyecto:</span>  <span style={{ color: '#f9c74f' }}>mi-cafeteria</span>{'\n'}
-          <span style={{ color: '#94a3b8' }}>Contraseña de base de datos:</span> <span style={{ color: '#f9c74f' }}>algo seguro — guárdala</span>{'\n'}
-          <span style={{ color: '#94a3b8' }}>Región:</span>  <span style={{ color: '#f9c74f' }}>East US (Ohio)</span> <span style={{ color: '#64748b' }}>(la más cercana a México)</span>
-        </div>
-
-        <Callout type="warn" icon="lucide:key">
-          <strong>Guarda la contraseña de base de datos en un lugar seguro.</strong>{' '}
-          Supabase no te la mostrará de nuevo. La necesitarás en el paso siguiente.
-        </Callout>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-4.jpg" alt="Paso 4 Supabase" />
-          </div>
-          <br />El proyecto tarda ~1 minuto en crearse. Espera a que la que termine la configuración.
-        </div>
-      </>
-    ),
-  },
-  {
-    num: 3,
-    title: 'Crea tu usuario administrador',
-    color: '#27ae60',
-    icon: 'lucide:shield-check',
-    content: () => (
-      <>
-        <p style={styles.stepDesc}>
-          Este usuario es la "llave maestra" de tu tinypos. Solo necesitas uno.
-          Úsalo para acceder al panel de administración desde cualquier dispositivo.
-        </p>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-5.jpg" alt="Paso 5 Supabase" />
-          </div>
-          <br />En el menú izquierdo: <strong>Authentication → Users → Add user</strong>
-        </div>
-
-        <div style={{ ...styles.codeBox }}>
-          <span style={styles.codeLabel}>Ejemplo</span>
-          <span style={{ color: '#94a3b8' }}>Email:</span>  <span style={{ color: '#f9c74f' }}>admin@micafeteria.com</span>{'\n'}
-          <span style={{ color: '#94a3b8' }}>Contraseña:</span> <span style={{ color: '#f9c74f' }}>min. 8 caracteres</span>
-        </div>
-
-        <Callout type="tip" icon="lucide:lightbulb">
-          No importa si el correo no existe — es solo un identificador.
-          Puedes usar <code style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: 4 }}>register@tunegocio.com</code> o lo que quieras.
-        </Callout>
-
-        <Callout type="warn" icon="lucide:alert-triangle">
-          <strong>Anota este correo y contraseña.</strong> Los necesitarás cada vez que
-          quieras acceder al panel de administración de tinypos.
-        </Callout>
-      </>
-    ),
-  },
-  {
-    num: 4,
-    title: 'Copia tus llaves de acceso',
-    color: '#f28b05',
-    icon: 'lucide:key',
-    content: () => (
-      <>
-        <p style={styles.stepDesc}>
-          Las "llaves" son dos códigos que le dicen a tinypos dónde está tu base de datos
-          y cómo conectarse. Son como la dirección y la contraseña de tu casa.
-        </p>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-6.jpg" alt="Paso 6 Supabase" />
-          </div>
-          <br />Regresa a la página principal <strong>Da clik en COPY para acceder a tus llaves</strong>
-        </div>
-
-        <p style={{ ...styles.stepDesc, marginBottom: 10 }}>Necesitas copiar <strong>tres valores</strong>:</p>
-
-        <div style={{
-          background: C.surface, border: `1px solid ${C.border}`,
-          borderRadius: 10, overflow: 'hidden', marginBottom: 14,
-        }}>
-          <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '1.3rem', marginTop: 2 }}>1️⃣</span>
-            <div>
-              <div style={{ fontWeight: 800, marginBottom: 4 }}>Project URL</div>
-              <div style={{ fontSize: '0.8rem', color: C.muted, lineHeight: 1.6 }}>
-                Empieza con <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>https://</code> y termina en <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>.supabase.co</code>
-              </div>
-            </div>
-          </div>
-          <div style={{ padding: '14px 18px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: '1.3rem', marginTop: 2 }}>2️⃣</span>
-            <div>
-              <div style={{ fontWeight: 800, marginBottom: 4 }}>Publishable key</div>
-              <div style={{ fontSize: '0.8rem', color: C.muted, lineHeight: 1.6 }}>
-                <code style={{ background: '#f1f5f9', padding: '1px 5px', borderRadius: 4 }}>sb_publishable_xxx...</code>
-                Es segura compartirla — tinypos la necesita para conectarse.
-              </div>
-            </div>
-          </div>
-        </div>
-        <Callout type="tip" icon="lucide:info">
-          La <strong>service_role key</strong> que aparece abajo NO la necesitas aquí.
-          Ignórala — esa tiene permisos totales y no debe usarse en el frontend.
-        </Callout>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-7.jpg" alt="Paso 7 Supabase" />
-          </div>
-          <br />Click en CONNECT (1). Direct (2). <em>TRANSATION POOLER</em> (3) y copia la llave que aparece (4).
-          <br />Sustituye <em>[YOUR-PASSWORD]</em> por la contraseña de tu cuenta de Supabase.
-        </div>
-      </>
-    ),
-  },
-  {
-    num: 5,
-    title: 'Conecta tinypos a tu base de datos',
-    color: '#27ae60',
-    icon: 'lucide:link',
-    content: () => (
-      <>
-        <p style={styles.stepDesc}>
-          Ya tienes todo. Ahora solo pegas tus llaves en tinypos y el sistema
-          crea todas las tablas necesarias automáticamente — sin tocar código.
-        </p>
-
-        <div style={styles.screenshotBox}>
-          <div style={{ marginBottom: '16px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${C.border}` }}>
-            <ZoomableImg src="/step-8.jpg" alt="Paso 8 Supabase" />
-          </div>
-          <br />En tinypos, selecciona <em>"Crear tu tienda"</em> y pega los valores.
-        </div>
-
-        <div style={{
-          background: C.greenLight, border: `1px solid #bbf7d0`,
-          borderRadius: 10, padding: '16px 20px', marginBottom: 14,
-        }}>
-          <div style={{ fontWeight: 800, marginBottom: 10, color: C.green, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon icon="lucide:check-circle" />
-            ¿Qué hace tinypos automáticamente?
-          </div>
-          <ul style={{ paddingLeft: 18, fontSize: '0.84rem', lineHeight: 2, color: C.text }}>
-            <li>Crea todas las tablas (ventas, menú, inventario, clientes…)</li>
-            <li>Configura las reglas de seguridad (RLS policies)</li>
-            <li>Inserta los datos iniciales de tu tienda</li>
-            <li>Descarga el archivo <strong>keys.tiny</strong> para clonar en otros dispositivos</li>
-          </ul>
-        </div>
-
-        <Callout type="tip" icon="lucide:smartphone">
-          <strong>¿Tienes más de una tablet o computadora?</strong> Guarda el archivo{' '}
-          <strong>keys.tiny</strong> que se descarga. En cada dispositivo extra,
-          elige "Conectar dispositivo" y sube ese archivo — listo.
-        </Callout>
-      </>
-    ),
-  },
-];
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Callout({ type, icon, children }) {
@@ -615,73 +183,51 @@ function Callout({ type, icon, children }) {
   );
 }
 
-function StepCard({ step, index }) {
-  const [open, setOpen] = useState(index === 0);
-  const Content = step.content;
-
+function FeatureCard({ icon, color, title, children }) {
   return (
-    <div style={{
-      ...styles.stepCard,
-      boxShadow: open ? '0 4px 20px rgba(0,0,0,0.07)' : 'none',
-    }}>
-      <div style={styles.stepHeader} onClick={() => setOpen(o => !o)}>
-        <div style={{
-          ...styles.stepNum,
-          background: open ? step.color : '#f1f5f9',
-          color: open ? 'white' : C.muted,
-        }}>
-          {open
-            ? <Icon icon="lucide:check" style={{ fontSize: '1rem' }} />
-            : step.num}
-        </div>
-        <div style={styles.stepTitle}>{step.title}</div>
-        <Icon
-          icon={open ? 'lucide:chevron-up' : 'lucide:chevron-down'}
-          style={{ color: C.muted, fontSize: '1.1rem', transition: 'transform 0.2s' }}
-        />
+    <div style={styles.featureCard}>
+      <div style={styles.featureIcon(color)}>
+        <Icon icon={icon} />
       </div>
-      {open && (
-        <div style={styles.stepBody}>
-          <Content />
-        </div>
-      )}
+      <div style={styles.featureTitle}>{title}</div>
+      <div style={styles.featureDesc}>{children}</div>
     </div>
   );
 }
 
-function ProgressStep({ num, label, active, done }) {
+function FAQItem({ q, a }) {
+  const [open, setOpen] = useState(false);
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      flex: 1, minWidth: 80, gap: 6,
-    }}>
-      <div style={{
-        width: 32, height: 32, borderRadius: '50%',
-        background: done ? C.green : active ? C.brand : '#f1f5f9',
-        color: done || active ? 'white' : '#94a3b8',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontWeight: 800, fontSize: '0.85rem',
-        border: active ? `2px solid ${C.brandLight}` : 'none',
-        transition: 'all 0.2s',
-      }}>
-        {done ? <Icon icon="lucide:check" /> : num}
-      </div>
-      <span style={{
-        fontSize: '0.7rem',
-        color: active ? '#0d3a66' : '#94a3b8',
-        textAlign: 'center', lineHeight: 1.3, maxWidth: 70,
-        fontWeight: active ? 700 : 500
-      }}>
-        {label}
-      </span>
+    <div style={{ borderBottom: `1px solid ${C.border}`, padding: '16px 0' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', background: 'none', border: 'none',
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', gap: 16, cursor: 'pointer',
+          textAlign: 'left', padding: 0, color: C.text,
+        }}
+      >
+        <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>{q}</span>
+        <Icon
+          icon={open ? 'lucide:minus' : 'lucide:plus'}
+          style={{ color: C.muted, flexShrink: 0, fontSize: '1rem' }}
+        />
+      </button>
+      {open && (
+        <p style={{
+          fontSize: '0.88rem', color: C.muted,
+          lineHeight: 1.75, marginTop: 12, paddingRight: 24,
+        }}>
+          {a}
+        </p>
+      )}
     </div>
   );
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 export default function SupabaseGuide({ onBack }) {
-  const progressLabels = ['Cuenta', 'Proyecto', 'Usuario', 'Llaves', 'Conectar'];
-
   return (
     <div style={styles.page}>
 
@@ -693,7 +239,7 @@ export default function SupabaseGuide({ onBack }) {
               <img
                 src="/icon.svg"
                 alt="tinypos"
-                style={{ width: '50px', height: '50px', borderRadius: '10px', top: "-5px" }}
+                style={{ width: '50px', height: '50px', borderRadius: '10px', top: '-5px' }}
               />
             </div>
             <span style={styles.navLogoText}>tinypos</span>
@@ -712,99 +258,143 @@ export default function SupabaseGuide({ onBack }) {
 
       {/* Hero */}
       <div style={styles.hero}>
-        <div style={styles.heroGlow} />
         <div style={styles.heroBadge}>
-          <Icon icon="lucide:book-open" />
-          Guía de instalación
+          <Icon icon="lucide:shield-check" />
+          Tu nube privada
         </div>
         <h1 style={styles.heroTitle}>
-          Configura tu base de datos<br />
-          <span style={{ color: C.brand }}>en 15 minutos</span>
+          Tu negocio,<br />
+          <span style={{ color: C.brand }}>tu propia nube segura</span>
         </h1>
         <p style={styles.heroSubtitle}>
-          Sin conocimientos técnicos. Sin tarjeta de crédito.
-          Supabase es completamente gratis para negocios pequeños —
-          y tú eres dueño de todos tus datos.
+          A diferencia de otros sistemas de punto de venta, tinypos conecta tu tienda a una
+          base de datos que <strong>tú</strong> posees. Cero mensualidades, cero intermediarios,
+          control total de tus datos.
         </p>
-
-        {/* Progress row */}
-        <div style={styles.progressRow}>
-          {progressLabels.map((label, i) => (
-            <ProgressStep key={i} num={i + 1} label={label} active={i === 0} done={false} />
-          ))}
-        </div>
       </div>
 
       {/* Main content */}
       <div style={styles.main}>
 
-        {/* Why Supabase */}
-        <div style={{ marginBottom: 48 }}>
-          <p style={styles.sectionLabel}>¿Por qué Supabase?</p>
-          <h2 style={styles.sectionTitle}>Tu negocio merece sus propios datos</h2>
+        {/* Value Prop 1 — Own Your Data */}
+        <div style={{ marginBottom: 32 }}>
+          <p style={styles.sectionLabel}>Tu información, tus reglas</p>
+          <h2 style={styles.sectionTitle}>Control total de tus datos</h2>
           <p style={styles.sectionDesc}>
-            La mayoría de los sistemas de punto de venta te cobran mensualidad
-            y guardan tu información en sus servidores — tú no tienes control.
-            Con tinypos, <strong>tu información vive en tu propia base de datos</strong>,
-            gratis, para siempre.
+            La mayoría de los sistemas de punto de venta guardan la información de tu negocio
+            en sus servidores y te cobran por acceder a ella. Con tinypos es diferente:
+            tu cuenta de Supabase es tuya, tus ventas son tuyas, tu historial y tus recetas son tuyos.
+            Si algún día quieres irte, te llevas todo contigo.
           </p>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 32 }}>
-            {[
-              { icon: 'lucide:dollar-sign', color: C.green, title: 'Costo real: $0', desc: 'El plan gratuito de Supabase es suficiente para cualquier negocio pequeño por años.' },
-              { icon: 'lucide:database', color: C.blue, title: 'Tus datos, tu control', desc: 'Nadie más puede ver o vender la información de tus clientes y ventas.' },
-              { icon: 'lucide:wifi-off', color: C.brand, title: 'Funciona sin internet', desc: 'tinypos guarda todo localmente. Supabase es el respaldo en la nube.' },
-            ].map((item, i) => (
-              <div key={i} style={{
-                background: C.surface, border: `1px solid ${C.border}`,
-                borderRadius: 12, padding: '20px',
-              }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: 10,
-                  background: `${item.color}15`, color: item.color,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '1.2rem', marginBottom: 12,
-                }}>
-                  <Icon icon={item.icon} />
-                </div>
-                <div style={{ fontWeight: 800, marginBottom: 6, fontSize: '0.95rem' }}>{item.title}</div>
-                <div style={{ fontSize: '0.8rem', color: C.muted, lineHeight: 1.65 }}>{item.desc}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* The honest limitation warning */}
-          <div style={styles.warnBanner}>
-            <Icon icon="lucide:alert-triangle" style={{ color: C.warn, fontSize: '1.2rem', flexShrink: 0, marginTop: 2 }} />
-            <div>
-              <strong style={{ display: 'block', marginBottom: 4 }}>
-                Una limitación importante que debes conocer
-              </strong>
-              <p style={{ fontSize: '0.84rem', color: C.text, lineHeight: 1.7, margin: 0 }}>
-                El plan gratuito de Supabase <strong>pausa tu base de datos si no hay actividad por 7 días</strong> —
-                por ejemplo, si cierras tu negocio una semana de vacaciones. Reactivarla es fácil:
-                entra a <strong>supabase.com</strong>, ve a tu proyecto y haz clic en "Restore".
-                Tarda menos de 30 segundos y no pierdes ningún dato. Si prefieres evitar esto,
-                puedes actualizar al plan Pro de Supabase por $25 USD/mes.
-              </p>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+            <FeatureCard icon="lucide:database" color={C.blue} title="Tu base de datos">
+              Las ventas, el inventario y los clientes viven en una cuenta gratuita de Supabase a tu nombre.
+            </FeatureCard>
+            <FeatureCard icon="lucide:user-check" color={C.green} title="Tú eres el dueño">
+              Nadie más puede leer, vender ni bloquear el acceso a la información de tu negocio.
+            </FeatureCard>
+            <FeatureCard icon="lucide:download" color={C.brand} title="Portabilidad real">
+              Exporta o migra tu historial completo cuando quieras. Sin contratos, sin candados.
+            </FeatureCard>
           </div>
         </div>
 
         <hr style={styles.divider} />
 
-        {/* Steps */}
-        <div style={{ marginBottom: 8 }}>
-          <p style={styles.sectionLabel}>Paso a paso</p>
-          <h2 style={styles.sectionTitle}>Sigue estos 5 pasos</h2>
+        {/* Value Prop 2 — Zero-Touch Automation */}
+        <div style={{ marginBottom: 32 }}>
+          <p style={styles.sectionLabel}>Automatización completa</p>
+          <h2 style={styles.sectionTitle}>Un clic. Cero configuración.</h2>
           <p style={styles.sectionDesc}>
-            Haz clic en cada paso para expandirlo. Puedes hacerlos en orden o volver al que necesites.
+            Olvídate de copiar llaves, ejecutar comandos o tocar un panel técnico.
+            Cuando hagas clic en <strong>"Conectar"</strong>, tinypos prepara tu nube
+            automáticamente — listo en menos de un minuto.
           </p>
+
+          <div style={{
+            background: C.greenLight, border: `1px solid #bbf7d0`,
+            borderRadius: 12, padding: '22px 26px',
+          }}>
+            <div style={{ fontWeight: 800, marginBottom: 12, color: C.green, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon icon="lucide:sparkles" />
+              Lo que hacemos por ti, en automático
+            </div>
+            <ul style={{ paddingLeft: 20, fontSize: '0.9rem', lineHeight: 2, color: C.text, margin: 0 }}>
+              <li>Construimos todas las tablas (ventas, menú, inventario, clientes…)</li>
+              <li>Configuramos las reglas de seguridad de tu base de datos</li>
+              <li>Cargamos los datos iniciales de tu tienda</li>
+              <li>Dejamos todo listo para vender desde el primer minuto</li>
+            </ul>
+          </div>
         </div>
 
-        {STEPS.map((step, i) => (
-          <StepCard key={i} step={step} index={i} />
-        ))}
+        <hr style={styles.divider} />
+
+        {/* Value Prop 3 — Enterprise Security */}
+        <div style={{ marginBottom: 32 }}>
+          <p style={styles.sectionLabel}>Seguridad de nivel empresarial</p>
+          <h2 style={styles.sectionTitle}>Conexión segura con Supabase OAuth</h2>
+          <p style={styles.sectionDesc}>
+            Te conectas a Supabase de la misma forma en que inicias sesión con Google:
+            mediante <strong>OAuth oficial</strong>. Tinypos nunca ve ni guarda tu contraseña maestra,
+            y solo accede a tu proyecto durante los segundos que tarda la instalación.
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 14 }}>
+            <FeatureCard icon="lucide:key-round" color={C.blue} title="Sin contraseñas guardadas">
+              Usamos OAuth oficial de Supabase. Tu contraseña maestra nunca pasa por nuestros servidores.
+            </FeatureCard>
+            <FeatureCard icon="lucide:timer" color={C.brand} title="Acceso temporal">
+              El permiso se usa una sola vez para instalar la base de datos y se descarta inmediatamente después.
+            </FeatureCard>
+            <FeatureCard icon="lucide:lock" color={C.green} title="Cifrado siempre activo">
+              Toda la comunicación viaja cifrada (TLS) y los datos se guardan cifrados en reposo.
+            </FeatureCard>
+          </div>
+
+          <Callout type="tip" icon="lucide:info">
+            Puedes revocar el acceso de tinypos a tu cuenta de Supabase en cualquier momento
+            desde tu panel de Supabase. Tu base de datos seguirá funcionando con normalidad.
+          </Callout>
+        </div>
+
+        <hr style={styles.divider} />
+
+        {/* Value Prop 4 — Cost */}
+        <div style={{ marginBottom: 32 }}>
+          <p style={styles.sectionLabel}>Costo</p>
+          <h2 style={styles.sectionTitle}>Tu ERP en la nube por <span style={{ color: C.green }}>$0</span></h2>
+          <p style={styles.sectionDesc}>
+            Supabase es <strong>100% gratis</strong> en su tier gratuito — y con margen de sobra
+            para cualquier negocio pequeño o mediano. No pides tarjeta, no hay periodo de prueba,
+            no hay cargos sorpresa.
+          </p>
+
+          <div style={{
+            background: C.surface, border: `1px solid ${C.border}`,
+            borderRadius: 16, padding: '28px',
+            display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+          }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: 16,
+              background: `${C.green}15`, color: C.green,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.8rem', flexShrink: 0,
+            }}>
+              <Icon icon="lucide:gift" />
+            </div>
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <div style={{ fontWeight: 900, fontSize: '1.1rem', marginBottom: 6, color: C.text }}>
+                Tier gratuito de Supabase
+              </div>
+              <div style={{ fontSize: '0.88rem', color: C.muted, lineHeight: 1.7 }}>
+                500 MB de base de datos, 5 GB de transferencia mensual y respaldos automáticos —
+                suficiente para años de operación de un negocio típico.
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* FAQ */}
         <hr style={styles.divider} />
@@ -814,24 +404,24 @@ export default function SupabaseGuide({ onBack }) {
 
           {[
             {
-              q: '¿Necesito saber programar?',
-              a: 'No. Todo lo que necesitas es crear una cuenta en Supabase y copiar dos códigos. tinypos hace el resto automáticamente.',
+              q: '¿Necesito saber de tecnología?',
+              a: 'No. Solo tienes que iniciar sesión con tu cuenta de Supabase. Tinypos se encarga del resto — no escribirás una sola línea de código ni tocarás ningún panel técnico.',
             },
             {
-              q: '¿Qué pasa si pierdo mis llaves?',
-              a: 'Puedes encontrarlas de nuevo en cualquier momento en supabase.com → tu proyecto → Project Settings → API. También puedes exportarlas desde tinypos con el botón "Exportar llaves".',
+              q: '¿Qué tan privado es realmente?',
+              a: 'Tu base de datos vive en una cuenta de Supabase a tu nombre. Tinypos no tiene acceso permanente a tu información — solo durante los segundos de la instalación inicial, mediante OAuth oficial.',
             },
             {
-              q: '¿Puedo usar tinypos en varias tablets?',
-              a: 'Sí. Guarda el archivo keys.tiny que se descarga al instalar. En cada dispositivo adicional, elige "Conectar dispositivo existente" y sube ese archivo.',
+              q: '¿Puedo usarlo en varias tablets o computadoras?',
+              a: 'Sí. Puedes vincular todos los dispositivos que necesites a la misma tienda y todos se sincronizan automáticamente.',
             },
             {
-              q: '¿Mis datos están seguros?',
-              a: 'Sí. Supabase usa cifrado en tránsito y en reposo. Además, tinypos configura automáticamente las reglas de seguridad para que solo tus dispositivos autorizados puedan acceder.',
+              q: '¿Funciona sin internet?',
+              a: 'Sí. Tinypos sigue vendiendo aunque se caiga el internet — guarda todo localmente y sincroniza con tu nube en cuanto vuelve la conexión.',
             },
             {
-              q: '¿Qué pasa cuando mi base de datos se pausa?',
-              a: 'tinypos sigue funcionando — guarda todo localmente. Cuando reactives tu base de datos en supabase.com, todo se sincroniza automáticamente en el fondo.',
+              q: '¿Y si algún día quiero cambiarme?',
+              a: 'Tu información es tuya. Como la base de datos vive en tu propia cuenta de Supabase, puedes exportar o migrar todo cuando quieras, sin pedir permiso a nadie.',
             },
           ].map((item, i) => (
             <FAQItem key={i} q={item.q} a={item.a} />
@@ -849,9 +439,9 @@ export default function SupabaseGuide({ onBack }) {
               />
             </div>
           </div>
-          <h2 style={styles.ctaTitle}>¿Todo listo?</h2>
+          <h2 style={styles.ctaTitle}>Tu nube te está esperando</h2>
           <p style={styles.ctaDesc}>
-            Ya tienes todo lo que necesitas. Regresa a tinypos y pega tus llaves.
+            Un clic en <strong>Conectar</strong> y tendrás tu propia base de datos lista para vender.
           </p>
           <button
             style={styles.btnPrimary}
@@ -860,46 +450,11 @@ export default function SupabaseGuide({ onBack }) {
             onClick={onBack}
           >
             <Icon icon="lucide:rocket" />
-            Volver a tinypos
+            Entendido, ¡vamos!
           </button>
         </div>
 
       </div>
-    </div>
-  );
-}
-
-function FAQItem({ q, a }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{
-      borderBottom: `1px solid ${C.border}`,
-      padding: '16px 0',
-    }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', background: 'none', border: 'none',
-          display: 'flex', justifyContent: 'space-between',
-          alignItems: 'center', gap: 16, cursor: 'pointer',
-          textAlign: 'left', padding: 0,
-          color: C.text,
-        }}
-      >
-        <span style={{ fontWeight: 800, fontSize: '0.95rem' }}>{q}</span>
-        <Icon
-          icon={open ? 'lucide:minus' : 'lucide:plus'}
-          style={{ color: C.muted, flexShrink: 0, fontSize: '1rem' }}
-        />
-      </button>
-      {open && (
-        <p style={{
-          fontSize: '0.85rem', color: C.muted,
-          lineHeight: 1.75, marginTop: 12, paddingRight: 24,
-        }}>
-          {a}
-        </p>
-      )}
     </div>
   );
 }
