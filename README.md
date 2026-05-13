@@ -57,11 +57,12 @@ All three share a single Supabase project per tenant.
 - Live sync status indicator; full i18n (EN/ES).
 
 ### 📈 Admin Dashboard ([`src/Admin.jsx`](src/Admin.jsx))
-- Revenue / refunds / payment-mix analytics.
+- Revenue / refunds / **payment-method reconciliation** (card / cash / transfer split).
 - **Inventory + The Roaster:** raw stock, multi-warehouse linking, BOM recipes, green-to-finished transformation with shrinkage + cost-per-gram.
 - **COGS / Profit Engine:** target margin → recommended price, computed from live ingredient cost.
-- **Activity audit log:** every sale, refund, menu edit, and corte.
+- **Activity audit log:** every sale, refund, menu edit, inventory deletion, and corte.
 - **Device Provisioning** ([`api/add-device.js`](api/add-device.js)): add new POS terminals from the admin panel without touching the Supabase dashboard.
+- **Pending Sync Inspector** ([`src/components/admin/PendingSyncCard.jsx`](src/components/admin/PendingSyncCard.jsx)): admin-only tool to inspect and surgically discard queued offline data (sales, expenses, inventory, menu updates, WhatsApp receipts) in case of sync errors — accessed via the Devices tab with PIN re-entry required.
 
 ### 📱 Loyalty + Receipts
 - Phone-number loyalty with both **recurring** and **single-use** programs (see migrations `006`–`008`). Accrual is bound to `sales` inserts via a Postgres trigger, so receipt resends never double-count.
