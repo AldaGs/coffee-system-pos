@@ -4,7 +4,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay, millicentsToCents, normalizeUnitCostToMillicents } from '../../utils/moneyUtils';
 import { computeCogsAndWastage } from '../../utils/cogsMath';
 
-function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [] }) {
+function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [], salesByMethod = {} }) {
   const { t } = useTranslation();
 
   // --- TRUE PROFIT MATH ENGINE ---
@@ -408,6 +408,57 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
               ))}
             </div>
           )}
+        </div>
+
+        {/* SALES BY PAYMENT METHOD — reconciliation aid */}
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '4px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
+            <Icon icon="lucide:wallet-cards" style={{ color: '#16a085' }} />
+            {t('analytics.salesByMethod')}
+          </h3>
+          <p style={{ margin: '0 0 20px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('analytics.salesByMethodDesc')}</p>
+          {(() => {
+            const rows = [
+              { key: 'Cash', label: t('analytics.methodCash'), icon: 'lucide:banknote', color: '#27ae60' },
+              { key: 'Card', label: t('analytics.methodCard'), icon: 'lucide:credit-card', color: '#2980b9' },
+              { key: 'Transfer', label: t('analytics.methodTransfer'), icon: 'lucide:arrow-left-right', color: '#8e44ad' }
+            ];
+            const total = rows.reduce((s, r) => s + (salesByMethod[r.key]?.amount || 0), 0);
+            if (total === 0) {
+              return <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noMethodData')}</p>;
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {rows.map(r => {
+                  const amount = salesByMethod[r.key]?.amount || 0;
+                  const count = salesByMethod[r.key]?.count || 0;
+                  const pct = total > 0 ? (amount / total) * 100 : 0;
+                  return (
+                    <div key={r.key} style={{ padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ height: '40px', width: '40px', borderRadius: '12px', background: r.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon icon={r.icon} style={{ fontSize: '1.2rem' }} />
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: '800', color: 'var(--text-main)' }}>{r.label}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{count} {t('analytics.tickets')}</div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '1.2rem', fontWeight: '900', color: r.color }}>{formatForDisplay(amount)}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{pct.toFixed(1)}%</div>
+                        </div>
+                      </div>
+                      <div style={{ height: '6px', borderRadius: '999px', background: 'var(--border)', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${pct}%`, background: r.color, transition: 'width 0.3s ease' }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* COGS BY PRODUCT */}

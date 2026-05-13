@@ -295,6 +295,12 @@ export const translations = {
     "analytics.noCogsData": "No tracked product costs in this period.",
     "analytics.untrackedWarning": "{count} item(s) sold without inventory tracking — COGS may be understated.",
     "analytics.cost": "cost",
+    "analytics.salesByMethod": "Sales by Payment Method",
+    "analytics.salesByMethodDesc": "Where to find the money to reconcile",
+    "analytics.methodCash": "Cash",
+    "analytics.methodCard": "Card",
+    "analytics.methodTransfer": "Transfer",
+    "analytics.noMethodData": "No sales recorded in this period.",
 
     // --- Discounts Tab ---
     "disc.title": "Automated Discount Rules",
@@ -1262,6 +1268,12 @@ export const translations = {
     "analytics.noCogsData": "Sin costos registrados en este periodo.",
     "analytics.untrackedWarning": "{count} producto(s) vendidos sin seguimiento de inventario — el COGS puede estar subestimado.",
     "analytics.cost": "costo",
+    "analytics.salesByMethod": "Ventas por Método de Pago",
+    "analytics.salesByMethodDesc": "Dónde buscar el dinero para conciliar",
+    "analytics.methodCash": "Efectivo",
+    "analytics.methodCard": "Tarjeta",
+    "analytics.methodTransfer": "Transferencia",
+    "analytics.noMethodData": "No hay ventas registradas en este periodo.",
 
     // --- Discounts Tab ---
     "disc.title": "Reglas de Descuento Automáticas",

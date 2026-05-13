@@ -785,6 +785,33 @@ function Admin() {
     }, {});
   }, [filteredSales]);
 
+  // Revenue split by tender — Cash / Card / Transfer — so the admin can
+  // reconcile each channel against drawer count, terminal totals, and bank.
+  // Mirrors the shift-corte math: full refunds drop out, partial refunds
+  // subtract from their tender, and Split sales attribute each leg.
+  const salesByMethod = useMemo(() => {
+    const tenders = ['Cash', 'Card', 'Transfer'];
+    const totals = Object.fromEntries(tenders.map(m => [m, { amount: 0, count: 0 }]));
+    filteredSales.forEach(sale => {
+      if (sale.status === 'refunded') return;
+      const net = (sale.total_amount || 0) - (sale.status === 'partial_refund' ? (sale.refund_amount || 0) : 0);
+      if (sale.payment_method === 'Split' && Array.isArray(sale.splits)) {
+        sale.splits.forEach(s => {
+          if (totals[s.method]) {
+            totals[s.method].amount += Number(s.amount) || 0;
+            totals[s.method].count += 1;
+          }
+        });
+        return;
+      }
+      if (totals[sale.payment_method]) {
+        totals[sale.payment_method].amount += net;
+        totals[sale.payment_method].count += 1;
+      }
+    });
+    return totals;
+  }, [filteredSales]);
+
   // 4. Find Top Items
   const topItemsArray = useMemo(() => {
     const itemCounts = {};
@@ -1233,6 +1260,7 @@ function Admin() {
             allSales={dexieSales}
             tipPayouts={tipPayouts}
             methodCounts={methodCounts}
+            salesByMethod={salesByMethod}
             topItemsArray={topItemsArray}
             filteredSales={filteredSales}
 
