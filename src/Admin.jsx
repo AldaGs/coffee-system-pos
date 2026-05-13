@@ -1157,7 +1157,7 @@ function Admin() {
       <div className={`admin-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)}></div>
 
       <aside className={`admin-aside ${isMobileMenuOpen ? 'open' : ''}`}>
-        <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:store" style={{ color: 'var(--brand-color)' }} />
             <span>{generalSettings.name} | admin</span>
@@ -1166,7 +1166,7 @@ function Admin() {
             <Icon icon="lucide:x" />
           </button>
         </div>
-        <nav style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1, gap: '4px' }}>
+        <nav style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1, gap: '4px', overflowY: 'auto', minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
           {[
             { id: 'analytics', icon: 'lucide:bar-chart-3', label: t('admin.analytics') },
             { id: 'orders', icon: 'lucide:receipt', label: t('admin.orders') },
@@ -1222,7 +1222,7 @@ function Admin() {
             );
           })}
         </nav>
-        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255,255,255,0.1)', flexShrink: 0 }}>
           {!generalSettings.isAdvancedMode && (
             <div
               onClick={() => switchTab('settings')}
