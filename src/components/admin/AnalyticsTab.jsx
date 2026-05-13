@@ -8,8 +8,15 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
   // --- TRUE PROFIT MATH ENGINE ---
   const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit, totalTips } = useMemo(() => {
-    // 1. Get the IDs and timestamps of the sales currently visible in the date filter
-    const relevantTicketIds = new Set(filteredSales.map(sale => String(sale.id)));
+    // 1. Get the IDs and timestamps of the sales currently visible in the date filter.
+    // Match on sale.ticket_id (the local ticket identifier written into inventory_logs.ticket_id),
+    // NOT sale.id (which is the row PK and never appears on logs).
+    const relevantTicketIds = new Set(
+      filteredSales
+        .map(sale => sale.ticket_id)
+        .filter(tid => tid !== undefined && tid !== null && tid !== '')
+        .map(String)
+    );
     const relevantTimestamps = new Set(filteredSales.map(sale => sale.created_at));
 
     let cogs = 0;
