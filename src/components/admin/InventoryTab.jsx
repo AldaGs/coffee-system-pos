@@ -200,7 +200,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         qty_deducted: Math.abs(variance),
         deduction_type: deductionType,
         created_at: new Date().toISOString(),
-        ticket_id: `AUDIT-${Date.now()}`
+        ticket_id: `AUDIT-${Date.now()}`,
+        unit_cost: unitCost,
+        local_id: crypto.randomUUID()
       };
 
       const { error: logError } = await supabase.from('inventory_logs').insert([auditLog]);
@@ -258,7 +260,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         qty_deducted: -qtyBought, // Negative means addition of stock
         deduction_type: 'restock',
         created_at: new Date().toISOString(),
-        ticket_id: `RESTOCK-${Date.now()}`
+        ticket_id: `RESTOCK-${Date.now()}`,
+        unit_cost: newUnitCostInMillicents,
+        local_id: crypto.randomUUID()
       };
       await supabase.from('inventory_logs').insert([restockLog]);
 

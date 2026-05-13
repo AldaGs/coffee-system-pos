@@ -50,11 +50,21 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
     // 2. Scan every inventory log ever recorded
     inventoryLogs.forEach(log => {
-      // Find the historical cost if available, otherwise fallback to current cost
+      // Restocks are stock IN (negative qty_deducted) and audit_correction means
+      // surplus found — neither belongs in wastage. Skip them entirely so they
+      // don't pollute the bucket.
+      if (log.deduction_type === 'restock' || log.deduction_type === 'audit_correction') return;
+
+      // Find the historical cost if available, otherwise fallback to current cost.
+      // Treat 0 as missing for non-sale logs because the supabase column defaults
+      // to 0 and legacy audit/waste rows never wrote a real cost — falling back to
+      // the current inventory cost is the only way to value them.
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
 
-      const rawCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
+      const isSale = log.deduction_type === 'sale';
+      const hasCost = log.unit_cost !== undefined && log.unit_cost !== null && (isSale || log.unit_cost > 0);
+      const rawCost = hasCost ? log.unit_cost : fallbackCost;
       const unitCost = normalizeUnitCostToMillicents(rawCost);
 
       // Millicents * Qty -> Millicents. Then / 100 -> Cents.
