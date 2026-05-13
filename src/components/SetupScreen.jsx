@@ -235,6 +235,36 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         END $$;
 
         -- ==========================================
+        -- ANALYTICS: backfill ticket_id on legacy sale logs so COGS attribution
+        -- works for installs that predate ticket_id (migration 009). Only fills
+        -- unambiguous matches; colliding timestamps stay NULL to avoid
+        -- misattribution.
+        -- ==========================================
+        WITH log_matches AS (
+          SELECT
+            il.id AS log_id,
+            (SELECT s.ticket_id
+               FROM public.sales s
+              WHERE s.created_at = il.created_at
+                AND s.ticket_id IS NOT NULL
+                AND s.ticket_id <> ''
+              LIMIT 1) AS resolved_ticket_id,
+            (SELECT COUNT(*)
+               FROM public.sales s
+              WHERE s.created_at = il.created_at
+                AND s.ticket_id IS NOT NULL
+                AND s.ticket_id <> '') AS match_count
+          FROM public.inventory_logs il
+          WHERE il.deduction_type = 'sale'
+            AND (il.ticket_id IS NULL OR il.ticket_id = '')
+        )
+        UPDATE public.inventory_logs il
+        SET ticket_id = lm.resolved_ticket_id
+        FROM log_matches lm
+        WHERE il.id = lm.log_id
+          AND lm.match_count = 1;
+
+        -- ==========================================
         -- TIPS LIABILITY: schema upgrade for existing installs + new ledger tables
         -- ==========================================
         ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS tip_refunded numeric DEFAULT 0;
