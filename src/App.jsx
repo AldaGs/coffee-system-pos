@@ -18,29 +18,7 @@ function App() {
     !!localStorage.getItem('tinypos_supabase_url') && !!localStorage.getItem('tinypos_supabase_anon_key')
   );
 
-  // --- PREVENT ACCIDENTAL REFRESH / NAVIGATION ---
-  useEffect(() => {
-    // 1. Prevent accidental refresh/close (shows browser warning)
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = ''; 
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    // 2. Prevent mobile navigation shortcuts (like swipe back/forward)
-    window.history.pushState(null, '', window.location.href);
-    const handlePopState = () => {
-      window.history.pushState(null, '', window.location.href);
-    };
-    window.addEventListener('popstate', handlePopState);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
-  const [showGuide, setShowGuide] = useState(false); 
+  const [showGuide, setShowGuide] = useState(false);
 
   // --- 2. SECURE SESSION STATE ---
   const [session, setSession] = useState(null);

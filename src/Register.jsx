@@ -37,6 +37,7 @@ import { useExpenses } from './hooks/useExpenses';
 import { useShiftStateValue } from './hooks/useShiftState';
 import { useTickets } from './hooks/useTickets';
 import { usePinChallenge } from './hooks/usePinChallenge';
+import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
@@ -61,6 +62,7 @@ const getOrCreateDeviceId = () => {
 
 
 function Register() {
+  usePreventAccidentalExit();
   const navigate = useNavigate();
   const { t, lang } = useTranslation();
 

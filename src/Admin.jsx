@@ -11,6 +11,7 @@ import { useDialog } from './hooks/useDialog';
 import { useTheme } from './hooks/useTheme';
 import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
+import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 
 import AnalyticsTab from './components/admin/AnalyticsTab';
 import OrdersTab from './components/admin/OrdersTab';
@@ -33,6 +34,7 @@ import { logActivity } from './services/activityService';
 import { toCents, fromCents, millicentsToCents, normalizeUnitCostToMillicents } from './utils/moneyUtils';
 
 function Admin() {
+  usePreventAccidentalExit();
   const navigate = useNavigate();
   const { showAlert, showConfirm } = useDialog();
   const { updateTheme } = useTheme();
