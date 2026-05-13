@@ -570,11 +570,49 @@ body.dark-mode {
   }
 }
 
-.input-error-shake {
+.input-error-shake,
+.shake {
   animation: shake-horizontal 0.4s cubic-bezier(.36, .07, .19, .97) both;
   border-color: #e74c3c !important;
   /* Flash red */
   color: #e74c3c !important;
+}
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20% {
+    transform: translateX(-10px);
+  }
+
+  40% {
+    transform: translateX(10px);
+  }
+
+  60% {
+    transform: translateX(-10px);
+  }
+
+  80% {
+    transform: translateX(10px);
+  }
+}
+
+/* Lockdown state while a PIN is being verified: dim + ignore all input.
+   Spinner / live regions should be marked .verifying-allow to stay interactive. */
+.verifying {
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity 0.2s ease;
+}
+
+.verifying .verifying-allow {
+  pointer-events: auto;
 }
 
 .lock-btn {
