@@ -80,8 +80,14 @@ export function useExpenses({ activeCashier, t, showAlert }) {
       if (!navigator.onLine) throw new Error('Device is offline');
       const { error } = await supabase.from('expenses').insert([cloudExpense]);
       if (error) throw error;
-    } catch {
-      console.warn('Cloud expense failed. Moving to offline queue.');
+    } catch (err) {
+      console.warn('Cloud expense failed. Moving to offline queue.', {
+        code: err?.code,
+        status: err?.status,
+        message: err?.message,
+        details: err?.details,
+        hint: err?.hint
+      });
       setExpenseQueue(prev => [...prev, cloudExpense]);
     }
 

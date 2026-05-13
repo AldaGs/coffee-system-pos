@@ -2,32 +2,17 @@ import { useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay, millicentsToCents, normalizeUnitCostToMillicents } from '../../utils/moneyUtils';
+import { computeCogsAndWastage } from '../../utils/cogsMath';
 
 function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [] }) {
   const { t } = useTranslation();
 
   // --- TRUE PROFIT MATH ENGINE ---
   const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit, totalTips } = useMemo(() => {
-    // 1. Get the IDs and timestamps of the sales currently visible in the date filter.
-    // Match on sale.ticket_id (the local ticket identifier written into inventory_logs.ticket_id),
-    // NOT sale.id (which is the row PK and never appears on logs).
-    const relevantTicketIds = new Set(
-      filteredSales
-        .map(sale => sale.ticket_id)
-        .filter(tid => tid !== undefined && tid !== null && tid !== '')
-        .map(String)
-    );
-    const relevantTimestamps = new Set(filteredSales.map(sale => sale.created_at));
-
-    let cogs = 0;
-    let waste = 0;
-    let tips = 0;
-
     // Tips are a custodial liability, not revenue. "Tips earned this period"
-    // = tip_amount - tip_refunded for each sale. tip_refunded is the authoritative
-    // record set by the refund flow. Legacy rows (pre-ledger) fall back to a
-    // pro-rata heuristic against refund_amount so historical analytics stay
-    // sensible until the data is backfilled.
+    // = tip_amount - tip_refunded for each sale. Legacy rows (pre-ledger) fall
+    // back to a pro-rata heuristic against refund_amount.
+    let tips = 0;
     filteredSales.forEach(sale => {
       const tip = Number(sale.tip_amount) || 0;
       if (!tip) return;
@@ -36,7 +21,6 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
         tips += Math.max(0, tip - Number(sale.tip_refunded));
         return;
       }
-      // Legacy fallback only.
       if (sale.status === 'refunded') return;
       if (sale.status === 'partial_refund') {
         const total = Number(sale.total_amount) || 0;
@@ -48,72 +32,11 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       }
     });
 
-    // 2. Scan every inventory log ever recorded
-    inventoryLogs.forEach(log => {
-      // Restocks are stock IN (negative qty_deducted) and audit_correction means
-      // surplus found — neither belongs in wastage. Skip them entirely so they
-      // don't pollute the bucket.
-      if (log.deduction_type === 'restock' || log.deduction_type === 'audit_correction') return;
-
-      // Find the historical cost if available, otherwise fallback to current cost.
-      // Treat 0 as missing for non-sale logs because the supabase column defaults
-      // to 0 and legacy audit/waste rows never wrote a real cost — falling back to
-      // the current inventory cost is the only way to value them.
-      const matchedItem = inventoryItems.find(i => i.name === log.item_name);
-      const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-
-      const isSale = log.deduction_type === 'sale';
-      const hasCost = log.unit_cost !== undefined && log.unit_cost !== null && (isSale || log.unit_cost > 0);
-      const rawCost = hasCost ? log.unit_cost : fallbackCost;
-      const unitCost = normalizeUnitCostToMillicents(rawCost);
-
-      // Millicents * Qty -> Millicents. Then / 100 -> Cents.
-      const financialImpact = millicentsToCents(log.qty_deducted * unitCost);
-
-      if (log.deduction_type === 'sale') {
-        // Prefer ticket_id (authoritative); fall back to timestamp for legacy
-        // logs missing ticket_id. Timestamp-only match can over-attribute when
-        // two unrelated sales share a created_at instant.
-        const hasTicket = log.ticket_id !== undefined && log.ticket_id !== null && log.ticket_id !== '';
-        const matched = hasTicket
-          ? relevantTicketIds.has(String(log.ticket_id))
-          : relevantTimestamps.has(log.created_at);
-        if (matched) {
-          cogs += financialImpact;
-        }
-      } else {
-        // Date-filter the wastage using the same timeFilter logic
-        if (timeFilter === 'all') {
-          waste += financialImpact;
-        } else {
-          const now = new Date();
-          const logDateStr = log.created_at || log.timestamp;
-          if (logDateStr) {
-            const logDate = new Date(logDateStr);
-            if (timeFilter === 'today') {
-              if (logDate.toDateString() === now.toDateString()) waste += financialImpact;
-            } else if (timeFilter === 'custom') {
-              if (dateRange?.start && dateRange?.end) {
-                const start = new Date(dateRange.start); start.setHours(0, 0, 0, 0);
-                const end = new Date(dateRange.end); end.setHours(23, 59, 59, 999);
-                if (logDate >= start && logDate <= end) waste += financialImpact;
-              } else {
-                waste += financialImpact;
-              }
-            } else {
-              const daysDifference = (now - logDate) / (1000 * 60 * 60 * 24);
-              if (timeFilter === 'week' && daysDifference <= 7) waste += financialImpact;
-              if (timeFilter === 'month' && daysDifference <= 30) waste += financialImpact;
-              if (timeFilter === '6months' && daysDifference <= 180) waste += financialImpact;
-              if (timeFilter === 'year' && daysDifference <= 365) waste += financialImpact;
-            }
-          }
-        }
-      }
+    const { totalCOGS: cogs, totalWastage: waste } = computeCogsAndWastage({
+      filteredSales, inventoryLogs, inventoryItems, timeFilter, dateRange
     });
 
     const gross = totalRevenue - cogs;
-    // gross already has refunds subtracted (totalRevenue is Net Revenue)
     const net = gross - waste - totalExpenses;
 
     return {
