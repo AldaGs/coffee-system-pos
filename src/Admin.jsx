@@ -764,8 +764,16 @@ function Admin() {
   }, [expenses, timeFilter, dateRange]);
 
   const totalExpenses = useMemo(() => {
+    // Exclude inventory-purchase bookkeeping rows. They represent stock asset
+    // transfers that COGS already recognizes when the items are sold, so
+    // counting them here too would double-subtract every restock dollar from
+    // Net Profit. Two prefixes exist: "Inventory Purchase:" (new item) and
+    // "RESTOCK:" (existing item) — both written by InventoryTab.
     return filteredExpenses
-      .filter(exp => !(exp.reason || '').startsWith('RESTOCK:'))
+      .filter(exp => {
+        const r = exp.reason || '';
+        return !r.startsWith('RESTOCK:') && !r.startsWith('Inventory Purchase:');
+      })
       .reduce((sum, exp) => sum + exp.amount, 0);
   }, [filteredExpenses]);
 

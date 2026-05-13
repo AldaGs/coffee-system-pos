@@ -58,11 +58,14 @@ export function computeCogsAndWastage({
     const impact = millicentsToCents(log.qty_deducted * unitCost);
 
     if (isSale) {
-      const hasTicket = log.ticket_id !== undefined && log.ticket_id !== null && log.ticket_id !== '';
-      const matched = hasTicket
-        ? relevantTicketIds.has(String(log.ticket_id))
-        : relevantTimestamps.has(log.created_at);
-      if (matched) cogs += impact;
+      // Try ticket_id first (authoritative). Fall back to timestamp when either
+      // side is missing a ticket_id — happens for legacy sales (sales row has
+      // no ticket_id but inventory_logs does, or vice versa). Without this
+      // fallback the COGS for those early sales silently drops to 0.
+      const hasLogTicket = log.ticket_id !== undefined && log.ticket_id !== null && log.ticket_id !== '';
+      const ticketMatch = hasLogTicket && relevantTicketIds.has(String(log.ticket_id));
+      const timestampMatch = relevantTimestamps.has(log.created_at);
+      if (ticketMatch || timestampMatch) cogs += impact;
     } else if (isLogInTimeFilter(log, timeFilter, dateRange, now)) {
       waste += impact;
     }

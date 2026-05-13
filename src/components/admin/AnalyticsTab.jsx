@@ -69,48 +69,75 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
   // line's revenue (basePrice * qty). Items without inventoryMode/recipe
   // linkage are flagged separately so the user knows COGS is understated.
   const { cogsByProduct, untrackedItemCount } = useMemo(() => {
+    // Join sales <-> logs on the strongest available key. Build a Set of valid
+    // ticket_ids from sales, and a Set of timestamps. For each log, attribute
+    // its cost to (a) the sale that shares its ticket_id, or failing that
+    // (b) the sale that shares its created_at instant. This matches the
+    // totalCOGS engine in cogsMath.js and rescues legacy sales whose row in
+    // `sales` was written before ticket_id was populated.
     const relevantTicketIds = new Set(
       filteredSales
         .map(sale => sale.ticket_id)
         .filter(tid => tid !== undefined && tid !== null && tid !== '')
         .map(String)
     );
+    const salesByTimestamp = new Map();
+    filteredSales.forEach(sale => {
+      if (sale.created_at) salesByTimestamp.set(sale.created_at, sale);
+    });
 
-    const costByTicket = new Map();
+    const saleJoinKey = (sale) => {
+      const tid = sale.ticket_id ? String(sale.ticket_id) : null;
+      return tid ? `t:${tid}` : `ts:${sale.created_at}`;
+    };
+
+    const costByJoinKey = new Map();
     inventoryLogs.forEach(log => {
       if (log.deduction_type !== 'sale') return;
-      if (!log.ticket_id) return;
-      const tid = String(log.ticket_id);
-      if (!relevantTicketIds.has(tid)) return;
+      const hasLogTicket = log.ticket_id !== undefined && log.ticket_id !== null && log.ticket_id !== '';
+      let joinKey = null;
+      if (hasLogTicket && relevantTicketIds.has(String(log.ticket_id))) {
+        joinKey = `t:${String(log.ticket_id)}`;
+      } else if (salesByTimestamp.has(log.created_at)) {
+        joinKey = `ts:${log.created_at}`;
+      }
+      if (!joinKey) return;
       const matchedItem = inventoryItems.find(i => i.name === log.item_name);
       const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
       const rawCost = (log.unit_cost !== undefined && log.unit_cost !== null) ? log.unit_cost : fallbackCost;
       const unitCost = normalizeUnitCostToMillicents(rawCost);
       const impact = millicentsToCents(log.qty_deducted * unitCost);
-      costByTicket.set(tid, (costByTicket.get(tid) || 0) + impact);
+      costByJoinKey.set(joinKey, (costByJoinKey.get(joinKey) || 0) + impact);
     });
 
     const byProduct = {};
     let untrackedQty = 0;
 
     filteredSales.forEach(sale => {
-      const tid = sale.ticket_id ? String(sale.ticket_id) : null;
-      const ticketCogs = (tid && costByTicket.get(tid)) || 0;
+      const ticketCogs = costByJoinKey.get(saleJoinKey(sale)) || 0;
       const items = Array.isArray(sale.items) ? sale.items : [];
       if (items.length === 0) return;
 
-      const lineValues = items.map(it => (Number(it.basePrice ?? it.price) || 0) * (Number(it.qty) || 1));
+      // Only inventory-backed items absorb COGS. Lines like "Envio" or other
+      // fee items (inventoryMode: 'none') have no stock cost — allocating to
+      // them inflates their "COGS" and starves real products.
+      const trackedFlags = items.map(it =>
+        (it.inventoryMode === 'standard' && it.linkedWarehouseId) ||
+        (it.inventoryMode === 'recipe' && it.linkedRecipeId)
+      );
+      const lineValues = items.map((it, i) =>
+        trackedFlags[i] ? (Number(it.basePrice ?? it.price) || 0) * (Number(it.qty) || 1) : 0
+      );
       const totalLineValue = lineValues.reduce((s, v) => s + v, 0);
 
       items.forEach((it, idx) => {
         const name = it.name || 'Unknown';
         const qty = Number(it.qty) || 1;
-        const tracked =
-          (it.inventoryMode === 'standard' && it.linkedWarehouseId) ||
-          (it.inventoryMode === 'recipe' && it.linkedRecipeId);
-        if (!tracked) untrackedQty += qty;
-
-        const share = totalLineValue > 0 ? lineValues[idx] / totalLineValue : 1 / items.length;
+        if (!trackedFlags[idx]) {
+          untrackedQty += qty;
+          return;
+        }
+        const share = totalLineValue > 0 ? lineValues[idx] / totalLineValue : 1;
         const itemCogs = ticketCogs * share;
         if (!byProduct[name]) byProduct[name] = { qty: 0, cogs: 0 };
         byProduct[name].qty += qty;
@@ -134,7 +161,10 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
   const expensesByCategory = useMemo(() => {
     return filteredExpenses
-      .filter(exp => !(exp.reason || '').startsWith('RESTOCK:'))
+      .filter(exp => {
+        const r = exp.reason || '';
+        return !r.startsWith('RESTOCK:') && !r.startsWith('Inventory Purchase:');
+      })
       .reduce((acc, exp) => {
         const category = exp.category || 'General';
         acc[category] = (acc[category] || 0) + exp.amount;
