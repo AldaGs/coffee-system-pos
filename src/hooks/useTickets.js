@@ -45,7 +45,8 @@ export function useTickets({
           name: ticketName,
           items: [],
           cashier_id: activeCashier?.id,
-          last_modified_by: myDeviceId
+          last_modified_by: myDeviceId,
+          created_at: new Date().toISOString()
         };
 
         await db.active_tickets.add(newTicket);

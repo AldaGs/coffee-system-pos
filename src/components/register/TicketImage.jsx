@@ -43,9 +43,9 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
       <div style={{ margin: '10px 0', fontSize: '12px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Ticket: {ticket.name || ticket.order_name || `#${ticket.id}`}</span>
-          <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
+          <span>{(ticket.created_at ? new Date(ticket.created_at) : new Date()).toLocaleDateString()}</span>
         </div>
-        <div>{new Date(ticket.created_at).toLocaleTimeString()}</div>
+        <div>{(ticket.created_at ? new Date(ticket.created_at) : new Date()).toLocaleTimeString()}</div>
       </div>
 
       <div style={{ borderTop: '1px dashed black', margin: '10px 0' }}></div>
