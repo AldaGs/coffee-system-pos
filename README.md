@@ -60,9 +60,17 @@ All three share a single Supabase project per tenant.
 - Revenue / refunds / **payment-method reconciliation** (card / cash / transfer split).
 - **Inventory + The Roaster:** raw stock, multi-warehouse linking, BOM recipes, green-to-finished transformation with shrinkage + cost-per-gram.
 - **COGS / Profit Engine:** target margin → recommended price, computed from live ingredient cost.
-- **Activity audit log:** every sale, refund, menu edit, inventory deletion, and corte.
+- **Activity audit log** ([`src/services/activityLog.js`](src/services/activityLog.js)): every sale, **refund** (commit `5e7baf0`), **settings save**, menu edit, **inventory deletion** (with reason + category metadata), and corte.
+- **P&L / Analytics engine** ([`src/components/admin/AnalyticsTab.jsx`](src/components/admin/AnalyticsTab.jsx)): per-product COGS matched by `ticket_id` (not sale PK — see `8700dbc`), wastage reconciled against `inventory_logs` audit trail, fee allocation, opex de-duplication, and **tips treated as a custodial liability** with its own ledger (commit `7c26096`). Excel export reconciles 1:1 with on-screen totals.
 - **Device Provisioning** ([`api/add-device.js`](api/add-device.js)): add new POS terminals from the admin panel without touching the Supabase dashboard.
 - **Pending Sync Inspector** ([`src/components/admin/PendingSyncCard.jsx`](src/components/admin/PendingSyncCard.jsx)): admin-only tool to inspect and surgically discard queued offline data (sales, expenses, inventory, menu updates, WhatsApp receipts) in case of sync errors — accessed via the Devices tab with PIN re-entry required.
+
+### 🧾 Tickets & Register Internals
+- Active tickets persisted in Dexie via [`useTickets`](src/hooks/useTickets.js) hook (Phase 3 refactor — commits `8a8e20b`, `e266280`); `created_at` is set on creation to avoid Invalid Date in the sidebar (`908fd50`).
+- Sync queue isolated in [`useSyncQueue`](src/hooks/useSyncQueue.js).
+- PIN challenges centralized via `usePinChallenge` + `PinChallengeModal` (commit `4fde287` locks UI during verification).
+- Cash discrepancy warning on corte close (`06eed65`).
+- Cross-device expense merge using cloud `local_id` (`dfb432b`).
 
 ### 📱 Loyalty + Receipts
 - Phone-number loyalty with both **recurring** and **single-use** programs (see migrations `006`–`008`). Accrual is bound to `sales` inserts via a Postgres trigger, so receipt resends never double-count.
@@ -155,6 +163,24 @@ PRs welcome. Please:
 2. Add a Vitest case for any change to [`src/utils/posMath.js`](src/utils/posMath.js).
 3. New mutable tables must carry a `local_id uuid UNIQUE` and be wired into the relevant syncer.
 4. New tables must ship with RLS enabled in the same migration.
+
+---
+
+## 🗺️ Roadmap
+
+Planned / under consideration. Not yet implemented — do not assume any of this exists in code.
+
+### Auth & Onboarding
+- **Google OAuth login for cafe owners.** Replace the email/password step on the TinyPOS login screen with `supabase.auth.signInWithOAuth({ provider: 'google' })`. Setup is dashboard-only (Google Cloud Console client + Supabase provider config); no schema changes. **Note:** this only replaces the *identity* step — the existing Supabase Management OAuth flow in [`api/auth/callback.js`](api/auth/callback.js) still has to run during onboarding, because Google identity does not grant access to the owner's Supabase project. The two consents are independent: Google = "who are you," Supabase OAuth = "can TinyPOS provision your database."
+- Optional Google Workspace `hd` domain restriction for multi-staff cafes.
+- Auto-link existing email/password accounts to the matching Google identity on first OAuth sign-in.
+
+### Analytics
+- Time-of-day heatmap on top of the existing payment-method reconciliation card.
+- Per-cashier sales attribution surfaced in the audit log view.
+
+### Hardware
+- Cash drawer kick signal piped through the Local Print Bridge.
 
 ---
 
