@@ -7,6 +7,7 @@ import SetupScreen from './components/SetupScreen';
 import LandingPage from './components/LandingPage';
 import SupabaseGuide from './components/SupabaseGuide';
 import RecipeCostCalculator from './components/RecipeCostCalculator';
+import StreetDirectionChecker from './components/StreetDirectionChecker';
 import { supabase } from './supabaseClient';
 import UpdateNotification from './components/shared/UpdateNotification';
 
@@ -116,6 +117,10 @@ function App() {
 
   if (window.location.pathname === '/calculator') {
     return <RecipeCostCalculator />;
+  }
+
+  if (window.location.pathname === '/street-checker') {
+    return <StreetDirectionChecker />;
   }
 
   // --- NEW GATE: THE GUIDE ---
