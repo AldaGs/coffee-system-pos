@@ -11,9 +11,9 @@ const RESOURCE_IDS = [
   'ccc00934-99b4-44b4-841a-350159ddba5c',
 ];
 
-// Common column name variants used in Mexican government GIS datasets
-const NAME_COLS = ['NOMBRE_VIA', 'NOM_VIA', 'NOMBRE', 'nombre_via', 'nombre', 'NOM_CALLE', 'CALLE', 'VIA', 'VIALIDAD', 'NOMBRE_VIALIDAD'];
-const DIR_COLS  = ['SENTIDO', 'sentido', 'SENTIDO_VIAL', 'SENTIDO_DE_CIRCULACION', 'CIRCULACION', 'ONEWAY', 'one_way', 'DIRECCION'];
+// Column names confirmed from JerarquizacionVial.csv + common CKAN variants
+const NAME_COLS = ['Nombre', 'NOMBRE_VIA', 'NOM_VIA', 'NOMBRE', 'nombre_via', 'nombre', 'NOM_CALLE', 'CALLE', 'VIA', 'VIALIDAD', 'NOMBRE_VIALIDAD'];
+const DIR_COLS  = ['Circulación', 'Circulacion', 'SENTIDO', 'sentido', 'SENTIDO_VIAL', 'SENTIDO_DE_CIRCULACION', 'CIRCULACION', 'ONEWAY', 'one_way', 'DIRECCION'];
 
 function detectCols(record) {
   const keys = Object.keys(record).filter(k => k !== '_id');
@@ -29,11 +29,12 @@ function parseDirection(raw) {
   if (raw == null || raw === '') return { label: 'Sin dato', type: 'unknown' };
   const v = String(raw).toUpperCase().trim();
 
-  if (/AMBOS|BOTH|DOBLE|B(?:\b|$)|^2$/.test(v))
-    return { label: 'Doble sentido', type: 'both', icon: 'lucide:arrow-left-right' };
+  // Values confirmed in JerarquizacionVial.csv: "Dos sentidos" | "Un sentido"
+  if (/DOS\s*SENTIDOS|AMBOS|BOTH|DOBLE|B(?:\b|$)|^2$/.test(v))
+    return { label: 'Dos sentidos (doble)', type: 'both', icon: 'lucide:arrow-left-right' };
 
-  if (/UN\s*SOLO|ÚNICO|UNICO|UN\s*SENTIDO|ONE.WAY|^1$|^F$|^S$|^T$/.test(v) || /[NSEO]-[NSEO]/.test(v))
-    return { label: `Un solo sentido${/[NSEO]-[NSEO]/.test(v) ? ` (${raw})` : ''}`, type: 'one', icon: 'lucide:arrow-right' };
+  if (/UN\s*S[EI]NTIDO|UN\s*SOLO|ÚNICO|UNICO|ONE.WAY|^1$|^F$|^S$|^T$/.test(v) || /[NSEO]-[NSEO]/.test(v))
+    return { label: `Un sentido${/[NSEO]-[NSEO]/.test(v) ? ` (${raw})` : ''}`, type: 'one', icon: 'lucide:arrow-right' };
 
   return { label: raw, type: 'unknown', icon: 'lucide:help-circle' };
 }
@@ -261,9 +262,13 @@ export default function StreetDirectionChecker() {
             </div>
 
             {results.records.length === 0 ? (
-              <div style={{ background: 'white', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', color: '#64748b', border: '1px solid #e2e8f0' }}>
-                <Icon icon="lucide:map-pin-off" style={{ fontSize: '2rem', marginBottom: '10px', display: 'block', margin: '0 auto 10px' }} />
-                <p style={{ margin: 0 }}>No se encontraron vialidades con ese nombre en el dataset oficial.</p>
+              <div style={{ background: 'white', borderRadius: '12px', padding: '32px 20px', textAlign: 'center', color: '#64748b', border: '1px solid #e2e8f0' }}>
+                <Icon icon="lucide:map-pin-off" style={{ fontSize: '2rem', display: 'block', margin: '0 auto 10px' }} />
+                <p style={{ margin: '0 0 8px', fontWeight: '700', color: '#374151' }}>No encontrada en el dataset oficial</p>
+                <p style={{ margin: 0, fontSize: '0.83rem' }}>
+                  Esta vialidad no aparece en la Jerarquización Vial del municipio de Puebla.<br />
+                  Puede ser una calle privada, un fraccionamiento no capturado, o estar registrada con otro nombre.
+                </p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
