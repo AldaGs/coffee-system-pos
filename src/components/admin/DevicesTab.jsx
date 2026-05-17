@@ -2,6 +2,7 @@ import { Icon } from '@iconify/react';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import PendingSyncCard from './PendingSyncCard';
+import AllowlistSection from './AllowlistSection';
 
 const DEVICE_EMAIL_DOMAIN = 'device.tinypos.com';
 
@@ -436,6 +437,8 @@ function DevicesTab({ showAlert, showConfirm }) {
           </div>
         </div>
       )}
+
+      <AllowlistSection showAlert={showAlert} showConfirm={showConfirm} />
 
       <PendingSyncCard showAlert={showAlert} showConfirm={showConfirm} />
     </div>
