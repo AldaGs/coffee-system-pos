@@ -26,6 +26,7 @@ function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [authError, setAuthError] = useState("");
 
   // Automatically jump to the Setup Screen if returning from Supabase OAuth.
   // The original mode ('new' | 'connect') was stashed in sessionStorage before
@@ -62,44 +63,91 @@ function App() {
   });
 
   // --- 3. CHECK SUPABASE AUTH STATUS ---
+  //
+  // After any successful sign-in we enforce the unified app_users allowlist:
+  //   1. Try to claim a pending row (auth_user_id IS NULL) matching the email
+  //      — RLS lets the user UPDATE only that row, only to set their auth.uid().
+  //   2. Verify a non-disabled row now exists for this auth.uid(). If not, sign
+  //      out immediately. Devices and the first human are seeded by the
+  //      bootstrap_app_user trigger so they pass this check transparently.
   useEffect(() => {
-    // ONLY check session if the database is actually installed and the client exists
-    if (isInstalled && supabase) {
-      supabase.auth.getSession().then(({ data: { session }, error }) => {
-        if (error) {
-          console.error("Auth session check error:", error.message);
-          // If the token is invalid/not found, we must clear the local session 
-          // so the user can re-authorize.
-          if (error.message.includes('Refresh Token Not Found') || error.status === 400) {
-            supabase.auth.signOut().then(() => {
-              setSession(null);
-              setIsCheckingSession(false);
-            });
-            return;
-          }
-        }
-        setSession(session);
-        setIsCheckingSession(false);
-      });
-
-      // Listen for background logouts/logins
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        console.log("Auth State Change:", event);
-        if (event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
-          setSession(session);
-        } else if (session) {
-          setSession(session);
-        }
-      });
-
-      return () => subscription.unsubscribe();
-    } else {
+    if (!isInstalled || !supabase) {
       setTimeout(() => setIsCheckingSession(false), 0);
+      return;
     }
+
+    const verifyAllowlist = async (sess) => {
+      if (!sess?.user?.email) return false;
+      const emailLower = sess.user.email.toLowerCase();
+      // Best-effort claim of a pending row. If there's nothing to claim,
+      // either this user is already claimed or they aren't on the allowlist
+      // — the SELECT below is the source of truth.
+      await supabase
+        .from('app_users')
+        .update({ auth_user_id: sess.user.id })
+        .is('auth_user_id', null)
+        .eq('email', emailLower)
+        .is('disabled_at', null);
+
+      const { data: row } = await supabase
+        .from('app_users')
+        .select('id')
+        .eq('auth_user_id', sess.user.id)
+        .is('disabled_at', null)
+        .maybeSingle();
+      return !!row;
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session: sess }, error }) => {
+      if (error) {
+        console.error("Auth session check error:", error.message);
+        if (error.message.includes('Refresh Token Not Found') || error.status === 400) {
+          await supabase.auth.signOut();
+          setSession(null);
+          setIsCheckingSession(false);
+          return;
+        }
+      }
+      if (sess) {
+        const ok = await verifyAllowlist(sess);
+        if (!ok) {
+          await supabase.auth.signOut();
+          setSession(null);
+          setAuthError('Esta cuenta no está autorizada. Pide al administrador que la agregue.');
+          setIsCheckingSession(false);
+          return;
+        }
+      }
+      setSession(sess);
+      setIsCheckingSession(false);
+    });
+
+    // Listen for background logouts/logins
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
+      console.log("Auth State Change:", event);
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        return;
+      }
+      if (event === 'SIGNED_IN' && sess) {
+        const ok = await verifyAllowlist(sess);
+        if (!ok) {
+          await supabase.auth.signOut();
+          setSession(null);
+          setAuthError('Esta cuenta no está autorizada. Pide al administrador que la agregue.');
+          return;
+        }
+        setAuthError("");
+      }
+      if (sess) setSession(sess);
+    });
+
+    return () => subscription.unsubscribe();
   }, [isInstalled]);
 
   const handleDeviceLogin = async (e) => {
     e.preventDefault();
+    setAuthError("");
     setIsLoggingIn(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -108,6 +156,17 @@ function App() {
     }
 
     setIsLoggingIn(false);
+  };
+
+  const handleGoogleLogin = async () => {
+    setAuthError("");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    if (error) {
+      window.alert("Google sign-in failed: " + error.message);
+    }
   };
 
   // ==========================================
@@ -205,6 +264,28 @@ function App() {
                 </>
               )}
             </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>o</span>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              style={{ padding: '14px', background: 'white', color: '#202124', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
+            >
+              <Icon icon="logos:google-icon" />
+              <span>Continuar con Google</span>
+            </button>
+
+            {authError && (
+              <div style={{ background: 'rgba(231,76,60,0.08)', border: '1px solid rgba(231,76,60,0.25)', color: '#c0392b', padding: '10px 14px', borderRadius: '12px', fontSize: '0.9rem', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <Icon icon="lucide:alert-circle" style={{ flexShrink: 0, marginTop: 2 }} />
+                <span>{authError}</span>
+              </div>
+            )}
           </form>
         </div>
       </div>
