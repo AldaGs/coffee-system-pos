@@ -455,6 +455,107 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           RETURNING inv.id, inv.name, inv.current_stock;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+        -- ==========================================
+        -- APP USERS: unified allowlist for who may sign into this tinypos.
+        -- Mirrors the block in api/install.js — keep them in sync.
+        -- ==========================================
+        CREATE TABLE IF NOT EXISTS public.app_users (
+          id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          email        text NOT NULL UNIQUE,
+          role         text NOT NULL DEFAULT 'employee',
+          auth_user_id uuid UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL,
+          provider     text,
+          created_by   uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+          created_at   timestamptz NOT NULL DEFAULT now(),
+          disabled_at  timestamptz
+        );
+        CREATE INDEX IF NOT EXISTS idx_app_users_email_lower ON public.app_users (lower(email));
+
+        CREATE OR REPLACE FUNCTION public.is_app_admin(p_user_id uuid)
+        RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE
+        SET search_path = public AS $$
+          SELECT EXISTS (
+            SELECT 1 FROM public.app_users
+            WHERE auth_user_id = p_user_id AND role = 'admin' AND disabled_at IS NULL
+          );
+        $$;
+
+        ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
+
+        DROP POLICY IF EXISTS "Users can read own row"        ON public.app_users;
+        DROP POLICY IF EXISTS "Users can read pending row"    ON public.app_users;
+        DROP POLICY IF EXISTS "Users can claim pending row"   ON public.app_users;
+        DROP POLICY IF EXISTS "Admins can read all"           ON public.app_users;
+        DROP POLICY IF EXISTS "Admins can insert"             ON public.app_users;
+        DROP POLICY IF EXISTS "Admins can update"             ON public.app_users;
+        DROP POLICY IF EXISTS "Admins can delete"             ON public.app_users;
+
+        CREATE POLICY "Users can read own row" ON public.app_users
+          FOR SELECT TO authenticated USING (auth_user_id = auth.uid());
+        CREATE POLICY "Users can read pending row" ON public.app_users
+          FOR SELECT TO authenticated
+          USING (auth_user_id IS NULL AND lower(email) = lower(auth.jwt() ->> 'email'));
+        CREATE POLICY "Users can claim pending row" ON public.app_users
+          FOR UPDATE TO authenticated
+          USING (auth_user_id IS NULL AND lower(email) = lower(auth.jwt() ->> 'email'))
+          WITH CHECK (auth_user_id = auth.uid() AND lower(email) = lower(auth.jwt() ->> 'email'));
+        CREATE POLICY "Admins can read all" ON public.app_users
+          FOR SELECT TO authenticated USING (public.is_app_admin(auth.uid()));
+        CREATE POLICY "Admins can insert" ON public.app_users
+          FOR INSERT TO authenticated WITH CHECK (public.is_app_admin(auth.uid()));
+        CREATE POLICY "Admins can update" ON public.app_users
+          FOR UPDATE TO authenticated
+          USING (public.is_app_admin(auth.uid()))
+          WITH CHECK (public.is_app_admin(auth.uid()));
+        CREATE POLICY "Admins can delete" ON public.app_users
+          FOR DELETE TO authenticated USING (public.is_app_admin(auth.uid()));
+
+        CREATE OR REPLACE FUNCTION public.bootstrap_app_user()
+        RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
+        SET search_path = public AS $$
+        DECLARE
+          v_provider text := COALESCE(NEW.raw_app_meta_data->>'provider', 'email');
+        BEGIN
+          IF NEW.email IS NULL THEN RETURN NEW; END IF;
+
+          IF NEW.email LIKE '%@device.tinypos.com' THEN
+            INSERT INTO public.app_users (email, role, auth_user_id, provider)
+            VALUES (NEW.email, 'device', NEW.id, v_provider)
+            ON CONFLICT (email) DO UPDATE
+              SET auth_user_id = EXCLUDED.auth_user_id
+              WHERE public.app_users.auth_user_id IS NULL;
+            RETURN NEW;
+          END IF;
+
+          IF NOT EXISTS (SELECT 1 FROM public.app_users WHERE role = 'admin' LIMIT 1) THEN
+            INSERT INTO public.app_users (email, role, auth_user_id, provider, created_by)
+            VALUES (NEW.email, 'admin', NEW.id, v_provider, NEW.id)
+            ON CONFLICT (email) DO UPDATE
+              SET auth_user_id = EXCLUDED.auth_user_id, role = 'admin'
+              WHERE public.app_users.auth_user_id IS NULL;
+          END IF;
+          RETURN NEW;
+        END;
+        $$;
+
+        DROP TRIGGER IF EXISTS trg_bootstrap_app_user ON auth.users;
+        CREATE TRIGGER trg_bootstrap_app_user
+          AFTER INSERT ON auth.users
+          FOR EACH ROW EXECUTE FUNCTION public.bootstrap_app_user();
+
+        -- Backfill any auth.users created before this block existed.
+        INSERT INTO public.app_users (email, role, auth_user_id, provider)
+        SELECT
+          u.email,
+          CASE WHEN u.email LIKE '%@device.tinypos.com' THEN 'device' ELSE 'admin' END,
+          u.id,
+          COALESCE(u.raw_app_meta_data->>'provider', 'email')
+        FROM auth.users u
+        WHERE u.email IS NOT NULL
+        ON CONFLICT (email) DO UPDATE
+          SET auth_user_id = EXCLUDED.auth_user_id
+          WHERE public.app_users.auth_user_id IS NULL;
       `;
 
       const sqlRes = await fetch(`/api/run-sql?projectRef=${selectedProject}`, {
