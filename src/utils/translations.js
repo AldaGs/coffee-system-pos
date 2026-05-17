@@ -1024,7 +1024,30 @@ export const translations = {
     "devices.provisioning": "Provisioning device...",
     "devices.errorMissingProject": "Could not determine the Supabase project. Reinstall the app.",
     "devices.errorFetchKeys": "Could not fetch the admin key from Supabase.",
-    "devices.errorAuthExpired": "Authorization expired. Please try again."
+    "devices.errorAuthExpired": "Authorization expired. Please try again.",
+
+    // --- Allowlist (app_users) ---
+    "allowlist.title": "Authorized Accounts",
+    "allowlist.subtitle": "Anyone who signs in — password or Google — must be on this list. Disabling a row revokes access immediately.",
+    "allowlist.emailPlaceholder": "email@example.com",
+    "allowlist.add": "Add",
+    "allowlist.loading": "Loading accounts...",
+    "allowlist.empty": "No authorized accounts yet. Add one to get started.",
+    "allowlist.claimed": "Linked to a sign-in",
+    "allowlist.pending": "Waiting for first sign-in",
+    "allowlist.enable": "Enable",
+    "allowlist.disable": "Disable",
+    "allowlist.delete": "Remove from allowlist",
+    "allowlist.role.admin": "Admin",
+    "allowlist.role.manager": "Manager",
+    "allowlist.role.employee": "Employee",
+    "allowlist.errorInvalidEmail": "Please enter a valid email.",
+    "allowlist.confirmDisableTitle": "Disable account?",
+    "allowlist.confirmDisableDesc": "{email} won't be able to sign in until you enable them again.",
+    "allowlist.confirmEnableTitle": "Enable account?",
+    "allowlist.confirmEnableDesc": "{email} will be able to sign in again.",
+    "allowlist.confirmDeleteTitle": "Remove account?",
+    "allowlist.confirmDeleteDesc": "Remove {email} from the allowlist. This can't be undone."
   },
   es: {
     // --- Admin General ---
@@ -2049,6 +2072,29 @@ export const translations = {
     "devices.provisioning": "Registrando dispositivo...",
     "devices.errorMissingProject": "No se pudo determinar el proyecto de Supabase. Reinstala la aplicación.",
     "devices.errorFetchKeys": "No se pudo obtener la llave de administrador desde Supabase.",
-    "devices.errorAuthExpired": "La autorización expiró. Intenta de nuevo."
+    "devices.errorAuthExpired": "La autorización expiró. Intenta de nuevo.",
+
+    // --- Allowlist (app_users) ---
+    "allowlist.title": "Cuentas Autorizadas",
+    "allowlist.subtitle": "Cualquier persona que inicie sesión — con contraseña o con Google — debe estar en esta lista. Desactivar una fila revoca el acceso al instante.",
+    "allowlist.emailPlaceholder": "correo@ejemplo.com",
+    "allowlist.add": "Agregar",
+    "allowlist.loading": "Cargando cuentas...",
+    "allowlist.empty": "Aún no hay cuentas autorizadas. Agrega una para empezar.",
+    "allowlist.claimed": "Vinculada a un inicio de sesión",
+    "allowlist.pending": "Esperando el primer inicio de sesión",
+    "allowlist.enable": "Activar",
+    "allowlist.disable": "Desactivar",
+    "allowlist.delete": "Quitar de la lista",
+    "allowlist.role.admin": "Administrador",
+    "allowlist.role.manager": "Gerente",
+    "allowlist.role.employee": "Empleado",
+    "allowlist.errorInvalidEmail": "Ingresa un correo válido.",
+    "allowlist.confirmDisableTitle": "¿Desactivar cuenta?",
+    "allowlist.confirmDisableDesc": "{email} no podrá iniciar sesión hasta que la actives de nuevo.",
+    "allowlist.confirmEnableTitle": "¿Activar cuenta?",
+    "allowlist.confirmEnableDesc": "{email} podrá iniciar sesión otra vez.",
+    "allowlist.confirmDeleteTitle": "¿Quitar cuenta?",
+    "allowlist.confirmDeleteDesc": "Quita a {email} de la lista. Esto no se puede deshacer."
   }
 };
