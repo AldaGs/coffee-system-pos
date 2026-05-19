@@ -767,24 +767,28 @@ function SettingToggle({ icon, label, desc, checked, onChange }) {
           height: '26px',
           background: checked ? 'var(--brand-color)' : 'var(--border)',
           borderRadius: '999px',
-          border: 'none',
-          position: 'relative',
+          border: '1px solid var(--border)',
+          position: 'relative',     // ← critical: anchor for the thumb
+          padding: 0,                // some browsers add default button padding
           cursor: 'pointer',
           transition: 'background 0.2s ease',
           marginTop: '4px',
+          boxSizing: 'border-box',
         }}
       >
         <span
+          aria-hidden="true"
           style={{
             position: 'absolute',
-            top: '3px',
-            left: checked ? '21px' : '3px',
+            top: '2px',
+            left: checked ? '20px' : '2px',
             width: '20px',
             height: '20px',
             borderRadius: '50%',
             background: 'white',
             transition: 'left 0.2s ease',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.25)',
+            display: 'block',
           }}
         />
       </button>
