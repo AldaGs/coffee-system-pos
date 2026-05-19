@@ -97,19 +97,38 @@ function App() {
       // Best-effort claim of a pending row. If there's nothing to claim,
       // either this user is already claimed or they aren't on the allowlist
       // — the SELECT below is the source of truth.
-      await supabase
-        .from('app_users')
-        .update({ auth_user_id: sess.user.id })
-        .is('auth_user_id', null)
-        .eq('email', emailLower)
-        .is('disabled_at', null);
+      try {
+        await supabase
+          .from('app_users')
+          .update({ auth_user_id: sess.user.id })
+          .is('auth_user_id', null)
+          .eq('email', emailLower)
+          .is('disabled_at', null);
+      } catch { /* noop — the verifying SELECT is what matters */ }
 
-      const { data: row } = await supabase
+      const { data: row, error } = await supabase
         .from('app_users')
         .select('id')
         .eq('auth_user_id', sess.user.id)
         .is('disabled_at', null)
         .maybeSingle();
+
+      // Graceful degrade: if the table doesn't exist (older install on a
+      // pre-app_users schema) or the query otherwise errors, let the user
+      // through. The allowlist is opt-in protection — its absence must NOT
+      // lock owners out of their own tenant, otherwise they can't reach the
+      // Update Schema button to install it. Once schema_meta.app_users lands,
+      // this branch stops firing and the allowlist enforces normally.
+      if (error) {
+        const relMissing = error.code === '42P01'
+          || /relation .* does not exist/i.test(error.message || '');
+        if (relMissing) {
+          console.warn('app_users missing — allowlist check skipped until schema is updated.');
+        } else {
+          console.warn('app_users check errored, allowing sign-in:', error);
+        }
+        return true;
+      }
       return !!row;
     };
 
