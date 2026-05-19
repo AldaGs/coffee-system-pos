@@ -324,7 +324,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         INSERT INTO public.shop_settings (id, menu_data)
         VALUES (
           1,
-          '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "tinypos", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "1234"}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
+          '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "tinypos", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "1234", "strictAdminAccess": false, "strictRegisterOverrides": false}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
         )
         ON CONFLICT (id) DO NOTHING;
 

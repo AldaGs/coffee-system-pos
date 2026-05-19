@@ -616,6 +616,15 @@ export const translations = {
     "team.role.admin": "Admin",
     "team.roleHelp": "Managers can authorize register overrides (refunds, voids, expenses, manual discounts). Admins also unlock the Admin panel when strict mode is on.",
 
+    // --- Access restrictions (Seguridad y Accesos) ---
+    "settings.accessGroupTitle": "Staff Restrictions",
+    "settings.accessGroupDesc": "Optional. Off by default so shops that share a single PIN keep working as before. Turn on to gate the Admin panel and money-affecting actions by role.",
+    "settings.strictAdminAccess": "Restrict Admin Panel",
+    "settings.strictAdminAccessDesc": "Hide the Admin button for non-admin cashiers and block the /admin route unless the active PIN belongs to an Admin.",
+    "settings.strictRegisterOverrides": "Require Manager for Sensitive Actions",
+    "settings.strictRegisterOverridesDesc": "When an Employee tries to refund, void, add an expense, or apply a manual discount, a Manager/Admin must enter their PIN. The override is recorded in the activity log.",
+    "settings.lockBadgeAria": "Requires manager authorization",
+
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Menu data is missing.",
     "reg.errNoTicket": "No Active Order",
@@ -1668,6 +1677,15 @@ export const translations = {
     "team.role.manager": "Gerente",
     "team.role.admin": "Administrador",
     "team.roleHelp": "Los gerentes pueden autorizar acciones de la caja (reembolsos, cancelaciones, gastos, descuentos manuales). Los administradores también desbloquean el panel cuando el modo estricto está activado.",
+
+    // --- Seguridad y Accesos ---
+    "settings.accessGroupTitle": "Seguridad y Accesos",
+    "settings.accessGroupDesc": "Opcional. Desactivado por defecto para que los negocios que comparten un PIN sigan trabajando igual. Actívalo para restringir el panel de Admin y las acciones que mueven dinero por rol.",
+    "settings.strictAdminAccess": "Restringir Panel de Admin",
+    "settings.strictAdminAccessDesc": "Oculta el botón de Admin para cajeros sin rol de Administrador y bloquea la ruta /admin a menos que el PIN activo sea de un Administrador.",
+    "settings.strictRegisterOverrides": "Requerir Gerente para acciones sensibles",
+    "settings.strictRegisterOverridesDesc": "Cuando un Empleado intente reembolsar, cancelar, registrar un gasto o aplicar un descuento manual, un Gerente/Administrador deberá ingresar su PIN. La autorización queda registrada en la bitácora.",
+    "settings.lockBadgeAria": "Requiere autorización de gerente",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Los datos del menú no están disponibles.",

@@ -397,6 +397,34 @@ function GeneralSettingsTab({
               <small style={{ color: 'var(--text-muted)' }}>{t('settings.autoLockDesc')}</small>
             </div>
           </div>
+
+          {/* --- ACCESS RESTRICTIONS: opt-in RBAC. Off by default so existing
+              shops that share PINs keep working unchanged. --- */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Icon icon="lucide:lock-keyhole" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.accessGroupTitle')}
+            </h3>
+            <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '14px' }}>
+              {t('settings.accessGroupDesc')}
+            </small>
+
+            <SettingToggle
+              icon="lucide:user-cog"
+              label={t('settings.strictAdminAccess')}
+              desc={t('settings.strictAdminAccessDesc')}
+              checked={!!generalSettings.strictAdminAccess}
+              onChange={(v) => setGeneralSettings({ ...generalSettings, strictAdminAccess: v })}
+            />
+
+            <SettingToggle
+              icon="lucide:receipt-text"
+              label={t('settings.strictRegisterOverrides')}
+              desc={t('settings.strictRegisterOverridesDesc')}
+              checked={!!generalSettings.strictRegisterOverrides}
+              onChange={(v) => setGeneralSettings({ ...generalSettings, strictRegisterOverrides: v })}
+            />
+          </div>
         </div>
 
         {/* --- RIGHT COLUMN: WORKFLOW & HARDWARE --- */}
@@ -712,6 +740,54 @@ function GeneralSettingsTab({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Reusable toggle row for boolean settings. Used by the access-restrictions
+// group; lifting it to a shared component is fine if other tabs need it.
+function SettingToggle({ icon, label, desc, checked, onChange }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', padding: '12px 14px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '10px' }}>
+      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--bg-surface)', color: 'var(--brand-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Icon icon={icon} />
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem' }}>{label}</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '2px', lineHeight: 1.4 }}>{desc}</div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        style={{
+          flexShrink: 0,
+          width: '44px',
+          height: '26px',
+          background: checked ? 'var(--brand-color)' : 'var(--border)',
+          borderRadius: '999px',
+          border: 'none',
+          position: 'relative',
+          cursor: 'pointer',
+          transition: 'background 0.2s ease',
+          marginTop: '4px',
+        }}
+      >
+        <span
+          style={{
+            position: 'absolute',
+            top: '3px',
+            left: checked ? '21px' : '3px',
+            width: '20px',
+            height: '20px',
+            borderRadius: '50%',
+            background: 'white',
+            transition: 'left 0.2s ease',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+          }}
+        />
+      </button>
     </div>
   );
 }
