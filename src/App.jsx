@@ -52,8 +52,12 @@ function App() {
         sessionStorage.setItem('tinypos_devices_pat', token);
         sessionStorage.removeItem('tinypos_devices_oauth_pending');
       } catch { /* noop */ }
-      // Strip the token from the visible URL so it can't leak.
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Strip the token from the URL and route the user back to the Devices
+      // tab so the post-OAuth resume effect there fires immediately and the
+      // success modal appears without a manual click. BrowserRouter reads
+      // window.location on its first paint, so replaceState is enough — no
+      // hard reload needed.
+      window.history.replaceState({}, document.title, '/admin?tab=devices');
       return null;
     }
 

@@ -72,7 +72,28 @@ function Admin() {
   const [adminPinInput, setAdminPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('analytics');
+  // Initial tab honors `?tab=<key>` so flows that land us on /admin from
+  // elsewhere (notably the Devices OAuth round-trip) can deep-link to the
+  // tab the user was just on. The param is scrubbed from the URL in a
+  // companion effect below so reloading doesn't pin them to that tab forever.
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const tab = new URLSearchParams(window.location.search).get('tab');
+      return tab || 'analytics';
+    } catch {
+      return 'analytics';
+    }
+  });
+
+  useEffect(() => {
+    // Strip ?tab once it's been consumed.
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('tab')) {
+      url.searchParams.delete('tab');
+      window.history.replaceState({}, document.title, url.pathname + (url.search || ''));
+    }
+  }, []);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [inventoryLogs, setInventoryLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
