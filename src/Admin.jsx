@@ -411,7 +411,7 @@ function Admin() {
   const [newCashier, setNewCashier] = useState({ name: '', pin: '', role: 'employee' });
 
   // --- CASHIER FUNCTIONS ---
-  const handleAddCashier = () => {
+  const handleAddCashier = async () => {
     if (!newCashier.name || newCashier.pin.length !== 4) {
       return showAlert(t('team.invalidInfoTitle'), t('team.invalidInfoDesc'));
     }
@@ -426,8 +426,22 @@ function Admin() {
       isAdmin: role === 'admin', // legacy mirror; kept in sync on every write
     };
 
+    // 1. Persist the cashier in menu_data so the UI sees them.
     updatedMenu.cashiers.push(newEntry);
     saveMenuToCloud(updatedMenu);
+
+    // 2. Hash + upsert the PIN into cashier_pins. Without this row the
+    //    verify_pin RPC returns false and the cashier can't log into their
+    //    own profile — only admin override PINs would work.
+    const { error: pinErr } = await supabase.rpc('set_cashier_pin', {
+      p_cashier_id: newEntry.id,
+      p_pin: newCashier.pin,
+    });
+    if (pinErr) {
+      showAlert(t('common.error'), pinErr.message);
+      // Don't return — the cashier row is already saved. Surface the error so
+      // the admin can retry, but keep state consistent.
+    }
 
     // LOG ACTIVITY
     logActivity('cashier_added', null, { name: newCashier.name, cashierId: newEntry.id, role });
@@ -438,10 +452,14 @@ function Admin() {
   const handleDeleteCashier = (idToRemove) => {
     if (cashiers.length <= 1) return showAlert(t('common.error'), t('team.cannotDeleteLast'));
 
-    showConfirm(t('team.deleteCashierTitle'), t('team.deleteCashierDesc'), () => {
+    showConfirm(t('team.deleteCashierTitle'), t('team.deleteCashierDesc'), async () => {
       const cashierToDelete = cashiers.find(c => c.id === idToRemove);
       const updatedCashiers = cashiers.filter(c => c.id !== idToRemove);
       saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
+
+      // Don't leak the stored hash for someone who no longer exists.
+      const { error: delErr } = await supabase.rpc('delete_cashier_pin', { p_cashier_id: idToRemove });
+      if (delErr) console.warn('Could not delete cashier_pins row:', delErr);
 
       // LOG ACTIVITY
       if (cashierToDelete) {

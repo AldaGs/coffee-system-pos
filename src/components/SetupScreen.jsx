@@ -389,6 +389,41 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+        -- Mirror of api/install.js: keep these in sync.
+        CREATE OR REPLACE FUNCTION public.set_cashier_pin(p_cashier_id BIGINT, p_pin TEXT)
+        RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER
+        SET search_path = public AS $$
+        BEGIN
+          IF p_pin IS NULL OR length(p_pin) = 0 THEN
+            RAISE EXCEPTION 'PIN cannot be empty';
+          END IF;
+          INSERT INTO public.cashier_pins (cashier_id, pin_hash)
+          VALUES (p_cashier_id, crypt(p_pin, gen_salt('bf')))
+          ON CONFLICT (cashier_id) DO UPDATE SET pin_hash = EXCLUDED.pin_hash;
+        END;
+        $$;
+
+        CREATE OR REPLACE FUNCTION public.delete_cashier_pin(p_cashier_id BIGINT)
+        RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER
+        SET search_path = public AS $$
+        BEGIN
+          DELETE FROM public.cashier_pins WHERE cashier_id = p_cashier_id;
+        END;
+        $$;
+
+        -- Backfill any plaintext pins from menu_data.cashiers into cashier_pins.
+        INSERT INTO public.cashier_pins (cashier_id, pin_hash)
+        SELECT (c->>'id')::bigint, crypt(c->>'pin', gen_salt('bf'))
+        FROM public.shop_settings ss,
+             jsonb_array_elements(ss.menu_data->'cashiers') c
+        WHERE ss.id = 1
+          AND c->>'pin' IS NOT NULL
+          AND c->>'id' IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM public.cashier_pins cp WHERE cp.cashier_id = (c->>'id')::bigint
+          )
+        ON CONFLICT (cashier_id) DO NOTHING;
+
         -- Loyalty trigger: fires AFTER INSERT on sales, exactly once per sale.
         -- Idempotent by construction — sales upserts use onConflict: local_id, so retries
         -- don't fire INSERT triggers on conflict. Behavior:

@@ -300,6 +300,57 @@ export default async function handler(req, res) {
     END;
     $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+    -- Upsert a cashier's bcrypt-hashed PIN. Called from Admin.jsx whenever a
+    -- cashier is created or their PIN is rotated. SECURITY DEFINER so the
+    -- function owns the hashing (the raw PIN never lingers anywhere outside
+    -- this transaction, and clients don't need permission to write the table
+    -- directly).
+    CREATE OR REPLACE FUNCTION public.set_cashier_pin(p_cashier_id BIGINT, p_pin TEXT)
+    RETURNS VOID
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+    BEGIN
+      IF p_pin IS NULL OR length(p_pin) = 0 THEN
+        RAISE EXCEPTION 'PIN cannot be empty';
+      END IF;
+      INSERT INTO public.cashier_pins (cashier_id, pin_hash)
+      VALUES (p_cashier_id, crypt(p_pin, gen_salt('bf')))
+      ON CONFLICT (cashier_id) DO UPDATE SET pin_hash = EXCLUDED.pin_hash;
+    END;
+    $$;
+
+    -- Delete a cashier's stored PIN hash. Pair with cashier removal so we
+    -- don't leak hashes for users who no longer exist.
+    CREATE OR REPLACE FUNCTION public.delete_cashier_pin(p_cashier_id BIGINT)
+    RETURNS VOID
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+    BEGIN
+      DELETE FROM public.cashier_pins WHERE cashier_id = p_cashier_id;
+    END;
+    $$;
+
+    -- One-time backfill: every cashier in menu_data.cashiers that has a
+    -- plaintext `pin` but no row in cashier_pins gets one now. Idempotent —
+    -- existing hashes are left alone (ON CONFLICT DO NOTHING). This patches
+    -- installs where cashiers were added through Admin before set_cashier_pin
+    -- existed.
+    INSERT INTO public.cashier_pins (cashier_id, pin_hash)
+    SELECT (c->>'id')::bigint, crypt(c->>'pin', gen_salt('bf'))
+    FROM public.shop_settings ss,
+         jsonb_array_elements(ss.menu_data->'cashiers') c
+    WHERE ss.id = 1
+      AND c->>'pin' IS NOT NULL
+      AND c->>'id' IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM public.cashier_pins cp WHERE cp.cashier_id = (c->>'id')::bigint
+      )
+    ON CONFLICT (cashier_id) DO NOTHING;
+
     -- Loyalty trigger: fires AFTER INSERT on sales, exactly once per sale.
     -- Idempotent by construction — sales upserts use onConflict: local_id, so retries
     -- don't fire INSERT triggers on conflict. Behavior:
