@@ -593,6 +593,22 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         ON CONFLICT (email) DO UPDATE
           SET auth_user_id = EXCLUDED.auth_user_id
           WHERE public.app_users.auth_user_id IS NULL;
+
+        -- Schema version stamp — mirror of api/install.js. Bump together
+        -- with src/utils/schemaVersion.js on every schema change.
+        CREATE TABLE IF NOT EXISTS public.schema_meta (
+          key text PRIMARY KEY,
+          value text NOT NULL,
+          updated_at timestamptz NOT NULL DEFAULT now()
+        );
+        ALTER TABLE public.schema_meta ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Authenticated can read schema_meta" ON public.schema_meta;
+        CREATE POLICY "Authenticated can read schema_meta" ON public.schema_meta
+          FOR SELECT TO authenticated USING (true);
+        INSERT INTO public.schema_meta (key, value, updated_at)
+        VALUES ('schema_version', '0.1', now())
+        ON CONFLICT (key) DO UPDATE
+          SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;
 
       const sqlRes = await fetch(`/api/run-sql?projectRef=${selectedProject}`, {

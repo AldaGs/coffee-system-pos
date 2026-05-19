@@ -549,6 +549,27 @@ export default async function handler(req, res) {
     ON CONFLICT (email) DO UPDATE
       SET auth_user_id = EXCLUDED.auth_user_id
       WHERE public.app_users.auth_user_id IS NULL;
+
+    -- ==========================================
+    -- SCHEMA META — version stamp the install just landed.
+    -- When the JS APP_SCHEMA_VERSION differs from value here the General
+    -- Settings tab surfaces "Update available." Bump this literal AND
+    -- src/utils/schemaVersion.js in the same commit on any schema change.
+    -- ==========================================
+    CREATE TABLE IF NOT EXISTS public.schema_meta (
+      key text PRIMARY KEY,
+      value text NOT NULL,
+      updated_at timestamptz NOT NULL DEFAULT now()
+    );
+    ALTER TABLE public.schema_meta ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Authenticated can read schema_meta" ON public.schema_meta;
+    CREATE POLICY "Authenticated can read schema_meta" ON public.schema_meta
+      FOR SELECT TO authenticated USING (true);
+
+    INSERT INTO public.schema_meta (key, value, updated_at)
+    VALUES ('schema_version', '0.1', now())
+    ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;
 
 try {
