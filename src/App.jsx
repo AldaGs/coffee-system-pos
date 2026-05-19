@@ -61,6 +61,17 @@ function App() {
       return null;
     }
 
+    const schemaFlow = sessionStorage.getItem('tinypos_schema_oauth_pending') === '1';
+    if (schemaFlow) {
+      try {
+        sessionStorage.setItem('tinypos_schema_pat', token);
+        sessionStorage.removeItem('tinypos_schema_oauth_pending');
+      } catch { /* noop */ }
+      // Land on General Settings, with a hint to kick off the install POST.
+      window.history.replaceState({}, document.title, '/admin?tab=settings&action=update-schema');
+      return null;
+    }
+
     const stashed = sessionStorage.getItem('tinypos_setup_mode');
     sessionStorage.removeItem('tinypos_setup_mode');
     return stashed === 'connect' ? 'connect' : 'new';

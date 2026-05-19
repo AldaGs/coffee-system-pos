@@ -625,6 +625,21 @@ export const translations = {
     "settings.strictRegisterOverridesDesc": "When an Employee tries to refund, void, add an expense, or apply a manual discount, a Manager/Admin must enter their PIN. The override is recorded in the activity log.",
     "settings.lockBadgeAria": "Requires manager authorization",
 
+    // --- Schema maintenance ---
+    "settings.schemaUpdateTitle": "Database Maintenance",
+    "settings.schemaUpdateChecking": "Checking schema version…",
+    "settings.schemaUpdateUnknown": "Schema version unknown",
+    "settings.schemaUpdateUpToDate": "Up to date",
+    "settings.schemaUpdateAvailable": "Update available",
+    "settings.schemaUpdateVersions": "Installed: {installed} · Latest: {latest}",
+    "settings.schemaUpdateBtn": "Update Schema",
+    "settings.schemaUpdating": "Updating…",
+    "settings.schemaUpdateConfirmTitle": "Update schema?",
+    "settings.schemaUpdateConfirmDesc": "This will run the latest schema migrations. Safe to repeat. You will be redirected to Supabase to make a safe connection.",
+    "settings.schemaUpdateOk": "Schema is now up to date.",
+    "settings.schemaUpdateFailed": "Failed to update schema. Please try again.",
+    "settings.schemaUpdateMissingProject": "Could not determine the Supabase project. Reinstall the app.",
+
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Menu data is missing.",
     "reg.errNoTicket": "No Active Order",
@@ -1699,6 +1714,21 @@ export const translations = {
     "settings.strictRegisterOverrides": "Requerir Gerente para acciones sensibles",
     "settings.strictRegisterOverridesDesc": "Cuando un Empleado intente reembolsar, cancelar, registrar un gasto o aplicar un descuento manual, un Gerente/Administrador deberá ingresar su PIN. La autorización queda registrada en la bitácora.",
     "settings.lockBadgeAria": "Requiere autorización de gerente",
+
+    // --- Mantenimiento del esquema ---
+    "settings.schemaUpdateTitle": "Mantenimiento de la base de datos",
+    "settings.schemaUpdateChecking": "Comprobando versión del esquema…",
+    "settings.schemaUpdateUnknown": "Versión del esquema desconocida",
+    "settings.schemaUpdateUpToDate": "Al día",
+    "settings.schemaUpdateAvailable": "Actualización disponible",
+    "settings.schemaUpdateVersions": "Instalada: {installed} · Última: {latest}",
+    "settings.schemaUpdateBtn": "Actualizar esquema",
+    "settings.schemaUpdating": "Actualizando…",
+    "settings.schemaUpdateConfirmTitle": "¿Actualizar el esquema?",
+    "settings.schemaUpdateConfirmDesc": "Se ejecutarán las últimas migraciones del esquema. Es seguro repetir esta acción. Serás redirigido a Supabase para hacer una conexión segura.",
+    "settings.schemaUpdateOk": "El esquema está al día.",
+    "settings.schemaUpdateFailed": "No se pudo actualizar el esquema. Inténtalo de nuevo.",
+    "settings.schemaUpdateMissingProject": "No se pudo determinar el proyecto de Supabase. Reinstala la aplicación.",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Los datos del menú no están disponibles.",

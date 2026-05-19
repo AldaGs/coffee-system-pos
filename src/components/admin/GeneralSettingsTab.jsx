@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
@@ -9,6 +9,18 @@ import SharedPinPad from '../shared/SharedPinPad';
 import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
 import { formatForDisplay } from '../../utils/moneyUtils';
+import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
+
+// Session keys used by the schema-update OAuth round-trip. Mirror the
+// burn-after-reading pattern from DevicesTab — the PAT only exists between
+// callback and install-POST, then it's wiped.
+const SS_SCHEMA_OAUTH_FLAG = 'tinypos_schema_oauth_pending';
+const SS_SCHEMA_PAT = 'tinypos_schema_pat';
+
+function projectRefFromUrl(url) {
+  try { return new URL(url).hostname.split('.')[0] || null; }
+  catch { return null; }
+}
 
 function GeneralSettingsTab({
   generalSettings,
@@ -31,6 +43,101 @@ function GeneralSettingsTab({
 
   const [brandColorInput, setBrandColorInput] = useState(generalSettings.brandColor || '#000000');
   const [brandColorInvalid, setBrandColorInvalid] = useState(false);
+
+  // --- Schema update state ---------------------------------------------------
+  // dbVersion stays null while we're still loading the installed version.
+  // 'unknown' is the explicit value we surface when schema_meta doesn't exist
+  // yet (older installs that predate the table).
+  const [dbVersion, setDbVersion] = useState(null);
+  const [schemaUpdating, setSchemaUpdating] = useState(false);
+  const [schemaUpdateError, setSchemaUpdateError] = useState('');
+  const schemaResumedRef = useRef(false);
+
+  const fetchSchemaVersion = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('schema_meta')
+        .select('value')
+        .eq('key', 'schema_version')
+        .maybeSingle();
+      if (error) {
+        // 42P01 = relation does not exist → pre-schema_meta install.
+        if (error.code === '42P01') { setDbVersion('unknown'); return; }
+        console.warn('schema_meta read failed:', error);
+        setDbVersion('unknown');
+        return;
+      }
+      setDbVersion(data?.value || 'unknown');
+    } catch (e) {
+      console.warn('schema_meta read threw:', e);
+      setDbVersion('unknown');
+    }
+  };
+
+  useEffect(() => { fetchSchemaVersion(); }, []);
+
+  // Post-OAuth resume: if we just came back with a PAT in sessionStorage,
+  // POST it (plus projectRef) to /api/install which runs the latest SQL.
+  useEffect(() => {
+    if (schemaResumedRef.current) return;
+    const pat = typeof window !== 'undefined' ? sessionStorage.getItem(SS_SCHEMA_PAT) : null;
+    if (!pat) return;
+    schemaResumedRef.current = true;
+
+    const supabaseUrl = typeof window !== 'undefined' ? localStorage.getItem('tinypos_supabase_url') : null;
+    const projectRef = projectRefFromUrl(supabaseUrl);
+    if (!projectRef) {
+      setSchemaUpdateError(t('settings.schemaUpdateMissingProject'));
+      try { sessionStorage.removeItem(SS_SCHEMA_PAT); } catch { /* noop */ }
+      return;
+    }
+
+    (async () => {
+      setSchemaUpdateError('');
+      setSchemaUpdating(true);
+      try {
+        const res = await fetch('/api/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: pat, projectRef }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.success === false) {
+          throw new Error(data?.error || t('settings.schemaUpdateFailed'));
+        }
+        await fetchSchemaVersion();
+        showAlert(t('common.success'), t('settings.schemaUpdateOk'));
+      } catch (err) {
+        setSchemaUpdateError(err.message);
+      } finally {
+        try { sessionStorage.removeItem(SS_SCHEMA_PAT); } catch { /* noop */ }
+        setSchemaUpdating(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startSchemaUpdate = () => {
+    const supabaseUrl = typeof window !== 'undefined' ? localStorage.getItem('tinypos_supabase_url') : null;
+    if (!supabaseUrl) {
+      showAlert(t('common.error'), t('settings.schemaUpdateMissingProject'));
+      return;
+    }
+    showConfirm(
+      t('settings.schemaUpdateConfirmTitle'),
+      t('settings.schemaUpdateConfirmDesc'),
+      () => {
+        try { sessionStorage.setItem(SS_SCHEMA_OAUTH_FLAG, '1'); } catch { /* noop */ }
+        const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
+        const redirectUri = `${window.location.origin}/api/auth/callback`;
+        const scopes = 'database_read database_write';
+        window.location.href = `https://api.supabase.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=schema&scope=${encodeURIComponent(scopes)}`;
+      }
+    );
+  };
+
+  const isUpToDate = dbVersion && dbVersion !== 'unknown' && dbVersion === APP_SCHEMA_VERSION;
+  const isUnknown = dbVersion === 'unknown';
 
   const parseColorToHex = (value) => {
     if (!value) return null;
@@ -424,6 +531,70 @@ function GeneralSettingsTab({
               checked={!!generalSettings.strictRegisterOverrides}
               onChange={(v) => setGeneralSettings({ ...generalSettings, strictRegisterOverrides: v })}
             />
+          </div>
+
+          {/* --- SCHEMA MAINTENANCE: brings the tenant's Supabase project up to
+              the schema version this build of the app expects. Idempotent and
+              safe to re-run. --- */}
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Icon icon="lucide:database-zap" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.schemaUpdateTitle')}
+            </h3>
+
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', padding: '12px 14px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '12px' }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--bg-surface)', color: 'var(--brand-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon icon={isUpToDate ? 'lucide:check-circle-2' : 'lucide:arrow-up-circle'} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem' }}>
+                  {dbVersion === null
+                    ? t('settings.schemaUpdateChecking')
+                    : isUnknown
+                      ? t('settings.schemaUpdateUnknown')
+                      : isUpToDate
+                        ? t('settings.schemaUpdateUpToDate')
+                        : t('settings.schemaUpdateAvailable')}
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '2px', lineHeight: 1.4 }}>
+                  {t('settings.schemaUpdateVersions')
+                    .replace('{installed}', dbVersion === null ? '…' : dbVersion)
+                    .replace('{latest}', APP_SCHEMA_VERSION)}
+                </div>
+                {schemaUpdateError && (
+                  <div style={{ marginTop: '8px', color: '#c0392b', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Icon icon="lucide:alert-circle" />
+                    <span>{schemaUpdateError}</span>
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={startSchemaUpdate}
+                disabled={schemaUpdating || dbVersion === null}
+                style={{
+                  flexShrink: 0,
+                  padding: '10px 14px',
+                  background: 'var(--brand-color)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '10px',
+                  cursor: (schemaUpdating || dbVersion === null) ? 'not-allowed' : 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  opacity: (schemaUpdating || dbVersion === null) ? 0.6 : 1,
+                }}
+              >
+                <Icon
+                  icon={schemaUpdating ? 'lucide:loader-2' : 'lucide:database-zap'}
+                  style={{ animation: schemaUpdating ? 'spin 1s linear infinite' : 'none' }}
+                />
+                {schemaUpdating ? t('settings.schemaUpdating') : t('settings.schemaUpdateBtn')}
+              </button>
+            </div>
           </div>
         </div>
 
