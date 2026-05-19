@@ -158,17 +158,6 @@ function App() {
     setIsLoggingIn(false);
   };
 
-  const handleGoogleLogin = async () => {
-    setAuthError("");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) {
-      window.alert("Google sign-in failed: " + error.message);
-    }
-  };
-
   // ==========================================
   // --- RENDER PIPELINE ---
   // ==========================================
@@ -263,21 +252,6 @@ function App() {
                   <span>Autorizar Dispositivo</span>
                 </>
               )}
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' }}>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>o</span>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              style={{ padding: '14px', background: 'white', color: '#202124', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}
-            >
-              <Icon icon="logos:google-icon" />
-              <span>Continuar con Google</span>
             </button>
 
             {authError && (
