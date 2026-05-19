@@ -765,9 +765,13 @@ function SettingToggle({ icon, label, desc, checked, onChange }) {
           flexShrink: 0,
           width: '44px',
           height: '26px',
-          // Hard-coded gray for the off state — var(--border) is brand-tinted
-          // in this theme so on/off looked identical when keyed off it.
-          background: checked ? 'var(--brand-color)' : '#9ca3af',
+          // Off-state is a softened var(--text-muted) so the track adapts to
+          // light/dark mode automatically. color-mix at 55% gives a clearly
+          // gray-but-not-harsh track in both themes; brand color stays solid
+          // when on.
+          background: checked
+            ? 'var(--brand-color)'
+            : 'color-mix(in srgb, var(--text-muted) 55%, transparent)',
           borderRadius: '999px',
           border: 'none',
           position: 'relative',     // ← critical: anchor for the thumb
