@@ -2,7 +2,6 @@ import { Icon } from '@iconify/react';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import PendingSyncCard from './PendingSyncCard';
-import AllowlistSection from './AllowlistSection';
 
 const DEVICE_EMAIL_DOMAIN = 'device.tinypos.com';
 
@@ -37,9 +36,17 @@ function projectRefFromUrl(url) {
   }
 }
 
+// Cheap email regex — good enough to reject obvious typos before we ship the
+// value to Supabase Auth. Auth will do its own stricter check server-side.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function DevicesTab({ showAlert, showConfirm }) {
   const { t } = useTranslation();
+  // `deviceName` is reused for both modes: in default mode it's the
+  // human-readable identifier that we slugify; in custom-email mode it's
+  // the literal email the admin typed.
   const [deviceName, setDeviceName] = useState('');
+  const [useCustomEmail, setUseCustomEmail] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -49,7 +56,9 @@ function DevicesTab({ showAlert, showConfirm }) {
   const [copied, setCopied] = useState(null);
 
   const slug = useMemo(() => slugifyDeviceName(deviceName), [deviceName]);
-  const previewEmail = slug ? `${slug}@${DEVICE_EMAIL_DOMAIN}` : '';
+  const previewEmail = useCustomEmail
+    ? (deviceName.trim().toLowerCase())
+    : (slug ? `${slug}@${DEVICE_EMAIL_DOMAIN}` : '');
 
   const supabaseUrl = typeof window !== 'undefined' ? localStorage.getItem('tinypos_supabase_url') : null;
 
@@ -164,9 +173,19 @@ function DevicesTab({ showAlert, showConfirm }) {
     e.preventDefault();
     setError('');
 
-    if (!slug) {
-      setError(t('devices.errorInvalidName'));
-      return;
+    let email;
+    if (useCustomEmail) {
+      email = deviceName.trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) {
+        setError(t('devices.errorInvalidEmail'));
+        return;
+      }
+    } else {
+      if (!slug) {
+        setError(t('devices.errorInvalidName'));
+        return;
+      }
+      email = `${slug}@${DEVICE_EMAIL_DOMAIN}`;
     }
     if (!password || password.length < 6) {
       setError(t('devices.errorShortPassword'));
@@ -176,8 +195,6 @@ function DevicesTab({ showAlert, showConfirm }) {
       setError(t('devices.errorMissingCreds'));
       return;
     }
-
-    const email = `${slug}@${DEVICE_EMAIL_DOMAIN}`;
 
     // Stash the form values so we can resume after the OAuth round-trip.
     // sessionStorage is tab-scoped and cleared on close — acceptable for a
@@ -247,11 +264,50 @@ function DevicesTab({ showAlert, showConfirm }) {
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Email-mode toggle: default 'auto' generates slug@device.tinypos.com.
+                'custom' lets the admin type any email — useful when the hardware
+                already belongs to a known person/account. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '12px' }}>
+              <Icon icon="lucide:at-sign" style={{ color: 'var(--brand-color)' }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.92rem' }}>
+                  {useCustomEmail ? t('devices.modeCustomLabel') : t('devices.modeAutoLabel')}
+                </div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                  {useCustomEmail ? t('devices.modeCustomHint') : t('devices.modeAutoHint')}
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={useCustomEmail}
+                onClick={() => { setUseCustomEmail(v => !v); setDeviceName(''); }}
+                disabled={submitting}
+                style={{
+                  flexShrink: 0, width: '44px', height: '26px',
+                  background: useCustomEmail ? 'var(--brand-color)' : 'var(--border)',
+                  borderRadius: '999px', border: '1px solid var(--border)',
+                  position: 'relative', padding: 0, cursor: 'pointer',
+                  transition: 'background 0.2s ease', boxSizing: 'border-box',
+                }}
+              >
+                <span aria-hidden="true" style={{
+                  position: 'absolute', top: '2px',
+                  left: useCustomEmail ? '20px' : '2px',
+                  width: '20px', height: '20px', borderRadius: '50%',
+                  background: 'white', transition: 'left 0.2s ease',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.25)', display: 'block',
+                }} />
+              </button>
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('devices.fieldName')}</label>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>
+                {useCustomEmail ? t('devices.fieldEmail') : t('devices.fieldName')}
+              </label>
               <input
-                type="text"
-                placeholder={t('devices.fieldNamePlaceholder')}
+                type={useCustomEmail ? 'email' : 'text'}
+                placeholder={useCustomEmail ? t('devices.fieldEmailPlaceholder') : t('devices.fieldNamePlaceholder')}
                 value={deviceName}
                 onChange={(e) => setDeviceName(e.target.value)}
                 style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
@@ -265,7 +321,7 @@ function DevicesTab({ showAlert, showConfirm }) {
                     <span>{t('devices.previewPrefix')} <strong style={{ color: 'var(--text-main)' }}>{previewEmail}</strong></span>
                   </>
                 ) : (
-                  <span>{t('devices.previewHint')}</span>
+                  <span>{useCustomEmail ? t('devices.previewHintEmail') : t('devices.previewHint')}</span>
                 )}
               </small>
             </div>
@@ -437,8 +493,6 @@ function DevicesTab({ showAlert, showConfirm }) {
           </div>
         </div>
       )}
-
-      <AllowlistSection showAlert={showAlert} showConfirm={showConfirm} />
 
       <PendingSyncCard showAlert={showAlert} showConfirm={showConfirm} />
     </div>

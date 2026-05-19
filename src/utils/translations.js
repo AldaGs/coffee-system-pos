@@ -1041,7 +1041,18 @@ export const translations = {
     "devices.errorFetchKeys": "Could not fetch the admin key from Supabase.",
     "devices.errorAuthExpired": "Authorization expired. Please try again.",
 
-    // --- Allowlist (app_users) ---
+    // --- Devices: custom-email toggle ---
+    "devices.modeAutoLabel": "Auto-generate email",
+    "devices.modeAutoHint": "Email is built from the device name (e.g. cajafrontal@device.tinypos.com).",
+    "devices.modeCustomLabel": "Use a custom email",
+    "devices.modeCustomHint": "Type any email — useful when the device should sign in as a known account.",
+    "devices.fieldEmail": "Device email",
+    "devices.fieldEmailPlaceholder": "email@example.com",
+    "devices.previewHintEmail": "Type the full email this device will sign in with.",
+    "devices.errorInvalidEmail": "Please enter a valid email address.",
+
+    // --- Allowlist (app_users) — kept for translation completeness even though
+    // the UI surface was removed. The app_users table itself still exists. ---
     "allowlist.title": "Authorized Accounts",
     "allowlist.subtitle": "Anyone who signs in — password or Google — must be on this list. Disabling a row revokes access immediately.",
     "allowlist.emailPlaceholder": "email@example.com",
@@ -2103,6 +2114,16 @@ export const translations = {
     "devices.errorMissingProject": "No se pudo determinar el proyecto de Supabase. Reinstala la aplicación.",
     "devices.errorFetchKeys": "No se pudo obtener la llave de administrador desde Supabase.",
     "devices.errorAuthExpired": "La autorización expiró. Intenta de nuevo.",
+
+    // --- Dispositivos: alternar correo personalizado ---
+    "devices.modeAutoLabel": "Generar correo automáticamente",
+    "devices.modeAutoHint": "El correo se arma con el nombre del dispositivo (p. ej. cajafrontal@device.tinypos.com).",
+    "devices.modeCustomLabel": "Usar correo personalizado",
+    "devices.modeCustomHint": "Escribe cualquier correo — útil cuando el dispositivo debe iniciar sesión como una cuenta conocida.",
+    "devices.fieldEmail": "Correo del dispositivo",
+    "devices.fieldEmailPlaceholder": "correo@ejemplo.com",
+    "devices.previewHintEmail": "Escribe el correo completo con el que iniciará sesión este dispositivo.",
+    "devices.errorInvalidEmail": "Ingresa un correo válido.",
 
     // --- Allowlist (app_users) ---
     "allowlist.title": "Cuentas Autorizadas",
