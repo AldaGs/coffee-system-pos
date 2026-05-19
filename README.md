@@ -160,6 +160,55 @@ All three share a single Supabase project per tenant.
 
 
 
+## 🔐 Role-Based Access & Maintenance (schema `0.1`)
+
+Opt-in privilege gating for shops that need it; transparent for shops that don't.
+
+### Cashier roles ([`src/utils/cashierRoles.js`](src/utils/cashierRoles.js))
+
+Every cashier carries a `role` field — `employee` / `manager` / `admin`. Legacy `isAdmin` is kept in sync on every write so old reads still work, and unmigrated rows fall back through `getRole()`. TeamTab now exposes a 3-way role select instead of an isAdmin checkbox.
+
+### Staff Restrictions — General Settings → "Seguridad y Accesos"
+
+Two independent toggles, both **off by default** so shops sharing a single PIN keep working unchanged:
+
+- **Restrict Admin Panel** (`strictAdminAccess`) — hides the Admin button in MenuArea and the LockScreen shortcut for non-admin cashiers; the `/admin` route auto-redirects on mount if the active PIN isn't an admin.
+- **Require Manager for Sensitive Actions** (`strictRegisterOverrides`) — when an Employee tries to **refund / void / add expense / apply manual discount**, a lock icon appears on the button and the PIN modal asks for a Manager or Admin PIN. Managers and admins skip the prompt entirely (coffee-rush friendly). Every override is written to `activity_logs.metadata` as `{ override: true, authorized_by, actor_cashier_id }`. See [`src/utils/actionGate.js`](src/utils/actionGate.js) and [`src/utils/overrideAuthorizer.js`](src/utils/overrideAuthorizer.js).
+
+### Unified allowlist (`public.app_users`)
+
+Single source of truth for who may sign in. Devices added through the Devices tab are auto-seeded with `role='device'` by a Postgres trigger; the first human user on a freshly provisioned tenant is auto-promoted to `admin`. RLS lets a user claim their own pending row on first sign-in and only admins can manage the table. **Gracefully degrades** when the table is missing (older installs), so pre-0.1 tenants can still sign in and run the Update Schema button.
+
+### Database Maintenance — Update Schema button
+
+[`src/utils/schemaVersion.js`](src/utils/schemaVersion.js) exports the version the build expects. The install SQL stamps `public.schema_meta` with the matching value. The Settings tab compares them and surfaces `Up to date`, `Update available`, or `Unknown` (pre-`schema_meta` installs). Clicking **Actualizar esquema** runs the same OAuth round-trip the device-provisioning flow uses (`database_read database_write` scope), POSTs the burn-after-reading PAT to `/api/install`, and refreshes the version. The SQL is fully idempotent — safe to re-run.
+
+> **Bumping the version** is a three-place edit in one commit: `APP_SCHEMA_VERSION` in [`src/utils/schemaVersion.js`](src/utils/schemaVersion.js), the literal in [`api/install.js`](api/install.js)'s `schemaQuery`, and the mirror in [`src/components/SetupScreen.jsx`](src/components/SetupScreen.jsx). The cleanup task to merge those two SQL copies is tracked separately.
+
+### Cashier PIN persistence
+
+Adding a cashier now writes a bcrypt hash to `cashier_pins` via the `set_cashier_pin` RPC; deleting one wipes it via `delete_cashier_pin`. Prior to this, only seeded cashiers (ids 0 and 1) could log in — new employees silently couldn't authenticate. The schema's one-shot backfill hashes any plaintext pins already in `menu_data.cashiers` so existing installs heal on first Update Schema run.
+
+### Devices: optional custom email
+
+The device form now has a toggle to skip the auto-generated `slug@device.tinypos.com` and use any email — useful when hardware should sign in as a known account.
+
+### Currently in test
+
+These shipped to production but haven't seen enough real-world hours yet:
+
+- **Manager-override audit trail.** Verify the `activity_logs.metadata.authorized_by` field actually reads correctly in the Activity Log viewer for refunds, voids, expenses, and manual discounts when triggered by an Employee under `strictRegisterOverrides`.
+- **PIN re-prompt UX after schema OAuth round-trip.** Admin remounts after the redirect, so the PIN gate fires once more before the resume effect lands. Cosmetic; consider persisting `isAdminUnlocked` in sessionStorage if it becomes annoying.
+- **`strictAdminAccess` + `/admin` direct URL.** Confirm the redirect fires reliably on every navigation path (bookmarked URL, browser back, deep link) — currently only checks `menuData?.posSettings?.strictAdminAccess` on mount and on `menuData` change.
+- **Allowlist permissive fallback.** Intentionally lenient right now: any error reading `app_users` lets the user through. Once every tenant has run Update Schema once, consider tightening to fail-closed.
+- **Schema version comparison on language switch.** Spanish/English keys for the maintenance block are in place but haven't been visually proofed in dark mode.
+
+
+
+---
+
+
+
 ## 🧰 Technical Stack
 
 
@@ -226,7 +275,7 @@ The full canonical schema lives in [`db/install.sql`](db/install.sql) and is wha
 
 **Tables**
 
-`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`.
+`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`.
 
 
 
@@ -234,9 +283,15 @@ The full canonical schema lives in [`db/install.sql`](db/install.sql) and is wha
 
 - `verify_pin(cashier_id, pin)` — bcrypt check via `pgcrypto`, `SECURITY DEFINER`.
 
+- `set_cashier_pin(cashier_id, pin)` / `delete_cashier_pin(cashier_id)` — hash-and-upsert / delete for cashier pin management; called from TeamTab on add/remove. `SECURITY DEFINER` with `search_path = public, extensions` so `pgcrypto` resolves.
+
 - `deduct_inventory(item_id, qty)` — atomic stock decrement that returns the new row only if `current_stock >= qty`.
 
 - `award_loyalty_visits()` — `AFTER INSERT ON sales` trigger applying the net of `loyalty_stars_awarded − loyalty_stars_redeemed`, with one-time-program freeze semantics.
+
+- `is_app_admin(user_id)` — `SECURITY DEFINER` helper used by `app_users` RLS to avoid policy recursion.
+
+- `bootstrap_app_user()` — `AFTER INSERT ON auth.users` trigger that auto-creates the `app_users` row for device emails (`role='device'`) and elevates the very first human user to `admin`.
 
 
 
@@ -344,11 +399,9 @@ Planned / under consideration. Not yet implemented — do not assume any of this
 
 ### Auth & Onboarding
 
-- **Google OAuth login for cafe owners.** Replace the email/password step on the TinyPOS login screen with `supabase.auth.signInWithOAuth({ provider: 'google' })`. Setup is dashboard-only (Google Cloud Console client + Supabase provider config); no schema changes. **Note:** this only replaces the *identity* step — the existing Supabase Management OAuth flow in [`api/auth/callback.js`](api/auth/callback.js) still has to run during onboarding, because Google identity does not grant access to the owner's Supabase project. The two consents are independent: Google = "who are you," Supabase OAuth = "can TinyPOS provision your database."
+- **Personal sign-in identities (parked).** Google / Apple / Microsoft OAuth on the device-locked screen was prototyped and reverted in `7f8fff5`. In the current architecture only the device account does Supabase auth — humans are identified by cashier PINs — so the per-tenant Google Cloud + Supabase provider config friction wasn't worth the marginal benefit of skipping one password during setup. The `app_users` table that the prototype introduced was retained as the access-revocation source of truth. Revisit if real customers ask for personal sign-in, or if the app grows a flow where humans actually need their own Supabase session.
 
-- Optional Google Workspace `hd` domain restriction for multi-staff cafes.
-
-- Auto-link existing email/password accounts to the matching Google identity on first OAuth sign-in.
+- Optional Google Workspace `hd` domain restriction for multi-staff cafes (depends on the above).
 
 
 
