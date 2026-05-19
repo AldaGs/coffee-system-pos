@@ -132,29 +132,49 @@ function App() {
       return !!row;
     };
 
-    supabase.auth.getSession().then(async ({ data: { session: sess }, error }) => {
-      if (error) {
-        console.error("Auth session check error:", error.message);
-        if (error.message.includes('Refresh Token Not Found') || error.status === 400) {
-          await supabase.auth.signOut();
-          setSession(null);
-          setIsCheckingSession(false);
-          return;
+    // Wrapped in try/finally so the loading spinner ALWAYS clears, even if
+    // verifyAllowlist or signOut throws (network blip, supabase-js quirk,
+    // unexpected payload). The cost of an extra "stuck" screen is much
+    // higher than the cost of being briefly lenient on a transient error —
+    // the worst case here is the user lands on the locked screen and signs
+    // in again, vs. an infinite "Checking device authorization..." that
+    // requires them to clear localStorage manually.
+    (async () => {
+      let finalSession = null;
+      try {
+        const { data: { session: sess }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error("Auth session check error:", error.message);
+          if (error.message?.includes('Refresh Token Not Found') || error.status === 400) {
+            try { await supabase.auth.signOut(); } catch (e) { console.warn('signOut after bad session failed:', e); }
+            return; // finally clears the spinner
+          }
         }
-      }
-      if (sess) {
-        const ok = await verifyAllowlist(sess);
-        if (!ok) {
-          await supabase.auth.signOut();
-          setSession(null);
-          setAuthError('Esta cuenta no está autorizada. Pide al administrador que la agregue.');
-          setIsCheckingSession(false);
-          return;
+        if (sess) {
+          let ok = true;
+          try {
+            ok = await verifyAllowlist(sess);
+          } catch (e) {
+            // Lean permissive — better to let them in than to lock them out
+            // forever on a transient query failure. They'll still hit any
+            // real RLS denials when the app actually queries data.
+            console.warn('verifyAllowlist threw; allowing sign-in:', e);
+            ok = true;
+          }
+          if (!ok) {
+            try { await supabase.auth.signOut(); } catch (e) { console.warn('signOut after allowlist reject failed:', e); }
+            setAuthError('Esta cuenta no está autorizada. Pide al administrador que la agregue.');
+            return;
+          }
+          finalSession = sess;
         }
+      } catch (e) {
+        console.error('Initial auth-check threw — falling back to logged-out state:', e);
+      } finally {
+        setSession(finalSession);
+        setIsCheckingSession(false);
       }
-      setSession(sess);
-      setIsCheckingSession(false);
-    });
+    })();
 
     // Listen for background logouts/logins
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, sess) => {
