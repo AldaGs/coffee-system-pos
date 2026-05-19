@@ -43,6 +43,12 @@ function Admin() {
   const { menuData, setMenuData, recipes, setRecipes } = useMenuStore();
   const { t } = useTranslation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Tracks whether the initial supabase.auth.getSession() has resolved.
+  // Without this flag the first render shows the email/password form for
+  // the window between mount and session-promise resolution — long enough
+  // to be visible (and interactive) when the page is busy with other work
+  // (sync queue, presence subs, etc.).
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
 
   // strictAdminAccess guard: when on, the active cashier role must be 'admin'
   // to even reach this page. We check on mount and on every menuData refresh
@@ -193,9 +199,12 @@ function Admin() {
 
   // --- AUTHENTICATION LISTENER (For Offline Support & Persistence) ---
   useEffect(() => {
-    // Check if an active session already exists in localStorage
+    // Check if an active session already exists in localStorage. Render
+    // gates wait on `isCheckingSession` so we don't flash the login form
+    // before this promise resolves.
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setIsAuthenticated(true);
+      setIsCheckingSession(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -1082,6 +1091,13 @@ function Admin() {
       }
     });
   };
+
+  // While the session check is in flight, render a neutral loader. Without
+  // this gate an already-signed-in user briefly sees the email/password
+  // form between mount and getSession()'s resolution.
+  if (isCheckingSession) {
+    return <BootScreen posSettings={generalSettings} logo={generalSettings.appBootLogo} loadingText={t('admin.loading')} />;
+  }
 
   if (!isAuthenticated) {
     return (
