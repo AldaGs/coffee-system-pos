@@ -1,5 +1,14 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { getRole, ROLES } from '../../utils/cashierRoles';
+
+// Visual styling for each role badge. Kept here so TeamTab is the single
+// place that decides "what does a manager look like vs. an admin."
+const ROLE_STYLES = {
+  admin:    { bg: 'rgba(155, 89, 182, 0.10)', fg: '#9b59b6', border: 'rgba(155, 89, 182, 0.20)' },
+  manager:  { bg: 'rgba(241, 196, 15, 0.10)', fg: '#b8860b', border: 'rgba(241, 196, 15, 0.25)' },
+  employee: { bg: 'rgba(52, 152, 219, 0.10)', fg: '#3498db', border: 'rgba(52, 152, 219, 0.20)' },
+};
 
 function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, handleDeleteCashier }) {
   const { t } = useTranslation();
@@ -49,10 +58,17 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, handle
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold', height: '52px', padding: '0 16px', background: 'var(--bg-main)', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                <input type="checkbox" checked={newCashier.isAdmin} onChange={(e) => setNewCashier({ ...newCashier, isAdmin: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--brand-color)' }} />
-                <span style={{ fontSize: '0.9rem' }}>{t('team.isAdmin') || 'Administrator Privileges'}</span>
-              </label>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('team.labelRole') || 'Role'}</label>
+              <select
+                value={newCashier.role || ROLES.EMPLOYEE}
+                onChange={(e) => setNewCashier({ ...newCashier, role: e.target.value })}
+                style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
+              >
+                <option value={ROLES.EMPLOYEE}>{t('team.role.employee') || 'Employee'}</option>
+                <option value={ROLES.MANAGER}>{t('team.role.manager') || 'Manager'}</option>
+                <option value={ROLES.ADMIN}>{t('team.role.admin') || 'Admin'}</option>
+              </select>
+              <small style={{ color: 'var(--text-muted)' }}>{t('team.roleHelp')}</small>
             </div>
 
             <button onClick={handleAddCashier} style={{ padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.1rem', marginTop: '8px', boxShadow: '0 8px 20px rgba(52, 152, 219, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
@@ -90,18 +106,24 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, handle
                       </div>
                     </td>
                     <td style={{ padding: '16px' }} data-label={t('team.colRole') || 'Role'}>
-                      <span style={{
-                        padding: '4px 10px',
-                        borderRadius: '20px',
-                        fontSize: '0.75rem',
-                        fontWeight: '800',
-                        textTransform: 'uppercase',
-                        background: member.isAdmin ? 'rgba(155, 89, 182, 0.1)' : 'rgba(52, 152, 219, 0.1)',
-                        color: member.isAdmin ? '#9b59b6' : '#3498db',
-                        border: `1px solid ${member.isAdmin ? 'rgba(155, 89, 182, 0.2)' : 'rgba(52, 152, 219, 0.2)'}`
-                      }}>
-                        {member.isAdmin ? t('team.badgeAdmin') : t('team.badgeUser')}
-                      </span>
+                      {(() => {
+                        const role = getRole(member);
+                        const s = ROLE_STYLES[role] || ROLE_STYLES.employee;
+                        return (
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            fontSize: '0.75rem',
+                            fontWeight: '800',
+                            textTransform: 'uppercase',
+                            background: s.bg,
+                            color: s.fg,
+                            border: `1px solid ${s.border}`,
+                          }}>
+                            {t(`team.role.${role}`) || role}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding: '16px', textAlign: 'right' }} data-label={t('team.colActions')}>
                       <button

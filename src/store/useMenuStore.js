@@ -73,18 +73,34 @@ export const useMenuStore = create((set, get) => ({
   },
 
   verifyAdminPin: async (pin) => {
-    const { menuData, verifyPin } = get();
-    // 1. Try Master PIN (ID 0)
-    const isMaster = await verifyPin(0, pin);
-    if (isMaster) return true;
+    // Back-compat shim: same shape as before (returns bool). Internally uses
+    // the role-aware path with minRole='admin'.
+    const result = await get().verifyAuthorizerPin(pin, 'admin');
+    return !!result;
+  },
 
-    // 2. Try any cashier with isAdmin flag
-    const adminCashiers = (menuData?.cashiers || []).filter(c => c.isAdmin);
-    for (const admin of adminCashiers) {
-      const isValid = await verifyPin(admin.id, pin);
-      if (isValid) return true;
+  /**
+   * Verify a PIN as an authorizer with at least `minRole` privileges.
+   * Returns the authorizing cashier object on success, or null on failure.
+   * Used for both admin-only unlocks (minRole='admin') and the manager
+   * override flow (minRole='manager') introduced with strictRegisterOverrides.
+   */
+  verifyAuthorizerPin: async (pin, minRole = 'admin') => {
+    const { menuData, verifyPin } = get();
+    const { getRole, roleAtLeast } = await import('../utils/cashierRoles');
+
+    // Master PIN (cashier_id=0) always passes — equivalent to admin role.
+    if (roleAtLeast('admin', minRole)) {
+      const isMaster = await verifyPin(0, pin);
+      if (isMaster) return { id: 0, name: 'Master', role: 'admin' };
     }
-    return false;
+
+    const candidates = (menuData?.cashiers || []).filter(c => roleAtLeast(getRole(c), minRole));
+    for (const c of candidates) {
+      const isValid = await verifyPin(c.id, pin);
+      if (isValid) return { ...c, role: getRole(c) };
+    }
+    return null;
   },
   
   setRecipes: (recipes) => {

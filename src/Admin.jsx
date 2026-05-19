@@ -389,7 +389,9 @@ function Admin() {
     { id: 2, name: 'Barista 1', pin: '0000' }
   ];
 
-  const [newCashier, setNewCashier] = useState({ name: '', pin: '', isAdmin: false });
+  // `role` is the source of truth ('employee' | 'manager' | 'admin').
+  // `isAdmin` is kept in sync (role === 'admin') so legacy reads keep working.
+  const [newCashier, setNewCashier] = useState({ name: '', pin: '', role: 'employee' });
 
   // --- CASHIER FUNCTIONS ---
   const handleAddCashier = () => {
@@ -397,21 +399,23 @@ function Admin() {
       return showAlert(t('team.invalidInfoTitle'), t('team.invalidInfoDesc'));
     }
 
+    const role = newCashier.role || 'employee';
     const updatedMenu = { ...menuData };
     const newEntry = {
       id: Date.now(),
       name: newCashier.name,
       pin: newCashier.pin,
-      isAdmin: newCashier.isAdmin // <--- ADD THIS LINE
+      role,
+      isAdmin: role === 'admin', // legacy mirror; kept in sync on every write
     };
 
     updatedMenu.cashiers.push(newEntry);
     saveMenuToCloud(updatedMenu);
 
     // LOG ACTIVITY
-    logActivity('cashier_added', null, { name: newCashier.name, cashierId: newEntry.id });
+    logActivity('cashier_added', null, { name: newCashier.name, cashierId: newEntry.id, role });
 
-    setNewCashier({ name: '', pin: '', isAdmin: false }); // Reset form
+    setNewCashier({ name: '', pin: '', role: 'employee' }); // Reset form
   };
 
   const handleDeleteCashier = (idToRemove) => {

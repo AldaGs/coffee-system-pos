@@ -611,6 +611,10 @@ export const translations = {
     "team.colActions": "Actions",
     "team.badgeUser": "User",
     "team.listTitle": "Team",
+    "team.role.employee": "Employee",
+    "team.role.manager": "Manager",
+    "team.role.admin": "Admin",
+    "team.roleHelp": "Managers can authorize register overrides (refunds, voids, expenses, manual discounts). Admins also unlock the Admin panel when strict mode is on.",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Menu data is missing.",
@@ -1660,6 +1664,10 @@ export const translations = {
     "team.addTitle": "Agregar Miembro al Equipo",
     "team.labelRole": "Rol",
     "team.colActions": "Acciones",
+    "team.role.employee": "Empleado",
+    "team.role.manager": "Gerente",
+    "team.role.admin": "Administrador",
+    "team.roleHelp": "Los gerentes pueden autorizar acciones de la caja (reembolsos, cancelaciones, gastos, descuentos manuales). Los administradores también desbloquean el panel cuando el modo estricto está activado.",
 
     // --- Register Hub ---
     "reg.errMissingMenu": "Error: Los datos del menú no están disponibles.",
