@@ -1,5 +1,7 @@
 import { db } from '../db';
 import { supabase } from '../supabaseClient';
+import { logActivity } from '../services/activityService';
+import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 
 // Mirror an active_ticket mutation to the cloud. If offline or the write fails,
 // stash the patch on db.updateQueue so attemptBackgroundSync can replay it.
@@ -124,7 +126,15 @@ export function useTickets({
       clearCurrentTicket();
       return;
     }
-    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => clearCurrentTicket());
+    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => {
+      // Log the void; consume any manager override the gate just authorized.
+      logActivity('ticket_voided', null, {
+        ticket_id: activeTicket.id,
+        ticket_name: activeTicket.name,
+        item_count: activeTicket.items.length,
+      }, consumePendingAuthorizer());
+      clearCurrentTicket();
+    });
   };
 
   const addToTicket = async (item, modifiers, customPrice) => {

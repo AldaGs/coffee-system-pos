@@ -20,15 +20,20 @@ function PinChallengeModal({ challenge, setChallenge, activeCashier, showAlert }
   };
 
   const handleSubmit = async () => {
-    const { verifyPin, verifyAdminPin } = useMenuStore.getState();
+    const { verifyPin, verifyAuthorizerPin } = useMenuStore.getState();
+    const minRole = challenge.minRole || 'admin';
     try {
+      // Self-PIN always works for the active cashier (no role escalation).
       const isCashierMatch = await verifyPin(activeCashier?.id, pinAttempt);
-      const isStaffAdmin = await verifyAdminPin(pinAttempt);
-      if (isCashierMatch || isStaffAdmin) {
+      // Then try authorizer match at the required role. Returns the cashier
+      // on success so the action callback can record who authorized it.
+      const authorizer = isCashierMatch ? null : await verifyAuthorizerPin(pinAttempt, minRole);
+      if (isCashierMatch || authorizer) {
         attempts.current = 0;
         const cb = challenge.onAuthorized;
         close();
-        cb?.();
+        // Pass the authorizer (or null for self-PIN) so callers can log the override.
+        cb?.(authorizer || null);
       } else {
         attempts.current += 1;
         setShake(true);
@@ -41,11 +46,15 @@ function PinChallengeModal({ challenge, setChallenge, activeCashier, showAlert }
     }
   };
 
+  // Manager-override flow gets a different subtitle so cashiers know who
+  // they're supposed to summon.
+  const subtitle = (challenge.minRole === 'manager') ? t('pin.managerOrAdminReq') : t('pin.managerReq');
+
   return (
     <SharedPinPad
       variant="modal"
       title={challenge.title}
-      subtitle={t('pin.managerReq')}
+      subtitle={subtitle}
       icon="lucide:shield-alert"
       pin={pinAttempt}
       setPin={setPinAttempt}

@@ -4,6 +4,7 @@ import { db } from '../db';
 import { supabase } from '../supabaseClient';
 import { toCents, formatForDisplay } from '../utils/moneyUtils';
 import { logActivity } from '../services/activityService';
+import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 
 const LS_EXPENSES_KEY = 'tinypos_expenses';
 const LS_QUEUE_KEY = 'tinypos_expense_queue';
@@ -108,7 +109,7 @@ export function useExpenses({ activeCashier, t, showAlert }) {
       reason: expenseForm.reason,
       category: expenseForm.category || 'General',
       cloud_ok: cloudOk
-    });
+    }, consumePendingAuthorizer());
 
     setIsExpenseModalOpen(false);
     setExpenseForm({ amount: '', reason: '', category: 'General' });

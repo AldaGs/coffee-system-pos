@@ -12,6 +12,7 @@ import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
 import { logActivity } from './services/activityService';
+import { consumePendingAuthorizer } from './utils/overrideAuthorizer';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
 import { toCents, formatForDisplay, normalizeMenuPrice } from './utils/moneyUtils';
@@ -160,8 +161,14 @@ function Register() {
     if (activeTicket) {
       await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
 
-      // LOG ACTIVITY
-      logActivity('Discount Applied', `A ${discountForm.type === 'percentage' ? discountForm.value + '%' : formatForDisplay(val)} discount was applied to ticket: ${activeTicket.name}`);
+      // LOG ACTIVITY — fourth arg picks up the manager override (if any)
+      // that gateRegisterAction stashed at the gate.
+      logActivity(
+        'Discount Applied',
+        `A ${discountForm.type === 'percentage' ? discountForm.value + '%' : formatForDisplay(val)} discount was applied to ticket: ${activeTicket.name}`,
+        null,
+        consumePendingAuthorizer()
+      );
     }
     setIsDiscountModalOpen(false);
     setDiscountForm({ type: 'percentage', value: '' }); // Reset form

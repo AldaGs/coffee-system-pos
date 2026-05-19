@@ -11,6 +11,8 @@ import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMe
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 import { recordTipRefund } from '../../services/tipsService';
 import { logActivity } from '../../services/activityService';
+import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
+import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
@@ -18,6 +20,16 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   const [sharingOrder, setSharingOrder] = useState(null);
 
   const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
+
+  // For strictRegisterOverrides + lock-icon hints. activeCashier in admin
+  // contexts comes from localStorage (Register sets it on unlock).
+  const posSettings = menuData?.posSettings;
+  let activeCashier = null;
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('tinypos_activeCashier') : null;
+    if (raw) activeCashier = JSON.parse(raw);
+  } catch { /* noop */ }
+  const refundLocked = showOverrideLock(posSettings, activeCashier);
 
   // --- REFUND MODAL STATE ---
   const [refundModal, setRefundModal] = useState({ isOpen: false, order: null });
@@ -122,7 +134,7 @@ const handleProcessRefund = async () => {
         sale_local_id: order.local_id || null,
         original_total: order.total_amount,
         original_cashier: order.cashier_name || null
-      });
+      }, consumePendingAuthorizer());
 
       setRefundModal({ isOpen: false, order: null });
       showAlert(t('toast.success'), t('toast.success'));
@@ -150,7 +162,7 @@ const handleProcessRefund = async () => {
            original_total: order.total_amount,
            original_cashier: order.cashier_name || null,
            offline: true
-         });
+         }, consumePendingAuthorizer());
          setRefundModal({ isOpen: false, order: null });
          return showAlert(t('toast.success'), t('toast.success') + " (Offline)");
       }
@@ -408,14 +420,19 @@ const handleProcessRefund = async () => {
 
               <button
                 onClick={() => {
-                  requirePin(t('orders.promptPin'), () => {
-                    setRefundMode('all');
-                    setRefundAmount('');
-                    // Sensible default: full refund -> return tip; partial -> keep tip with staff.
-                    setTipRefundMode('full');
-                    setRefundModal({ isOpen: true, order: order });
+                  gateRegisterAction({
+                    posSettings, activeCashier, requirePin,
+                    title: t('orders.promptPin'),
+                    run: () => {
+                      setRefundMode('all');
+                      setRefundAmount('');
+                      // Sensible default: full refund -> return tip; partial -> keep tip with staff.
+                      setTipRefundMode('full');
+                      setRefundModal({ isOpen: true, order: order });
+                    },
                   });
                 }}
+                aria-label={refundLocked ? t('settings.lockBadgeAria') : undefined}
                 disabled={order.status === 'refunded'}
                 style={{
                   padding: '12px 20px',
@@ -434,7 +451,7 @@ const handleProcessRefund = async () => {
                   fontSize: '0.85rem'
                 }}
               >
-                <Icon icon="lucide:rotate-ccw" />
+                {refundLocked ? <Icon icon="lucide:lock" /> : <Icon icon="lucide:rotate-ccw" />}
                 {t('orders.btnRefund')}
               </button>
             </div>

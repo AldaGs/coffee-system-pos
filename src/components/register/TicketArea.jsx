@@ -5,6 +5,7 @@ import { Icon } from '@iconify/react';
 import QuantityEditModal from './QuantityEditModal';
 import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
+import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -19,8 +20,11 @@ function TicketArea({
     handleWheelScroll, activeTicket, cartSubtotal, cartTotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
     handleRemoveItem, handleOpenCheckout, handleCancelTicket,
-    requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket
+    requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket,
+    posSettings, activeCashier,
   } = usePos();
+
+  const lockHint = showOverrideLock(posSettings, activeCashier);
 
   return (
     <>
@@ -147,14 +151,39 @@ function TicketArea({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button className="cancel-btn" onClick={() => { setIsActionSheetOpen(false); handleCancelTicket(); }} style={{ flex: 1, padding: '16px', fontSize: '1.1rem' }}>
+                  <button
+                    className="cancel-btn"
+                    onClick={() => {
+                      setIsActionSheetOpen(false);
+                      gateRegisterAction({
+                        posSettings, activeCashier, requirePin,
+                        title: t('ticket.authVoid') || t('ticket.btnVoid'),
+                        run: () => handleCancelTicket(),
+                      });
+                    }}
+                    aria-label={lockHint ? t('settings.lockBadgeAria') : undefined}
+                    style={{ flex: 1, padding: '16px', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    {lockHint && <Icon icon="lucide:lock" style={{ fontSize: '0.95rem' }} />}
                     {t('ticket.btnVoid')}
                   </button>
                   <button onClick={() => { setIsActionSheetOpen(false); handleRenameTicket(); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#2980b9', border: '1px solid #2980b9', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     {t('ticket.btnRename')}
                   </button>
                 </div>
-                <button onClick={() => { setIsActionSheetOpen(false); requirePin(t('ticket.authDiscount'), () => setIsDiscountModalOpen(true)); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>
+                <button
+                  onClick={() => {
+                    setIsActionSheetOpen(false);
+                    gateRegisterAction({
+                      posSettings, activeCashier, requirePin,
+                      title: t('ticket.authDiscount'),
+                      run: () => setIsDiscountModalOpen(true),
+                    });
+                  }}
+                  aria-label={lockHint ? t('settings.lockBadgeAria') : undefined}
+                  style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {lockHint && <Icon icon="lucide:lock" style={{ fontSize: '0.95rem' }} />}
                   {t('ticket.btnDiscount')}
                 </button>
                 <div style={{ display: 'flex', gap: '12px' }}>

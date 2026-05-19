@@ -3,6 +3,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { Icon } from '@iconify/react';
 import { getRole } from '../../utils/cashierRoles';
+import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 
 function MenuArea({ 
   activeCategory, setActiveCategory, 
@@ -22,6 +23,7 @@ function MenuArea({
   // strictAdminAccess: only admins see the Admin button. In permissive mode
   // (the default) everyone sees it; the /admin route's own auth still gates.
   const canEnterAdmin = !posSettings?.strictAdminAccess || getRole(activeCashier) === 'admin';
+  const expenseLocked = showOverrideLock(posSettings, activeCashier);
 
   return (
     <main className="menu-area">
@@ -60,7 +62,19 @@ function MenuArea({
             </span>
             
             {posSettings?.isAdvancedMode && (
-              <button onClick={() => { requirePin(t('menuArea.authGasto'), () => setIsExpenseModalOpen(true)); setIsMobileMenuOpen(false); }} style={{ padding: '8px 16px', background: 'var(--action-danger)', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  gateRegisterAction({
+                    posSettings, activeCashier, requirePin,
+                    title: t('menuArea.authGasto'),
+                    run: () => setIsExpenseModalOpen(true),
+                  });
+                }}
+                aria-label={expenseLocked ? t('settings.lockBadgeAria') : undefined}
+                style={{ padding: '8px 16px', background: 'var(--action-danger)', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                {expenseLocked && <Icon icon="lucide:lock" style={{ fontSize: '0.95rem' }} />}
                 {t('menuArea.gasto')}
               </button>
             )}

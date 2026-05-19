@@ -805,6 +805,8 @@ export const translations = {
 
     // --- PIN Challenge Modal ---
     "pin.managerReq": "Enter Manager PIN",
+    "pin.managerOrAdminReq": "Ask a Manager or Admin to type their PIN to authorize this action.",
+    "ticket.authVoid": "Manager authorization required to void this ticket",
     "pin.required": "REQUIRED",
     "pin.btnCancel": "CANCEL",
     "pin.btnVerify": "Verify [Enter]",
@@ -1866,6 +1868,8 @@ export const translations = {
 
     // --- PIN Challenge Modal ---
     "pin.managerReq": "Ingresa PIN de Gerente",
+    "pin.managerOrAdminReq": "Pide a un Gerente o Administrador que ingrese su PIN para autorizar esta acción.",
+    "ticket.authVoid": "Se requiere autorización de un gerente para cancelar este ticket",
     "pin.required": "REQUERIDO",
     "pin.btnCancel": "CANCELAR",
     "pin.btnVerify": "Verificar [Enter]",
