@@ -2,6 +2,9 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useNavigate } from 'react-router-dom';
 
 function LockScreen({ posSettings, cashiers, selectedProfile, setSelectedProfile, pinAttempt, setPinAttempt, handlePinKeyDown, phoneError, handleUnlockSubmit }) {
+  // In strict-admin mode there's no active cashier yet on this screen, so we
+  // can't authorize entering /admin. Users must unlock as an admin first.
+  const hideAdminBtn = !!posSettings?.strictAdminAccess;
   const { t } = useTranslation();
   const navigate = useNavigate();
 
@@ -34,19 +37,21 @@ function LockScreen({ posSettings, cashiers, selectedProfile, setSelectedProfile
       )}
 
       {/* Centered Admin Button at the bottom */}
-      <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)' }}>
-        <button
-          onClick={() => navigate('/admin')}
-          className="admin-btn"
-          style={{
-            width: 'calc(100vw - 200px)',
-            maxWidth: '500px',
-            borderRadius: '9999px'
-          }}
-        >
-          {t('menuArea.admin')}
-        </button>
-      </div>
+      {!hideAdminBtn && (
+        <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)' }}>
+          <button
+            onClick={() => navigate('/admin')}
+            className="admin-btn"
+            style={{
+              width: 'calc(100vw - 200px)',
+              maxWidth: '500px',
+              borderRadius: '9999px'
+            }}
+          >
+            {t('menuArea.admin')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

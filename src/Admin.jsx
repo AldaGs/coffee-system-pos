@@ -43,6 +43,23 @@ function Admin() {
   const { menuData, setMenuData, recipes, setRecipes } = useMenuStore();
   const { t } = useTranslation();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // strictAdminAccess guard: when on, the active cashier role must be 'admin'
+  // to even reach this page. We check on mount and on every menuData refresh
+  // in case the toggle is flipped while admin is open.
+  useEffect(() => {
+    const strict = !!menuData?.posSettings?.strictAdminAccess;
+    if (!strict) return;
+    let active = null;
+    try {
+      const raw = localStorage.getItem('tinypos_activeCashier');
+      if (raw) active = JSON.parse(raw);
+    } catch { /* noop */ }
+    const role = active?.role || (active?.isAdmin ? 'admin' : 'employee');
+    if (role !== 'admin') {
+      navigate('/', { replace: true });
+    }
+  }, [menuData, navigate]);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   // --- NEW: MANAGER PIN LOCK STATE ---
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);

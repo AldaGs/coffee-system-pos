@@ -2,6 +2,7 @@ import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { Icon } from '@iconify/react';
+import { getRole } from '../../utils/cashierRoles';
 
 function MenuArea({ 
   activeCategory, setActiveCategory, 
@@ -14,10 +15,14 @@ function MenuArea({
     menuData, posSettings, activeCashier, 
     isCurrentlyOffline, totalOfflineRecords, 
     shiftOrders, shiftExpenses, tickets, 
-    showAlert, showConfirm, requirePin, 
-    handleItemClick, setIsLocked, navigate 
+    showAlert, showConfirm, requirePin,
+    handleItemClick, setIsLocked, navigate
   } = usePos();
-  
+
+  // strictAdminAccess: only admins see the Admin button. In permissive mode
+  // (the default) everyone sees it; the /admin route's own auth still gates.
+  const canEnterAdmin = !posSettings?.strictAdminAccess || getRole(activeCashier) === 'admin';
+
   return (
     <main className="menu-area">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', position: 'relative' }}>
@@ -81,9 +86,11 @@ function MenuArea({
             <button onClick={() => { setIsLocked(true); setIsMobileMenuOpen(false); }} className="lock-btn">
               {t('menuArea.lock')}
             </button>
-            <button onClick={() => { navigate('/admin'); setIsMobileMenuOpen(false); }} className="admin-btn">
-              {t('menuArea.admin')}
-            </button>
+            {canEnterAdmin && (
+              <button onClick={() => { navigate('/admin'); setIsMobileMenuOpen(false); }} className="admin-btn">
+                {t('menuArea.admin')}
+              </button>
+            )}
           </div>
         </div>
       </div>
