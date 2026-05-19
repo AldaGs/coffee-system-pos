@@ -305,8 +305,8 @@ export default async function handler(req, res) {
     -- function owns the hashing (the raw PIN never lingers anywhere outside
     -- this transaction, and clients don't need permission to write the table
     -- directly).
-    -- search_path includes `extensions` so pgcrypto's crypt() and gen_salt()
-    -- resolve. Modern Supabase installs pgcrypto into the `extensions` schema,
+    -- search_path includes 'extensions' so pgcrypto's crypt() and gen_salt()
+    -- resolve. Modern Supabase installs pgcrypto into the extensions schema,
     -- not public, and SECURITY DEFINER with a pinned path otherwise hides them.
     CREATE OR REPLACE FUNCTION public.set_cashier_pin(p_cashier_id BIGINT, p_pin TEXT)
     RETURNS VOID

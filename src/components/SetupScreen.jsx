@@ -390,7 +390,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         $$ LANGUAGE plpgsql SECURITY DEFINER;
 
         -- Mirror of api/install.js: keep these in sync.
-        -- search_path includes `extensions` so pgcrypto's crypt()/gen_salt()
+        -- search_path includes 'extensions' so pgcrypto's crypt()/gen_salt()
         -- resolve under SECURITY DEFINER. Keep in sync with api/install.js.
         CREATE OR REPLACE FUNCTION public.set_cashier_pin(p_cashier_id BIGINT, p_pin TEXT)
         RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER
