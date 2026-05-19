@@ -368,18 +368,38 @@ export const saveTicketAsPNG = async (elementId, fileName = 'ticket.png') => {
     await new Promise(resolve => setTimeout(resolve, 150));
 
     // PASS 2: Actual capture
-    const dataUrl = await htmlToImage.toPng(node, { 
+    const blob = await htmlToImage.toBlob(node, {
       backgroundColor: '#fff',
-      pixelRatio: 2, // Higher quality for mobile sharing
-      style: {
-        borderRadius: '0'
-      }
+      pixelRatio: 2,
+      style: { borderRadius: '0' }
     });
 
+    if (!blob) throw new Error('Failed to generate ticket image');
+
+    const file = new File([blob], fileName, { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'Ticket',
+          text: 'Aquí tienes tu ticket.'
+        });
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        // Any other share error: fall through to download
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.download = fileName;
-    link.href = dataUrl;
+    link.href = url;
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (error) {
     console.error('oops, something went wrong!', error);
     throw error;
