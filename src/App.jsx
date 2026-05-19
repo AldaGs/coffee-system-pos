@@ -151,13 +151,19 @@ function App() {
       return !!row;
     };
 
-    // Wrapped in try/finally so the loading spinner ALWAYS clears, even if
-    // verifyAllowlist or signOut throws (network blip, supabase-js quirk,
-    // unexpected payload). The cost of an extra "stuck" screen is much
-    // higher than the cost of being briefly lenient on a transient error —
-    // the worst case here is the user lands on the locked screen and signs
-    // in again, vs. an infinite "Checking device authorization..." that
-    // requires them to clear localStorage manually.
+    // The spinner is gated ONLY on whether we have a session — not on the
+    // allowlist check. Background reason: on PWA restart (iOS/Android), JS
+    // can be paused while the OS resumes the app, and the synchronous
+    // ordering between a queued setTimeout and an in-flight fetch becomes
+    // unreliable. The fetch may complete on the wire in 130ms while the
+    // JS race thinks it took >5s. By only awaiting getSession() (a
+    // localStorage read + optional token refresh), we keep the spinner
+    // short and predictable.
+    //
+    // The allowlist still runs — fire-and-forget. If it rejects, we sign
+    // the user out asynchronously. Worst case: the user briefly sees the
+    // locked or main screen before being kicked back out. Strictly better
+    // than an unbreakable spinner.
     (async () => {
       let finalSession = null;
       try {
@@ -170,22 +176,14 @@ function App() {
           }
         }
         if (sess) {
-          let ok = true;
-          try {
-            ok = await verifyAllowlist(sess);
-          } catch (e) {
-            // Lean permissive — better to let them in than to lock them out
-            // forever on a transient query failure. They'll still hit any
-            // real RLS denials when the app actually queries data.
-            console.warn('verifyAllowlist threw; allowing sign-in:', e);
-            ok = true;
-          }
-          if (!ok) {
-            try { await supabase.auth.signOut(); } catch (e) { console.warn('signOut after allowlist reject failed:', e); }
-            setAuthError('Esta cuenta no está autorizada. Pide al administrador que la agregue.');
-            return;
-          }
           finalSession = sess;
+          // Async enforcement — doesn't block the spinner.
+          verifyAllowlist(sess).then((ok) => {
+            if (ok) return;
+            console.warn('allowlist rejected post-load; signing out');
+            supabase.auth.signOut().catch((e) => console.warn('signOut after async reject failed:', e));
+            setAuthError('Esta cuenta no está autorizada. Pide al administrador que la agregue.');
+          }).catch((e) => console.warn('verifyAllowlist threw (async, ignored):', e));
         }
       } catch (e) {
         console.error('Initial auth-check threw — falling back to logged-out state:', e);
