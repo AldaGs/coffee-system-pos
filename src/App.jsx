@@ -91,6 +91,19 @@ function App() {
       return;
     }
 
+    // Race any awaited promise against a hard timeout. Returns the
+    // promise's value, or { __timedOut: true } if it didn't settle in N ms.
+    // Critical defense against silent Supabase / PostgREST hangs on
+    // restart — without it, an unresolved await freezes the spinner forever
+    // because the surrounding try/finally never reaches the finally clause.
+    const raceWithTimeout = (p, ms, label) => Promise.race([
+      p,
+      new Promise((resolve) => setTimeout(() => {
+        console.warn(`[auth] ${label} exceeded ${ms}ms — falling back to permissive sign-in`);
+        resolve({ __timedOut: true });
+      }, ms)),
+    ]);
+
     // claim_or_bootstrap_app_user (schema 0.2+) does all the work in one
     // SECURITY DEFINER RPC: claims a pending row, auto-adds devices, or
     // promotes the first human to admin. We just call it and check the
@@ -102,8 +115,19 @@ function App() {
     const verifyAllowlist = async (sess) => {
       if (!sess?.user?.email) return false;
 
-      const { data: row, error } = await supabase
-        .rpc('claim_or_bootstrap_app_user');
+      const result = await raceWithTimeout(
+        supabase.rpc('claim_or_bootstrap_app_user'),
+        5000,
+        'allowlist RPC'
+      );
+      if (result?.__timedOut) {
+        // Don't trap the user behind a hung RPC. They'll still be denied
+        // by any real RLS check on the data tables if they aren't supposed
+        // to be in the app — this only widens the entry door, not the
+        // doors inside.
+        return true;
+      }
+      const { data: row, error } = result;
 
       if (error) {
         // 42P01 = relation missing, 42883 = function does not exist (older
