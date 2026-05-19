@@ -765,9 +765,11 @@ function SettingToggle({ icon, label, desc, checked, onChange }) {
           flexShrink: 0,
           width: '44px',
           height: '26px',
-          background: checked ? 'var(--brand-color)' : 'var(--border)',
+          // Hard-coded gray for the off state — var(--border) is brand-tinted
+          // in this theme so on/off looked identical when keyed off it.
+          background: checked ? 'var(--brand-color)' : '#9ca3af',
           borderRadius: '999px',
-          border: '1px solid var(--border)',
+          border: 'none',
           position: 'relative',     // ← critical: anchor for the thumb
           padding: 0,                // some browsers add default button padding
           cursor: 'pointer',

@@ -285,8 +285,8 @@ function DevicesTab({ showAlert, showConfirm }) {
                 disabled={submitting}
                 style={{
                   flexShrink: 0, width: '44px', height: '26px',
-                  background: useCustomEmail ? 'var(--brand-color)' : 'var(--border)',
-                  borderRadius: '999px', border: '1px solid var(--border)',
+                  background: useCustomEmail ? 'var(--brand-color)' : '#9ca3af',
+                  borderRadius: '999px', border: 'none',
                   position: 'relative', padding: 0, cursor: 'pointer',
                   transition: 'background 0.2s ease', boxSizing: 'border-box',
                 }}
