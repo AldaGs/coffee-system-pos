@@ -390,9 +390,11 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         $$ LANGUAGE plpgsql SECURITY DEFINER;
 
         -- Mirror of api/install.js: keep these in sync.
+        -- search_path includes `extensions` so pgcrypto's crypt()/gen_salt()
+        -- resolve under SECURITY DEFINER. Keep in sync with api/install.js.
         CREATE OR REPLACE FUNCTION public.set_cashier_pin(p_cashier_id BIGINT, p_pin TEXT)
         RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER
-        SET search_path = public AS $$
+        SET search_path = public, extensions AS $$
         BEGIN
           IF p_pin IS NULL OR length(p_pin) = 0 THEN
             RAISE EXCEPTION 'PIN cannot be empty';
@@ -405,7 +407,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
         CREATE OR REPLACE FUNCTION public.delete_cashier_pin(p_cashier_id BIGINT)
         RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER
-        SET search_path = public AS $$
+        SET search_path = public, extensions AS $$
         BEGIN
           DELETE FROM public.cashier_pins WHERE cashier_id = p_cashier_id;
         END;

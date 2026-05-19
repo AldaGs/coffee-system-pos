@@ -305,11 +305,14 @@ export default async function handler(req, res) {
     -- function owns the hashing (the raw PIN never lingers anywhere outside
     -- this transaction, and clients don't need permission to write the table
     -- directly).
+    -- search_path includes `extensions` so pgcrypto's crypt() and gen_salt()
+    -- resolve. Modern Supabase installs pgcrypto into the `extensions` schema,
+    -- not public, and SECURITY DEFINER with a pinned path otherwise hides them.
     CREATE OR REPLACE FUNCTION public.set_cashier_pin(p_cashier_id BIGINT, p_pin TEXT)
     RETURNS VOID
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = public
+    SET search_path = public, extensions
     AS $$
     BEGIN
       IF p_pin IS NULL OR length(p_pin) = 0 THEN
@@ -327,7 +330,7 @@ export default async function handler(req, res) {
     RETURNS VOID
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = public
+    SET search_path = public, extensions
     AS $$
     BEGIN
       DELETE FROM public.cashier_pins WHERE cashier_id = p_cashier_id;
