@@ -91,44 +91,39 @@ function App() {
       return;
     }
 
+    // claim_or_bootstrap_app_user (schema 0.2+) does all the work in one
+    // SECURITY DEFINER RPC: claims a pending row, auto-adds devices, or
+    // promotes the first human to admin. We just call it and check the
+    // returned row.
+    //
+    // For schema <0.2 (the RPC doesn't exist yet) the call returns a
+    // "function not found" error — treated the same as the table-missing
+    // case below: lean permissive so the owner can reach Update Schema.
     const verifyAllowlist = async (sess) => {
       if (!sess?.user?.email) return false;
-      const emailLower = sess.user.email.toLowerCase();
-      // Best-effort claim of a pending row. If there's nothing to claim,
-      // either this user is already claimed or they aren't on the allowlist
-      // — the SELECT below is the source of truth.
-      try {
-        await supabase
-          .from('app_users')
-          .update({ auth_user_id: sess.user.id })
-          .is('auth_user_id', null)
-          .eq('email', emailLower)
-          .is('disabled_at', null);
-      } catch { /* noop — the verifying SELECT is what matters */ }
 
       const { data: row, error } = await supabase
-        .from('app_users')
-        .select('id')
-        .eq('auth_user_id', sess.user.id)
-        .is('disabled_at', null)
-        .maybeSingle();
+        .rpc('claim_or_bootstrap_app_user');
 
-      // Graceful degrade: if the table doesn't exist (older install on a
-      // pre-app_users schema) or the query otherwise errors, let the user
-      // through. The allowlist is opt-in protection — its absence must NOT
-      // lock owners out of their own tenant, otherwise they can't reach the
-      // Update Schema button to install it. Once schema_meta.app_users lands,
-      // this branch stops firing and the allowlist enforces normally.
       if (error) {
-        const relMissing = error.code === '42P01'
-          || /relation .* does not exist/i.test(error.message || '');
-        if (relMissing) {
-          console.warn('app_users missing — allowlist check skipped until schema is updated.');
+        // 42P01 = relation missing, 42883 = function does not exist (older
+        // schema). PGRST202 = PostgREST couldn't find the RPC. All three
+        // mean the user is on a pre-0.2 install and must reach Update
+        // Schema — pass through.
+        const missing = error.code === '42P01'
+          || error.code === '42883'
+          || error.code === 'PGRST202'
+          || /(relation|function) .* does not exist/i.test(error.message || '')
+          || /could not find the function/i.test(error.message || '');
+        if (missing) {
+          console.warn('app_users / claim RPC missing — allowlist check skipped until Update Schema runs.');
         } else {
-          console.warn('app_users check errored, allowing sign-in:', error);
+          console.warn('claim_or_bootstrap_app_user errored, allowing sign-in:', error);
         }
         return true;
       }
+
+      // RPC returns the user's effective row, or null if not authorized.
       return !!row;
     };
 

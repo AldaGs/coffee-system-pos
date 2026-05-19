@@ -494,16 +494,19 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         $$ LANGUAGE plpgsql SECURITY DEFINER;
 
         -- ==========================================
-        -- APP USERS: unified allowlist for who may sign into this tinypos.
-        -- Mirrors the block in api/install.js — keep them in sync.
+        -- APP USERS: unified allowlist. Mirrors api/install.js — no auth
+        -- schema references (no FK to auth.users, no trigger on auth.users,
+        -- no backfill SELECT against auth.users) because some Supabase
+        -- project configs restrict those via the Management API. The
+        -- claim-or-bootstrap logic lives in an RPC the client calls.
         -- ==========================================
         CREATE TABLE IF NOT EXISTS public.app_users (
           id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           email        text NOT NULL UNIQUE,
           role         text NOT NULL DEFAULT 'employee',
-          auth_user_id uuid UNIQUE REFERENCES auth.users(id) ON DELETE SET NULL,
+          auth_user_id uuid UNIQUE,
           provider     text,
-          created_by   uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+          created_by   uuid,
           created_at   timestamptz NOT NULL DEFAULT now(),
           disabled_at  timestamptz
         );
@@ -530,13 +533,6 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
         CREATE POLICY "Users can read own row" ON public.app_users
           FOR SELECT TO authenticated USING (auth_user_id = auth.uid());
-        CREATE POLICY "Users can read pending row" ON public.app_users
-          FOR SELECT TO authenticated
-          USING (auth_user_id IS NULL AND lower(email) = lower(auth.jwt() ->> 'email'));
-        CREATE POLICY "Users can claim pending row" ON public.app_users
-          FOR UPDATE TO authenticated
-          USING (auth_user_id IS NULL AND lower(email) = lower(auth.jwt() ->> 'email'))
-          WITH CHECK (auth_user_id = auth.uid() AND lower(email) = lower(auth.jwt() ->> 'email'));
         CREATE POLICY "Admins can read all" ON public.app_users
           FOR SELECT TO authenticated USING (public.is_app_admin(auth.uid()));
         CREATE POLICY "Admins can insert" ON public.app_users
@@ -548,51 +544,53 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "Admins can delete" ON public.app_users
           FOR DELETE TO authenticated USING (public.is_app_admin(auth.uid()));
 
-        CREATE OR REPLACE FUNCTION public.bootstrap_app_user()
-        RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER
+        -- Client calls this on every successful sign-in. See api/install.js
+        -- for the contract docstring.
+        CREATE OR REPLACE FUNCTION public.claim_or_bootstrap_app_user()
+        RETURNS public.app_users
+        LANGUAGE plpgsql SECURITY DEFINER
         SET search_path = public AS $$
         DECLARE
-          v_provider text := COALESCE(NEW.raw_app_meta_data->>'provider', 'email');
+          v_email text := lower(coalesce(auth.jwt() ->> 'email', ''));
+          v_uid   uuid := auth.uid();
+          v_row   public.app_users%ROWTYPE;
         BEGIN
-          IF NEW.email IS NULL THEN RETURN NEW; END IF;
+          IF v_email = '' OR v_uid IS NULL THEN RETURN NULL; END IF;
 
-          IF NEW.email LIKE '%@device.tinypos.com' THEN
+          UPDATE public.app_users
+             SET auth_user_id = v_uid
+           WHERE auth_user_id IS NULL
+             AND lower(email) = v_email
+             AND disabled_at IS NULL
+          RETURNING * INTO v_row;
+          IF FOUND THEN RETURN v_row; END IF;
+
+          IF v_email LIKE '%@device.tinypos.com' THEN
             INSERT INTO public.app_users (email, role, auth_user_id, provider)
-            VALUES (NEW.email, 'device', NEW.id, v_provider)
+            VALUES (v_email, 'device', v_uid, 'email')
             ON CONFLICT (email) DO UPDATE
               SET auth_user_id = EXCLUDED.auth_user_id
-              WHERE public.app_users.auth_user_id IS NULL;
-            RETURN NEW;
+              WHERE public.app_users.auth_user_id IS NULL
+            RETURNING * INTO v_row;
+            IF v_row.id IS NOT NULL THEN RETURN v_row; END IF;
           END IF;
 
           IF NOT EXISTS (SELECT 1 FROM public.app_users WHERE role = 'admin' LIMIT 1) THEN
             INSERT INTO public.app_users (email, role, auth_user_id, provider, created_by)
-            VALUES (NEW.email, 'admin', NEW.id, v_provider, NEW.id)
+            VALUES (v_email, 'admin', v_uid, 'email', v_uid)
             ON CONFLICT (email) DO UPDATE
               SET auth_user_id = EXCLUDED.auth_user_id, role = 'admin'
-              WHERE public.app_users.auth_user_id IS NULL;
+            RETURNING * INTO v_row;
+            RETURN v_row;
           END IF;
-          RETURN NEW;
+
+          SELECT * INTO v_row FROM public.app_users
+          WHERE auth_user_id = v_uid AND disabled_at IS NULL
+          LIMIT 1;
+          RETURN v_row;
         END;
         $$;
-
-        DROP TRIGGER IF EXISTS trg_bootstrap_app_user ON auth.users;
-        CREATE TRIGGER trg_bootstrap_app_user
-          AFTER INSERT ON auth.users
-          FOR EACH ROW EXECUTE FUNCTION public.bootstrap_app_user();
-
-        -- Backfill any auth.users created before this block existed.
-        INSERT INTO public.app_users (email, role, auth_user_id, provider)
-        SELECT
-          u.email,
-          CASE WHEN u.email LIKE '%@device.tinypos.com' THEN 'device' ELSE 'admin' END,
-          u.id,
-          COALESCE(u.raw_app_meta_data->>'provider', 'email')
-        FROM auth.users u
-        WHERE u.email IS NOT NULL
-        ON CONFLICT (email) DO UPDATE
-          SET auth_user_id = EXCLUDED.auth_user_id
-          WHERE public.app_users.auth_user_id IS NULL;
+        GRANT EXECUTE ON FUNCTION public.claim_or_bootstrap_app_user() TO authenticated;
 
         -- Schema version stamp — mirror of api/install.js. Bump together
         -- with src/utils/schemaVersion.js on every schema change.
@@ -606,7 +604,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "Authenticated can read schema_meta" ON public.schema_meta
           FOR SELECT TO authenticated USING (true);
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '0.1', now())
+        VALUES ('schema_version', '0.2', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

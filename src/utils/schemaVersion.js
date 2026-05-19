@@ -12,4 +12,11 @@
 // constant; if they differ, the UI surfaces "Update available."
 //
 // SCHEMA: bump me when changing the install SQL.
-export const APP_SCHEMA_VERSION = '0.1';
+//
+// 0.2 — drops auth.users FKs and the auth.users trigger; replaces them with
+//       the claim_or_bootstrap_app_user RPC the client calls on sign-in.
+//       Fix for Supabase project configs that restrict Management API ops
+//       on the auth schema.
+// 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
+//       management RPCs.
+export const APP_SCHEMA_VERSION = '0.2';
