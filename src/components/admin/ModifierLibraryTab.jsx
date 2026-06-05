@@ -15,7 +15,8 @@ function ModifierLibraryTab({
   handleDeleteModifierGroup,
   handleDeleteModifierOption,
   handleRenameModifierGroup,
-  handleUpdateModifierOption
+  handleUpdateModifierOption,
+  handleToggleModifierGroupMulti
 }) {
   const { t } = useTranslation();
 
@@ -203,7 +204,16 @@ function ModifierLibraryTab({
                   )}
 
                   {!editingModGroup || editingModGroup !== groupKey ? (
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px' }} title={t('mods.allowMultipleHint') || 'Let cashier pick more than one option from this group'}>
+                        <input
+                          type="checkbox"
+                          checked={!!menuData.modifierGroupSettings?.[groupKey]?.allowMultiple}
+                          onChange={() => handleToggleModifierGroupMulti && handleToggleModifierGroupMulti(groupKey)}
+                          style={{ accentColor: 'var(--brand-color)' }}
+                        />
+                        {t('mods.allowMultiple') || 'Allow multiple'}
+                      </label>
                       <button onClick={() => { setEditingModGroup(groupKey); setModGroupEditValue(groupKey.replace('_', ' ')); }} style={{ background: 'rgba(52, 152, 219, 0.1)', border: 'none', color: '#3498db', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Rename Group">
                         <Icon icon="lucide:edit-3" style={{ fontSize: '1.1rem' }} />
                       </button>

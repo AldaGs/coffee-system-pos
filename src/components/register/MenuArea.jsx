@@ -110,15 +110,24 @@ function MenuArea({
       </div>
 
       <div className="category-tabs">
-        {Object.keys(menuData?.categories || {}).map(category => (
-          <button 
-            key={category} 
-            onClick={() => setActiveCategory(category)} 
-            className={`tab-btn ${activeCategory === category ? 'active' : ''}`}
-          >
-            {category}
-          </button>
-        ))}
+        {(() => {
+          const allCats = Object.keys(menuData?.categories || {});
+          const order = menuData?.categoryOrder || [];
+          const hidden = new Set(menuData?.hiddenCategories || []);
+          const ordered = [
+            ...order.filter(c => allCats.includes(c)),
+            ...allCats.filter(c => !order.includes(c)),
+          ].filter(c => !hidden.has(c));
+          return ordered.map(category => (
+            <button
+              key={category}
+              onClick={() => setActiveCategory(category)}
+              className={`tab-btn ${activeCategory === category ? 'active' : ''}`}
+            >
+              {category}
+            </button>
+          ));
+        })()}
       </div>
       
       <div className="menu-grid">

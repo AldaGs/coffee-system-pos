@@ -519,6 +519,47 @@ function Admin() {
       }
     });
     updatedMenu.categories = newCategories;
+    if (Array.isArray(updatedMenu.categoryOrder)) {
+      updatedMenu.categoryOrder = updatedMenu.categoryOrder.map(c => c === oldName ? newName : c);
+    }
+    if (Array.isArray(updatedMenu.hiddenCategories)) {
+      updatedMenu.hiddenCategories = updatedMenu.hiddenCategories.map(c => c === oldName ? newName : c);
+    }
+    saveMenuToCloud(updatedMenu);
+  };
+
+  // Reorder a category up (-1) or down (+1) in the register tab order.
+  const handleMoveCategory = (categoryName, direction) => {
+    const updatedMenu = { ...menuData };
+    const allCats = Object.keys(updatedMenu.categories || {});
+    const existingOrder = Array.isArray(updatedMenu.categoryOrder) ? updatedMenu.categoryOrder : [];
+    const fullOrder = [
+      ...existingOrder.filter(c => allCats.includes(c)),
+      ...allCats.filter(c => !existingOrder.includes(c)),
+    ];
+    const idx = fullOrder.indexOf(categoryName);
+    const newIdx = idx + direction;
+    if (idx < 0 || newIdx < 0 || newIdx >= fullOrder.length) return;
+    [fullOrder[idx], fullOrder[newIdx]] = [fullOrder[newIdx], fullOrder[idx]];
+    updatedMenu.categoryOrder = fullOrder;
+    saveMenuToCloud(updatedMenu);
+  };
+
+  const handleToggleCategoryVisibility = (categoryName) => {
+    const updatedMenu = { ...menuData };
+    const hidden = new Set(updatedMenu.hiddenCategories || []);
+    if (hidden.has(categoryName)) hidden.delete(categoryName);
+    else hidden.add(categoryName);
+    updatedMenu.hiddenCategories = [...hidden];
+    saveMenuToCloud(updatedMenu);
+  };
+
+  const handleToggleModifierGroupMulti = (groupKey) => {
+    const updatedMenu = { ...menuData };
+    const settings = { ...(updatedMenu.modifierGroupSettings || {}) };
+    const current = !!settings[groupKey]?.allowMultiple;
+    settings[groupKey] = { ...(settings[groupKey] || {}), allowMultiple: !current };
+    updatedMenu.modifierGroupSettings = settings;
     saveMenuToCloud(updatedMenu);
   };
 
@@ -679,6 +720,10 @@ function Admin() {
     // 1. Move the group data
     updatedMenu.modifierGroups[formattedNewKey] = updatedMenu.modifierGroups[oldKey];
     delete updatedMenu.modifierGroups[oldKey];
+    if (updatedMenu.modifierGroupSettings && updatedMenu.modifierGroupSettings[oldKey]) {
+      updatedMenu.modifierGroupSettings[formattedNewKey] = updatedMenu.modifierGroupSettings[oldKey];
+      delete updatedMenu.modifierGroupSettings[oldKey];
+    }
 
     // 2. CRITICAL FIX: Update ALL drinks that reference this group
     Object.keys(updatedMenu.categories).forEach(cat => {
@@ -713,6 +758,12 @@ function Admin() {
     showConfirm(t('menu.deleteCategoryTitle'), `${t('menu.deleteCategoryDesc')} (${categoryName})`, () => {
       const updatedMenu = { ...menuData };
       delete updatedMenu.categories[categoryName];
+      if (Array.isArray(updatedMenu.categoryOrder)) {
+        updatedMenu.categoryOrder = updatedMenu.categoryOrder.filter(c => c !== categoryName);
+      }
+      if (Array.isArray(updatedMenu.hiddenCategories)) {
+        updatedMenu.hiddenCategories = updatedMenu.hiddenCategories.filter(c => c !== categoryName);
+      }
       saveMenuToCloud(updatedMenu);
     });
   };
@@ -727,6 +778,9 @@ function Admin() {
 
         // 1. Delete the group itself
         delete updatedMenu.modifierGroups[groupKey];
+        if (updatedMenu.modifierGroupSettings) {
+          delete updatedMenu.modifierGroupSettings[groupKey];
+        }
 
         // 2. Scrub the menu! Remove this group from any drink that has it assigned
         Object.keys(updatedMenu.categories).forEach(category => {
@@ -1393,6 +1447,8 @@ function Admin() {
             handleRenameCategory={handleRenameCategory}
             editingItemId={editingItemId}
             setEditingItemId={setEditingItemId}
+            handleMoveCategory={handleMoveCategory}
+            handleToggleCategoryVisibility={handleToggleCategoryVisibility}
           />
         )}
 
@@ -1411,6 +1467,7 @@ function Admin() {
             handleDeleteModifierOption={handleDeleteModifierOption}
             handleRenameModifierGroup={handleRenameModifierGroup}
             handleUpdateModifierOption={handleUpdateModifierOption}
+            handleToggleModifierGroupMulti={handleToggleModifierGroupMulti}
           />
         )}
 

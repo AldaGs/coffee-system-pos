@@ -584,12 +584,23 @@ function Register() {
   };
 
   const handleToggleModifier = (modGroupKey, modifierObj) => {
+    const allowMultiple = !!menuData?.modifierGroupSettings?.[modGroupKey]?.allowMultiple;
     let updatedModifiers = [...pendingItem.selectedModifiers];
-    const existingIndex = updatedModifiers.findIndex(m => m.groupId === modGroupKey);
-    if (existingIndex >= 0) {
-      updatedModifiers[existingIndex] = { ...modifierObj, groupId: modGroupKey };
+
+    if (allowMultiple) {
+      const sameOptionIdx = updatedModifiers.findIndex(m => m.id === modifierObj.id && m.groupId === modGroupKey);
+      if (sameOptionIdx >= 0) {
+        updatedModifiers.splice(sameOptionIdx, 1);
+      } else {
+        updatedModifiers.push({ ...modifierObj, groupId: modGroupKey });
+      }
     } else {
-      updatedModifiers.push({ ...modifierObj, groupId: modGroupKey });
+      const existingIndex = updatedModifiers.findIndex(m => m.groupId === modGroupKey);
+      if (existingIndex >= 0) {
+        updatedModifiers[existingIndex] = { ...modifierObj, groupId: modGroupKey };
+      } else {
+        updatedModifiers.push({ ...modifierObj, groupId: modGroupKey });
+      }
     }
     setPendingItem({ ...pendingItem, selectedModifiers: updatedModifiers });
   };

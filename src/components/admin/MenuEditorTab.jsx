@@ -8,7 +8,8 @@ function MenuEditorTab({
   newItemForm, setNewItemForm, handleAddDrink, handleDeleteCategory, 
   handleDeleteDrink, setEditingDrink, 
   recipes, inventoryItems,
-  handleRenameCategory, editingItemId, setEditingItemId
+  handleRenameCategory, editingItemId, setEditingItemId,
+  handleMoveCategory, handleToggleCategoryVisibility
 }) {
   const { t } = useTranslation();
   const { showPrompt } = useDialog();
@@ -221,11 +222,51 @@ function MenuEditorTab({
           </h3>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {Object.keys(menuData.categories).map(category => (
-              <div key={category} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden' }}>
+            {(() => {
+              const allCats = Object.keys(menuData.categories);
+              const order = menuData.categoryOrder || [];
+              const ordered = [
+                ...order.filter(c => allCats.includes(c)),
+                ...allCats.filter(c => !order.includes(c)),
+              ];
+              const hiddenSet = new Set(menuData.hiddenCategories || []);
+              return ordered.map((category, idx) => {
+                const isHidden = hiddenSet.has(category);
+                return (
+              <div key={category} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden', opacity: isHidden ? 0.55 : 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)' }}>
-                  <h4 style={{ color: 'var(--text-main)', margin: 0, fontWeight: '900', fontSize: '1.1rem' }}>{category}</h4>
+                  <h4 style={{ color: 'var(--text-main)', margin: 0, fontWeight: '900', fontSize: '1.1rem' }}>
+                    {category}
+                    {isHidden && (
+                      <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                        {t('menu.categoryHiddenBadge') || 'hidden'}
+                      </span>
+                    )}
+                  </h4>
                   <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => handleMoveCategory && handleMoveCategory(category, -1)}
+                      disabled={idx === 0}
+                      style={{ background: 'rgba(52, 152, 219, 0.05)', border: 'none', color: 'var(--brand-color)', cursor: idx === 0 ? 'not-allowed' : 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === 0 ? 0.4 : 1 }}
+                      title={t('menu.titleMoveCategoryUp') || 'Move up'}
+                    >
+                      <Icon icon="lucide:arrow-up" style={{ fontSize: '1.1rem' }} />
+                    </button>
+                    <button
+                      onClick={() => handleMoveCategory && handleMoveCategory(category, 1)}
+                      disabled={idx === ordered.length - 1}
+                      style={{ background: 'rgba(52, 152, 219, 0.05)', border: 'none', color: 'var(--brand-color)', cursor: idx === ordered.length - 1 ? 'not-allowed' : 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: idx === ordered.length - 1 ? 0.4 : 1 }}
+                      title={t('menu.titleMoveCategoryDown') || 'Move down'}
+                    >
+                      <Icon icon="lucide:arrow-down" style={{ fontSize: '1.1rem' }} />
+                    </button>
+                    <button
+                      onClick={() => handleToggleCategoryVisibility && handleToggleCategoryVisibility(category)}
+                      style={{ background: 'rgba(52, 152, 219, 0.05)', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title={isHidden ? (t('menu.titleShowCategory') || 'Show in register') : (t('menu.titleHideCategory') || 'Hide from register')}
+                    >
+                      <Icon icon={isHidden ? 'lucide:eye-off' : 'lucide:eye'} style={{ fontSize: '1.1rem' }} />
+                    </button>
                     <button
                       onClick={() => {
                         showPrompt(t('menu.promptRenameCategory'), category, (newName) => {
@@ -315,7 +356,9 @@ function MenuEditorTab({
                   )}
                 </div>
               </div>
-            ))}
+                );
+              });
+            })()}
           </div>
         </div>
       </div>
