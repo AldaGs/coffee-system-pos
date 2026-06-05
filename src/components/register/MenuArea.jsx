@@ -4,6 +4,7 @@ import { formatForDisplay } from '../../utils/moneyUtils';
 import { Icon } from '@iconify/react';
 import { getRole } from '../../utils/cashierRoles';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
+import { getOrderedVisibleCategories } from '../../utils/categoryUtils';
 
 function MenuArea({ 
   activeCategory, setActiveCategory, 
@@ -111,13 +112,7 @@ function MenuArea({
 
       <div className="category-tabs">
         {(() => {
-          const allCats = Object.keys(menuData?.categories || {});
-          const order = menuData?.categoryOrder || [];
-          const hidden = new Set(menuData?.hiddenCategories || []);
-          const ordered = [
-            ...order.filter(c => allCats.includes(c)),
-            ...allCats.filter(c => !order.includes(c)),
-          ].filter(c => !hidden.has(c));
+          const ordered = getOrderedVisibleCategories(menuData);
           return ordered.map(category => (
             <button
               key={category}
