@@ -15,6 +15,7 @@ import { logActivity } from './services/activityService';
 import { consumePendingAuthorizer } from './utils/overrideAuthorizer';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
+import { getOrderedVisibleCategories } from './utils/categoryUtils';
 import { toCents, formatForDisplay, normalizeMenuPrice } from './utils/moneyUtils';
 import SharedPinPad from './components/shared/SharedPinPad';
 
@@ -115,9 +116,12 @@ function Register() {
         setRecipes(recipeResp);
 
         // SAFE ACTIVE CATEGORY ASSIGNMENT
-        const safeCategories = menuResp.menu_data?.categories || {};
-        if (Object.keys(safeCategories).length > 0) {
-          setActiveCategory(Object.keys(safeCategories)[0]);
+        // Open on the first *visible, ordered* tab (matches MenuArea) instead
+        // of whatever happens to be the first raw object key.
+        const allCats = Object.keys(menuResp.menu_data?.categories || {});
+        if (allCats.length > 0) {
+          const ordered = getOrderedVisibleCategories(menuResp.menu_data);
+          setActiveCategory(ordered[0] || allCats[0]);
         }
 
         // 3. Pull down active tickets from other devices into local Dexie
