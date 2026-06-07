@@ -8,6 +8,7 @@ import SignOutButton from '../SignOutButton';
 import SharedPinPad from '../shared/SharedPinPad';
 import { supabase } from '../../supabaseClient';
 import { updateItem, updateModifierOption, updateDiscountRule } from '../../api/menu';
+import { useMenuStore } from '../../store/useMenuStore';
 import { db } from '../../db';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
@@ -181,12 +182,18 @@ function GeneralSettingsTab({
     setPinError(false);
   };
 
-  const handlePinSubmit = () => {
+  // PIN check is async because cashier PINs aren't in memory (useMenuStore
+  // scrubs them) — we go through the verify_pin RPC. Master pinCode is still
+  // checked locally as a fast path.
+  const handlePinSubmit = async () => {
     const isMasterPin = pinAttempt === generalSettings.pinCode;
-    const isStaffAdmin = (menuData?.cashiers || []).some(
-      c => c.isAdmin === true && c.pin === pinAttempt
-    );
-    if (isMasterPin || isStaffAdmin) {
+    let authorized = isMasterPin;
+    if (!authorized) {
+      const { verifyAuthorizerPin } = useMenuStore.getState();
+      const result = await verifyAuthorizerPin(pinAttempt, 'admin');
+      authorized = !!result;
+    }
+    if (authorized) {
       const action = pinChallenge.onAuthorized;
       closePinChallenge();
       if (action) action();
