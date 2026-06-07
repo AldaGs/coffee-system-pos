@@ -2,7 +2,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, formatForDisplay } from '../../utils/moneyUtils';
 
-function DiscountsTab({ menuData, newRule, setNewRule, saveMenuToCloud, showAlert, showConfirm }) {
+function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, handleToggleDiscountRule, handleDeleteDiscountRule, showAlert, showConfirm }) {
   const { t } = useTranslation();
 
   return (
@@ -99,11 +99,8 @@ function DiscountsTab({ menuData, newRule, setNewRule, saveMenuToCloud, showAler
                 if (!newRule.name || !newRule.value || (newRule.targetType === 'item' && !newRule.targetValue)) {
                   return showAlert(t('disc.alertError'), t('disc.alertErrorDesc'));
                 }
-                const updatedMenu = { ...menuData };
-                if (!updatedMenu.discountRules) updatedMenu.discountRules = [];
                 const val = newRule.type === 'percentage' ? parseFloat(newRule.value) : toCents(newRule.value);
-                updatedMenu.discountRules.push({ ...newRule, id: Date.now(), value: val, isActive: true });
-                saveMenuToCloud(updatedMenu);
+                handleAddDiscountRule({ ...newRule, id: Date.now(), value: val, isActive: true });
                 setNewRule({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
                 showAlert(t('disc.alertSuccess'), t('disc.alertSuccessDesc'));
               }}
@@ -147,12 +144,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, saveMenuToCloud, showAler
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
-                      onClick={() => {
-                        const updatedMenu = { ...menuData };
-                        const ruleIndex = updatedMenu.discountRules.findIndex(r => r.id === rule.id);
-                        updatedMenu.discountRules[ruleIndex].isActive = !rule.isActive;
-                        saveMenuToCloud(updatedMenu);
-                      }}
+                      onClick={() => handleToggleDiscountRule(rule)}
                       style={{ height: '40px', width: '40px', background: rule.isActive ? 'rgba(241, 196, 15, 0.1)' : 'rgba(46, 204, 113, 0.1)', color: rule.isActive ? '#f1c40f' : '#27ae60', border: 'none', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       title={rule.isActive ? t('disc.btnPause') : t('disc.btnActivate')}
                     >
@@ -161,9 +153,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, saveMenuToCloud, showAler
                     <button
                       onClick={() => {
                         showConfirm(t('disc.confirmDelete'), t('disc.confirmDeleteDesc'), () => {
-                          const updatedMenu = { ...menuData };
-                          updatedMenu.discountRules = updatedMenu.discountRules.filter(r => r.id !== rule.id);
-                          saveMenuToCloud(updatedMenu);
+                          handleDeleteDiscountRule(rule);
                         });
                       }}
                       style={{ height: '40px', width: '40px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: 'none', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

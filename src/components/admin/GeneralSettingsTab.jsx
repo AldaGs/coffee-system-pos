@@ -7,6 +7,8 @@ import DisconnectButton from '../DisconnectButton';
 import SignOutButton from '../SignOutButton';
 import SharedPinPad from '../shared/SharedPinPad';
 import { supabase } from '../../supabaseClient';
+import { updateItem, updateModifierOption, updateDiscountRule } from '../../api/menu';
+import { useMenuStore } from '../../store/useMenuStore';
 import { db } from '../../db';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
@@ -28,7 +30,7 @@ function GeneralSettingsTab({
   handleAppLogoUpload,
   handleSaveGeneralSettings,
   menuData,
-  saveMenuToCloud,
+  saveSettingsToCloud,
   setLoyaltyForm,
   setInventoryItems,
   dexieSales = []
@@ -180,12 +182,18 @@ function GeneralSettingsTab({
     setPinError(false);
   };
 
-  const handlePinSubmit = () => {
+  // PIN check is async because cashier PINs aren't in memory (useMenuStore
+  // scrubs them) — we go through the verify_pin RPC. Master pinCode is still
+  // checked locally as a fast path.
+  const handlePinSubmit = async () => {
     const isMasterPin = pinAttempt === generalSettings.pinCode;
-    const isStaffAdmin = (menuData?.cashiers || []).some(
-      c => c.isAdmin === true && c.pin === pinAttempt
-    );
-    if (isMasterPin || isStaffAdmin) {
+    let authorized = isMasterPin;
+    if (!authorized) {
+      const { verifyAuthorizerPin } = useMenuStore.getState();
+      const result = await verifyAuthorizerPin(pinAttempt, 'admin');
+      authorized = !!result;
+    }
+    if (authorized) {
       const action = pinChallenge.onAuthorized;
       closePinChallenge();
       if (action) action();
@@ -202,15 +210,21 @@ function GeneralSettingsTab({
     const applyChange = (alsoDeactivate) => {
       setPinChallenge({
         isOpen: true,
-        onAuthorized: () => {
+        onAuthorized: async () => {
           setGeneralSettings({ ...generalSettings, isAdvancedMode: next });
           if (alsoDeactivate && menuData) {
+            // Loyalty is settings → goes to shop_settings.menu_data.
+            // Discount rules are menu → one updateDiscountRule per rule.
             const updatedMenu = {
               ...menuData,
               loyaltySettings: { ...(menuData.loyaltySettings || {}), isActive: false },
               discountRules: (menuData.discountRules || []).map(r => ({ ...r, isActive: false })),
             };
-            saveMenuToCloud(updatedMenu);
+            saveSettingsToCloud(updatedMenu);
+            await Promise.all((menuData.discountRules || [])
+              .filter(r => r._id && r.isActive)
+              .map(r => updateDiscountRule(r._id, { ...r, isActive: false }))
+            );
             if (setLoyaltyForm) setLoyaltyForm(prev => ({ ...prev, isActive: false }));
           }
         },
@@ -284,18 +298,19 @@ function GeneralSettingsTab({
     setIsRepairing(true);
     try {
       const selected = repairList.filter(r => r.checked);
-      const updatedMenu = { ...menuData };
+      const menuItemUpdates = []; // collected here, flushed below as per-row writes
+      const modifierUpdates = [];
       const invToUpdate = [];
 
       for (const repair of selected) {
         if (repair.type === 'drink') {
-          const cat = updatedMenu.categories[repair.category];
+          const cat = menuData.categories[repair.category];
           const item = cat.find(i => i.id === repair.itemId);
-          if (item) item.basePrice = repair.newVal;
+          if (item) menuItemUpdates.push({ ...item, basePrice: repair.newVal });
         } else if (repair.type === 'modifier') {
-          const group = updatedMenu.modifierGroups[repair.group];
+          const group = menuData.modifierGroups[repair.group];
           const opt = group.find(o => o.id === repair.itemId);
-          if (opt) opt.price = repair.newVal;
+          if (opt) modifierUpdates.push({ groupId: repair.group, opt: { ...opt, price: repair.newVal } });
         } else if (repair.type === 'inventory') {
           invToUpdate.push({ id: repair.itemId, unit_cost: repair.newVal });
         } else if (repair.type === 'sale') {
@@ -328,10 +343,13 @@ function GeneralSettingsTab({
         }
       }
 
-      // Save Menu
-      if (selected.some(r => r.type === 'drink' || r.type === 'modifier')) {
-        await saveMenuToCloud(updatedMenu);
-      }
+      // Save Menu — per-row writes against the dedicated tables. UI won't
+      // reflect the new prices until the admin re-opens; this is a legacy
+      // recovery flow that's rarely (if ever) hit on modern installs.
+      await Promise.all(menuItemUpdates.map(item => updateItem(item.id, item)));
+      await Promise.all(modifierUpdates.map(({ groupId, opt }) =>
+        updateModifierOption(opt.id, groupId, opt)
+      ));
 
       // Save Inventory
       for (const inv of invToUpdate) {

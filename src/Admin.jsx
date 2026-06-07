@@ -2,6 +2,15 @@ import { Icon } from '@iconify/react';
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import {
+  loadMenu,
+  addCategory, renameCategory, deleteCategory, reorderCategories, setCategoryHidden,
+  addItem, updateItem, deleteItem,
+  addModifierGroup, renameModifierGroup, deleteModifierGroup, setModifierGroupAllowMultiple,
+  addModifierOption, updateModifierOption, deleteModifierOption,
+  setItemModifiers,
+  addDiscountRule, updateDiscountRule, deleteDiscountRule
+} from './api/menu';
 import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
@@ -245,12 +254,21 @@ function Admin() {
 
     const fetchData = async () => {
       try {
-        // 1. Fetch Menu Data
-        const { data: menuSettings, error: menuError } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
-        if (menuError) throw menuError;
-        setMenuData(menuSettings.menu_data);
+        // 1. Fetch Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
+        //    Menu pieces live in menu_categories / menu_items / menu_modifier_groups
+        //    / menu_modifier_options / menu_item_modifier_groups / menu_discount_rules.
+        //    Cashiers, posSettings, receiptSettings, loyaltySettings still ride on
+        //    shop_settings.menu_data. They're merged here so the in-memory `menuData`
+        //    shape stays identical for child components.
+        const [menu, settingsRes] = await Promise.all([
+          loadMenu(),
+          supabase.from('shop_settings').select('menu_data').eq('id', 1).single()
+        ]);
+        if (settingsRes.error) throw settingsRes.error;
+        const settings = settingsRes.data?.menu_data || {};
+        setMenuData({ ...menu, ...settings });
 
-        const firstCategory = Object.keys(menuSettings.menu_data.categories)[0];
+        const firstCategory = menu.categoryOrder[0];
         if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
 
         // 2. Pull every device's expenses into Dexie. The useLiveQuery above
@@ -258,9 +276,9 @@ function Admin() {
         await fetchAndMergeExpenses();
 
         // 3. Load UI Settings (Receipt, General, Loyalty)
-        if (menuSettings.menu_data.receiptSettings) setReceiptForm(prev => ({ ...prev, ...menuSettings.menu_data.receiptSettings }));
-        if (menuSettings.menu_data.posSettings) setGeneralSettings(prev => ({ ...prev, ...menuSettings.menu_data.posSettings }));
-        if (menuSettings.menu_data.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...menuSettings.menu_data.loyaltySettings }));
+        if (settings.receiptSettings) setReceiptForm(prev => ({ ...prev, ...settings.receiptSettings }));
+        if (settings.posSettings) setGeneralSettings(prev => ({ ...prev, ...settings.posSettings }));
+        if (settings.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...settings.loyaltySettings }));
 
         // 4. Fetch Sales History (dedupe by local_id — see salesSync.js)
         await fetchAndMergeSales();
@@ -303,18 +321,72 @@ function Admin() {
     }
   }, [menuData, updateTheme]);
 
-  const saveMenuToCloud = async (updatedMenu) => {
+  // Re-fetches menu + settings from the cloud. Used as rollback when a typed
+  // writer fails after an optimistic local update — guarantees the on-screen
+  // state matches what's actually persisted.
+  const reloadMenuFromCloud = async () => {
+    try {
+      const [menu, settingsRes] = await Promise.all([
+        loadMenu(),
+        supabase.from('shop_settings').select('menu_data').eq('id', 1).single()
+      ]);
+      const settings = settingsRes.data?.menu_data || {};
+      setMenuData({ ...menu, ...settings });
+    } catch (err) {
+      console.error('Failed to reload menu after write error:', err.message);
+    }
+  };
+
+  // Optimistic-write helper: applies `optimisticMenu` locally, runs the typed
+  // writer(s), and on failure shows an alert + re-fetches to roll back.
+  const runMenuWrite = async (optimisticMenu, writeFn) => {
+    setMenuData(optimisticMenu);
     setIsSaving(true);
     try {
-      const { error } = await supabase.from('shop_settings').update({ menu_data: updatedMenu }).eq('id', 1);
+      await writeFn();
+    } catch (err) {
+      showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + err.message);
+      await reloadMenuFromCloud();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Persists ONLY the settings keys (cashiers, posSettings, receiptSettings,
+  // loyaltySettings) to shop_settings.menu_data. The menu pieces (categories,
+  // modifierGroups, etc.) live in their own tables now — writing the whole
+  // in-memory `menuData` blob back would resurrect those legacy keys.
+  const saveSettingsToCloud = async (updatedMenu) => {
+    setIsSaving(true);
+    try {
+      const settingsOnly = {
+        cashiers: updatedMenu.cashiers,
+        posSettings: updatedMenu.posSettings,
+        receiptSettings: updatedMenu.receiptSettings,
+        loyaltySettings: updatedMenu.loyaltySettings
+      };
+      const { error } = await supabase.from('shop_settings').update({ menu_data: settingsOnly }).eq('id', 1);
       if (error) throw error;
       setMenuData(updatedMenu);
     } catch (error) {
       showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + error.message);
-
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Direct add of a fully-built item (used by RecipeBuilderTab to publish a
+  // recipe as a menu item). Mirrors the add-path of handleAddDrink without the
+  // form-state dependency.
+  const handleAddItemDirect = (categoryName, item) => {
+    const updatedMenu = {
+      ...menuData,
+      categories: {
+        ...menuData.categories,
+        [categoryName]: [...(menuData.categories[categoryName] || []), item]
+      }
+    };
+    runMenuWrite(updatedMenu, () => addItem(categoryName, item));
   };
 
   // --- NEW: RECEIPT LOGIC ---
@@ -348,7 +420,7 @@ function Admin() {
   // Saves the custom receipt form to our JSON cloud object
   const handleSaveReceipt = () => {
     const updatedMenu = { ...menuData, receiptSettings: receiptForm };
-    saveMenuToCloud(updatedMenu);
+    saveSettingsToCloud(updatedMenu);
     logActivity('settings_updated', null, { section: 'receipt' });
     showAlert(t('common.success'), t('receipt.saveSuccessDesc'));
   };
@@ -356,11 +428,19 @@ function Admin() {
   const handleSaveGeneralSettings = async () => {
     setIsSaving(true);
     try {
-      // 1. Save to shop_settings.menu_data.posSettings (The Register's source of truth)
+      // 1. Save to shop_settings.menu_data.posSettings (The Register's source of truth).
+      //    Only settings keys go to shop_settings.menu_data — menu pieces live
+      //    in their own tables now.
       const updatedMenu = { ...menuData, posSettings: generalSettings };
+      const settingsOnly = {
+        cashiers: updatedMenu.cashiers,
+        posSettings: updatedMenu.posSettings,
+        receiptSettings: updatedMenu.receiptSettings,
+        loyaltySettings: updatedMenu.loyaltySettings
+      };
       const { error } = await supabase
         .from('shop_settings')
-        .update({ menu_data: updatedMenu })
+        .update({ menu_data: settingsOnly })
         .eq('id', 1);
 
       if (error) throw error;
@@ -406,7 +486,7 @@ function Admin() {
     }
 
     const updatedMenu = { ...menuData, loyaltySettings: loyaltyForm };
-    saveMenuToCloud(updatedMenu);
+    saveSettingsToCloud(updatedMenu);
     logActivity('settings_updated', null, { section: 'loyalty' });
     showAlert(t('common.success'), t('loyalty.saveSuccessDesc'));
   };
@@ -458,7 +538,7 @@ function Admin() {
 
     // 1. Persist the cashier in menu_data so the UI sees them.
     updatedMenu.cashiers.push(newEntry);
-    saveMenuToCloud(updatedMenu);
+    saveSettingsToCloud(updatedMenu);
 
     // 2. Hash + upsert the PIN into cashier_pins. Without this row the
     //    verify_pin RPC returns false and the cashier can't log into their
@@ -485,7 +565,7 @@ function Admin() {
     showConfirm(t('team.deleteCashierTitle'), t('team.deleteCashierDesc'), async () => {
       const cashierToDelete = cashiers.find(c => c.id === idToRemove);
       const updatedCashiers = cashiers.filter(c => c.id !== idToRemove);
-      saveMenuToCloud({ ...menuData, cashiers: updatedCashiers });
+      saveSettingsToCloud({ ...menuData, cashiers: updatedCashiers });
 
       // Don't leak the stored hash for someone who no longer exists.
       const { error: delErr } = await supabase.rpc('delete_cashier_pin', { p_cashier_id: idToRemove });
@@ -500,39 +580,44 @@ function Admin() {
   };
 
 
-  // Basic Menu/Modifier/Deletion Logic (Unchanged)
-  const handleAddCategory = () => { if (!newCategoryName.trim()) return; const updatedMenu = { ...menuData }; updatedMenu.categories[newCategoryName] = []; saveMenuToCloud(updatedMenu); setNewCategoryName(""); };
+  const handleAddCategory = () => {
+    const name = newCategoryName.trim();
+    if (!name) return;
+    if (menuData.categories[name]) {
+      return showAlert(t('menu.alertConflictTitle'), t('menu.alertConflictDesc'));
+    }
+    const updatedMenu = {
+      ...menuData,
+      categories: { ...menuData.categories, [name]: [] },
+      categoryOrder: [...(menuData.categoryOrder || []), name]
+    };
+    setNewCategoryName("");
+    runMenuWrite(updatedMenu, () => addCategory(name));
+  };
 
   const handleRenameCategory = (oldName, newName) => {
     if (!newName || !newName.trim() || newName === oldName) return;
     if (menuData.categories[newName]) {
       return showAlert(t('menu.alertConflictTitle'), t('menu.alertConflictDesc'));
     }
-    const updatedMenu = { ...menuData };
+    // Preserve insertion order in the categories map by rebuilding it.
     const newCategories = {};
-    // Preserve original key order
-    Object.keys(updatedMenu.categories).forEach(key => {
-      if (key === oldName) {
-        newCategories[newName] = updatedMenu.categories[oldName];
-      } else {
-        newCategories[key] = updatedMenu.categories[key];
-      }
+    Object.keys(menuData.categories).forEach(key => {
+      newCategories[key === oldName ? newName : key] = menuData.categories[key];
     });
-    updatedMenu.categories = newCategories;
-    if (Array.isArray(updatedMenu.categoryOrder)) {
-      updatedMenu.categoryOrder = updatedMenu.categoryOrder.map(c => c === oldName ? newName : c);
-    }
-    if (Array.isArray(updatedMenu.hiddenCategories)) {
-      updatedMenu.hiddenCategories = updatedMenu.hiddenCategories.map(c => c === oldName ? newName : c);
-    }
-    saveMenuToCloud(updatedMenu);
+    const updatedMenu = {
+      ...menuData,
+      categories: newCategories,
+      categoryOrder: (menuData.categoryOrder || []).map(c => c === oldName ? newName : c),
+      hiddenCategories: (menuData.hiddenCategories || []).map(c => c === oldName ? newName : c)
+    };
+    runMenuWrite(updatedMenu, () => renameCategory(oldName, newName));
   };
 
   // Reorder a category up (-1) or down (+1) in the register tab order.
   const handleMoveCategory = (categoryName, direction) => {
-    const updatedMenu = { ...menuData };
-    const allCats = Object.keys(updatedMenu.categories || {});
-    const existingOrder = Array.isArray(updatedMenu.categoryOrder) ? updatedMenu.categoryOrder : [];
+    const allCats = Object.keys(menuData.categories || {});
+    const existingOrder = Array.isArray(menuData.categoryOrder) ? menuData.categoryOrder : [];
     const fullOrder = [
       ...existingOrder.filter(c => allCats.includes(c)),
       ...allCats.filter(c => !existingOrder.includes(c)),
@@ -541,26 +626,30 @@ function Admin() {
     const newIdx = idx + direction;
     if (idx < 0 || newIdx < 0 || newIdx >= fullOrder.length) return;
     [fullOrder[idx], fullOrder[newIdx]] = [fullOrder[newIdx], fullOrder[idx]];
-    updatedMenu.categoryOrder = fullOrder;
-    saveMenuToCloud(updatedMenu);
+    const updatedMenu = { ...menuData, categoryOrder: fullOrder };
+    runMenuWrite(updatedMenu, () => reorderCategories(fullOrder));
   };
 
   const handleToggleCategoryVisibility = (categoryName) => {
-    const updatedMenu = { ...menuData };
-    const hidden = new Set(updatedMenu.hiddenCategories || []);
-    if (hidden.has(categoryName)) hidden.delete(categoryName);
-    else hidden.add(categoryName);
-    updatedMenu.hiddenCategories = [...hidden];
-    saveMenuToCloud(updatedMenu);
+    const hidden = new Set(menuData.hiddenCategories || []);
+    const willBeHidden = !hidden.has(categoryName);
+    if (willBeHidden) hidden.add(categoryName);
+    else hidden.delete(categoryName);
+    const updatedMenu = { ...menuData, hiddenCategories: [...hidden] };
+    runMenuWrite(updatedMenu, () => setCategoryHidden(categoryName, willBeHidden));
   };
 
   const handleToggleModifierGroupMulti = (groupKey) => {
-    const updatedMenu = { ...menuData };
-    const settings = { ...(updatedMenu.modifierGroupSettings || {}) };
-    const current = !!settings[groupKey]?.allowMultiple;
-    settings[groupKey] = { ...(settings[groupKey] || {}), allowMultiple: !current };
-    updatedMenu.modifierGroupSettings = settings;
-    saveMenuToCloud(updatedMenu);
+    const current = !!menuData.modifierGroupSettings?.[groupKey]?.allowMultiple;
+    const next = !current;
+    const updatedMenu = {
+      ...menuData,
+      modifierGroupSettings: {
+        ...(menuData.modifierGroupSettings || {}),
+        [groupKey]: { ...(menuData.modifierGroupSettings?.[groupKey] || {}), allowMultiple: next }
+      }
+    };
+    runMenuWrite(updatedMenu, () => setModifierGroupAllowMultiple(groupKey, next));
   };
 
   const resetItemForm = () => {
@@ -581,13 +670,11 @@ function Admin() {
       return showAlert(t('menu.missingFieldsTitle'), t('menu.missingFieldsDesc'));
     }
 
-    const updatedMenu = { ...menuData };
-
     if (editingItemId) {
       let oldCategory = null;
       let existing = null;
-      Object.keys(updatedMenu.categories).forEach(cat => {
-        const found = updatedMenu.categories[cat].find(d => d.id === editingItemId);
+      Object.keys(menuData.categories).forEach(cat => {
+        const found = menuData.categories[cat].find(d => d.id === editingItemId);
         if (found) { oldCategory = cat; existing = found; }
       });
       if (!oldCategory || !existing) {
@@ -605,21 +692,23 @@ function Admin() {
         linkedRecipeId: newItemForm.linkedRecipeId || ''
       };
 
+      const newCategories = { ...menuData.categories };
       if (oldCategory === newItemForm.category) {
-        updatedMenu.categories[oldCategory] = updatedMenu.categories[oldCategory].map(d =>
+        newCategories[oldCategory] = newCategories[oldCategory].map(d =>
           d.id === editingItemId ? updatedItem : d
         );
       } else {
-        updatedMenu.categories[oldCategory] = updatedMenu.categories[oldCategory].filter(d => d.id !== editingItemId);
-        updatedMenu.categories[newItemForm.category] = [
-          ...(updatedMenu.categories[newItemForm.category] || []),
+        newCategories[oldCategory] = newCategories[oldCategory].filter(d => d.id !== editingItemId);
+        newCategories[newItemForm.category] = [
+          ...(newCategories[newItemForm.category] || []),
           updatedItem
         ];
       }
+      const updatedMenu = { ...menuData, categories: newCategories };
 
-      saveMenuToCloud(updatedMenu);
+      const movedCategory = oldCategory === newItemForm.category ? undefined : newItemForm.category;
+      runMenuWrite(updatedMenu, () => updateItem(editingItemId, updatedItem, movedCategory));
 
-      // LOG ACTIVITY
       logActivity('menu_item_updated', null, { name: updatedItem.name });
 
       setEditingItemId(null);
@@ -638,41 +727,64 @@ function Admin() {
       linkedWarehouseId: newItemForm.linkedWarehouseId || '',
       linkedRecipeId: newItemForm.linkedRecipeId || ''
     };
-    updatedMenu.categories[newItemForm.category].push(newDrink);
+    const updatedMenu = {
+      ...menuData,
+      categories: {
+        ...menuData.categories,
+        [newItemForm.category]: [...(menuData.categories[newItemForm.category] || []), newDrink]
+      }
+    };
 
-    saveMenuToCloud(updatedMenu);
+    runMenuWrite(updatedMenu, () => addItem(newItemForm.category, newDrink));
 
-    // LOG ACTIVITY
     logActivity('menu_item_added', null, {
       name: newItemForm.name,
       category: newItemForm.category,
-      price: toCents(newItemForm.price) // <-- Fixed!
+      price: toCents(newItemForm.price)
     });
 
     resetItemForm();
   };
 
-  const handleAddModifierGroup = () => { if (!newModGroupName.trim()) return; const groupKey = newModGroupName.toLowerCase().replace(/\s+/g, '_'); const updatedMenu = { ...menuData }; if (!updatedMenu.modifierGroups[groupKey]) { updatedMenu.modifierGroups[groupKey] = []; saveMenuToCloud(updatedMenu); } setNewModGroupName(""); };
+  const handleAddModifierGroup = () => {
+    if (!newModGroupName.trim()) return;
+    const groupKey = newModGroupName.toLowerCase().replace(/\s+/g, '_');
+    if (menuData.modifierGroups[groupKey]) { setNewModGroupName(""); return; }
+    const updatedMenu = {
+      ...menuData,
+      modifierGroups: { ...menuData.modifierGroups, [groupKey]: [] },
+      modifierGroupSettings: {
+        ...(menuData.modifierGroupSettings || {}),
+        [groupKey]: { allowMultiple: false }
+      }
+    };
+    setNewModGroupName("");
+    runMenuWrite(updatedMenu, () => addModifierGroup(groupKey, groupKey));
+  };
 
   const handleAddModifierOption = () => {
     if (!newModOption.groupKey || !newModOption.name || (!newModOption.isTextInput && newModOption.price === "")) {
       return showAlert(t('menu.missingFieldsTitle'), t('menu.missingFieldsDesc'));
     }
 
-    const updatedMenu = { ...menuData };
     const newOption = {
       id: newModOption.name.toLowerCase().replace(/\s+/g, '_'),
       name: newModOption.name,
       price: newModOption.isTextInput ? 0 : toCents(newModOption.price),
       isTextInput: newModOption.isTextInput,
-      deductionTarget: newModOption.deductionTarget || null, // NEW: The item it consumes
-      substitutionTarget: newModOption.substitutionTarget || null // NEW: The item it replaces
+      deductionTarget: newModOption.deductionTarget || null,
+      substitutionTarget: newModOption.substitutionTarget || null
     };
 
-    updatedMenu.modifierGroups[newModOption.groupKey].push(newOption);
-    saveMenuToCloud(updatedMenu);
+    const updatedMenu = {
+      ...menuData,
+      modifierGroups: {
+        ...menuData.modifierGroups,
+        [newModOption.groupKey]: [...menuData.modifierGroups[newModOption.groupKey], newOption]
+      }
+    };
+    runMenuWrite(updatedMenu, () => addModifierOption(newModOption.groupKey, newOption));
 
-    // Reset the form completely
     setNewModOption({
       groupKey: newModOption.groupKey,
       name: "",
@@ -683,29 +795,58 @@ function Admin() {
     });
   };
 
-  const toggleModifierForDrink = (modGroupKey) => { const updatedMenu = { ...menuData }; const categoryArray = updatedMenu.categories[editingDrink.categoryName]; const drinkIndex = categoryArray.findIndex(d => d.id === editingDrink.drink.id); const drinkToUpdate = categoryArray[drinkIndex]; const hasModifier = drinkToUpdate.allowedModifiers.includes(modGroupKey); if (hasModifier) { drinkToUpdate.allowedModifiers = drinkToUpdate.allowedModifiers.filter(key => key !== modGroupKey); } else { drinkToUpdate.allowedModifiers.push(modGroupKey); } saveMenuToCloud(updatedMenu); setEditingDrink({ ...editingDrink, drink: drinkToUpdate }); };
+  const toggleModifierForDrink = (modGroupKey) => {
+    const categoryName = editingDrink.categoryName;
+    const drinkId = editingDrink.drink.id;
+    const currentDrink = menuData.categories[categoryName].find(d => d.id === drinkId);
+    if (!currentDrink) return;
+
+    const hasModifier = (currentDrink.allowedModifiers || []).includes(modGroupKey);
+    const nextAllowed = hasModifier
+      ? currentDrink.allowedModifiers.filter(k => k !== modGroupKey)
+      : [...(currentDrink.allowedModifiers || []), modGroupKey];
+
+    const updatedDrink = { ...currentDrink, allowedModifiers: nextAllowed };
+    const updatedMenu = {
+      ...menuData,
+      categories: {
+        ...menuData.categories,
+        [categoryName]: menuData.categories[categoryName].map(d => d.id === drinkId ? updatedDrink : d)
+      }
+    };
+    setEditingDrink({ ...editingDrink, drink: updatedDrink });
+    runMenuWrite(updatedMenu, () => setItemModifiers(drinkId, nextAllowed));
+  };
 
   const handleUpdateModifierOption = (groupKey, oldOptionId, updatedOpt) => {
     if (!updatedOpt.name || (!updatedOpt.isTextInput && updatedOpt.price === "")) {
       return showAlert(t('menu.missingFieldsTitle'), t('menu.missingFieldsDesc'));
     }
-    const updatedMenu = { ...menuData };
-    const optionIndex = updatedMenu.modifierGroups[groupKey].findIndex(o => o.id === oldOptionId);
-    if (optionIndex !== -1) {
-      updatedMenu.modifierGroups[groupKey][optionIndex] = {
-        id: updatedOpt.name.toLowerCase().replace(/\s+/g, '_'),
-        name: updatedOpt.name,
-        price: updatedOpt.isTextInput ? 0 : toCents(updatedOpt.price),
-        isTextInput: updatedOpt.isTextInput,
-        // CRITICAL FIXES HERE:
-        deductionTarget: updatedOpt.deductionTarget || null,
-        substitutionTarget: updatedOpt.substitutionTarget || null
-      };
-      saveMenuToCloud(updatedMenu);
-    }
+    const optionIndex = menuData.modifierGroups[groupKey].findIndex(o => o.id === oldOptionId);
+    if (optionIndex === -1) return;
+
+    const nextOpt = {
+      id: updatedOpt.name.toLowerCase().replace(/\s+/g, '_'),
+      name: updatedOpt.name,
+      price: updatedOpt.isTextInput ? 0 : toCents(updatedOpt.price),
+      isTextInput: updatedOpt.isTextInput,
+      deductionTarget: updatedOpt.deductionTarget || null,
+      substitutionTarget: updatedOpt.substitutionTarget || null
+    };
+    const newOptions = [...menuData.modifierGroups[groupKey]];
+    newOptions[optionIndex] = nextOpt;
+    const updatedMenu = {
+      ...menuData,
+      modifierGroups: { ...menuData.modifierGroups, [groupKey]: newOptions }
+    };
+    runMenuWrite(updatedMenu, () => updateModifierOption(oldOptionId, groupKey, nextOpt));
+
     setNewModOption({ groupKey: "", name: "", price: "0", isTextInput: false, deductionTarget: "", substitutionTarget: "" });
   };
 
+  // Renames a modifier group's slug id. ON UPDATE CASCADE on the FK keeps options
+  // and item attachments in sync server-side; we mirror that locally by remapping
+  // allowedModifiers on every item and moving the group + settings keys.
   const handleRenameModifierGroup = (oldKey, newKey) => {
     if (!newKey.trim()) return;
     const formattedNewKey = newKey.toLowerCase().replace(/\s+/g, '_');
@@ -715,92 +856,158 @@ function Admin() {
       return showAlert(t('common.error'), t('mods.errorGroupExists'));
     }
 
-    const updatedMenu = { ...menuData };
+    const newGroups = { ...menuData.modifierGroups };
+    newGroups[formattedNewKey] = newGroups[oldKey];
+    delete newGroups[oldKey];
 
-    // 1. Move the group data
-    updatedMenu.modifierGroups[formattedNewKey] = updatedMenu.modifierGroups[oldKey];
-    delete updatedMenu.modifierGroups[oldKey];
-    if (updatedMenu.modifierGroupSettings && updatedMenu.modifierGroupSettings[oldKey]) {
-      updatedMenu.modifierGroupSettings[formattedNewKey] = updatedMenu.modifierGroupSettings[oldKey];
-      delete updatedMenu.modifierGroupSettings[oldKey];
+    const newGroupSettings = { ...(menuData.modifierGroupSettings || {}) };
+    if (newGroupSettings[oldKey]) {
+      newGroupSettings[formattedNewKey] = newGroupSettings[oldKey];
+      delete newGroupSettings[oldKey];
     }
 
-    // 2. CRITICAL FIX: Update ALL drinks that reference this group
-    Object.keys(updatedMenu.categories).forEach(cat => {
-      updatedMenu.categories[cat].forEach(drink => {
-        if (drink.allowedModifiers && Array.isArray(drink.allowedModifiers)) {
-          drink.allowedModifiers = drink.allowedModifiers.map(k =>
-            k === oldKey ? formattedNewKey : k
-          );
-        }
-      });
+    const newCategories = {};
+    Object.keys(menuData.categories).forEach(cat => {
+      newCategories[cat] = menuData.categories[cat].map(drink => ({
+        ...drink,
+        allowedModifiers: Array.isArray(drink.allowedModifiers)
+          ? drink.allowedModifiers.map(k => k === oldKey ? formattedNewKey : k)
+          : (drink.allowedModifiers || [])
+      }));
     });
 
-    saveMenuToCloud(updatedMenu);
+    const updatedMenu = {
+      ...menuData,
+      modifierGroups: newGroups,
+      modifierGroupSettings: newGroupSettings,
+      categories: newCategories
+    };
+    runMenuWrite(updatedMenu, () => renameModifierGroup(oldKey, formattedNewKey, formattedNewKey));
   };
 
-  // FIX: Upgraded to showConfirm!
   const handleDeleteDrink = (categoryName, drinkId, drinkName) => {
     showConfirm(t('menu.deleteDrinkTitle'), `${t('menu.deleteDrinkDesc')} (${drinkName})`, () => {
-      const updatedMenu = { ...menuData };
-      updatedMenu.categories[categoryName] = updatedMenu.categories[categoryName].filter(drink => drink.id !== drinkId);
-      saveMenuToCloud(updatedMenu);
-
-      // LOG ACTIVITY
+      const updatedMenu = {
+        ...menuData,
+        categories: {
+          ...menuData.categories,
+          [categoryName]: menuData.categories[categoryName].filter(drink => drink.id !== drinkId)
+        }
+      };
+      runMenuWrite(updatedMenu, () => deleteItem(drinkId));
       logActivity('menu_item_deleted', null, { name: drinkName });
     });
   };
 
-  // FIX: Upgraded to showConfirm!
   const handleDeleteCategory = (categoryName) => {
     if (menuData.categories[categoryName].length > 0) return showAlert(t('common.error'), `${t('menu.deleteCategoryHasItems')} (${categoryName})`);
 
     showConfirm(t('menu.deleteCategoryTitle'), `${t('menu.deleteCategoryDesc')} (${categoryName})`, () => {
-      const updatedMenu = { ...menuData };
-      delete updatedMenu.categories[categoryName];
-      if (Array.isArray(updatedMenu.categoryOrder)) {
-        updatedMenu.categoryOrder = updatedMenu.categoryOrder.filter(c => c !== categoryName);
-      }
-      if (Array.isArray(updatedMenu.hiddenCategories)) {
-        updatedMenu.hiddenCategories = updatedMenu.hiddenCategories.filter(c => c !== categoryName);
-      }
-      saveMenuToCloud(updatedMenu);
+      const newCategories = { ...menuData.categories };
+      delete newCategories[categoryName];
+      const updatedMenu = {
+        ...menuData,
+        categories: newCategories,
+        categoryOrder: (menuData.categoryOrder || []).filter(c => c !== categoryName),
+        hiddenCategories: (menuData.hiddenCategories || []).filter(c => c !== categoryName)
+      };
+      runMenuWrite(updatedMenu, () => deleteCategory(categoryName));
     });
   };
 
-  // NEW: Delete an entire modifier group and scrub it from all drinks
+  // Deletes a modifier group. FK cascades server-side wipe options + item links;
+  // we mirror the item-link removal locally by scrubbing allowedModifiers.
   const handleDeleteModifierGroup = (groupKey) => {
     showConfirm(
       t('menu.deleteModGroupTitle'),
       `${t('menu.deleteModGroupDesc')} (${groupKey.replace('_', ' ')})`,
       () => {
-        const updatedMenu = { ...menuData };
+        const newGroups = { ...menuData.modifierGroups };
+        delete newGroups[groupKey];
+        const newGroupSettings = { ...(menuData.modifierGroupSettings || {}) };
+        delete newGroupSettings[groupKey];
 
-        // 1. Delete the group itself
-        delete updatedMenu.modifierGroups[groupKey];
-        if (updatedMenu.modifierGroupSettings) {
-          delete updatedMenu.modifierGroupSettings[groupKey];
-        }
-
-        // 2. Scrub the menu! Remove this group from any drink that has it assigned
-        Object.keys(updatedMenu.categories).forEach(category => {
-          updatedMenu.categories[category].forEach(item => {
-            item.allowedModifiers = item.allowedModifiers.filter(mod => mod !== groupKey);
-          });
+        const newCategories = {};
+        Object.keys(menuData.categories).forEach(cat => {
+          newCategories[cat] = menuData.categories[cat].map(item => ({
+            ...item,
+            allowedModifiers: (item.allowedModifiers || []).filter(mod => mod !== groupKey)
+          }));
         });
 
-        saveMenuToCloud(updatedMenu);
+        const updatedMenu = {
+          ...menuData,
+          modifierGroups: newGroups,
+          modifierGroupSettings: newGroupSettings,
+          categories: newCategories
+        };
+        runMenuWrite(updatedMenu, () => deleteModifierGroup(groupKey));
       }
     );
   };
 
-  // FIX: Upgraded to showConfirm!
   const handleDeleteModifierOption = (groupKey, optionId, optionName) => {
     showConfirm(t('menu.deleteModOptionTitle'), `${t('menu.deleteModOptionDesc')} (${optionName})`, () => {
-      const updatedMenu = { ...menuData };
-      updatedMenu.modifierGroups[groupKey] = updatedMenu.modifierGroups[groupKey].filter(opt => opt.id !== optionId);
-      saveMenuToCloud(updatedMenu);
+      const updatedMenu = {
+        ...menuData,
+        modifierGroups: {
+          ...menuData.modifierGroups,
+          [groupKey]: menuData.modifierGroups[groupKey].filter(opt => opt.id !== optionId)
+        }
+      };
+      runMenuWrite(updatedMenu, () => deleteModifierOption(groupKey, optionId));
     });
+  };
+
+  // Discount rule handlers. In-memory rules carry both a legacy `id` (Date.now()
+  // used by the UI for keying) and a `_id` (the db PK used for update/delete).
+  // After add(), we patch the new row's `_id` into local state so the user can
+  // immediately toggle or delete the rule without a reload.
+  // Note: useMenuStore's setMenuData does JSON.parse(JSON.stringify(data))
+  // for PIN scrubbing, which means it can't accept a functional updater
+  // (JSON.stringify(fn) → "undefined" → parse error). We pull the latest
+  // state from the store imperatively to avoid stale closures across the
+  // await boundary instead.
+  const handleAddDiscountRule = async (rule) => {
+    const baseMenu = useMenuStore.getState().menuData || menuData;
+    setMenuData({ ...baseMenu, discountRules: [...(baseMenu.discountRules || []), rule] });
+    setIsSaving(true);
+    try {
+      const newDbId = await addDiscountRule(rule);
+      const latest = useMenuStore.getState().menuData || {};
+      setMenuData({
+        ...latest,
+        discountRules: (latest.discountRules || []).map(r =>
+          r.id === rule.id ? { ...r, _id: newDbId } : r
+        )
+      });
+    } catch (err) {
+      showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + err.message);
+      await reloadMenuFromCloud();
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleDiscountRule = (rule) => {
+    if (!rule._id) return;
+    const next = !rule.isActive;
+    const updatedMenu = {
+      ...menuData,
+      discountRules: (menuData.discountRules || []).map(r =>
+        r.id === rule.id ? { ...r, isActive: next } : r
+      )
+    };
+    runMenuWrite(updatedMenu, () => updateDiscountRule(rule._id, { ...rule, isActive: next }));
+  };
+
+  const handleDeleteDiscountRule = (rule) => {
+    if (!rule._id) return;
+    const updatedMenu = {
+      ...menuData,
+      discountRules: (menuData.discountRules || []).filter(r => r.id !== rule.id)
+    };
+    runMenuWrite(updatedMenu, () => deleteDiscountRule(rule._id));
   };
 
   // --- OPTIMIZED ANALYTICS CALCULATIONS ---
@@ -1478,12 +1685,12 @@ function Admin() {
 
         {/* 6. LOYALTY SETTINGS TAB */}
         {activeTab === 'loyalty' && (
-          <LoyaltyTab loyaltyForm={loyaltyForm} setLoyaltyForm={setLoyaltyForm} menuData={menuData} saveMenuToCloud={saveMenuToCloud} handleSaveLoyalty={handleSaveLoyalty} handleResetLoyaltyData={handleResetLoyaltyData} showAlert={showAlert} />
+          <LoyaltyTab loyaltyForm={loyaltyForm} setLoyaltyForm={setLoyaltyForm} menuData={menuData} saveSettingsToCloud={saveSettingsToCloud} handleSaveLoyalty={handleSaveLoyalty} handleResetLoyaltyData={handleResetLoyaltyData} showAlert={showAlert} />
         )}
 
         {/* --- AUTOMATED DISCOUNTS TAB --- */}
         {activeTab === 'discounts' && (
-          <DiscountsTab menuData={menuData} newRule={newRule} setNewRule={setNewRule} saveMenuToCloud={saveMenuToCloud} showAlert={showAlert} showConfirm={showConfirm} />
+          <DiscountsTab menuData={menuData} newRule={newRule} setNewRule={setNewRule} handleAddDiscountRule={handleAddDiscountRule} handleToggleDiscountRule={handleToggleDiscountRule} handleDeleteDiscountRule={handleDeleteDiscountRule} showAlert={showAlert} showConfirm={showConfirm} />
         )}
 
         {/* --- TEAM & CASHIER MANAGEMENT TAB --- */}
@@ -1504,7 +1711,7 @@ function Admin() {
             handleAppLogoUpload={handleAppLogoUpload}
             handleSaveGeneralSettings={handleSaveGeneralSettings}
             menuData={menuData}
-            saveMenuToCloud={saveMenuToCloud}
+            saveSettingsToCloud={saveSettingsToCloud}
             setLoyaltyForm={setLoyaltyForm}
             inventoryItems={inventoryItems}
             setInventoryItems={setInventoryItems}
@@ -1514,7 +1721,7 @@ function Admin() {
 
         {/* 6. RECIPE BUILDER TAB */}
         {activeTab === 'calculator' && (
-          <RecipeBuilderTab recipes={recipes} activeRecipe={activeRecipe} setActiveRecipe={setActiveRecipe} handleCreateDraftRecipe={handleCreateDraftRecipe} menuData={menuData} handleAddIngredient={handleAddIngredient} handleUpdateIngredient={handleUpdateIngredient} handleDeleteIngredient={handleDeleteIngredient} handleDeleteRecipe={handleDeleteRecipe} handleSaveRecipeToCloud={handleSaveRecipeToCloud} inventoryItems={inventoryItems} saveMenuToCloud={saveMenuToCloud} showAlert={showAlert} />
+          <RecipeBuilderTab recipes={recipes} activeRecipe={activeRecipe} setActiveRecipe={setActiveRecipe} handleCreateDraftRecipe={handleCreateDraftRecipe} menuData={menuData} handleAddIngredient={handleAddIngredient} handleUpdateIngredient={handleUpdateIngredient} handleDeleteIngredient={handleDeleteIngredient} handleDeleteRecipe={handleDeleteRecipe} handleSaveRecipeToCloud={handleSaveRecipeToCloud} inventoryItems={inventoryItems} handleAddItemDirect={handleAddItemDirect} showAlert={showAlert} />
         )}
 
         {/* --- ADD THIS NEW RENDER BLOCK --- */}

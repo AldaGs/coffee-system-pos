@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, fromMillicents, formatForDisplay, formatMillicentsForDisplay } from '../../utils/moneyUtils';
 
-function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, saveMenuToCloud, showAlert }) {
+function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, handleAddItemDirect, showAlert }) {
 
   const [publishModal, setPublishModal] = useState(null);
 
@@ -43,10 +43,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
       linkedRecipeId: activeRecipe.id
     };
 
-    const updatedMenu = { ...menuData };
-    updatedMenu.categories = { ...updatedMenu.categories };
-    updatedMenu.categories[category] = [...updatedMenu.categories[category], newItem];
-    saveMenuToCloud(updatedMenu);
+    handleAddItemDirect(category, newItem);
     setPublishModal(null);
     showAlert?.(t('recipe.alertPublishedTitle'), t('recipe.alertPublishedDesc'));
   };

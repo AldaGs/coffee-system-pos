@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import { loadMenu } from './api/menu';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
@@ -104,23 +105,29 @@ function Register() {
   useEffect(() => {
     const fetchMenuAndRecipes = async () => {
       try {
-        // 1. Fetch Menu
-        const { data: menuResp, error: menuErr } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
-        if (menuErr) throw menuErr;
+        // 1. Fetch Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
+        //    Merged so the in-memory `menuData` shape stays identical for the
+        //    Register UI and modifier rendering logic.
+        const [menu, settingsRes, recipeResp] = await Promise.all([
+          loadMenu(),
+          supabase.from('shop_settings').select('menu_data').eq('id', 1).single(),
+          supabase.from('recipes').select('*')
+        ]);
+        if (settingsRes.error) throw settingsRes.error;
+        if (recipeResp.error) throw recipeResp.error;
 
-        // 2. Fetch Recipes for BOM Lookups
-        const { data: recipeResp, error: recipeErr } = await supabase.from('recipes').select('*');
-        if (recipeErr) throw recipeErr;
-
-        setMenuData(menuResp.menu_data);
-        setRecipes(recipeResp);
+        const settings = settingsRes.data?.menu_data || {};
+        const merged = { ...menu, ...settings };
+        setMenuData(merged);
+        setRecipes(recipeResp.data);
 
         // SAFE ACTIVE CATEGORY ASSIGNMENT
         // Open on the first *visible, ordered* tab (matches MenuArea) instead
-        // of whatever happens to be the first raw object key.
-        const allCats = Object.keys(menuResp.menu_data?.categories || {});
+        // of whatever happens to be the first raw object key. Same helper the
+        // tabs use, so the boot default can't drift apart from MenuArea.
+        const allCats = Object.keys(merged.categories || {});
         if (allCats.length > 0) {
-          const ordered = getOrderedVisibleCategories(menuResp.menu_data);
+          const ordered = getOrderedVisibleCategories(merged);
           setActiveCategory(ordered[0] || allCats[0]);
         }
 
