@@ -16,6 +16,7 @@ import { logActivity } from './services/activityService';
 import { consumePendingAuthorizer } from './utils/overrideAuthorizer';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
+import { getOrderedVisibleCategories } from './utils/categoryUtils';
 import { toCents, formatForDisplay, normalizeMenuPrice } from './utils/moneyUtils';
 import SharedPinPad from './components/shared/SharedPinPad';
 
@@ -116,11 +117,19 @@ function Register() {
         if (recipeResp.error) throw recipeResp.error;
 
         const settings = settingsRes.data?.menu_data || {};
-        setMenuData({ ...menu, ...settings });
+        const merged = { ...menu, ...settings };
+        setMenuData(merged);
         setRecipes(recipeResp.data);
 
-        const firstCategory = menu.categoryOrder[0];
-        if (firstCategory) setActiveCategory(firstCategory);
+        // SAFE ACTIVE CATEGORY ASSIGNMENT
+        // Open on the first *visible, ordered* tab (matches MenuArea) instead
+        // of whatever happens to be the first raw object key. Same helper the
+        // tabs use, so the boot default can't drift apart from MenuArea.
+        const allCats = Object.keys(merged.categories || {});
+        if (allCats.length > 0) {
+          const ordered = getOrderedVisibleCategories(merged);
+          setActiveCategory(ordered[0] || allCats[0]);
+        }
 
         // 3. Pull down active tickets from other devices into local Dexie
         await fetchActiveTickets();
