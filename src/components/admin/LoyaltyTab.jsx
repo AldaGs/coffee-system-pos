@@ -6,7 +6,7 @@ import { formatForDisplay } from '../../utils/moneyUtils';
 
 const RANGE_DAYS = { today: 1, week: 7, month: 30, all: null };
 
-function LoyaltyTab({ loyaltyForm, setLoyaltyForm, menuData, saveMenuToCloud, handleSaveLoyalty, handleResetLoyaltyData }) {
+function LoyaltyTab({ loyaltyForm, setLoyaltyForm, menuData, saveSettingsToCloud, handleSaveLoyalty, handleResetLoyaltyData }) {
   const { t } = useTranslation();
 
   const [customers, setCustomers] = useState([]);
@@ -120,7 +120,7 @@ function LoyaltyTab({ loyaltyForm, setLoyaltyForm, menuData, saveMenuToCloud, ha
                   const updatedForm = { ...loyaltyForm, isActive: val };
                   setLoyaltyForm(updatedForm);
                   // Instant save for toggle
-                  await saveMenuToCloud({ ...menuData, loyaltySettings: updatedForm });
+                  await saveSettingsToCloud({ ...menuData, loyaltySettings: updatedForm });
                 }}
                 style={{ opacity: 0, width: 0, height: 0 }}
                 id="loyalty-toggle"

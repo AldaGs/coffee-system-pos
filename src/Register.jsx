@@ -4,6 +4,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
+import { loadMenu } from './api/menu';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
@@ -103,22 +104,23 @@ function Register() {
   useEffect(() => {
     const fetchMenuAndRecipes = async () => {
       try {
-        // 1. Fetch Menu
-        const { data: menuResp, error: menuErr } = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
-        if (menuErr) throw menuErr;
+        // 1. Fetch Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
+        //    Merged so the in-memory `menuData` shape stays identical for the
+        //    Register UI and modifier rendering logic.
+        const [menu, settingsRes, recipeResp] = await Promise.all([
+          loadMenu(),
+          supabase.from('shop_settings').select('menu_data').eq('id', 1).single(),
+          supabase.from('recipes').select('*')
+        ]);
+        if (settingsRes.error) throw settingsRes.error;
+        if (recipeResp.error) throw recipeResp.error;
 
-        // 2. Fetch Recipes for BOM Lookups
-        const { data: recipeResp, error: recipeErr } = await supabase.from('recipes').select('*');
-        if (recipeErr) throw recipeErr;
+        const settings = settingsRes.data?.menu_data || {};
+        setMenuData({ ...menu, ...settings });
+        setRecipes(recipeResp.data);
 
-        setMenuData(menuResp.menu_data);
-        setRecipes(recipeResp);
-
-        // SAFE ACTIVE CATEGORY ASSIGNMENT
-        const safeCategories = menuResp.menu_data?.categories || {};
-        if (Object.keys(safeCategories).length > 0) {
-          setActiveCategory(Object.keys(safeCategories)[0]);
-        }
+        const firstCategory = menu.categoryOrder[0];
+        if (firstCategory) setActiveCategory(firstCategory);
 
         // 3. Pull down active tickets from other devices into local Dexie
         await fetchActiveTickets();
