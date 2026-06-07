@@ -119,6 +119,17 @@ export const translations = {
     "settings.btnReset": "Force Reset to #1 Now",
     "settings.advancedMode": "Advanced Mode",
     "settings.advancedModeDesc": "Off = Lite Mode. Hides Inventory, Discount Rules, Cortes de Caja, and Gastos. Toggling requires a PIN.",
+
+    // --- Public menu share card ---
+    "share.title": "Your Public Menu",
+    "share.desc": "Share this link with customers — they'll see a read-only menu with prices, hidden categories and items stay hidden.",
+    "share.urlLabel": "Menu URL",
+    "share.copy": "Copy",
+    "share.copied": "Copied",
+    "share.copyFallback": "Copy didn't work. Select the URL and copy it manually.",
+    "share.download": "Download QR (PNG)",
+    "share.qrAlt": "QR code linking to your public menu",
+
     "settings.advancedPinTitle": "Confirm Mode Change",
     "settings.liteWarnTitle": "Switch to Lite Mode?",
     "settings.liteWarnDesc": "Lite Mode will also turn off the following currently-active features:",
@@ -1215,6 +1226,17 @@ export const translations = {
     "settings.btnReset": "Forzar Reinicio a #1 Ahora",
     "settings.advancedMode": "Modo Avanzado",
     "settings.advancedModeDesc": "Desactivado = Modo Lite. Oculta Inventario, Reglas de Descuento, Cortes de Caja y Gastos. Cambiarlo requiere un PIN.",
+
+    // --- Tarjeta para compartir el menú público ---
+    "share.title": "Tu Menú Público",
+    "share.desc": "Comparte este enlace con tus clientes — verán un menú de solo lectura con precios. Las categorías y productos ocultos siguen ocultos.",
+    "share.urlLabel": "URL del Menú",
+    "share.copy": "Copiar",
+    "share.copied": "Copiado",
+    "share.copyFallback": "No se pudo copiar. Selecciona el enlace y cópialo a mano.",
+    "share.download": "Descargar QR (PNG)",
+    "share.qrAlt": "Código QR que enlaza a tu menú público",
+
     "settings.advancedPinTitle": "Confirmar Cambio de Modo",
     "settings.liteWarnTitle": "¿Cambiar a Modo Lite?",
     "settings.liteWarnDesc": "El Modo Lite también desactivará las siguientes funciones que están activas actualmente:",
