@@ -963,17 +963,24 @@ function Admin() {
   // used by the UI for keying) and a `_id` (the db PK used for update/delete).
   // After add(), we patch the new row's `_id` into local state so the user can
   // immediately toggle or delete the rule without a reload.
+  // Note: useMenuStore's setMenuData does JSON.parse(JSON.stringify(data))
+  // for PIN scrubbing, which means it can't accept a functional updater
+  // (JSON.stringify(fn) → "undefined" → parse error). We pull the latest
+  // state from the store imperatively to avoid stale closures across the
+  // await boundary instead.
   const handleAddDiscountRule = async (rule) => {
-    setMenuData(prev => ({ ...prev, discountRules: [...(prev.discountRules || []), rule] }));
+    const baseMenu = useMenuStore.getState().menuData || menuData;
+    setMenuData({ ...baseMenu, discountRules: [...(baseMenu.discountRules || []), rule] });
     setIsSaving(true);
     try {
       const newDbId = await addDiscountRule(rule);
-      setMenuData(prev => ({
-        ...prev,
-        discountRules: (prev.discountRules || []).map(r =>
+      const latest = useMenuStore.getState().menuData || {};
+      setMenuData({
+        ...latest,
+        discountRules: (latest.discountRules || []).map(r =>
           r.id === rule.id ? { ...r, _id: newDbId } : r
         )
-      }));
+      });
     } catch (err) {
       showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + err.message);
       await reloadMenuFromCloud();
