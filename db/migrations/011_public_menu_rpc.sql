@@ -16,6 +16,11 @@
 -- Mirrored in api/install.js and src/components/SetupScreen.jsx.
 -- =============================================================================
 
+-- Self-healing prerequisite: an earlier draft of migration 010 didn't include
+-- allow_multiple on menu_modifier_groups. Re-applying that ALTER here so this
+-- migration is safe to run even if a stale 010 was used.
+ALTER TABLE public.menu_modifier_groups ADD COLUMN IF NOT EXISTS allow_multiple bool NOT NULL DEFAULT false;
+
 CREATE OR REPLACE FUNCTION public.get_public_menu()
 RETURNS jsonb
 LANGUAGE sql
