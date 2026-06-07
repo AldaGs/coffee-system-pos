@@ -1,0 +1,277 @@
+// Customer-facing live menu. Read-only. No auth, no settings, no admin.
+//
+// Hits the Supabase get_public_menu() RPC with the anon key (granted EXECUTE
+// in migration 011). Returns sanitized data only — internal/operational
+// fields never reach this component, so we don't need to filter anything
+// client-side.
+//
+// Routed at /menu and bypasses every App.jsx gate. Build-time env vars
+// (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) carry the credentials; the
+// page never touches localStorage.
+
+import { useEffect, useMemo, useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import { formatForDisplay } from '../utils/moneyUtils';
+
+// Dedicated client so the public menu never piggybacks on a logged-in admin
+// session. Env vars only — no localStorage fallback, no service key.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const publicClient = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false } })
+  : null;
+
+function PublicMenu() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [activeCategoryId, setActiveCategoryId] = useState(null);
+
+  useEffect(() => {
+    if (!publicClient) {
+      setError('missing-config');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await publicClient.rpc('get_public_menu');
+      if (cancelled) return;
+      if (error) { setError(error.message); return; }
+      setData(data);
+      const firstCat = data?.categories?.[0];
+      if (firstCat) setActiveCategoryId(firstCat.id);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const groupsById = useMemo(() => {
+    const m = new Map();
+    (data?.modifier_groups || []).forEach(g => m.set(g.id, g));
+    return m;
+  }, [data]);
+
+  if (error === 'missing-config') return <ConfigMissing />;
+  if (error) return <ErrorState message={error} />;
+  if (!data) return <LoadingState />;
+
+  const shop = data.shop || {};
+  const brand = shop.brand_color || '#f28b05';
+  const lang = shop.language || 'es';
+  const categories = data.categories || [];
+  const activeCategory = categories.find(c => c.id === activeCategoryId) || categories[0];
+
+  return (
+    <div style={pageStyle}>
+      <header style={{ ...headerStyle, background: brand }}>
+        <h1 style={headerTitleStyle}>{shop.name || 'Menu'}</h1>
+      </header>
+
+      {categories.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <>
+          <nav style={navStyle} aria-label="Categorías">
+            {categories.map(c => {
+              const isActive = c.id === activeCategory?.id;
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setActiveCategoryId(c.id)}
+                  style={{
+                    ...navButtonStyle,
+                    color: isActive ? brand : '#555',
+                    borderBottomColor: isActive ? brand : 'transparent'
+                  }}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </nav>
+
+          <main style={mainStyle}>
+            {activeCategory && (
+              <ItemList
+                items={activeCategory.items}
+                groupsById={groupsById}
+                lang={lang}
+                brand={brand}
+              />
+            )}
+          </main>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ItemList({ items, groupsById, lang, brand }) {
+  if (!items || items.length === 0) {
+    return <p style={{ textAlign: 'center', color: '#888', padding: '40px 16px' }}>—</p>;
+  }
+  return (
+    <ul style={listStyle}>
+      {items.map(item => (
+        <li key={item.id} style={itemStyle}>
+          <div style={itemLeftStyle}>
+            <span style={emojiStyle} aria-hidden>{item.emoji || '•'}</span>
+            <div>
+              <div style={itemNameStyle}>{item.name}</div>
+              {item.modifier_group_ids?.length > 0 && (
+                <ItemModifiers groupIds={item.modifier_group_ids} groupsById={groupsById} lang={lang} brand={brand} />
+              )}
+            </div>
+          </div>
+          <div style={priceStyle}>
+            {item.price_type === 'open'
+              ? <span style={{ color: '#888', fontWeight: 600 }}>—</span>
+              : formatForDisplay(item.price_cents, lang)}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ItemModifiers({ groupIds, groupsById, lang, brand }) {
+  const groups = groupIds.map(id => groupsById.get(id)).filter(Boolean);
+  if (groups.length === 0) return null;
+  return (
+    <div style={modifiersWrapStyle}>
+      {groups.map(g => (
+        <div key={g.id} style={{ marginTop: 6 }}>
+          <div style={{ fontSize: '0.75rem', color: brand, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {g.name}
+          </div>
+          <div style={{ fontSize: '0.85rem', color: '#666', marginTop: 2 }}>
+            {g.options.map((o, idx) => {
+              const delta = o.price_delta_cents;
+              const label = delta ? `${o.name} ${delta > 0 ? '+' : ''}${formatForDisplay(delta, lang)}` : o.name;
+              return (
+                <span key={o.id}>
+                  {idx > 0 && <span style={{ color: '#ccc' }}> · </span>}
+                  {label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LoadingState() {
+  return <div style={centerStyle}>Cargando…</div>;
+}
+
+function EmptyState() {
+  return <div style={centerStyle}>Menú vacío.</div>;
+}
+
+function ErrorState({ message }) {
+  return (
+    <div style={centerStyle}>
+      <div>
+        <p style={{ margin: 0, fontWeight: 700 }}>No se pudo cargar el menú.</p>
+        <p style={{ marginTop: 8, fontSize: '0.85rem', color: '#888' }}>{message}</p>
+      </div>
+    </div>
+  );
+}
+
+function ConfigMissing() {
+  return (
+    <div style={centerStyle}>
+      <div>
+        <p style={{ margin: 0, fontWeight: 700 }}>Configuración faltante.</p>
+        <p style={{ marginTop: 8, fontSize: '0.85rem', color: '#888' }}>
+          Define <code>VITE_SUPABASE_URL</code> y <code>VITE_SUPABASE_ANON_KEY</code> al compilar.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const pageStyle = {
+  minHeight: '100vh',
+  background: '#fafafa',
+  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  color: '#222',
+  paddingBottom: 'env(safe-area-inset-bottom)'
+};
+
+const headerStyle = {
+  padding: '28px 20px 24px',
+  color: 'white',
+  textAlign: 'center'
+};
+
+const headerTitleStyle = {
+  margin: 0,
+  fontSize: '1.6rem',
+  fontWeight: 800,
+  letterSpacing: '-0.01em'
+};
+
+const navStyle = {
+  display: 'flex',
+  overflowX: 'auto',
+  gap: 8,
+  padding: '12px 16px',
+  background: 'white',
+  borderBottom: '1px solid #eee',
+  position: 'sticky',
+  top: 0,
+  zIndex: 10,
+  WebkitOverflowScrolling: 'touch'
+};
+
+const navButtonStyle = {
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '2px solid transparent',
+  padding: '8px 4px',
+  fontSize: '0.95rem',
+  fontWeight: 700,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap'
+};
+
+const mainStyle = { padding: '8px 16px 32px' };
+
+const listStyle = {
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4
+};
+
+const itemStyle = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'flex-start',
+  gap: 12,
+  padding: '16px 4px',
+  borderBottom: '1px solid #eee'
+};
+
+const itemLeftStyle = { display: 'flex', gap: 12, alignItems: 'flex-start', flex: 1, minWidth: 0 };
+const emojiStyle = { fontSize: '1.5rem', lineHeight: 1, marginTop: 2 };
+const itemNameStyle = { fontWeight: 700, fontSize: '1rem' };
+const modifiersWrapStyle = { marginTop: 4 };
+const priceStyle = { fontWeight: 800, fontSize: '1rem', whiteSpace: 'nowrap' };
+
+const centerStyle = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '24px',
+  textAlign: 'center',
+  color: '#444',
+  fontFamily: 'system-ui, -apple-system, sans-serif'
+};
+
+export default PublicMenu;

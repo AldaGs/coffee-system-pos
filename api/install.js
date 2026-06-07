@@ -598,6 +598,83 @@ export default async function handler(req, res) {
       FOR EACH ROW
       EXECUTE FUNCTION public.award_loyalty_visits();
 
+    -- ==========================================
+    -- PUBLIC LIVE MENU: sanitized read-only RPC for the customer-facing page.
+    -- Internal/operational fields (item data jsonb, inventory refs, cost) never
+    -- leave the server. EXECUTE granted to anon so visitors only need the anon
+    -- key — no service role, no extra auth.
+    -- ==========================================
+    CREATE OR REPLACE FUNCTION public.get_public_menu()
+    RETURNS jsonb
+    LANGUAGE sql
+    SECURITY DEFINER
+    SET search_path = public
+    STABLE
+    AS $$
+      SELECT jsonb_build_object(
+        'shop', jsonb_build_object(
+          'name',        COALESCE((SELECT menu_data->'posSettings'->>'name'       FROM public.shop_settings WHERE id = 1), 'Menu'),
+          'brand_color', COALESCE((SELECT menu_data->'posSettings'->>'brandColor' FROM public.shop_settings WHERE id = 1), '#f28b05'),
+          'language',    COALESCE((SELECT menu_data->'posSettings'->>'language'   FROM public.shop_settings WHERE id = 1), 'es')
+        ),
+        'categories', COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id',         c.id,
+              'name',       c.name,
+              'sort_order', c.sort_order,
+              'items', COALESCE((
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'id',                 i.id,
+                    'name',               i.name,
+                    'price_cents',        i.base_price_cents,
+                    'price_type',         i.price_type,
+                    'emoji',              i.emoji,
+                    'sort_order',         i.sort_order,
+                    'modifier_group_ids', COALESCE((
+                      SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
+                      FROM public.menu_item_modifier_groups l
+                      WHERE l.item_id = i.id
+                    ), '[]'::jsonb)
+                  ) ORDER BY i.sort_order
+                )
+                FROM public.menu_items i
+                WHERE i.category_id = c.id AND i.is_hidden = false
+              ), '[]'::jsonb)
+            ) ORDER BY c.sort_order
+          )
+          FROM public.menu_categories c
+          WHERE c.is_hidden = false
+        ), '[]'::jsonb),
+        'modifier_groups', COALESCE((
+          SELECT jsonb_agg(
+            jsonb_build_object(
+              'id',             g.id,
+              'name',           g.name,
+              'allow_multiple', g.allow_multiple,
+              'options', COALESCE((
+                SELECT jsonb_agg(
+                  jsonb_build_object(
+                    'id',                o.id,
+                    'name',              o.name,
+                    'price_delta_cents', o.price_delta_cents
+                  ) ORDER BY o.sort_order
+                )
+                FROM public.menu_modifier_options o
+                WHERE o.group_id = g.id
+              ), '[]'::jsonb)
+            ) ORDER BY g.sort_order
+          )
+          FROM public.menu_modifier_groups g
+        ), '[]'::jsonb)
+      );
+    $$;
+
+    REVOKE ALL ON FUNCTION public.get_public_menu() FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.get_public_menu() TO anon;
+    GRANT EXECUTE ON FUNCTION public.get_public_menu() TO authenticated;
+
     -- Atomic inventory deduction (prevents race conditions)
     DROP FUNCTION IF EXISTS deduct_inventory(BIGINT, NUMERIC);
     CREATE OR REPLACE FUNCTION deduct_inventory(item_id BIGINT, qty NUMERIC)

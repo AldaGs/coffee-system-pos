@@ -7,10 +7,21 @@ import SetupScreen from './components/SetupScreen';
 import LandingPage from './components/LandingPage';
 import SupabaseGuide from './components/SupabaseGuide';
 import RecipeCostCalculator from './components/RecipeCostCalculator';
+import PublicMenu from './components/PublicMenu';
 import { supabase } from './supabaseClient';
 import UpdateNotification from './components/shared/UpdateNotification';
 
 function App() {
+
+  // --- GATE 0: PUBLIC LIVE MENU ---
+  // Customer-facing read-only page at /menu. Short-circuits every auth/setup
+  // gate below so a customer scanning a QR code never sees SetupScreen, the
+  // login form, or the device-authorization check. Uses its own anon-keyed
+  // Supabase client (see PublicMenu.jsx) so it doesn't piggyback on any
+  // logged-in session.
+  if (typeof window !== 'undefined' && window.location.pathname === '/menu') {
+    return <PublicMenu />;
+  }
 
   // --- 1. NEW: CHECK FOR INSTALLATION ---
   // We now check for the specific keys that SetupScreen saves.
