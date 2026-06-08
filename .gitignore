@@ -27,3 +27,8 @@ dist-ssr
 .docs/
 AUDIT_REPORT.html
 .vercel
+
+# Supabase CLI local state (project ref, version pins). Not used by this
+# project's install flow; only generated if someone runs `supabase link`.
+supabase/.temp/
+supabase/.branches/
