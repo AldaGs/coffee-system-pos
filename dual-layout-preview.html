@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TinyPOS — Dual Layout Preview</title>
+<style>
+  /* ===== Theme variables (from src/index.css) ===== */
+  :root {
+    --brand-color: #f28b05;
+    --brand-light: #dde8ee;
+    --bg-main: #f4f6f8;
+    --bg-surface: #ffffff;
+    --text-main: #111827;
+    --text-muted: #6b7280;
+    --border: #e5e7eb;
+    --action-danger: #e74c3c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #eef1f4;
+    color: var(--text-main);
+    padding: 28px 20px 80px;
+  }
+  .page { max-width: 1200px; margin: 0 auto; }
+  h1.page-title { font-size: 1.8rem; margin: 0 0 4px; }
+  .page-sub { color: var(--text-muted); margin: 0 0 28px; }
+  .section-label {
+    display: inline-block; font-size: 0.78rem; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--brand-color);
+    background: var(--brand-light); padding: 5px 12px; border-radius: 999px; margin: 36px 0 14px;
+  }
+  .section-desc { color: var(--text-muted); margin: 0 0 16px; font-size: 0.92rem; max-width: 760px; line-height: 1.5; }
+  .device-frame {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+  }
+  .pos-container { display: flex; height: 540px; width: 100%; overflow: hidden; }
+
+  /* ===== Menu area (Cafe) ===== */
+  .menu-area { flex: 1; padding: 20px; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .menu-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; position: relative; gap: 12px; }
+  .menu-header-row h2 { margin: 0; font-size: 1.4rem; }
+  .category-tabs { display: flex; gap: 12px; margin-bottom: 20px; overflow-x: auto; flex-shrink: 0; }
+  .tab-btn {
+    padding: 10px 20px; border: 3px solid var(--border); background: var(--bg-surface);
+    border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 1rem;
+    color: var(--text-muted); white-space: nowrap; flex-shrink: 0;
+  }
+  .tab-btn.active { border-color: var(--brand-color); color: var(--brand-color); background: var(--brand-light); }
+  .menu-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px; flex: 1; overflow-y: auto; align-content: start; padding-bottom: 12px;
+  }
+  .item-btn {
+    background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 12px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 6px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    height: 110px;
+  }
+  .item-btn:hover { border-color: var(--brand-color); }
+  .item-name { font-weight: 600; font-size: 1.1rem; text-align: center; }
+  .item-price { color: var(--text-muted); font-size: 1rem; }
+
+  /* ===== Action bar (shared RegisterActionBar) ===== */
+  .action-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .chip {
+    background: var(--bg-surface); padding: 8px 12px; border-radius: 9999px; font-size: 0.85rem;
+    font-weight: bold; color: var(--brand-color); border: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pill { padding: 8px 14px; border: none; border-radius: 9999px; cursor: pointer; font-weight: bold; color: #fff; font-size: 0.85rem; }
+  .pill.gasto { background: var(--action-danger); }
+  .pill.corte { background: var(--brand-color); }
+  .lock-btn { padding: 8px 16px; background: transparent; color: var(--text-main); border: 2px solid #e74c3c; border-radius: 9999px; font-size: 0.85rem; font-weight: bold; cursor: pointer; }
+  .admin-btn { padding: 8px 16px; background: var(--brand-color); color: #fff; border: none; border-radius: 8px; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+  .badge-sync { padding: 8px 12px; background: #f39c12; color: #fff; border: none; border-radius: 9999px; font-weight: bold; display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
+
+  /* ===== Ticket area (lives in Register parent — shared by BOTH layouts) ===== */
+  .ticket-area {
+    width: 320px; background: var(--bg-surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; box-shadow: -4px 0 15px rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .ticket-head { padding: 18px 18px 10px; border-bottom: 1px solid var(--border); }
+  .ticket-head .name { font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+  .ticket-head .meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
+  .cart-list { flex: 1; overflow-y: auto; padding: 12px 18px; display: flex; flex-direction: column; gap: 10px; }
+  .cart-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.95rem; }
+  .cart-row .q { color: var(--brand-color); font-weight: 800; }
+  .ticket-foot { border-top: 1px solid var(--border); padding: 16px 18px; }
+  .total-row { display: flex; justify-content: space-between; font-size: 1.4rem; font-weight: 700; margin-bottom: 14px; }
+  .checkout-actions { display: flex; gap: 10px; }
+  .options-btn { width: 56px; padding: 14px 0; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border); border-radius: 8px; font-weight: bold; font-size: 1.2rem; cursor: pointer; }
+  .charge-btn { flex: 1; padding: 14px; background: var(--brand-color); color: #fff; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: 600; cursor: pointer; }
+
+  /* ============================================================
+     ORDER FLOW LAYOUT  (copied verbatim from src/App.css commit)
+     ============================================================ */
+  .order-flow-layout { flex: 1; min-width: 0; min-height: 0; display: grid; grid-template-columns: 30% 70%; overflow: hidden; }
+  .order-flow-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .order-flow-tickets { border-right: 1px solid var(--border); padding: 16px; gap: 12px; }
+  .order-flow-tickets-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+  .order-flow-new-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--brand-color); color: #fff; border: none; border-radius: 9999px; font-weight: bold; cursor: pointer; white-space: nowrap; }
+  .order-flow-ticket-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; margin-top: 12px; }
+  .order-flow-ticket-card { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; background: var(--bg-surface); border: 2px solid var(--border); border-radius: 12px; cursor: pointer; text-align: left; font-size: 1rem; color: var(--text-main); }
+  .order-flow-ticket-card.active { border-color: var(--brand-color); background: var(--brand-light); }
+  .order-flow-ticket-name { display: flex; align-items: center; gap: 8px; font-weight: bold; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .order-flow-ticket-count { flex-shrink: 0; min-width: 26px; height: 26px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--brand-color); color: #fff; border-radius: 9999px; font-size: 0.85rem; font-weight: bold; }
+  .order-flow-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 16px; color: var(--text-muted); text-align: center; }
+  .order-flow-menu { padding: 20px; }
+  .order-flow-menu-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-shrink: 0; position: relative; }
+  .order-flow-menu-hint { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 10px 14px; border-radius: 10px; background: var(--brand-light); color: var(--brand-color); border: 1px solid var(--border); font-size: 0.9rem; font-weight: bold; flex-shrink: 0; }
+  .order-flow-back-btn { display: none; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--border); background: var(--bg-surface); color: var(--text-main); border-radius: 10px; cursor: pointer; font-size: 1.3rem; flex-shrink: 0; }
+
+  /* ===== Settings card (Phase 1) ===== */
+  .settings-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; max-width: 460px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+  .settings-card h3 { margin: 0 0 6px; font-size: 1.15rem; display: flex; align-items: center; gap: 10px; }
+  .settings-card small { color: var(--text-muted); display: block; line-height: 1.4; }
+  .radio-opt { display: flex; align-items: flex-start; gap: 14px; padding: 14px; border-radius: 12px; cursor: pointer; background: var(--bg-main); border: 1px solid var(--border); margin-top: 10px; }
+  .radio-opt.sel { border: 2px solid var(--brand-color); box-shadow: 0 0 0 1px var(--brand-color); }
+  .radio-opt input { width: 20px; height: 20px; accent-color: var(--brand-color); margin-top: 2px; }
+  .radio-opt .lab { font-weight: 800; font-size: 0.95rem; }
+  .radio-opt .d { color: var(--text-muted); font-size: 0.82rem; margin-top: 2px; line-height: 1.4; }
+  .local-note { color: var(--text-muted); font-size: 0.82rem; margin-top: 12px; display: flex; align-items: center; gap: 6px; }
+
+  /* ===== Phones (mobile state machine) ===== */
+  .phones { display: flex; gap: 28px; flex-wrap: wrap; }
+  .phone { width: 300px; }
+  .phone .cap { text-align: center; font-weight: 700; margin-bottom: 8px; font-size: 0.9rem; color: var(--text-muted); }
+  .phone-frame { width: 300px; height: 540px; border-radius: 28px; border: 10px solid #1f2937; background: var(--bg-main); overflow: hidden; box-shadow: 0 14px 30px rgba(0,0,0,0.18); display: flex; flex-direction: column; }
+  /* On the phone, panes stack to a single column and only the active step shows */
+  .phone-frame .order-flow-layout { grid-template-columns: 1fr; height: 100%; }
+  .phone-frame .order-flow-tickets { border-right: none; }
+  .phone-frame .order-flow-back-btn { display: inline-flex; }
+  .phone-frame .menu-grid { grid-template-columns: 1fr 1fr; }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; color: var(--text-muted); font-size: 0.85rem; }
+  .legend b { color: var(--text-main); }
+  .toggle-row { display: flex; gap: 10px; align-items: center; margin: 0 0 14px; }
+  .toggle-row button { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface); cursor: pointer; font-weight: 700; }
+  .toggle-row button.on { background: var(--brand-color); color: #fff; border-color: var(--brand-color); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="page-title">TinyPOS — Dual Layout System</h1>
+  <p class="page-sub">Static preview of the committed work (branch <code>claude/tinypos-dual-layout-LDRUZ</code>). Uses the real CSS classes &amp; structure. Interactive bits are mocked just for visualization.</p>
+
+  <!-- ============ PHASE 1 ============ -->
+  <span class="section-label">Phase 1 · Device Settings toggle</span>
+  <p class="section-desc">New “Configuración de Dispositivo” card in Admin → General Settings. Saved <b>exclusively</b> to <code>localStorage['tinypos_layout_mode']</code> (default <code>'cafe'</code>) — never synced to Supabase. Pick an option below; it drives the live register preview in Phase 2.</p>
+
+  <div class="settings-card">
+    <h3>📱 Configuración de Dispositivo</h3>
+    <small>These options apply to this physical device only and are never synced to the cloud.</small>
+    <div style="margin-top:16px; font-weight:bold; font-size:0.9rem;">Register Layout Mode</div>
+    <small style="margin-top:2px;">Pick the workflow that matches this station. Saved locally on this device.</small>
+
+    <label class="radio-opt sel" id="opt-cafe" onclick="setMode('cafe')">
+      <input type="radio" name="layout" checked />
+      <div>
+        <div class="lab">⚡ Cafe (Venta Rápida)</div>
+        <div class="d">Fast-sale counter: tap items straight into the cart.</div>
+      </div>
+    </label>
+
+    <label class="radio-opt" id="opt-orders" onclick="setMode('orders')">
+      <input type="radio" name="layout" />
+      <div>
+        <div class="lab">📋 Mesas/Pedidos (Full Service)</div>
+        <div class="d">Table service: pick an open ticket, then add items to it.</div>
+      </div>
+    </label>
+
+    <div class="local-note">🖴 Stored only on this device (localStorage). Not synced.</div>
+  </div>
+
+  <!-- ============ PHASE 2 + 3 ============ -->
+  <span class="section-label">Phase 2 · Register controller &amp; layouts (Desktop / Tablet ≥ 768px)</span>
+  <p class="section-desc">Register reads the mode and renders <code>&lt;CafeLayout/&gt;</code> or <code>&lt;OrderFlowLayout/&gt;</code>. The <b>TicketArea on the right is rendered by the Register parent in BOTH modes</b> — same cart, same checkout. The shared <code>RegisterActionBar</code> (Gasto · Corte · Lock · Admin · sync) appears in both so an orders-mode station is never locked out.</p>
+
+  <div class="toggle-row">
+    <span style="color:var(--text-muted);font-size:0.85rem;">Live mode:</span>
+    <button id="btn-cafe" class="on" onclick="setMode('cafe')">Cafe</button>
+    <button id="btn-orders" onclick="setMode('orders')">Mesas/Pedidos</button>
+  </div>
+
+  <div class="device-frame">
+    <!-- ===== CAFE ===== -->
+    <div class="pos-container" id="view-cafe">
+      <main class="menu-area">
+        <div class="menu-header-row">
+          <h2>Bebidas</h2>
+          <div class="action-bar">
+            <button class="badge-sync">☁ 3</button>
+            <span class="chip">👤 Barista 1</span>
+            <button class="pill gasto">Gasto</button>
+            <button class="pill corte">Corte</button>
+            <button class="lock-btn">Bloquear</button>
+            <button class="admin-btn">Admin</button>
+          </div>
+        </div>
+        <div class="category-tabs">
+          <button class="tab-btn active">Bebidas</button>
+          <button class="tab-btn">Comida</button>
+          <button class="tab-btn">Postres</button>
+          <button class="tab-btn">Extras</button>
+        </div>
+        <div class="menu-grid">
+          <button class="item-btn"><span class="item-name">☕ Espresso</span><span class="item-price">$35.00</span></button>
+          <button class="item-btn"><span class="item-name">🥛 Latte</span><span class="item-price">$55.00</span></button>
+          <button class="item-btn"><span class="item-name">🧊 Cold Brew</span><span class="item-price">$60.00</span></button>
+          <button class="item-btn"><span class="item-name">🍵 Matcha</span><span class="item-price">$65.00</span></button>
+          <button class="item-btn"><span class="item-name">☕ Capuccino</span><span class="item-price">$50.00</span></button>
+          <button class="item-btn"><span class="item-name">🍫 Mocha</span><span class="item-price">$58.00</span></button>
+        </div>
+      </main>
+      <!-- TicketArea (shared, in Register parent) -->
+      <aside class="ticket-area" id="ticket-shared">
+        <div class="ticket-head">
+          <div class="name">🧾 Order #42</div>
+          <div class="meta">Barista 1 · 3 items</div>
+        </div>
+        <div class="cart-list">
+          <div class="cart-row"><span><span class="q">1×</span> Espresso</span><span>$35.00</span></div>
+          <div class="cart-row"><span><span class="q">2×</span> Latte</span><span>$110.00</span></div>
+          <div class="cart-row"><span><span class="q">1×</span> Matcha</span><span>$65.00</span></div>
+        </div>
+        <div class="ticket-foot">
+          <div class="total-row"><span>Total</span><span>$210.00</span></div>
+          <div class="checkout-actions">
+            <button class="options-btn">⋮</button>
+            <button class="charge-btn">Cobrar</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ===== ORDERS ===== -->
+    <div class="pos-container" id="view-orders" style="display:none;">
+      <main class="order-flow-layout">
+        <!-- LEFT 30% : active tickets -->
+        <section class="order-flow-pane order-flow-tickets">
+          <div class="order-flow-tickets-header">
+            <h2 style="margin:0;font-size:1.2rem;">Tickets Abiertos</h2>
+            <button class="order-flow-new-btn">＋ Nuevo</button>
+          </div>
+          <div class="order-flow-ticket-list">
+            <button class="order-flow-ticket-card active"><span class="order-flow-ticket-name">👤 Mesa 1</span><span class="order-flow-ticket-count">3</span></button>
+            <button class="order-flow-ticket-card"><span class="order-flow-ticket-name">👤 Mesa 4</span><span class="order-flow-ticket-count">5</span></button>
+            <button class="order-flow-ticket-card"><span class="order-flow-ticket-name">👤 Barra 2</span><span class="order-flow-ticket-count">1</span></button>
+            <button class="order-flow-ticket-card"><span class="order-flow-ticket-name">👤 Para llevar</span><span class="order-flow-ticket-count">2</span></button>
+          </div>
+        </section>
+        <!-- RIGHT 70% : menu -->
+        <section class="order-flow-pane order-flow-menu">
+          <div class="order-flow-menu-header">
+            <h2 style="margin:0;font-size:1.2rem;flex:1;">Bebidas</h2>
+            <div class="action-bar">
+              <button class="badge-sync">☁ 3</button>
+              <span class="chip">👤 Mesero 1</span>
+              <button class="pill gasto">Gasto</button>
+              <button class="pill corte">Corte</button>
+              <button class="lock-btn">Bloquear</button>
+              <button class="admin-btn">Admin</button>
+            </div>
+          </div>
+          <div class="category-tabs">
+            <button class="tab-btn active">Bebidas</button>
+            <button class="tab-btn">Comida</button>
+            <button class="tab-btn">Postres</button>
+          </div>
+          <div class="menu-grid">
+            <button class="item-btn"><span class="item-name">☕ Espresso</span><span class="item-price">$35.00</span></button>
+            <button class="item-btn"><span class="item-name">🥛 Latte</span><span class="item-price">$55.00</span></button>
+            <button class="item-btn"><span class="item-name">🧊 Cold Brew</span><span class="item-price">$60.00</span></button>
+            <button class="item-btn"><span class="item-name">🍵 Matcha</span><span class="item-price">$65.00</span></button>
+          </div>
+        </section>
+      </main>
+      <!-- SAME TicketArea, still in Register parent -->
+      <aside class="ticket-area">
+        <div class="ticket-head">
+          <div class="name">🧾 Mesa 1</div>
+          <div class="meta">Mesero 1 · 3 items</div>
+        </div>
+        <div class="cart-list">
+          <div class="cart-row"><span><span class="q">1×</span> Espresso</span><span>$35.00</span></div>
+          <div class="cart-row"><span><span class="q">2×</span> Latte</span><span>$110.00</span></div>
+          <div class="cart-row"><span><span class="q">1×</span> Matcha</span><span>$65.00</span></div>
+        </div>
+        <div class="ticket-foot">
+          <div class="total-row"><span>Total</span><span>$210.00</span></div>
+          <div class="checkout-actions">
+            <button class="options-btn">⋮</button>
+            <button class="charge-btn">Cobrar</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <div class="legend">
+    <span>🟧 <b>Brand</b> = active / primary action</span>
+    <span><b>Left pane</b> = 30% tickets · <b>Right pane</b> = 70% menu</span>
+    <span><b>Ticket area</b> identical in both modes (shared parent state)</span>
+  </div>
+
+  <!-- ============ PHASE 3 MOBILE ============ -->
+  <span class="section-label">Phase 3 · Order Flow on Mobile (≤ 767px state machine)</span>
+  <p class="section-desc">One pane at a time via <code>const [step, setStep] = useState('tickets')</code>. Tap a ticket → menu (with a back button). Shown here as both states side-by-side; the no-ticket hint appears when nothing is selected.</p>
+
+  <div class="phones">
+    <div class="phone">
+      <div class="cap">step = 'tickets'</div>
+      <div class="phone-frame">
+        <main class="order-flow-layout">
+          <section class="order-flow-pane order-flow-tickets">
+            <div class="order-flow-tickets-header">
+              <h2 style="margin:0;font-size:1.1rem;">Tickets Abiertos</h2>
+              <button class="order-flow-new-btn">＋ Nuevo</button>
+            </div>
+            <div class="order-flow-ticket-list">
+              <button class="order-flow-ticket-card"><span class="order-flow-ticket-name">👤 Mesa 1</span><span class="order-flow-ticket-count">3</span></button>
+              <button class="order-flow-ticket-card"><span class="order-flow-ticket-name">👤 Mesa 4</span><span class="order-flow-ticket-count">5</span></button>
+              <button class="order-flow-ticket-card"><span class="order-flow-ticket-name">👤 Barra 2</span><span class="order-flow-ticket-count">1</span></button>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="cap">step = 'menu' (after tapping a ticket)</div>
+      <div class="phone-frame">
+        <main class="order-flow-layout">
+          <section class="order-flow-pane order-flow-menu">
+            <div class="order-flow-menu-header">
+              <button class="order-flow-back-btn">‹</button>
+              <h2 style="margin:0;font-size:1.1rem;flex:1;">Bebidas</h2>
+            </div>
+            <div class="category-tabs">
+              <button class="tab-btn active">Bebidas</button>
+              <button class="tab-btn">Comida</button>
+            </div>
+            <div class="menu-grid">
+              <button class="item-btn"><span class="item-name">☕</span><span class="item-price">$35</span></button>
+              <button class="item-btn"><span class="item-name">🥛</span><span class="item-price">$55</span></button>
+              <button class="item-btn"><span class="item-name">🧊</span><span class="item-price">$60</span></button>
+              <button class="item-btn"><span class="item-name">🍵</span><span class="item-price">$65</span></button>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="cap">menu with NO ticket selected (hint)</div>
+      <div class="phone-frame">
+        <main class="order-flow-layout">
+          <section class="order-flow-pane order-flow-menu">
+            <div class="order-flow-menu-header">
+              <button class="order-flow-back-btn">‹</button>
+              <h2 style="margin:0;font-size:1.1rem;flex:1;">Bebidas</h2>
+            </div>
+            <div class="order-flow-menu-hint">👆 Selecciona o crea un ticket para agregarle productos.</div>
+            <div class="category-tabs">
+              <button class="tab-btn active">Bebidas</button>
+              <button class="tab-btn">Comida</button>
+            </div>
+            <div class="menu-grid" style="opacity:0.45;">
+              <button class="item-btn"><span class="item-name">☕</span><span class="item-price">$35</span></button>
+              <button class="item-btn"><span class="item-name">🥛</span><span class="item-price">$55</span></button>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function setMode(mode) {
+    var cafe = mode === 'cafe';
+    document.getElementById('view-cafe').style.display = cafe ? 'flex' : 'none';
+    document.getElementById('view-orders').style.display = cafe ? 'none' : 'flex';
+    document.getElementById('opt-cafe').classList.toggle('sel', cafe);
+    document.getElementById('opt-orders').classList.toggle('sel', !cafe);
+    document.getElementById('opt-cafe').querySelector('input').checked = cafe;
+    document.getElementById('opt-orders').querySelector('input').checked = !cafe;
+    document.getElementById('btn-cafe').classList.toggle('on', cafe);
+    document.getElementById('btn-orders').classList.toggle('on', !cafe);
+  }
+</script>
+</body>
+</html>
