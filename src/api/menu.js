@@ -106,6 +106,7 @@ function rowToItem(row, allowedModifiers) {
     basePrice: row.base_price_cents,
     priceType: row.price_type,
     emoji: row.emoji,
+    imageUrl: row.image_url || '',
     allowedModifiers,
     inventoryMode: data.inventoryMode || 'none',
     linkedWarehouseId: data.linkedWarehouseId || '',
@@ -130,7 +131,7 @@ function rowToOption(row) {
 // belongs in the items.data jsonb.
 function itemDataResidual(item) {
   const {
-    id, name, basePrice, priceType, emoji, allowedModifiers,
+    id, name, basePrice, priceType, emoji, imageUrl, allowedModifiers,
     ...rest
   } = item;
   return rest;

@@ -1,18 +1,50 @@
+import { useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, fromCents } from '../../utils/moneyUtils';
+import ImageCropModal from './ImageCropModal';
+import { MAX_SOURCE_BYTES } from '../../api/menuImages';
 
-function MenuEditorTab({ 
-  menuData, newCategoryName, setNewCategoryName, handleAddCategory, 
-  newItemForm, setNewItemForm, handleAddDrink, handleDeleteCategory, 
-  handleDeleteDrink, setEditingDrink, 
+function MenuEditorTab({
+  menuData, newCategoryName, setNewCategoryName, handleAddCategory,
+  newItemForm, setNewItemForm, handleAddDrink, handleDeleteCategory,
+  handleDeleteDrink, setEditingDrink,
   recipes, inventoryItems,
   handleRenameCategory, editingItemId, setEditingItemId,
-  handleMoveCategory, handleToggleCategoryVisibility
+  handleMoveCategory, handleToggleCategoryVisibility,
+  handleSetItemImage, handleClearItemImage
 }) {
   const { t } = useTranslation();
-  const { showPrompt } = useDialog();
+  const { showPrompt, showAlert } = useDialog();
+  const fileInputRef = useRef(null);
+  const [pendingItemId, setPendingItemId] = useState(null);
+  const [cropSrc, setCropSrc] = useState(null);
+
+  const openPicker = (itemId) => {
+    setPendingItemId(itemId);
+    fileInputRef.current?.click();
+  };
+
+  const onFileSelected = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > MAX_SOURCE_BYTES) {
+      showAlert?.('Imagen muy grande', 'El archivo supera 5 MB. Usa una imagen más pequeña.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setCropSrc(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const onCropConfirm = (blob) => {
+    const itemId = pendingItemId;
+    setCropSrc(null);
+    setPendingItemId(null);
+    if (itemId && handleSetItemImage) handleSetItemImage(itemId, blob);
+  };
 
   return (
     <div className="admin-section fade-in">
@@ -295,9 +327,26 @@ function MenuEditorTab({
                       {menuData.categories[category].map(item => (
                         <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', flexWrap: 'wrap', gap: '12px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1', minWidth: '200px' }}>
-                            <div style={{ fontSize: '1.5rem', background: 'var(--bg-main)', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              {item.emoji || '•'}
+                            <div
+                              onClick={() => openPicker(item.id)}
+                              title={item.imageUrl ? 'Cambiar foto' : 'Subir foto'}
+                              style={{ fontSize: '1.5rem', background: 'var(--bg-main)', width: '48px', height: '48px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', overflow: 'hidden', position: 'relative', flexShrink: 0 }}
+                            >
+                              {item.imageUrl ? (
+                                <img src={item.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ) : (
+                                <span>{item.emoji || '•'}</span>
+                              )}
                             </div>
+                            {item.imageUrl && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleClearItemImage && handleClearItemImage(item.id); }}
+                                title="Quitar foto"
+                                style={{ background: 'transparent', border: 'none', color: '#e74c3c', cursor: 'pointer', padding: 4, marginLeft: -8 }}
+                              >
+                                <Icon icon="lucide:image-off" />
+                              </button>
+                            )}
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{item.name}</span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
@@ -362,6 +411,21 @@ function MenuEditorTab({
           </div>
         </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={onFileSelected}
+      />
+      {cropSrc && (
+        <ImageCropModal
+          imageSrc={cropSrc}
+          onConfirm={onCropConfirm}
+          onCancel={() => { setCropSrc(null); setPendingItemId(null); }}
+        />
+      )}
     </div>
   );
 }

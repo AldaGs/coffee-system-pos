@@ -11,6 +11,7 @@ import {
   setItemModifiers,
   addDiscountRule, updateDiscountRule, deleteDiscountRule
 } from './api/menu';
+import { uploadItemImage, clearItemImage, setItemImageUrl } from './api/menuImages';
 import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
@@ -387,6 +388,35 @@ function Admin() {
       }
     };
     runMenuWrite(updatedMenu, () => addItem(categoryName, item));
+  };
+
+  // Patches a single item's imageUrl across whichever category currently
+  // holds it. Used by the upload + clear flows below.
+  const patchItemImageInMenu = (itemId, imageUrl) => {
+    const next = { ...menuData, categories: { ...menuData.categories } };
+    for (const cat of Object.keys(next.categories)) {
+      const items = next.categories[cat];
+      const idx = items.findIndex(it => it.id === itemId);
+      if (idx === -1) continue;
+      const patched = [...items];
+      patched[idx] = { ...patched[idx], imageUrl };
+      next.categories[cat] = patched;
+      break;
+    }
+    return next;
+  };
+
+  const handleSetItemImage = (itemId, blob) => {
+    const optimistic = patchItemImageInMenu(itemId, URL.createObjectURL(blob));
+    runMenuWrite(optimistic, async () => {
+      const url = await uploadItemImage(itemId, blob);
+      await setItemImageUrl(itemId, url);
+    });
+  };
+
+  const handleClearItemImage = (itemId) => {
+    const optimistic = patchItemImageInMenu(itemId, '');
+    runMenuWrite(optimistic, () => clearItemImage(itemId));
   };
 
   // --- NEW: RECEIPT LOGIC ---
@@ -1656,6 +1686,8 @@ function Admin() {
             setEditingItemId={setEditingItemId}
             handleMoveCategory={handleMoveCategory}
             handleToggleCategoryVisibility={handleToggleCategoryVisibility}
+            handleSetItemImage={handleSetItemImage}
+            handleClearItemImage={handleClearItemImage}
           />
         )}
 

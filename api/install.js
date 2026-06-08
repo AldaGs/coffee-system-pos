@@ -379,12 +379,15 @@ export default async function handler(req, res) {
       base_price_cents int  NOT NULL DEFAULT 0,
       price_type       text NOT NULL DEFAULT 'fixed',
       emoji            text NOT NULL DEFAULT '',
+      image_url        text,
       sort_order       int  NOT NULL DEFAULT 0,
       is_hidden        bool NOT NULL DEFAULT false,
       data             jsonb NOT NULL DEFAULT '{}'::jsonb,
       created_at       timestamptz NOT NULL DEFAULT now()
     );
     CREATE INDEX IF NOT EXISTS idx_menu_items_category ON public.menu_items (category_id);
+    -- Self-heal: image_url was added in migration 013, after some installs already had menu_items.
+    ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS image_url text;
 
     CREATE TABLE IF NOT EXISTS public.menu_modifier_groups (
       id             text PRIMARY KEY,
@@ -655,6 +658,7 @@ export default async function handler(req, res) {
                     'price_cents',        i.base_price_cents,
                     'price_type',         i.price_type,
                     'emoji',              i.emoji,
+                    'image_url',          i.image_url,
                     'sort_order',         i.sort_order,
                     'modifier_group_ids', COALESCE((
                       SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
@@ -698,6 +702,34 @@ export default async function handler(req, res) {
     REVOKE ALL ON FUNCTION public.get_public_menu() FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION public.get_public_menu() TO anon;
     GRANT EXECUTE ON FUNCTION public.get_public_menu() TO authenticated;
+
+    -- ==========================================
+    -- STORAGE: menu-assets bucket for item photos (v0.2) and future menu media.
+    -- Public read so the customer page can <img src=...> directly; writes
+    -- gated to authenticated (admins).
+    -- ==========================================
+    INSERT INTO storage.buckets (id, name, public)
+    VALUES ('menu-assets', 'menu-assets', true)
+    ON CONFLICT (id) DO UPDATE SET public = true;
+
+    DROP POLICY IF EXISTS "menu-assets public read" ON storage.objects;
+    DROP POLICY IF EXISTS "menu-assets auth insert" ON storage.objects;
+    DROP POLICY IF EXISTS "menu-assets auth update" ON storage.objects;
+    DROP POLICY IF EXISTS "menu-assets auth delete" ON storage.objects;
+
+    CREATE POLICY "menu-assets public read" ON storage.objects
+      FOR SELECT TO public
+      USING (bucket_id = 'menu-assets');
+    CREATE POLICY "menu-assets auth insert" ON storage.objects
+      FOR INSERT TO authenticated
+      WITH CHECK (bucket_id = 'menu-assets');
+    CREATE POLICY "menu-assets auth update" ON storage.objects
+      FOR UPDATE TO authenticated
+      USING (bucket_id = 'menu-assets')
+      WITH CHECK (bucket_id = 'menu-assets');
+    CREATE POLICY "menu-assets auth delete" ON storage.objects
+      FOR DELETE TO authenticated
+      USING (bucket_id = 'menu-assets');
 
     -- Atomic inventory deduction (prevents race conditions)
     DROP FUNCTION IF EXISTS deduct_inventory(BIGINT, NUMERIC);

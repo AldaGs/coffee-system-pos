@@ -127,7 +127,16 @@ function ItemList({ items, groupsById, lang, brand }) {
       {items.map(item => (
         <li key={item.id} style={itemStyle}>
           <div style={itemLeftStyle}>
-            <span style={emojiStyle} aria-hidden>{item.emoji || '•'}</span>
+            {item.image_url ? (
+              <img
+                src={item.image_url}
+                alt=""
+                loading="lazy"
+                style={imageStyle}
+              />
+            ) : (
+              <span style={emojiStyle} aria-hidden>{item.emoji || '•'}</span>
+            )}
             <div>
               <div style={itemNameStyle}>{item.name}</div>
               {item.modifier_group_ids?.length > 0 && (
@@ -273,6 +282,14 @@ const itemStyle = {
 
 const itemLeftStyle = { display: 'flex', gap: 12, alignItems: 'flex-start', flex: 1, minWidth: 0 };
 const emojiStyle = { fontSize: '1.5rem', lineHeight: 1, marginTop: 2 };
+const imageStyle = {
+  width: 72,
+  maxHeight: 96,
+  objectFit: 'cover',
+  borderRadius: 10,
+  flexShrink: 0,
+  background: '#eee'
+};
 const itemNameStyle = { fontWeight: 700, fontSize: '1rem' };
 const modifiersWrapStyle = { marginTop: 4 };
 const priceStyle = { fontWeight: 800, fontSize: '1rem', whiteSpace: 'nowrap' };
