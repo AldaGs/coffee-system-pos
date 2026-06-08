@@ -244,6 +244,20 @@ function Register() {
   // --- BOTTOM SHEET STATE ---
   const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
 
+  // Force-close the ticket bottom sheet whenever the page becomes visible
+  // again. Mobile WebViews can interrupt React's state flush when the Web
+  // Share / WhatsApp / print intent opens, leaving setIsActionSheetOpen(false)
+  // uncommitted. The user then comes back to a half-open sheet missing its
+  // close affordance. Closing on visibility-resume is cheap insurance — worst
+  // case the user has to tap "options" again after briefly switching apps.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') setIsActionSheetOpen(false);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
+
   // --- DEVICE IDENTITY & SESSION ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
