@@ -577,6 +577,17 @@ function Register() {
     manualDiscountAmount: manualDiscountAmount || 0
   } : null;
 
+  // After a sale completes in the orders ("Mesas/Pedidos") layout, drop back
+  // to the tickets list instead of riding along on whatever ticket
+  // clearCurrentTicket auto-selected next — landing on someone else's open
+  // ticket right after closing a sale is confusing.
+  const onAfterCheckout = () => {
+    if (layoutMode !== 'orders') return;
+    setActiveTicketId(null);
+    setIsMobileCartOpen(false);
+    setOrderFlowStep('tickets');
+  };
+
   // --- HOOK DEPENDENCIES (all computed values now available) ---
   const hookDeps = {
     expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales,
@@ -584,7 +595,7 @@ function Register() {
     setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm,
     loyaltyModal, setLoyaltyModal, activeTicket: enrichedActiveTicket, menuData, setPhoneError,
     loyaltySettings: menuData?.loyaltySettings || null,
-    cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket
+    cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket, onAfterCheckout
   };
 
   const { handleProcessCorte } = useShiftCorte(hookDeps);

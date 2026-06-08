@@ -12,7 +12,8 @@ import { db } from '../db';
 export const useCheckout = (posState) => {
   const {
     activeTicket, cartTotal, activeCashier, tipAmount = 0, loyaltySettings = null,
-    clearCurrentTicket, setSuccessTicket, showAlert, showConfirm, t
+    clearCurrentTicket, setSuccessTicket, showAlert, showConfirm, t,
+    onAfterCheckout
   } = posState;
 
   const { 
@@ -53,6 +54,10 @@ export const useCheckout = (posState) => {
       // 3. Clear state
       resetCheckoutState();
       clearCurrentTicket();
+      // Layouts can override the post-checkout destination (e.g. orders mode
+      // wants to land back on the tickets list instead of auto-jumping into
+      // whatever ticket clearCurrentTicket happened to select next).
+      if (onAfterCheckout) onAfterCheckout();
 
       // 4. Optional: Realtime sync trigger
       attemptBackgroundSync();
