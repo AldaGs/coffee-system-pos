@@ -804,6 +804,11 @@ function Register() {
           <OrderFlowLayout
             activeCategory={activeCategory}
             setActiveCategory={setActiveCategory}
+            isMobileMenuOpen={isMobileMenuOpen}
+            setIsMobileMenuOpen={setIsMobileMenuOpen}
+            setIsSyncModalOpen={setIsSyncModalOpen}
+            setIsExpenseModalOpen={setIsExpenseModalOpen}
+            setIsCorteModalOpen={setIsCorteModalOpen}
           />
         ) : (
           <CafeLayout

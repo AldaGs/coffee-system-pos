@@ -4,6 +4,7 @@ import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { getOrderedVisibleCategories } from '../../utils/categoryUtils';
+import RegisterActionBar from './RegisterActionBar';
 
 // OrderFlowLayout — the "Mesas/Pedidos" (Full Service) layout.
 //
@@ -18,11 +19,20 @@ import { getOrderedVisibleCategories } from '../../utils/categoryUtils';
 // PosContext (handleItemClick). The TicketArea (cart/total/pay/3-dot menu)
 // continues to live in the Register parent — both layouts are just different
 // "buttons" feeding one cart.
-function OrderFlowLayout({ activeCategory, setActiveCategory }) {
+function OrderFlowLayout({
+  activeCategory,
+  setActiveCategory,
+  isMobileMenuOpen,
+  setIsMobileMenuOpen,
+  setIsSyncModalOpen,
+  setIsExpenseModalOpen,
+  setIsCorteModalOpen,
+}) {
   const { t } = useTranslation();
   const {
     menuData,
     visibleTickets,
+    activeTicket,
     activeTicketId,
     setActiveTicketId,
     handleNewTicket,
@@ -111,8 +121,27 @@ function OrderFlowLayout({ activeCategory, setActiveCategory }) {
           >
             <Icon icon="lucide:chevron-left" />
           </button>
-          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>{activeCategory}</h2>
+          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeCategory}</h2>
+          {/* Shared system toolbar (Gasto / Corte / Lock / Admin / sync) so an
+              orders-mode station keeps full parity with the cafe layout. */}
+          <RegisterActionBar
+            isMobileMenuOpen={isMobileMenuOpen}
+            setIsMobileMenuOpen={setIsMobileMenuOpen}
+            setIsSyncModalOpen={setIsSyncModalOpen}
+            setIsExpenseModalOpen={setIsExpenseModalOpen}
+            setIsCorteModalOpen={setIsCorteModalOpen}
+          />
         </div>
+
+        {/* On wide screens both panes are visible, so items can be tapped with
+            no ticket selected. addToTicket would just reject them — nudge the
+            user to pick/create a ticket first instead. */}
+        {!activeTicket && (
+          <div className="order-flow-menu-hint">
+            <Icon icon="lucide:hand-pointer" style={{ fontSize: '1.1rem', flexShrink: 0 }} />
+            <span>{t('register.selectTicketHint')}</span>
+          </div>
+        )}
 
         <div className="category-tabs">
           {orderedCategories.map((category) => (
