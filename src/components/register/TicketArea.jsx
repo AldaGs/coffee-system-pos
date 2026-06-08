@@ -10,7 +10,12 @@ import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
   setIsDiscountModalOpen, setLoyaltyModal,
-  isMobileCartOpen, setIsMobileCartOpen
+  isMobileCartOpen, setIsMobileCartOpen,
+  // Orders ("Mesas/Pedidos") layout only. When set, this cart doubles as the
+  // flow's "ticket content" screen, so it surfaces an Add-product affordance
+  // that hands control back to OrderFlowLayout's category step. Undefined in
+  // the cafe layout, which leaves all of the below inert.
+  orderFlowMode = false, onAddProduct
 }) {
   const { t } = useTranslation();
   const [qtyEditItem, setQtyEditItem] = useState(null);
@@ -67,9 +72,30 @@ function TicketArea({
           </div>
         ) : (
           <>
+            {/* Orders-mode: a persistent way to jump back to the menu and add
+                the next product to THIS ticket. */}
+            {orderFlowMode && activeTicket.items.length > 0 && (
+              <button type="button" className="order-flow-add-product" onClick={onAddProduct}>
+                <Icon icon="lucide:plus" />
+                {t('register.addProduct')}
+              </button>
+            )}
+
             <ul className="ticket-items">
               {activeTicket.items.length === 0 ? (
-                <li className="empty-cart">{t('ticket.empty')}</li>
+                orderFlowMode ? (
+                  <li className="order-flow-empty-ticket">
+                    <Icon icon="lucide:coffee" style={{ fontSize: '2.4rem', opacity: 0.25 }} />
+                    <h3 style={{ margin: '6px 0 2px' }}>{t('register.emptyTicketTitle')}</h3>
+                    <p style={{ margin: '0 0 16px', color: 'var(--text-muted)' }}>{t('register.emptyTicketDesc')}</p>
+                    <button type="button" className="order-flow-add-product order-flow-add-product--cta" onClick={onAddProduct}>
+                      <Icon icon="lucide:plus" />
+                      {t('register.addProduct')}
+                    </button>
+                  </li>
+                ) : (
+                  <li className="empty-cart">{t('ticket.empty')}</li>
+                )
               ) : (
                 activeTicket.items.map(item => (
                   <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>

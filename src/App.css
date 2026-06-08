@@ -1482,3 +1482,71 @@ body.dark-mode {
     display: flex;
   }
 }
+
+/* Menu-pane header title (category name / "Choose a category"). */
+.order-flow-pane-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--text-main);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Category step: full-width rows that read as "drill in" --- */
+.order-flow-category-grid {
+  grid-template-columns: 1fr;
+}
+
+.order-flow-category-btn {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  height: auto;
+  padding: 20px 18px;
+  text-align: left;
+}
+
+.order-flow-category-btn .item-name {
+  font-size: 1.2rem;
+}
+
+/* --- Add-product affordance inside the cart (ticket-content screen) --- */
+.order-flow-add-product {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 16px 0;
+  padding: 12px 16px;
+  background: var(--brand-light);
+  color: var(--brand-color);
+  border: 1px dashed var(--brand-color);
+  border-radius: 10px;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.order-flow-add-product--cta {
+  display: inline-flex;
+  margin: 0;
+  padding: 14px 24px;
+  background: var(--brand-color);
+  color: #fff;
+  border-style: solid;
+}
+
+/* Empty-ticket prompt shown in place of the cart line items. */
+.order-flow-empty-ticket {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-main);
+}

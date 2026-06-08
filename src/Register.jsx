@@ -97,6 +97,12 @@ function Register() {
   // behavior for a physical terminal.
   const [layoutMode] = useState(getLayoutMode);
 
+  // Drill-down step for the orders ("Mesas/Pedidos") layout: 'tickets' ->
+  // 'categories' -> 'items'. Lifted here (rather than inside OrderFlowLayout)
+  // so the sibling TicketArea — which serves as the flow's "ticket content"
+  // screen — can advance it via its Add-product button. Inert in cafe mode.
+  const [orderFlowStep, setOrderFlowStep] = useState('tickets');
+
   const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
 
   const { showAlert, showConfirm, showPrompt } = useDialog();
@@ -802,8 +808,11 @@ function Register() {
             the checkout math/state hooks are never duplicated. */}
         {layoutMode === 'orders' ? (
           <OrderFlowLayout
+            step={orderFlowStep}
+            setStep={setOrderFlowStep}
             activeCategory={activeCategory}
             setActiveCategory={setActiveCategory}
+            setIsMobileCartOpen={setIsMobileCartOpen}
             isMobileMenuOpen={isMobileMenuOpen}
             setIsMobileMenuOpen={setIsMobileMenuOpen}
             setIsSyncModalOpen={setIsSyncModalOpen}
@@ -829,6 +838,8 @@ function Register() {
           setLoyaltyModal={setLoyaltyModal}
           isMobileCartOpen={isMobileCartOpen}
           setIsMobileCartOpen={setIsMobileCartOpen}
+          orderFlowMode={layoutMode === 'orders'}
+          onAddProduct={() => { setOrderFlowStep('categories'); setIsMobileCartOpen(false); }}
         />
 
         {/* NEW: Floating Cart Button for Mobile */}
