@@ -47,6 +47,22 @@ function GeneralSettingsTab({
   const [brandColorInput, setBrandColorInput] = useState(generalSettings.brandColor || '#000000');
   const [brandColorInvalid, setBrandColorInvalid] = useState(false);
 
+  // --- DEVICE-LOCAL: register layout mode -----------------------------------
+  // CRITICAL: this preference is strictly per-physical-device. It lives ONLY in
+  // localStorage under `tinypos_layout_mode` and is intentionally kept out of
+  // `generalSettings` so the cloud-sync save path never touches it. Different
+  // stations (counter vs. floor) can therefore run different layouts against
+  // the same store account.
+  const LAYOUT_MODE_KEY = 'tinypos_layout_mode';
+  const [layoutMode, setLayoutMode] = useState(() => {
+    if (typeof window === 'undefined') return 'cafe';
+    return localStorage.getItem(LAYOUT_MODE_KEY) || 'cafe';
+  });
+  const handleLayoutModeChange = (mode) => {
+    setLayoutMode(mode);
+    try { localStorage.setItem(LAYOUT_MODE_KEY, mode); } catch { /* storage unavailable — keep in-memory only */ }
+  };
+
   // --- Schema update state ---------------------------------------------------
   // dbVersion stays null while we're still loading the installed version.
   // 'unknown' is the explicit value we surface when schema_meta doesn't exist
@@ -803,6 +819,67 @@ function GeneralSettingsTab({
                 </select>
                 <small style={{ color: 'var(--text-muted)' }}>{t('settings.printerDesc')}</small>
               </div>
+            </div>
+          </div>
+
+          {/* --- DEVICE SETTINGS (LOCAL-ONLY, NOT SYNCED) --- */}
+          <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Icon icon="lucide:smartphone" style={{ color: 'var(--brand-color)' }} />
+                {t('settings.deviceTitle')}
+              </h3>
+              <small style={{ color: 'var(--text-muted)', display: 'block', lineHeight: 1.4 }}>
+                {t('settings.deviceDesc')}
+              </small>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>{t('settings.layoutMode')}</label>
+              <small style={{ color: 'var(--text-muted)', marginTop: '-4px' }}>{t('settings.layoutModeDesc')}</small>
+
+              <div role="radiogroup" aria-label={t('settings.layoutMode')} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                {[
+                  { value: 'cafe', icon: 'lucide:zap', label: t('settings.layoutCafe'), desc: t('settings.layoutCafeDesc') },
+                  { value: 'orders', icon: 'lucide:layout-list', label: t('settings.layoutOrders'), desc: t('settings.layoutOrdersDesc') },
+                ].map(opt => {
+                  const selected = layoutMode === opt.value;
+                  return (
+                    <label
+                      key={opt.value}
+                      style={{
+                        display: 'flex', alignItems: 'flex-start', gap: '14px',
+                        padding: '14px', borderRadius: '12px', cursor: 'pointer',
+                        background: 'var(--bg-main)',
+                        border: selected ? '2px solid var(--brand-color)' : '1px solid var(--border)',
+                        boxShadow: selected ? '0 0 0 1px var(--brand-color)' : 'none',
+                        transition: 'border 0.15s ease',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="layoutMode"
+                        value={opt.value}
+                        checked={selected}
+                        onChange={() => handleLayoutModeChange(opt.value)}
+                        style={{ width: '20px', height: '20px', accentColor: 'var(--brand-color)', flexShrink: 0, marginTop: '2px' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 800, color: 'var(--text-main)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Icon icon={opt.icon} style={{ color: 'var(--brand-color)' }} />
+                          {opt.label}
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginTop: '2px', lineHeight: 1.4 }}>{opt.desc}</div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <small style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                <Icon icon="lucide:hard-drive" style={{ fontSize: '0.95rem' }} />
+                {t('settings.layoutLocalNote')}
+              </small>
             </div>
           </div>
 

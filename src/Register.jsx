@@ -23,7 +23,8 @@ import SharedPinPad from './components/shared/SharedPinPad';
 // Modular Child Components
 import BootScreen from './components/register/BootScreen';
 import LockScreen from './components/register/LockScreen';
-import MenuArea from './components/register/MenuArea';
+import CafeLayout from './components/register/CafeLayout';
+import OrderFlowLayout from './components/register/OrderFlowLayout';
 import TicketArea from './components/register/TicketArea';
 import ModifierModal from './components/register/ModifierModal';
 import CheckoutModal from './components/register/CheckoutModal';
@@ -63,6 +64,18 @@ const getOrCreateDeviceId = () => {
   return id;
 };
 
+// Per-device register layout. CRITICAL: this is read EXCLUSIVELY from
+// localStorage (set in Admin → Device Settings) and is never synced to
+// Supabase, so each physical station can run a different layout against the
+// same store. Defaults to 'cafe' for any device that hasn't chosen one.
+const getLayoutMode = () => {
+  try {
+    return localStorage.getItem('tinypos_layout_mode') || 'cafe';
+  } catch {
+    return 'cafe';
+  }
+};
+
 
 function Register() {
   usePreventAccidentalExit();
@@ -77,6 +90,12 @@ function Register() {
 
 
   const [myDeviceId] = useState(getOrCreateDeviceId);
+
+  // Read the per-device layout once at mount. Changing it in Admin → Device
+  // Settings writes localStorage; it takes effect on the next register load
+  // (full reload), which is the desired "configure the station, then run it"
+  // behavior for a physical terminal.
+  const [layoutMode] = useState(getLayoutMode);
 
   const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
 
@@ -777,16 +796,26 @@ function Register() {
             ⚠️ {t('sync.outOfDate') || 'Menu potentially out of date. Syncing...'}
           </div>
         )}
-        <MenuArea
-
-          activeCategory={activeCategory}
-          setActiveCategory={setActiveCategory}
-          isMobileMenuOpen={isMobileMenuOpen}
-          setIsMobileMenuOpen={setIsMobileMenuOpen}
-          setIsSyncModalOpen={setIsSyncModalOpen}
-          setIsExpenseModalOpen={setIsExpenseModalOpen}
-          setIsCorteModalOpen={setIsCorteModalOpen}
-        />
+        {/* LAYOUT CONTROLLER — picks the per-device register layout. Both
+            layouts are just different "buttons" feeding the ONE shared cart;
+            the TicketArea below is rendered by this parent in either mode so
+            the checkout math/state hooks are never duplicated. */}
+        {layoutMode === 'orders' ? (
+          <OrderFlowLayout
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory}
+          />
+        ) : (
+          <CafeLayout
+            activeCategory={activeCategory}
+            setActiveCategory={setActiveCategory}
+            isMobileMenuOpen={isMobileMenuOpen}
+            setIsMobileMenuOpen={setIsMobileMenuOpen}
+            setIsSyncModalOpen={setIsSyncModalOpen}
+            setIsExpenseModalOpen={setIsExpenseModalOpen}
+            setIsCorteModalOpen={setIsCorteModalOpen}
+          />
+        )}
 
         <TicketArea
           isActionSheetOpen={isActionSheetOpen}

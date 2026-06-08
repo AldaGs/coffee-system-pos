@@ -1288,3 +1288,179 @@ body.dark-mode {
   }
 }
 }
+/* ===================================================================
+   ORDER FLOW LAYOUT (Mesas/Pedidos — Full Service)
+   Responsive split-pane: a persistent active-tickets list (30%) + the
+   menu (70%) on tablet/desktop; a single-pane state machine on mobile.
+   Sits where MenuArea would in the .pos-container flex row, so it takes
+   the same flex:1 slot next to the shared TicketArea.
+   =================================================================== */
+.order-flow-layout {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 30% 70%;
+  overflow: hidden;
+}
+
+.order-flow-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Left: active tickets --- */
+.order-flow-tickets {
+  border-right: 1px solid var(--border);
+  padding: 16px;
+  gap: 12px;
+}
+
+.order-flow-tickets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.order-flow-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--brand-color);
+  color: #fff;
+  border: none;
+  border-radius: 9999px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.order-flow-ticket-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.order-flow-ticket-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--bg-surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 1rem;
+  color: var(--text-main);
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.order-flow-ticket-card.active {
+  border-color: var(--brand-color);
+  background: var(--brand-light);
+}
+
+.order-flow-ticket-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: bold;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-flow-ticket-count {
+  flex-shrink: 0;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-color);
+  color: #fff;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+
+.order-flow-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* --- Right: menu --- */
+.order-flow-menu {
+  padding: 24px;
+}
+
+.order-flow-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.order-flow-back-btn {
+  /* Hidden by default (tablet/desktop show both panes). Revealed only in the
+     mobile single-pane flow below, tied to the same 767px breakpoint. */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-main);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 1.3rem;
+  flex-shrink: 0;
+}
+
+/* --- Mobile: single-pane state machine (<=767px) --- */
+@media (max-width: 767px) {
+  .order-flow-layout {
+    grid-template-columns: 1fr;
+  }
+  .order-flow-tickets {
+    border-right: none;
+  }
+  /* The active step decides which pane shows; the other is hidden. */
+  .order-flow-pane--hidden {
+    display: none;
+  }
+  /* Back button only appears in the mobile single-pane flow. */
+  .order-flow-back-btn {
+    display: inline-flex;
+  }
+}
+
+/* On tablet/desktop both panes are always visible regardless of mobile
+   step state. */
+@media (min-width: 768px) {
+  .order-flow-pane--hidden {
+    display: flex;
+  }
+}
