@@ -19,12 +19,21 @@ function MenuShareCard({ menuData }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
 
-  // window.location.origin is stable for the life of the page; computing it
-  // once on mount keeps the URL displayed and the URL embedded in the QR in
-  // lockstep.
-  const menuUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/menu`
-    : '/menu';
+  // The public /menu page is a single central deployment shared by every
+  // shop, so the link must carry this shop's Supabase URL + publishable key
+  // as base64-encoded `u` / `k` query params. Creds come from the same
+  // localStorage slots SetupScreen writes into.
+  const menuUrl = (() => {
+    if (typeof window === 'undefined') return '/menu';
+    const origin = window.location.origin;
+    const url = localStorage.getItem('tinypos_supabase_url');
+    const key = localStorage.getItem('tinypos_supabase_anon_key');
+    if (!url || !key) return `${origin}/menu`;
+    const u = btoa(url);
+    const k = btoa(key);
+    return `${origin}/menu?u=${u}&k=${k}`;
+  })();
+  const missingCreds = !menuUrl.includes('?u=');
 
   const brand = menuData?.posSettings?.brandColor || '#f28b05';
   const shopName = (menuData?.posSettings?.name || 'menu')
@@ -37,6 +46,7 @@ function MenuShareCard({ menuData }) {
     QRCode.toCanvas(canvasRef.current, menuUrl, {
       width: QR_SIZE,
       margin: 1,
+      errorCorrectionLevel: 'L',
       color: { dark: '#111', light: '#ffffff' }
     }).catch(err => setError(err.message));
   }, [menuUrl]);
@@ -61,7 +71,8 @@ function MenuShareCard({ menuData }) {
       const dataUrl = await QRCode.toDataURL(menuUrl, {
         width: QR_DOWNLOAD_SIZE,
         margin: 2,
-        color: { dark: '#111', light: '#ffffff' }
+        errorCorrectionLevel: 'L',
+      color: { dark: '#111', light: '#ffffff' }
       });
       const a = document.createElement('a');
       a.href = dataUrl;
@@ -120,6 +131,11 @@ function MenuShareCard({ menuData }) {
             {t('share.download')}
           </button>
 
+          {missingCreds && (
+            <p style={errorTextStyle}>
+              Configura las credenciales de Supabase para generar el enlace público.
+            </p>
+          )}
           {error === 'clipboard' && (
             <p style={errorTextStyle}>{t('share.copyFallback')}</p>
           )}
