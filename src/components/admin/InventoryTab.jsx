@@ -12,7 +12,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   const [activeView, setActiveView] = useState('list'); // 'list', 'add', 'transform'
 
   const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '' });
-  const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', shrinkagePerc: 20, targetItemName: '', operationalCost: '' });
+  const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '' });
   const [editingItem, setEditingItem] = useState(null);
 
   // --- NEW: AUDIT STATE ---
@@ -72,21 +72,22 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   // --- 2. THE ROASTER (TRANSFORM STOCK) ---
   const handleTransformStock = async () => {
-    if (!transformForm.sourceItemId || !transformForm.amountUsed || !transformForm.targetItemName) {
+    if (!transformForm.sourceItemId || !transformForm.amountUsed || !transformForm.yieldQty || !transformForm.targetItemName) {
       return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc2'));
     }
 
     const sourceItem = inventoryItems.find(i => i.id === parseInt(transformForm.sourceItemId));
     const usedQty = parseFloat(transformForm.amountUsed);
-    const shrinkPerc = parseFloat(transformForm.shrinkagePerc);
+    const finalYieldQty = parseFloat(transformForm.yieldQty);
     const opCost = parseFloat(transformForm.operationalCost) || 0;
 
     if (usedQty > sourceItem.current_stock) {
       return showAlert(t('inv.alertNotEnough'), `Solo hay ${sourceItem.current_stock}${sourceItem.unit} de ${sourceItem.name}.`);
     }
 
-    const yieldMultiplier = (100 - shrinkPerc) / 100;
-    const finalYieldQty = usedQty * yieldMultiplier;
+    if (!(finalYieldQty > 0) || finalYieldQty > usedQty) {
+      return showAlert(t('inv.alertMissing'), t('inv.alertInvalidYield'));
+    }
 
     // unit_cost is in Millicents. opCost is in dollars.
     const totalCostOfUsedInMillicents = Math.round(usedQty * sourceItem.unit_cost) + toMillicents(opCost);
@@ -134,7 +135,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       });
 
       setActiveView('list');
-      setTransformForm({ sourceItemId: '', amountUsed: '', shrinkagePerc: 20, targetItemName: '', operationalCost: '' });
+      setTransformForm({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '' });
 
       const successMsg = existingTarget
         ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} ${formatMillicentsForDisplay(finalUnitCost)}/g.`
@@ -409,8 +410,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               <input type="number" value={transformForm.amountUsed} onChange={e => setTransformForm({ ...transformForm, amountUsed: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.shrink')}</label>
-              <input type="number" value={transformForm.shrinkagePerc} onChange={e => setTransformForm({ ...transformForm, shrinkagePerc: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.yieldQty')}</label>
+              <input type="number" value={transformForm.yieldQty} onChange={e => setTransformForm({ ...transformForm, yieldQty: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.opCost')}</label>
