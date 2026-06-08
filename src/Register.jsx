@@ -842,15 +842,21 @@ function Register() {
           onAddProduct={() => { setOrderFlowStep('categories'); setIsMobileCartOpen(false); }}
         />
 
-        {/* NEW: Floating Cart Button for Mobile */}
-        <button
-          className="mobile-cart-fab desktop-hidden"
-          onClick={() => setIsMobileCartOpen(true)}
-        >
-          <Icon icon="lucide:shopping-cart" />
-          <span className="cart-badge">{activeTicket?.items?.reduce((n, i) => n + (i.qty || 1), 0) || 0}</span>
-          <span>{formatForDisplay(cartTotal)}</span>
-        </button>
+        {/* Floating Cart Button for Mobile. In the orders flow the tickets-list
+            screen IS the home view and tapping a ticket already opens its cart,
+            so the pill there is redundant/confusing — hide it on that step and
+            bring it back on the categories/items steps as the way back to the
+            cart. */}
+        {!(layoutMode === 'orders' && orderFlowStep === 'tickets') && (
+          <button
+            className="mobile-cart-fab desktop-hidden"
+            onClick={() => setIsMobileCartOpen(true)}
+          >
+            <Icon icon="lucide:shopping-cart" />
+            <span className="cart-badge">{activeTicket?.items?.reduce((n, i) => n + (i.qty || 1), 0) || 0}</span>
+            <span>{formatForDisplay(cartTotal)}</span>
+          </button>
+        )}
 
         <ModifierModal
           isModalOpen={isModalOpen}

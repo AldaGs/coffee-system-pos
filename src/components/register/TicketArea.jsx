@@ -40,7 +40,7 @@ function TicketArea({
       ></div>
 
       {/* 2. Apply dynamic 'open' class to the aside */}
-      <aside className={`ticket-area ${isMobileCartOpen ? 'open' : ''}`}>
+      <aside className={`ticket-area ${isMobileCartOpen ? 'open' : ''} ${orderFlowMode ? 'order-flow-cart' : ''}`}>
 
         {/* 3. Mobile Close Button / Header */}
         <div className="mobile-ticket-header desktop-hidden" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid var(--border)' }}>

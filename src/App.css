@@ -1227,7 +1227,7 @@ body.dark-mode {
     border-radius: 16px 16px 0 0;
     box-shadow: 0 -10px 40px rgba(0,0,0,0.15);
     z-index: 100;
-    
+
     /* The Slide Animation */
     transform: translateY(100%);
     transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
@@ -1235,6 +1235,14 @@ body.dark-mode {
 
   .ticket-area.open {
     transform: translateY(0);
+  }
+
+  /* Orders ("Mesas/Pedidos") cart = the flow's "ticket content" screen.
+     Go full-screen (not an 85vh peek) so it reads as a dedicated view, not a
+     sheet layered over the still-visible ticket list. */
+  .ticket-area.order-flow-cart {
+    height: 100dvh;
+    border-radius: 0;
   }
 
   .cart-badge {
@@ -1537,6 +1545,12 @@ body.dark-mode {
   background: var(--brand-color);
   color: #fff;
   border-style: solid;
+}
+
+/* In orders mode the active ticket is chosen from the list/rail, so the cart's
+   in-header ticket tabs are redundant — hide them for a consistent flow. */
+.order-flow-cart .ticket-tabs-container {
+  display: none;
 }
 
 /* Empty-ticket prompt shown in place of the cart line items. */
