@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>tinypos — recuperar menú</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; max-width: 720px; margin: 0 auto; padding: 24px; color: #222; background: #fafafa; }
+  h1 { margin-top: 0; font-size: 1.4rem; }
+  p  { line-height: 1.5; }
+  button { display: block; width: 100%; padding: 16px; margin: 12px 0; font-size: 1.05rem; font-weight: 700; border: none; border-radius: 12px; background: #f28b05; color: white; cursor: pointer; }
+  button.secondary { background: #444; }
+  pre { background: #111; color: #0f0; padding: 12px; border-radius: 8px; overflow: auto; font-size: 0.75rem; max-height: 40vh; white-space: pre-wrap; word-break: break-all; }
+  .ok  { color: #27ae60; font-weight: 700; }
+  .err { color: #e74c3c; font-weight: 700; }
+  textarea { width: 100%; height: 30vh; font-family: monospace; font-size: 0.7rem; }
+</style>
+</head>
+<body>
+<h1>Recuperar menú desde IndexedDB</h1>
+<p>Esta página lee la base local <code>TinyPOS_DB</code> de este dispositivo y exporta el menú cacheado + el historial de ventas (para reconstrucción si el menú está vacío).</p>
+<p><strong>Importante:</strong> tiene que correrse en el mismo dominio que tinypos. Si abriste tinypos como PWA, abre esta página en el navegador (Chrome/Safari) en el mismo dominio.</p>
+
+<button id="run">Exportar menú + ventas</button>
+<button id="download" class="secondary" style="display:none">Descargar JSON</button>
+
+<p id="status"></p>
+<pre id="preview"></pre>
+<textarea id="raw" style="display:none" readonly></textarea>
+
+<script type="module">
+import Dexie from 'https://cdn.jsdelivr.net/npm/dexie@3.2.5/dist/dexie.mjs';
+
+const $ = (id) => document.getElementById(id);
+let payload = null;
+
+async function dump() {
+  $('status').textContent = 'Abriendo TinyPOS_DB…';
+  const db = new Dexie('TinyPOS_DB');
+  // Declare every store we want to read. Versions must monotonically include
+  // every store the live app might have created, hence v10 mirrors src/db.js.
+  db.version(10).stores({
+    sales: '++id, status, created_at, local_id',
+    menu: 'id',
+    syncQueue: '++id, local_id',
+    active_tickets: 'id',
+    inventory: 'id, name',
+    inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+    updateQueue: '++id, type, local_id',
+    tip_payouts: '++id, created_at, local_id',
+    tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id',
+    expenses: 'id, timestamp, cashierId',
+    shift_state: 'key'
+  });
+
+  try {
+    await db.open();
+  } catch (e) {
+    $('status').innerHTML = '<span class="err">Error abriendo la DB: ' + e.message + '</span>';
+    return;
+  }
+
+  const out = {};
+  for (const tbl of ['menu', 'sales', 'inventory', 'active_tickets']) {
+    try {
+      out[tbl] = await db.table(tbl).toArray();
+    } catch (e) {
+      out[tbl] = { error: e.message };
+    }
+  }
+
+  payload = out;
+  const summary = {
+    menu_rows: Array.isArray(out.menu) ? out.menu.length : 0,
+    sales_rows: Array.isArray(out.sales) ? out.sales.length : 0,
+    first_menu_row_keys: Array.isArray(out.menu) && out.menu[0] ? Object.keys(out.menu[0]) : [],
+    first_sale_row_keys: Array.isArray(out.sales) && out.sales[0] ? Object.keys(out.sales[0]) : []
+  };
+
+  $('status').innerHTML = '<span class="ok">Listo.</span> ' +
+    `menu: ${summary.menu_rows} filas, sales: ${summary.sales_rows} filas.`;
+  $('preview').textContent = JSON.stringify(summary, null, 2) + '\n\n--- primer menu row ---\n' +
+    JSON.stringify(out.menu?.[0] ?? null, null, 2);
+
+  $('download').style.display = 'block';
+  $('raw').style.display = 'block';
+  $('raw').value = JSON.stringify(out, null, 2);
+}
+
+function download() {
+  if (!payload) return;
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `tinypos-recover-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+$('run').addEventListener('click', dump);
+$('download').addEventListener('click', download);
+</script>
+</body>
+</html>
