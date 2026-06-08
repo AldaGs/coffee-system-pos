@@ -168,9 +168,19 @@ function TicketArea({
                 </button>
               </div>
             </div>
+          </>
+        )}
+      </aside>
 
-            <div className={`bottom-sheet-overlay ${isActionSheetOpen ? 'open' : ''}`} onClick={() => setIsActionSheetOpen(false)}></div>
-            <div className={`bottom-sheet ${isActionSheetOpen ? 'open' : ''}`}>
+      {/* Ticket options sheet — rendered OUTSIDE the .ticket-area aside. The
+          aside is a transformed, overflow-scrolling drawer on mobile, which
+          would otherwise trap this position:fixed sheet inside it and let it be
+          revealed by scrolling the (now full-screen) cart. Keeping it a sibling
+          pins it to the viewport. */}
+      {activeTicket && (
+        <>
+          <div className={`bottom-sheet-overlay ${isActionSheetOpen ? 'open' : ''}`} onClick={() => setIsActionSheetOpen(false)}></div>
+          <div className={`bottom-sheet ${isActionSheetOpen ? 'open' : ''}`}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h3 style={{ margin: 0, color: 'var(--text-main)' }}>{t('ticket.options')}</h3>
                 <button onClick={() => setIsActionSheetOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)', cursor: 'pointer' }}>×</button>
@@ -225,9 +235,8 @@ function TicketArea({
                 </div>
               </div>
             </div>
-          </>
-        )}
-      </aside>
+        </>
+      )}
 
       <QuantityEditModal
         key={qtyEditItem?.uniqueId}
