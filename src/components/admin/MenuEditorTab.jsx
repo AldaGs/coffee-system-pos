@@ -4,6 +4,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, fromCents } from '../../utils/moneyUtils';
 import ImageCropModal from './ImageCropModal';
+import MenuHistoryPanel from './MenuHistoryPanel';
 import { MAX_SOURCE_BYTES } from '../../api/menuImages';
 
 function MenuEditorTab({
@@ -411,6 +412,8 @@ function MenuEditorTab({
           </div>
         </div>
       </div>
+
+      <MenuHistoryPanel />
 
       <input
         ref={fileInputRef}

@@ -12,6 +12,7 @@ import {
   addDiscountRule, updateDiscountRule, deleteDiscountRule
 } from './api/menu';
 import { uploadItemImage, clearItemImage, setItemImageUrl } from './api/menuImages';
+import { debouncedSnapshot, snapshotIfStale } from './api/menuVersions';
 import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
@@ -76,6 +77,12 @@ function Admin() {
       navigate('/', { replace: true });
     }
   }, [menuData, navigate]);
+
+  // Boot snapshot: ensures menu_versions has a recent row even for shops that
+  // open Admin without editing anything. Skips writing if the latest snapshot
+  // is < 24h old, so the cost is one cheap SELECT per session, not a row.
+  useEffect(() => { snapshotIfStale().catch(() => {}); }, []);
+
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   // --- NEW: MANAGER PIN LOCK STATE ---
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
@@ -340,11 +347,14 @@ function Admin() {
 
   // Optimistic-write helper: applies `optimisticMenu` locally, runs the typed
   // writer(s), and on failure shows an alert + re-fetches to roll back.
-  const runMenuWrite = async (optimisticMenu, writeFn) => {
+  // On success, debouncedSnapshot() schedules a menu_versions snapshot ~5s
+  // after the burst of edits settles, so one save burst = one version row.
+  const runMenuWrite = async (optimisticMenu, writeFn, op) => {
     setMenuData(optimisticMenu);
     setIsSaving(true);
     try {
       await writeFn();
+      debouncedSnapshot(op || (writeFn.name || 'menu-write'));
     } catch (err) {
       showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + err.message);
       await reloadMenuFromCloud();
