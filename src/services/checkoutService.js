@@ -97,9 +97,11 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         // Process Modifiers on Standard Items
         if (item.selectedModifiers && item.selectedModifiers.length > 0) {
           for (const mod of item.selectedModifiers) {
-            if (mod.deductionTargetId && !mod.substitutionTarget) {
-              const modItem = currentInventory.find(inv => String(inv.id) === String(mod.deductionTargetId))
-                || currentInventory.find(inv => inv.name === mod.deductionTarget); // Fallback to name for legacy
+            const hasDeductTarget = mod.deductionTargetId || mod.deductionTarget;
+            const hasSubTarget = mod.substitutionTargetId || mod.substitutionTarget;
+            if (hasDeductTarget && !hasSubTarget) {
+              const modItem = (mod.deductionTargetId && currentInventory.find(inv => String(inv.id) === String(mod.deductionTargetId)))
+                || (mod.deductionTarget && currentInventory.find(inv => inv.name === mod.deductionTarget));
 
               if (modItem) {
                 if (navigator.onLine) {
@@ -143,15 +145,19 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
           // Process Modifier Substitutions/Additions
           if (item.selectedModifiers && item.selectedModifiers.length > 0) {
             item.selectedModifiers.forEach(mod => {
-              if (mod.deductionTargetId && mod.substitutionTargetId) {
-                const baseIndex = cartBOM.findIndex(ing => String(ing.id) === String(mod.substitutionTargetId));
+              const hasDeductTarget = mod.deductionTargetId || mod.deductionTarget;
+              const hasSubTarget = mod.substitutionTargetId || mod.substitutionTarget;
+              if (hasDeductTarget && hasSubTarget) {
+                const baseIndex = mod.substitutionTargetId
+                  ? cartBOM.findIndex(ing => String(ing.id) === String(mod.substitutionTargetId))
+                  : cartBOM.findIndex(ing => ing.item_name === mod.substitutionTarget);
                 if (baseIndex !== -1) {
                   const baseQty = cartBOM[baseIndex].qty;
                   cartBOM.splice(baseIndex, 1);
-                  cartBOM.push({ id: mod.deductionTargetId, item_name: mod.deductionTarget, qty: baseQty });
+                  cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: baseQty });
                 }
-              } else if (mod.deductionTargetId && !mod.substitutionTargetId) {
-                cartBOM.push({ id: mod.deductionTargetId, item_name: mod.deductionTarget, qty: 1 });
+              } else if (hasDeductTarget && !hasSubTarget) {
+                cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: 1 });
               }
             });
           }
