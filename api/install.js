@@ -822,6 +822,10 @@ export default async function handler(req, res) {
     -- leave the server. EXECUTE granted to anon so visitors only need the anon
     -- key — no service role, no extra auth.
     -- ==========================================
+    -- Self-heal: ensure menu_items.image_url (migration 013) exists before
+    -- the resolver below references it. Safe on installs that already added it.
+    ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS image_url text;
+
     -- ==========================================
     -- MENUS + SCHEDULES (migration 015): multi-menu support with time-of-day
     -- and date-range scheduling. The existing catalog becomes an implicit

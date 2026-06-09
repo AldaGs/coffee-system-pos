@@ -31,6 +31,11 @@
 -- Mirrored in api/install.js and src/components/SetupScreen.jsx.
 -- =============================================================================
 
+-- 0. Self-heal: existing installs that ran an older 010 may not have the
+-- menu_items.image_url column added by migration 013. get_active_menu below
+-- references it, so re-apply the ALTER here defensively.
+ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS image_url text;
+
 -- 1. menus -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.menus (
   id          bigserial PRIMARY KEY,

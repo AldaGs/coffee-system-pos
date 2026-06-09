@@ -792,6 +792,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           FOR EACH ROW
           EXECUTE FUNCTION public.award_loyalty_visits();
 
+        -- Self-heal: ensure menu_items.image_url (migration 013) exists before
+        -- the resolver below references it.
+        ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS image_url text;
+
         -- Multi-menu + scheduling (migration 015). See db/migrations/015_menus_and_schedules.sql.
         CREATE TABLE IF NOT EXISTS public.menus (
           id bigserial PRIMARY KEY,

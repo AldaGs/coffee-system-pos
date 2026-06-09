@@ -9,7 +9,6 @@ import SharedPinPad from '../shared/SharedPinPad';
 import { supabase } from '../../supabaseClient';
 import { updateItem, updateModifierOption, updateDiscountRule } from '../../api/menu';
 import { useMenuStore } from '../../store/useMenuStore';
-import MenuShareCard from './MenuShareCard';
 import { db } from '../../db';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
@@ -958,8 +957,6 @@ function GeneralSettingsTab({
         </div>
 
       </div>
-
-      <MenuShareCard menuData={menuData} />
 
       {pinChallenge.isOpen && (
         <SharedPinPad

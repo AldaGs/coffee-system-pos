@@ -16,8 +16,10 @@ import {
   DAY_ORDER, DAY_BITS, daysToBitmask, bitmaskToDays
 } from '../../api/menus';
 import { uploadMenuFile, deleteMenuUploads, MAX_PDF_BYTES, MAX_IMAGE_BYTES } from '../../api/menuUploads';
+import MenuShareCard from './MenuShareCard';
+import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 
-function MenusTab({ showAlert, showConfirm }) {
+function MenusTab({ showAlert, showConfirm, menuData }) {
   const [menus, setMenus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -178,7 +180,11 @@ function MenusTab({ showAlert, showConfirm }) {
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <MenuShareCard menuData={menuData} />
+
+      <ConflictBanner conflicts={findScheduleConflicts(menus)} />
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 24 }}>
         {menus.map(menu => (
           <MenuCard
             key={menu.id}
@@ -405,6 +411,32 @@ function kindLabel(kind) {
 }
 function dayLabel(d) {
   return ({ mon:'Lun', tue:'Mar', wed:'Mié', thu:'Jue', fri:'Vie', sat:'Sáb', sun:'Dom' })[d];
+}
+
+function ConflictBanner({ conflicts }) {
+  if (!conflicts || conflicts.length === 0) return null;
+  return (
+    <div style={{ marginTop: 16, padding: 16, borderRadius: 12, border: '1px solid #e0a800', background: 'rgba(224, 168, 0, 0.08)', color: 'var(--text-main)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <Icon icon="lucide:triangle-alert" style={{ color: '#e0a800', fontSize: '1.2rem' }} />
+        <strong>Horarios traslapados</strong>
+      </div>
+      <p style={{ margin: '0 0 10px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+        Estos menús podrían estar activos al mismo tiempo. El resolutor elige por prioridad — confirma que es lo que quieres:
+      </p>
+      <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {conflicts.map((c, i) => (
+          <li key={i}>
+            <strong>{c.a.name}</strong> (prio {c.a.priority}) ↔ <strong>{c.b.name}</strong> (prio {c.b.priority})
+            {' — '}
+            {c.sharedPriority
+              ? <span style={{ color: '#d9534f', fontWeight: 700 }}>misma prioridad: gana el más reciente ({c.winner?.name})</span>
+              : <span>gana <strong>{c.winner?.name}</strong></span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function progressLabel(p) {
