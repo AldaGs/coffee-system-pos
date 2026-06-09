@@ -91,6 +91,13 @@ function PublicMenu() {
     return <TvMode data={data} brand={brand} lang={lang} />;
   }
 
+  // Designer kind: render through a template selected on menu.data.template.
+  // Filtering by menu.data.category_names is applied first so the user sees
+  // exactly the slice they configured.
+  if (menuKind === 'designed') {
+    return <TemplatedMenu data={data} brand={brand} lang={lang} />;
+  }
+
   // Uploaded PDF/image kinds render as a page carousel from menu.data.pages.
   if (menuKind === 'pdf' || menuKind === 'image') {
     return (
@@ -345,6 +352,156 @@ const carouselBtn = {
   lineHeight: 1
 };
 
+// Phase 4a templates. All three templates take the same props and render the
+// catalog payload returned by get_active_menu (kind='designed' gets the same
+// shape as 'live'). Bindings stay live — prices, hidden state, and modifier
+// groups flow through automatically because the customer fetches the same RPC.
+function TemplatedMenu({ data, brand, lang }) {
+  const menu = data.menu || {};
+  const opts = menu.data || {};
+  const accent = opts.accent_color || brand;
+  const wanted = opts.category_names && opts.category_names.length > 0
+    ? new Set(opts.category_names)
+    : null;
+  const categories = (data.categories || []).filter(c => !wanted || wanted.has(c.name));
+  const groupsById = mapGroups(data.modifier_groups);
+
+  const template = opts.template || 'list';
+  const TemplateCmp =
+    template === 'cards'      ? CardsTemplate :
+    template === 'chalkboard' ? ChalkboardTemplate :
+                                ListTemplate;
+
+  return (
+    <TemplateCmp
+      shopName={data.shop?.name || 'Menu'}
+      menuName={menu.name || ''}
+      categories={categories}
+      groupsById={groupsById}
+      accent={accent}
+      lang={lang}
+    />
+  );
+}
+
+function ListTemplate({ shopName, menuName, categories, groupsById, accent, lang }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#fafafa', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#222', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <header style={{ padding: '32px 20px 20px', textAlign: 'center', background: accent, color: 'white' }}>
+        <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 900, letterSpacing: '-0.01em' }}>{shopName}</h1>
+        {menuName && <p style={{ margin: '6px 0 0', opacity: 0.85, fontWeight: 600 }}>{menuName}</p>}
+      </header>
+      <main style={{ padding: '20px 16px 40px', maxWidth: 720, margin: '0 auto' }}>
+        {categories.map(c => (
+          <section key={c.id} style={{ marginBottom: 32 }}>
+            <h2 style={{ margin: '0 0 12px', fontSize: '1.4rem', color: accent, fontWeight: 800, borderBottom: `2px solid ${accent}`, paddingBottom: 6 }}>{c.name}</h2>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {c.items.map(it => (
+                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 4px', borderBottom: '1px solid #eee' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700 }}>{it.emoji ? `${it.emoji} ` : ''}{it.name}</div>
+                    {it.modifier_group_ids?.length > 0 && (
+                      <div style={{ fontSize: '0.8rem', color: '#888', marginTop: 2 }}>
+                        {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>
+                    {it.price_type === 'open' ? '—' : formatForDisplay(it.price_cents, lang)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </main>
+    </div>
+  );
+}
+
+function CardsTemplate({ shopName, menuName, categories, groupsById, accent, lang }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#f3f1ee', fontFamily: '"Helvetica Neue", system-ui, sans-serif', color: '#1a1a1a', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <header style={{ padding: '40px 20px 28px', textAlign: 'center' }}>
+        <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: 999, background: accent, color: 'white', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          {menuName || 'Menú'}
+        </div>
+        <h1 style={{ margin: '14px 0 0', fontSize: '2rem', fontWeight: 900, letterSpacing: '-0.02em' }}>{shopName}</h1>
+      </header>
+      <main style={{ padding: '0 16px 40px', maxWidth: 980, margin: '0 auto' }}>
+        {categories.map(c => (
+          <section key={c.id} style={{ marginBottom: 40 }}>
+            <h2 style={{ margin: '0 0 16px', fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.name}</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+              {c.items.map(it => (
+                <article key={it.id} style={{ background: 'white', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
+                  {it.image_url ? (
+                    <img src={it.image_url} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <div style={{ aspectRatio: '4/3', background: '#eee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>{it.emoji || '•'}</div>
+                  )}
+                  <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8, flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'baseline' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.2 }}>{it.name}</h3>
+                      <span style={{ fontWeight: 900, color: accent, whiteSpace: 'nowrap' }}>
+                        {it.price_type === 'open' ? '—' : formatForDisplay(it.price_cents, lang)}
+                      </span>
+                    </div>
+                    {it.modifier_group_ids?.length > 0 && (
+                      <div style={{ fontSize: '0.78rem', color: '#777' }}>
+                        {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </main>
+    </div>
+  );
+}
+
+function ChalkboardTemplate({ shopName, menuName, categories, groupsById, accent, lang }) {
+  // Chalkboard look: dark green background, hand-painted-style serif, chalky
+  // dividers. No external font dep — uses 'Brush Script MT' / 'Marker Felt'
+  // with system fallback so it loads instantly even on a kiosk with no net.
+  const chalk = '#f5f0e1';
+  return (
+    <div style={{ minHeight: '100vh', background: '#1d2e25', color: chalk, fontFamily: '"Marker Felt", "Brush Script MT", "Comic Sans MS", cursive', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <header style={{ padding: '40px 20px 24px', textAlign: 'center', borderBottom: `1px dashed ${chalk}88` }}>
+        <h1 style={{ margin: 0, fontSize: '2.4rem', fontWeight: 700, letterSpacing: '0.02em', color: accent }}>{shopName}</h1>
+        {menuName && <p style={{ margin: '6px 0 0', opacity: 0.8 }}>~ {menuName} ~</p>}
+      </header>
+      <main style={{ padding: '24px 20px 40px', maxWidth: 780, margin: '0 auto' }}>
+        {categories.map(c => (
+          <section key={c.id} style={{ marginBottom: 32 }}>
+            <h2 style={{ margin: '0 0 14px', fontSize: '1.8rem', color: accent, textAlign: 'center' }}>· {c.name} ·</h2>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {c.items.map(it => (
+                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '8px 0', borderBottom: `1px dotted ${chalk}55` }}>
+                  <div style={{ minWidth: 0, fontSize: '1.15rem' }}>
+                    {it.emoji ? `${it.emoji} ` : ''}{it.name}
+                    {it.modifier_group_ids?.length > 0 && (
+                      <div style={{ fontSize: '0.85rem', opacity: 0.6, marginTop: 2 }}>
+                        {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '1.25rem', whiteSpace: 'nowrap' }}>
+                    {it.price_type === 'open' ? '—' : formatForDisplay(it.price_cents, lang)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </main>
+    </div>
+  );
+}
+
 // Full-screen kiosk mode at /menu/tv. Requests Wake Lock so tablet screens
 // stay on, auto-rotates slides every `rotation_ms` (configurable on the menu
 // row's data, default 12s), and crossfades between slides. Re-fetch is
@@ -361,8 +518,12 @@ function TvMode({ data, brand, lang }) {
   const rotationMs = Math.max(3000, menu.data?.rotation_ms || 12000);
 
   const slides = useMemo(() => {
-    if (kind === 'live') {
-      return (data.categories || []).map(c => ({ key: `cat-${c.id}`, kind: 'category', payload: c }));
+    if (kind === 'live' || kind === 'designed') {
+      const wanted = menu.data?.category_names && menu.data.category_names.length > 0
+        ? new Set(menu.data.category_names)
+        : null;
+      const cats = (data.categories || []).filter(c => !wanted || wanted.has(c.name));
+      return cats.map(c => ({ key: `cat-${c.id}`, kind: 'category', payload: c }));
     }
     if (kind === 'pdf' || kind === 'image') {
       return (menu.data?.pages || []).map((url, i) => ({ key: `pg-${i}`, kind: 'page', payload: { url, index: i } }));

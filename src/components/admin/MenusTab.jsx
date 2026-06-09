@@ -197,6 +197,7 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
             onDelete={() => handleDelete(menu)}
             onScheduleChange={reload}
             showAlert={showAlert}
+            categoryNames={menuData?.categoryOrder || []}
           />
         ))}
       </div>
@@ -204,7 +205,7 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
   );
 }
 
-function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriority, onDelete, onScheduleChange, showAlert }) {
+function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriority, onDelete, onScheduleChange, showAlert, categoryNames }) {
   const [name, setName] = useState(menu.name);
   useEffect(() => { setName(menu.name); }, [menu.name]);
 
@@ -251,12 +252,104 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
       </div>
 
       {expanded && (
-        <ScheduleEditor
-          menu={menu}
-          onChange={onScheduleChange}
-          showAlert={showAlert}
-        />
+        <>
+          {menu.kind === 'designed' && (
+            <DesignedEditor menu={menu} onChange={onScheduleChange} showAlert={showAlert} categoryNames={categoryNames} />
+          )}
+          <ScheduleEditor
+            menu={menu}
+            onChange={onScheduleChange}
+            showAlert={showAlert}
+          />
+        </>
       )}
+    </div>
+  );
+}
+
+// Editor for kind='designed' menus — picks a template, optionally restricts
+// which catalog categories appear, and lets the owner override the accent
+// color. Bindings are by category name (matches how the rest of the app
+// stores category references in JSONB); renaming a category will silently
+// drop it from the selection.
+function DesignedEditor({ menu, onChange, showAlert, categoryNames }) {
+  const data = menu.data || {};
+  const [template, setTemplate] = useState(data.template || 'list');
+  const [selected, setSelected] = useState(data.category_names || []);
+  const [accent, setAccent] = useState(data.accent_color || '');
+  const all = selected.length === 0;
+
+  async function patch(next) {
+    try {
+      await updateMenu(menu.id, { data: { ...data, ...next } });
+      onChange();
+    } catch (err) { showAlert?.('Error', err.message); }
+  }
+
+  function applyTemplate(t) { setTemplate(t); patch({ template: t }); }
+  function applyAccent(c)    { setAccent(c); patch({ accent_color: c || null }); }
+  function toggleAll()       { setSelected([]); patch({ category_names: [] }); }
+  function toggleCategory(name) {
+    const base = all ? categoryNames : selected;
+    const next = base.includes(name) ? base.filter(n => n !== name) : [...base, name];
+    setSelected(next);
+    patch({ category_names: next });
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <p style={{ margin: '0 0 8px', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plantilla</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { id: 'list',       label: 'Lista',           icon: 'lucide:align-justify' },
+            { id: 'cards',      label: 'Tarjetas',        icon: 'lucide:layout-grid' },
+            { id: 'chalkboard', label: 'Pizarra',         icon: 'lucide:square-pen' }
+          ].map(t => (
+            <button key={t.id} onClick={() => applyTemplate(t.id)} style={{
+              padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
+              background: template === t.id ? 'var(--brand-color)' : 'var(--bg-surface)',
+              color: template === t.id ? 'white' : 'var(--text-main)',
+              cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6
+            }}>
+              <Icon icon={t.icon} />{t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p style={{ margin: '0 0 8px', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Categorías</p>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button onClick={toggleAll} style={{
+            padding: '6px 12px', borderRadius: 999, border: '1px solid var(--border)',
+            background: all ? 'var(--brand-color)' : 'var(--bg-surface)',
+            color: all ? 'white' : 'var(--text-main)',
+            cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem'
+          }}>Todas</button>
+          {categoryNames.map(name => {
+            const on = !all && selected.includes(name);
+            return (
+              <button key={name} onClick={() => toggleCategory(name)} style={{
+                padding: '6px 12px', borderRadius: 999, border: '1px solid var(--border)',
+                background: on ? 'var(--brand-color)' : 'var(--bg-surface)',
+                color: on ? 'white' : 'var(--text-main)',
+                cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem'
+              }}>{name}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Color de acento</p>
+        <input type="color" value={accent || '#f28b05'} onChange={e => setAccent(e.target.value)} onBlur={() => applyAccent(accent)} style={{ width: 40, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer' }} />
+        {accent && (
+          <button onClick={() => applyAccent('')} style={{ ...btnSecondary, padding: '6px 12px', fontSize: '0.8rem' }}>
+            Usar marca por defecto
+          </button>
+        )}
+      </div>
     </div>
   );
 }

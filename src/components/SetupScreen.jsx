@@ -887,7 +887,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             'language', COALESCE((SELECT menu_data->'posSettings'->>'language' FROM public.shop_settings WHERE id = 1), 'es'),
             'timezone', v_tz
           );
-          IF v_kind = 'live' THEN
+          IF v_kind = 'live' OR v_kind = 'designed' THEN
             RETURN jsonb_build_object(
               'menu', jsonb_build_object('id', v_menu_id, 'kind', v_kind, 'name', v_name, 'data', v_data),
               'shop', v_shop,
