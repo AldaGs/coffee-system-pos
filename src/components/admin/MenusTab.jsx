@@ -20,6 +20,7 @@ import MenuShareCard from './MenuShareCard';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 import { FONT_PRESETS } from '../../utils/menuTheme';
 import { sampleDocument } from '../../utils/canvasDocument';
+import CanvasEditor from '../menuCanvas/CanvasEditor';
 import QRCode from 'qrcode';
 
 function MenusTab({ showAlert, showConfirm, menuData }) {
@@ -28,6 +29,7 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
   const [newName, setNewName] = useState('');
   const [expandedId, setExpandedId] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(null);
+  const [editingCanvasFor, setEditingCanvasFor] = useState(null); // menu id
   const fileInputRef = useRef(null);
 
   async function reload() {
@@ -202,14 +204,31 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
             onScheduleChange={reload}
             showAlert={showAlert}
             categoryNames={menuData?.categoryOrder || []}
+            onOpenCanvas={() => setEditingCanvasFor(menu.id)}
           />
         ))}
       </div>
+
+      {editingCanvasFor && (() => {
+        const menu = menus.find(m => m.id === editingCanvasFor);
+        if (!menu) return null;
+        return (
+          <CanvasEditor
+            menu={menu}
+            menuData={menuData}
+            showAlert={showAlert}
+            onClose={async (saved) => {
+              setEditingCanvasFor(null);
+              if (saved) await reload();
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
 
-function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriority, onDelete, onScheduleChange, showAlert, categoryNames }) {
+function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriority, onDelete, onScheduleChange, showAlert, categoryNames, onOpenCanvas }) {
   const [name, setName] = useState(menu.name);
   useEffect(() => { setName(menu.name); }, [menu.name]);
 
@@ -262,7 +281,7 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
       {expanded && (
         <>
           {menu.kind === 'designed' && (
-            <DesignedEditor menu={menu} onChange={onScheduleChange} showAlert={showAlert} categoryNames={categoryNames} />
+            <DesignedEditor menu={menu} onChange={onScheduleChange} showAlert={showAlert} categoryNames={categoryNames} onOpenCanvas={onOpenCanvas} />
           )}
           <ScheduleEditor
             menu={menu}
@@ -281,7 +300,7 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
 // color. Bindings are by category name (matches how the rest of the app
 // stores category references in JSONB); renaming a category will silently
 // drop it from the selection.
-function DesignedEditor({ menu, onChange, showAlert, categoryNames }) {
+function DesignedEditor({ menu, onChange, showAlert, categoryNames, onOpenCanvas }) {
   const data = menu.data || {};
   const [template, setTemplate] = useState(data.template || 'list');
   const [selected, setSelected] = useState(data.category_names || []);
@@ -362,7 +381,7 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames }) {
 
       <ThemeEditor menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
 
-      <CanvasBetaToggle menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
+      <CanvasBetaToggle menu={menu} data={data} onChange={onChange} showAlert={showAlert} onOpenCanvas={onOpenCanvas} />
     </div>
   );
 }
@@ -371,7 +390,7 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames }) {
 // mode using a sample document so the renderer + URL pipeline can be
 // verified before the editor (4c.1) ships. Removing the document drops the
 // menu back to template mode without losing the rest of menu.data.
-function CanvasBetaToggle({ menu, data, onChange, showAlert }) {
+function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas }) {
   const hasDoc = !!data.document;
 
   async function seed() {
@@ -401,13 +420,23 @@ function CanvasBetaToggle({ menu, data, onChange, showAlert }) {
         </p>
       </div>
       {hasDoc ? (
-        <button onClick={clear} style={dangerBtn}>
-          <Icon icon="lucide:x" /> Quitar lienzo
-        </button>
+        <>
+          <button onClick={onOpenCanvas} style={btnPrimary}>
+            <Icon icon="lucide:pen-tool" /> Abrir editor
+          </button>
+          <button onClick={clear} style={dangerBtn}>
+            <Icon icon="lucide:x" /> Quitar lienzo
+          </button>
+        </>
       ) : (
-        <button onClick={seed} style={btnSecondary}>
-          <Icon icon="lucide:layout-template" /> Activar con ejemplo
-        </button>
+        <>
+          <button onClick={() => { seed().then(() => onOpenCanvas && onOpenCanvas()); }} style={btnPrimary}>
+            <Icon icon="lucide:pen-tool" /> Crear lienzo
+          </button>
+          <button onClick={seed} style={btnSecondary}>
+            <Icon icon="lucide:layout-template" /> Solo activar con ejemplo
+          </button>
+        </>
       )}
     </div>
   );
