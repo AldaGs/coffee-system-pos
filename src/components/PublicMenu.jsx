@@ -1,9 +1,16 @@
-// Customer-facing live menu. Read-only. No auth, no settings, no admin.
+// Customer-facing menu. Read-only. No auth, no settings, no admin.
 //
-// Hits the Supabase get_public_menu() RPC with the publishable key (granted
-// EXECUTE in migration 011). Returns sanitized data only — internal/operational
-// fields never reach this component, so we don't need to filter anything
-// client-side.
+// Hits the Supabase get_active_menu() RPC (migration 015) with the
+// publishable key. The resolver picks the right menu server-side based on
+// priority + scheduled time windows (shop-local), with the catalog 'live'
+// menu as always-on fallback. We re-fetch every 5 minutes so a scheduled
+// menu swap (e.g. brunch → lunch at 11am) appears without restart.
+//
+// Response envelope (sanitized — internal fields never reach the client):
+//   { menu: {id, kind, name, data}, shop, categories, modifier_groups }
+// For kind='live' we render categories/modifier_groups (catalog view).
+// For kind in ('pdf','image','designed') we render from menu.data — those
+// renderers ship in later phases.
 //
 // Routed at /menu and bypasses every App.jsx gate. The shop's Supabase URL
 // and publishable key arrive as base64-encoded `u` and `k` query params
@@ -46,15 +53,20 @@ function PublicMenu() {
     });
 
     let cancelled = false;
-    (async () => {
-      const { data, error } = await client.rpc('get_public_menu');
+    async function fetchMenu() {
+      const { data, error } = await client.rpc('get_active_menu');
       if (cancelled) return;
       if (error) { setError(error.message); return; }
       setData(data);
-      const firstCat = data?.categories?.[0];
-      if (firstCat) setActiveCategoryId(firstCat.id);
-    })();
-    return () => { cancelled = true; };
+      setActiveCategoryId(prev => {
+        if (prev && data?.categories?.some(c => c.id === prev)) return prev;
+        return data?.categories?.[0]?.id ?? null;
+      });
+    }
+    fetchMenu();
+    // Re-resolve every 5 min so scheduled swaps appear without a manual refresh.
+    const iv = setInterval(fetchMenu, 5 * 60 * 1000);
+    return () => { cancelled = true; clearInterval(iv); };
   }, []);
 
   const groupsById = useMemo(() => {
@@ -70,8 +82,30 @@ function PublicMenu() {
   const shop = data.shop || {};
   const brand = shop.brand_color || '#f28b05';
   const lang = shop.language || 'es';
+  const menuKind = data.menu?.kind || 'live';
   const categories = data.categories || [];
   const activeCategory = categories.find(c => c.id === activeCategoryId) || categories[0];
+
+  // Non-live menu kinds (pdf/image/designed) get their renderers in later
+  // phases. For now we show a placeholder so an admin who scheduled one
+  // sees something meaningful rather than an empty page.
+  if (menuKind !== 'live') {
+    return (
+      <div style={pageStyle}>
+        <header style={{ ...headerStyle, background: brand }}>
+          <h1 style={headerTitleStyle}>{shop.name || 'Menu'}</h1>
+        </header>
+        <div style={centerStyle}>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700 }}>{data.menu?.name || 'Menú'}</p>
+            <p style={{ marginTop: 8, fontSize: '0.85rem', color: '#888' }}>
+              Este formato de menú ({menuKind}) aún no está disponible para mostrar.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={pageStyle}>
