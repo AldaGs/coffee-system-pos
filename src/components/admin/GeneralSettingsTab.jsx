@@ -471,6 +471,22 @@ function GeneralSettingsTab({
             </div>
           </div>
 
+          {/* Timezone — used by the menu scheduler (migration 015) to resolve
+              brunch/winter/etc. windows in the shop's wall clock instead of UTC. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:clock" style={{ color: 'var(--brand-color)' }} />
+              Zona horaria
+              <span style={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                — horarios de menú se resuelven en esta zona
+              </span>
+            </label>
+            <TimezonePicker
+              value={generalSettings.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone}
+              onChange={tz => setGeneralSettings({ ...generalSettings, timezone: tz })}
+            />
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:monitor" style={{ color: 'var(--brand-color)' }} />
@@ -1068,6 +1084,29 @@ function SettingToggle({ icon, label, desc, checked, onChange }) {
         />
       </button>
     </div>
+  );
+}
+
+// Native datalist-backed combo. Lists IANA zones from Intl.supportedValuesOf
+// where available (Node 18+/modern browsers), with a small fallback for older
+// runtimes. Free typing is allowed so unusual zones still work.
+function TimezonePicker({ value, onChange }) {
+  const zones = (typeof Intl.supportedValuesOf === 'function')
+    ? Intl.supportedValuesOf('timeZone')
+    : ['UTC','America/Mexico_City','America/Tijuana','America/Cancun','America/Monterrey','America/Chicago','America/New_York','America/Los_Angeles','America/Bogota','America/Lima','America/Santiago','America/Argentina/Buenos_Aires','Europe/Madrid','Europe/London'];
+  return (
+    <>
+      <input
+        list="tinypos-tz-list"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder="America/Mexico_City"
+        style={{ width: '100%', boxSizing: 'border-box', padding: '12px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
+      />
+      <datalist id="tinypos-tz-list">
+        {zones.map(z => <option key={z} value={z} />)}
+      </datalist>
+    </>
   );
 }
 
