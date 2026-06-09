@@ -8,19 +8,22 @@
 // the designer (P4) plug in by adding kind-specific creation flows and
 // renderers; the data model and resolver don't change.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import {
   loadMenus, addMenu, updateMenu, deleteMenu,
   addSchedule, updateSchedule, deleteSchedule,
   DAY_ORDER, DAY_BITS, daysToBitmask, bitmaskToDays
 } from '../../api/menus';
+import { uploadMenuFile, deleteMenuUploads, MAX_PDF_BYTES, MAX_IMAGE_BYTES } from '../../api/menuUploads';
 
 function MenusTab({ showAlert, showConfirm }) {
   const [menus, setMenus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
   const [expandedId, setExpandedId] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(null);
+  const fileInputRef = useRef(null);
 
   async function reload() {
     try {
@@ -61,9 +64,48 @@ function MenusTab({ showAlert, showConfirm }) {
   async function handleDelete(menu) {
     if (menu.kind === 'live') return;
     showConfirm?.('Eliminar menú', `¿Eliminar "${menu.name}"?`, async () => {
-      try { await deleteMenu(menu.id); await reload(); }
-      catch (err) { showAlert?.('Error', err.message); }
+      try {
+        // Best-effort storage cleanup before the row goes; FK cascade handles schedules.
+        if (menu.kind === 'pdf' || menu.kind === 'image') {
+          await deleteMenuUploads(menu.id);
+        }
+        await deleteMenu(menu.id);
+        await reload();
+      } catch (err) { showAlert?.('Error', err.message); }
     });
+  }
+
+  // Upload flow: create the menu row first so we have a stable id for the
+  // storage folder, then convert + upload, then write the data envelope.
+  // If conversion fails after the row is created we still leave the row
+  // (kind defaults to 'designed' empty), so the user can see and retry/delete.
+  async function handleUpload(file) {
+    if (!file) return;
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    const stem = file.name.replace(/\.[^.]+$/, '') || 'Menú';
+    let menu;
+    try {
+      menu = await addMenu({ name: stem, kind: 'designed', priority: 1 });
+    } catch (err) {
+      showAlert?.('Error', err.message);
+      return;
+    }
+    try {
+      setUploadProgress({ phase: 'starting' });
+      const { kind, data } = await uploadMenuFile(menu.id, file, p => setUploadProgress(p));
+      await updateMenu(menu.id, { kind, data });
+      await reload();
+    } catch (err) {
+      // Leave the empty row behind so the user can choose what to do; don't
+      // silently delete their work.
+      showAlert?.('Error subiendo menú', err.message);
+    } finally {
+      setUploadProgress(null);
+    }
+  }
+
+  function triggerUpload() {
+    fileInputRef.current?.click();
   }
 
   if (loading) return <div className="admin-section fade-in"><p>Cargando…</p></div>;
@@ -77,18 +119,43 @@ function MenusTab({ showAlert, showConfirm }) {
         </p>
       </div>
 
-      <div style={{ background: 'var(--bg-surface)', padding: 20, borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', marginBottom: 24, display: 'flex', gap: 12 }}>
-        <input
-          type="text"
-          placeholder="Nombre del nuevo menú (ej. Brunch, Verano)"
-          value={newName}
-          onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
-          style={{ flex: 1, padding: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700, outline: 'none' }}
-        />
-        <button onClick={handleCreate} style={btnPrimary}>
-          <Icon icon="lucide:plus" /> Crear
-        </button>
+      <div style={{ background: 'var(--bg-surface)', padding: 20, borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <input
+            type="text"
+            placeholder="Nombre del nuevo menú (ej. Brunch, Verano)"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
+            style={{ flex: 1, padding: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700, outline: 'none' }}
+          />
+          <button onClick={handleCreate} style={btnPrimary}>
+            <Icon icon="lucide:plus" /> Crear
+          </button>
+          <button onClick={triggerUpload} style={btnSecondary} disabled={!!uploadProgress}>
+            <Icon icon="lucide:upload" /> Subir PDF o imagen
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={e => {
+              const f = e.target.files?.[0];
+              e.target.value = ''; // allow re-uploading the same file later
+              handleUpload(f);
+            }}
+          />
+        </div>
+        {uploadProgress && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} />
+            {progressLabel(uploadProgress)}
+          </div>
+        )}
+        <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+          Sube un PDF (máx {Math.round(MAX_PDF_BYTES / 1024 / 1024)}MB) o imagen (máx {Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB). El PDF se convierte a páginas WebP para mostrar y se guarda el original para descarga.
+        </p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -318,6 +385,16 @@ function kindLabel(kind) {
 }
 function dayLabel(d) {
   return ({ mon:'Lun', tue:'Mar', wed:'Mié', thu:'Jue', fri:'Vie', sat:'Sáb', sun:'Dom' })[d];
+}
+
+function progressLabel(p) {
+  if (!p) return '';
+  if (p.phase === 'starting') return 'Preparando…';
+  if (p.phase === 'loading-pdf') return 'Leyendo PDF…';
+  if (p.phase === 'rendering') return `Convirtiendo página ${p.current} / ${p.total}…`;
+  if (p.phase === 'uploading') return `Subiendo página ${p.current} / ${p.total}…`;
+  if (p.phase === 'uploading-original') return 'Guardando PDF original…';
+  return 'Procesando…';
 }
 
 const inputStyle = { padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700, outline: 'none' };
