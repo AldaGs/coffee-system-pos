@@ -123,7 +123,9 @@ function rowToOption(row) {
     price: row.price_delta_cents,
     isTextInput: !!data.isTextInput,
     deductionTarget: data.deductionTarget ?? null,
-    substitutionTarget: data.substitutionTarget ?? null
+    deductionTargetId: data.deductionTargetId ?? null,
+    substitutionTarget: data.substitutionTarget ?? null,
+    substitutionTargetId: data.substitutionTargetId ?? null
   };
 }
 

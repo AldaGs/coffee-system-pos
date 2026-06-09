@@ -813,7 +813,9 @@ function Admin() {
       price: newModOption.isTextInput ? 0 : toCents(newModOption.price),
       isTextInput: newModOption.isTextInput,
       deductionTarget: newModOption.deductionTarget || null,
-      substitutionTarget: newModOption.substitutionTarget || null
+      deductionTargetId: newModOption.deductionTargetId || null,
+      substitutionTarget: newModOption.substitutionTarget || null,
+      substitutionTargetId: newModOption.substitutionTargetId || null
     };
 
     const updatedMenu = {
@@ -831,7 +833,9 @@ function Admin() {
       price: "0",
       isTextInput: false,
       deductionTarget: "",
-      substitutionTarget: ""
+      deductionTargetId: "",
+      substitutionTarget: "",
+      substitutionTargetId: ""
     });
   };
 
@@ -871,7 +875,9 @@ function Admin() {
       price: updatedOpt.isTextInput ? 0 : toCents(updatedOpt.price),
       isTextInput: updatedOpt.isTextInput,
       deductionTarget: updatedOpt.deductionTarget || null,
-      substitutionTarget: updatedOpt.substitutionTarget || null
+      deductionTargetId: updatedOpt.deductionTargetId || null,
+      substitutionTarget: updatedOpt.substitutionTarget || null,
+      substitutionTargetId: updatedOpt.substitutionTargetId || null
     };
     const newOptions = [...menuData.modifierGroups[groupKey]];
     newOptions[optionIndex] = nextOpt;
@@ -881,7 +887,7 @@ function Admin() {
     };
     runMenuWrite(updatedMenu, () => updateModifierOption(oldOptionId, groupKey, nextOpt));
 
-    setNewModOption({ groupKey: "", name: "", price: "0", isTextInput: false, deductionTarget: "", substitutionTarget: "" });
+    setNewModOption({ groupKey: "", name: "", price: "0", isTextInput: false, deductionTarget: "", deductionTargetId: "", substitutionTarget: "", substitutionTargetId: "" });
   };
 
   // Renames a modifier group's slug id. ON UPDATE CASCADE on the FK keeps options

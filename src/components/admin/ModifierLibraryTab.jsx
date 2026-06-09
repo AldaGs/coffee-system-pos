@@ -27,19 +27,38 @@ function ModifierLibraryTab({
 
   const startEditOption = (groupKey, opt) => {
     setEditingModOption({ groupKey, optionData: opt });
+    // Legacy options only persisted target names. Resolve them to ids via the
+    // current inventory so the new id-based selects pick the right row.
+    const dedId = opt.deductionTargetId
+      || (opt.deductionTarget ? inventoryItems.find(i => i.name === opt.deductionTarget)?.id : null)
+      || "";
+    const subId = opt.substitutionTargetId
+      || (opt.substitutionTarget ? inventoryItems.find(i => i.name === opt.substitutionTarget)?.id : null)
+      || "";
     setNewModOption({
       groupKey: groupKey,
       name: opt.name,
       price: opt.isTextInput ? "0" : fromCents(opt.price),
       isTextInput: opt.isTextInput || false,
       deductionTarget: opt.deductionTarget || "",
-      substitutionTarget: opt.substitutionTarget || ""
+      deductionTargetId: dedId ? String(dedId) : "",
+      substitutionTarget: opt.substitutionTarget || "",
+      substitutionTargetId: subId ? String(subId) : ""
     });
   };
 
   const cancelEditOption = () => {
     setEditingModOption(null);
-    setNewModOption({ groupKey: "", name: "", price: "0", isTextInput: false, deductionTarget: "", substitutionTarget: "" });
+    setNewModOption({ groupKey: "", name: "", price: "0", isTextInput: false, deductionTarget: "", deductionTargetId: "", substitutionTarget: "", substitutionTargetId: "" });
+  };
+
+  const pickInventoryTarget = (field, id) => {
+    const item = inventoryItems.find(x => String(x.id) === String(id));
+    setNewModOption({
+      ...newModOption,
+      [`${field}Id`]: id || "",
+      [field]: item?.name || ""
+    });
   };
 
   return (
@@ -133,17 +152,17 @@ function ModifierLibraryTab({
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('mods.itemToDeduct')}</label>
-                      <select value={newModOption.deductionTarget || ""} onChange={(e) => setNewModOption({ ...newModOption, deductionTarget: e.target.value })} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                      <select value={newModOption.deductionTargetId || ""} onChange={(e) => pickInventoryTarget('deductionTarget', e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
                         <option value="">{t('mods.noDeduction')}</option>
-                        {inventoryItems.map(item => <option key={item.id} value={item.name}>{item.name}</option>)}
+                        {inventoryItems.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                       </select>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('mods.itemToReplace')}</label>
-                      <select value={newModOption.substitutionTarget || ""} onChange={(e) => setNewModOption({ ...newModOption, substitutionTarget: e.target.value })} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                      <select value={newModOption.substitutionTargetId || ""} onChange={(e) => pickInventoryTarget('substitutionTarget', e.target.value)} style={{ padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
                         <option value="">{t('mods.noSubstitution')}</option>
-                        {inventoryItems.map(item => <option key={item.id} value={item.name}>{item.name}</option>)}
+                        {inventoryItems.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
                       </select>
                     </div>
                   </div>
