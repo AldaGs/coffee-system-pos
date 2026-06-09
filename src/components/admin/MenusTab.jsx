@@ -18,6 +18,7 @@ import {
 import { uploadMenuFile, deleteMenuUploads, MAX_PDF_BYTES, MAX_IMAGE_BYTES } from '../../api/menuUploads';
 import MenuShareCard from './MenuShareCard';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
+import QRCode from 'qrcode';
 
 function MenusTab({ showAlert, showConfirm, menuData }) {
   const [menus, setMenus] = useState([]);
@@ -266,6 +267,7 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
             onChange={onScheduleChange}
             showAlert={showAlert}
           />
+          {!isLive && <MenuShareBlock menu={menu} />}
         </>
       )}
     </div>
@@ -509,6 +511,79 @@ function kindLabel(kind) {
 }
 function dayLabel(d) {
   return ({ mon:'Lun', tue:'Mar', wed:'Mié', thu:'Jue', fri:'Vie', sat:'Sáb', sun:'Dom' })[d];
+}
+
+// Per-menu deep link. Resolves a /menu?u=…&k=…&m=<id> URL using the same
+// localStorage creds the central MenuShareCard uses. Each non-live menu
+// gets its own block so a shop can print one QR per menu (Brunch QR
+// always shows brunch regardless of time).
+function MenuShareBlock({ menu }) {
+  const canvasRef = useRef(null);
+  const [copied, setCopied] = useState(false);
+
+  const link = (() => {
+    if (typeof window === 'undefined') return '';
+    const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
+    const key = localStorage.getItem('tinypos_supabase_anon_key');
+    if (!supabaseUrl || !key) return '';
+    return `${window.location.origin}/menu?u=${btoa(supabaseUrl)}&k=${btoa(key)}&m=${menu.id}`;
+  })();
+
+  useEffect(() => {
+    if (!canvasRef.current || !link) return;
+    QRCode.toCanvas(canvasRef.current, link, {
+      width: 140, margin: 1, errorCorrectionLevel: 'L',
+      color: { dark: '#111', light: '#ffffff' }
+    }).catch(() => {});
+  }, [link]);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch { /* ignore */ }
+  }
+
+  async function downloadQr() {
+    const big = document.createElement('canvas');
+    await QRCode.toCanvas(big, link, { width: 1024, margin: 2, errorCorrectionLevel: 'L', color: { dark: '#111', light: '#ffffff' } });
+    const a = document.createElement('a');
+    a.href = big.toDataURL('image/png');
+    a.download = `menu-${menu.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || menu.id}.png`;
+    a.click();
+  }
+
+  if (!link) {
+    return (
+      <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+        Credenciales locales no disponibles para generar el enlace.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+      <canvas ref={canvasRef} style={{ borderRadius: 8, background: 'white', padding: 4 }} />
+      <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Enlace directo a este menú
+        </p>
+        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          Esta URL muestra <strong>{menu.name}</strong> sin importar el horario — útil para imprimir un QR distinto por menú.
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-surface)', borderRadius: 8, padding: '8px 10px', border: '1px solid var(--border)' }}>
+          <code style={{ flex: 1, fontSize: '0.7rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</code>
+          <button onClick={copy} style={{ ...btnSecondary, padding: '6px 10px', fontSize: '0.78rem' }}>
+            <Icon icon={copied ? 'lucide:check' : 'lucide:copy'} /> {copied ? 'Copiado' : 'Copiar'}
+          </button>
+        </div>
+        <button onClick={downloadQr} style={{ ...btnSecondary, alignSelf: 'flex-start' }}>
+          <Icon icon="lucide:download" /> Descargar QR (PNG)
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function ConflictBanner({ conflicts }) {

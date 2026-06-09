@@ -53,9 +53,14 @@ function PublicMenu() {
       auth: { persistSession: false, autoRefreshToken: false }
     });
 
+    // ?m=<id> pins a specific menu (per-card share links), bypassing the
+    // schedule resolver. Falls back to get_active_menu when absent.
+    const pinnedId = params.get('m');
     let cancelled = false;
     async function fetchMenu() {
-      const { data, error } = await client.rpc('get_active_menu');
+      const { data, error } = pinnedId
+        ? await client.rpc('get_menu_by_id', { p_id: Number(pinnedId) })
+        : await client.rpc('get_active_menu');
       if (cancelled) return;
       if (error) { setError(error.message); return; }
       setData(data);
