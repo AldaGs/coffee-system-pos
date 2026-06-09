@@ -18,6 +18,7 @@ import {
 import { uploadMenuFile, deleteMenuUploads, MAX_PDF_BYTES, MAX_IMAGE_BYTES } from '../../api/menuUploads';
 import MenuShareCard from './MenuShareCard';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
+import { FONT_PRESETS } from '../../utils/menuTheme';
 import QRCode from 'qrcode';
 
 function MenusTab({ showAlert, showConfirm, menuData }) {
@@ -357,7 +358,99 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames }) {
           </button>
         )}
       </div>
+
+      <ThemeEditor menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
     </div>
+  );
+}
+
+// Phase 4b theme tokens. Writes onto menu.data.theme. Defaults (left empty)
+// let the template fall back to its built-in look, so adopting themes is
+// opt-in and reversible per token.
+function ThemeEditor({ menu, data, onChange, showAlert }) {
+  const theme = data.theme || {};
+
+  async function patchTheme(patch) {
+    try {
+      const next = { ...theme, ...patch };
+      // Strip empty strings so applyTheme() falls back cleanly.
+      for (const k of Object.keys(patch)) {
+        if (next[k] === '' || next[k] == null) delete next[k];
+      }
+      await updateMenu(menu.id, { data: { ...data, theme: next } });
+      onChange();
+    } catch (err) { showAlert?.('Error', err.message); }
+  }
+
+  return (
+    <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estilo</p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Field label="Tipografía">
+          <select value={theme.font_preset || 'system'} onChange={e => patchTheme({ font_preset: e.target.value })} style={inputStyle}>
+            {Object.entries(FONT_PRESETS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Densidad">
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { id: 'compact', label: 'Compacto' },
+              { id: 'cozy',    label: 'Cómodo' },
+              { id: 'roomy',   label: 'Amplio' }
+            ].map(d => {
+              const on = (theme.density || 'cozy') === d.id;
+              return (
+                <button key={d.id} onClick={() => patchTheme({ density: d.id })} style={{
+                  flex: 1, padding: '10px 6px', borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: on ? 'var(--brand-color)' : 'var(--bg-surface)',
+                  color: on ? 'white' : 'var(--text-main)',
+                  fontWeight: 700, cursor: 'pointer', fontSize: '0.78rem'
+                }}>{d.label}</button>
+              );
+            })}
+          </div>
+        </Field>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <ColorField label="Fondo"  value={theme.background} onClear={() => patchTheme({ background: '' })} onChange={v => patchTheme({ background: v })} />
+        <ColorField label="Texto"  value={theme.text}       onClear={() => patchTheme({ text: '' })}       onChange={v => patchTheme({ text: v })} />
+        <ColorField label="Acento" value={theme.accent}     onClear={() => patchTheme({ accent: '' })}     onChange={v => patchTheme({ accent: v })} />
+      </div>
+
+      <Field label="URL de Google Fonts (opcional)">
+        <input
+          type="url"
+          placeholder="https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap"
+          defaultValue={theme.google_font_url || ''}
+          onBlur={e => patchTheme({ google_font_url: e.target.value.trim() })}
+          style={inputStyle}
+        />
+      </Field>
+    </div>
+  );
+}
+
+function ColorField({ label, value, onChange, onClear }) {
+  return (
+    <Field label={label}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          type="color"
+          value={value || '#000000'}
+          onChange={e => onChange(e.target.value)}
+          style={{ width: 36, height: 32, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', padding: 0 }}
+        />
+        <code style={{ flex: 1, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{value || 'auto'}</code>
+        {value && (
+          <button onClick={onClear} title="Limpiar" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
+            <Icon icon="lucide:x" />
+          </button>
+        )}
+      </div>
+    </Field>
   );
 }
 

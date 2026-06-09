@@ -20,6 +20,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { formatForDisplay } from '../utils/moneyUtils';
+import { applyTheme, syncGoogleFontLink } from '../utils/menuTheme';
 
 // Standard base64 → string. Tolerates URL-safe variants in case the link was
 // rewritten by a QR scanner or messaging app.
@@ -364,7 +365,6 @@ const carouselBtn = {
 function TemplatedMenu({ data, brand, lang }) {
   const menu = data.menu || {};
   const opts = menu.data || {};
-  const accent = opts.accent_color || brand;
   const wanted = opts.category_names && opts.category_names.length > 0
     ? new Set(opts.category_names)
     : null;
@@ -372,6 +372,16 @@ function TemplatedMenu({ data, brand, lang }) {
   const groupsById = mapGroups(data.modifier_groups);
 
   const template = opts.template || 'list';
+  const defaults =
+    template === 'chalkboard' ? { background: '#1d2e25', text: '#f5f0e1' } :
+    template === 'cards'      ? { background: '#f3f1ee', text: '#1a1a1a' } :
+                                { background: '#fafafa', text: '#222'    };
+  // accent_color from Phase 4a still wins if user set it before themes existed.
+  const themeIn = { ...(opts.theme || {}), accent: (opts.theme?.accent || opts.accent_color) };
+  const theme = applyTheme(themeIn, brand, defaults);
+
+  useEffect(() => { syncGoogleFontLink(theme.googleFontUrl); }, [theme.googleFontUrl]);
+
   const TemplateCmp =
     template === 'cards'      ? CardsTemplate :
     template === 'chalkboard' ? ChalkboardTemplate :
@@ -383,30 +393,31 @@ function TemplatedMenu({ data, brand, lang }) {
       menuName={menu.name || ''}
       categories={categories}
       groupsById={groupsById}
-      accent={accent}
+      theme={theme}
       lang={lang}
     />
   );
 }
 
-function ListTemplate({ shopName, menuName, categories, groupsById, accent, lang }) {
+function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang }) {
+  const { fontFamily, background, text, accent, density } = theme;
   return (
-    <div style={{ minHeight: '100vh', background: '#fafafa', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#222', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <header style={{ padding: '32px 20px 20px', textAlign: 'center', background: accent, color: 'white' }}>
+    <div style={{ minHeight: '100vh', background, fontFamily, color: text, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <header style={{ padding: `${density.pad + 12}px 20px ${density.pad}px`, textAlign: 'center', background: accent, color: 'white' }}>
         <h1 style={{ margin: 0, fontSize: '1.8rem', fontWeight: 900, letterSpacing: '-0.01em' }}>{shopName}</h1>
         {menuName && <p style={{ margin: '6px 0 0', opacity: 0.85, fontWeight: 600 }}>{menuName}</p>}
       </header>
-      <main style={{ padding: '20px 16px 40px', maxWidth: 720, margin: '0 auto' }}>
+      <main style={{ padding: `${density.pad}px 16px 40px`, maxWidth: 720, margin: '0 auto' }}>
         {categories.map(c => (
-          <section key={c.id} style={{ marginBottom: 32 }}>
-            <h2 style={{ margin: '0 0 12px', fontSize: '1.4rem', color: accent, fontWeight: 800, borderBottom: `2px solid ${accent}`, paddingBottom: 6 }}>{c.name}</h2>
+          <section key={c.id} style={{ marginBottom: density.sectionGap }}>
+            <h2 style={{ margin: `0 0 ${density.gap}px`, fontSize: '1.4rem', color: accent, fontWeight: 800, borderBottom: `2px solid ${accent}`, paddingBottom: 6 }}>{c.name}</h2>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               {c.items.map(it => (
-                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 4px', borderBottom: '1px solid #eee' }}>
+                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: `${density.gap}px 4px`, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>{it.emoji ? `${it.emoji} ` : ''}{it.name}</div>
                     {it.modifier_group_ids?.length > 0 && (
-                      <div style={{ fontSize: '0.8rem', color: '#888', marginTop: 2 }}>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.6, marginTop: 2 }}>
                         {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
                       </div>
                     )}
@@ -424,10 +435,11 @@ function ListTemplate({ shopName, menuName, categories, groupsById, accent, lang
   );
 }
 
-function CardsTemplate({ shopName, menuName, categories, groupsById, accent, lang }) {
+function CardsTemplate({ shopName, menuName, categories, groupsById, theme, lang }) {
+  const { fontFamily, background, text, accent, density } = theme;
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f1ee', fontFamily: '"Helvetica Neue", system-ui, sans-serif', color: '#1a1a1a', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <header style={{ padding: '40px 20px 28px', textAlign: 'center' }}>
+    <div style={{ minHeight: '100vh', background, fontFamily, color: text, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <header style={{ padding: `${density.pad + 20}px 20px ${density.pad + 8}px`, textAlign: 'center' }}>
         <div style={{ display: 'inline-block', padding: '4px 14px', borderRadius: 999, background: accent, color: 'white', fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           {menuName || 'Menú'}
         </div>
@@ -435,9 +447,9 @@ function CardsTemplate({ shopName, menuName, categories, groupsById, accent, lan
       </header>
       <main style={{ padding: '0 16px 40px', maxWidth: 980, margin: '0 auto' }}>
         {categories.map(c => (
-          <section key={c.id} style={{ marginBottom: 40 }}>
-            <h2 style={{ margin: '0 0 16px', fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.name}</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16 }}>
+          <section key={c.id} style={{ marginBottom: density.sectionGap }}>
+            <h2 style={{ margin: `0 0 ${density.gap + 4}px`, fontSize: '1.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{c.name}</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: density.gap + 4 }}>
               {c.items.map(it => (
                 <article key={it.id} style={{ background: 'white', borderRadius: 16, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column' }}>
                   {it.image_url ? (
@@ -453,7 +465,7 @@ function CardsTemplate({ shopName, menuName, categories, groupsById, accent, lan
                       </span>
                     </div>
                     {it.modifier_group_ids?.length > 0 && (
-                      <div style={{ fontSize: '0.78rem', color: '#777' }}>
+                      <div style={{ fontSize: '0.78rem', opacity: 0.55 }}>
                         {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
                       </div>
                     )}
@@ -468,24 +480,24 @@ function CardsTemplate({ shopName, menuName, categories, groupsById, accent, lan
   );
 }
 
-function ChalkboardTemplate({ shopName, menuName, categories, groupsById, accent, lang }) {
-  // Chalkboard look: dark green background, hand-painted-style serif, chalky
-  // dividers. No external font dep — uses 'Brush Script MT' / 'Marker Felt'
-  // with system fallback so it loads instantly even on a kiosk with no net.
-  const chalk = '#f5f0e1';
+function ChalkboardTemplate({ shopName, menuName, categories, groupsById, theme, lang }) {
+  // Defaults give the original chalkboard look without a theme; user
+  // overrides flow in via applyTheme — pick a lighter background + serif
+  // font and you've got a wedding-menu vibe instead.
+  const { fontFamily, background, text, accent, density } = theme;
   return (
-    <div style={{ minHeight: '100vh', background: '#1d2e25', color: chalk, fontFamily: '"Marker Felt", "Brush Script MT", "Comic Sans MS", cursive', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      <header style={{ padding: '40px 20px 24px', textAlign: 'center', borderBottom: `1px dashed ${chalk}88` }}>
+    <div style={{ minHeight: '100vh', background, color: text, fontFamily, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <header style={{ padding: `${density.pad + 20}px 20px ${density.pad + 4}px`, textAlign: 'center', borderBottom: `1px dashed ${text}55` }}>
         <h1 style={{ margin: 0, fontSize: '2.4rem', fontWeight: 700, letterSpacing: '0.02em', color: accent }}>{shopName}</h1>
         {menuName && <p style={{ margin: '6px 0 0', opacity: 0.8 }}>~ {menuName} ~</p>}
       </header>
-      <main style={{ padding: '24px 20px 40px', maxWidth: 780, margin: '0 auto' }}>
+      <main style={{ padding: `${density.pad + 4}px 20px 40px`, maxWidth: 780, margin: '0 auto' }}>
         {categories.map(c => (
-          <section key={c.id} style={{ marginBottom: 32 }}>
-            <h2 style={{ margin: '0 0 14px', fontSize: '1.8rem', color: accent, textAlign: 'center' }}>· {c.name} ·</h2>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <section key={c.id} style={{ marginBottom: density.sectionGap }}>
+            <h2 style={{ margin: `0 0 ${density.gap + 2}px`, fontSize: '1.8rem', color: accent, textAlign: 'center' }}>· {c.name} ·</h2>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: density.gap - 2 }}>
               {c.items.map(it => (
-                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '8px 0', borderBottom: `1px dotted ${chalk}55` }}>
+                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '8px 0', borderBottom: `1px dotted ${text}33` }}>
                   <div style={{ minWidth: 0, fontSize: '1.15rem' }}>
                     {it.emoji ? `${it.emoji} ` : ''}{it.name}
                     {it.modifier_group_ids?.length > 0 && (
