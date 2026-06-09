@@ -42,8 +42,9 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
     const name = newName.trim();
     if (!name) return;
     try {
-      await addMenu({ name, kind: 'designed', priority: 1 });
+      const created = await addMenu({ name, kind: 'designed', priority: 1 });
       setNewName('');
+      setExpandedId(created.id);    // open the editor so the user can pick template + categories
       await reload();
     } catch (err) { showAlert?.('Error', err.message); }
   }
@@ -240,8 +241,12 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
         </button>
 
         <button onClick={onExpand} style={iconBtn} title="Horarios">
-          <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:calendar-clock'} />
+          <Icon icon="lucide:calendar-clock" />
           <span style={{ fontWeight: 700 }}>{menu.schedules.length} horario{menu.schedules.length === 1 ? '' : 's'}</span>
+        </button>
+
+        <button onClick={onExpand} style={iconBtn} title={expanded ? 'Cerrar' : (menu.kind === 'designed' ? 'Diseño + horarios' : 'Horarios')}>
+          <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} />
         </button>
 
         {!isLive && (
