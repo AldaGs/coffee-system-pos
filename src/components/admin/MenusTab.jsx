@@ -108,15 +108,35 @@ function MenusTab({ showAlert, showConfirm }) {
     fileInputRef.current?.click();
   }
 
+  // Open /menu/tv in a new tab with the same base64 creds the share card
+  // uses, so any device that opens the link gets a full-screen rotating menu
+  // without needing to log in.
+  function openTvView() {
+    if (typeof window === 'undefined') return;
+    const url = localStorage.getItem('tinypos_supabase_url');
+    const key = localStorage.getItem('tinypos_supabase_anon_key');
+    if (!url || !key) {
+      showAlert?.('Configuración faltante', 'No se encontraron credenciales locales para construir el enlace.');
+      return;
+    }
+    const tvUrl = `${window.location.origin}/menu/tv?u=${btoa(url)}&k=${btoa(key)}`;
+    window.open(tvUrl, '_blank', 'noopener,noreferrer');
+  }
+
   if (loading) return <div className="admin-section fade-in"><p>Cargando…</p></div>;
 
   return (
     <div className="admin-section fade-in">
-      <div className="admin-section-header" style={{ marginBottom: 32 }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>Menús</h1>
-        <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.05rem' }}>
-          Múltiples menús con horarios. El de mayor prioridad cuyo horario coincida con la hora actual del negocio se muestra al cliente.
-        </p>
+      <div className="admin-section-header" style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>Menús</h1>
+          <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.05rem' }}>
+            Múltiples menús con horarios. El de mayor prioridad cuyo horario coincida con la hora actual del negocio se muestra al cliente.
+          </p>
+        </div>
+        <button onClick={openTvView} style={btnSecondary} title="Abre /menu/tv en otra pestaña — para una tablet o pantalla">
+          <Icon icon="lucide:tv" /> Vista TV / kiosko
+        </button>
       </div>
 
       <div style={{ background: 'var(--bg-surface)', padding: 20, borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>

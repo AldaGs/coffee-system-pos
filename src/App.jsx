@@ -19,7 +19,7 @@ function App() {
   // login form, or the device-authorization check. Uses its own anon-keyed
   // Supabase client (see PublicMenu.jsx) so it doesn't piggyback on any
   // logged-in session.
-  if (typeof window !== 'undefined' && window.location.pathname === '/menu') {
+  if (typeof window !== 'undefined' && (window.location.pathname === '/menu' || window.location.pathname === '/menu/tv')) {
     return <PublicMenu />;
   }
 

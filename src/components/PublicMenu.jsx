@@ -37,6 +37,7 @@ function PublicMenu() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [activeCategoryId, setActiveCategoryId] = useState(null);
+  const isTvMode = typeof window !== 'undefined' && window.location.pathname === '/menu/tv';
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -85,6 +86,10 @@ function PublicMenu() {
   const menuKind = data.menu?.kind || 'live';
   const categories = data.categories || [];
   const activeCategory = categories.find(c => c.id === activeCategoryId) || categories[0];
+
+  if (isTvMode) {
+    return <TvMode data={data} brand={brand} lang={lang} />;
+  }
 
   // Uploaded PDF/image kinds render as a page carousel from menu.data.pages.
   if (menuKind === 'pdf' || menuKind === 'image') {
@@ -338,6 +343,191 @@ const carouselBtn = {
   alignItems: 'center',
   justifyContent: 'center',
   lineHeight: 1
+};
+
+// Full-screen kiosk mode at /menu/tv. Requests Wake Lock so tablet screens
+// stay on, auto-rotates slides every `rotation_ms` (configurable on the menu
+// row's data, default 12s), and crossfades between slides. Re-fetch is
+// handled by the parent's 5-min interval, so a scheduled menu swap shows up
+// automatically without restart.
+//
+// Slide set depends on menu kind:
+//   live           — one slide per category
+//   pdf / image    — one slide per page
+//   designed       — placeholder slide (renderer ships in Phase 4)
+function TvMode({ data, brand, lang }) {
+  const menu = data.menu || {};
+  const kind = menu.kind || 'live';
+  const rotationMs = Math.max(3000, menu.data?.rotation_ms || 12000);
+
+  const slides = useMemo(() => {
+    if (kind === 'live') {
+      return (data.categories || []).map(c => ({ key: `cat-${c.id}`, kind: 'category', payload: c }));
+    }
+    if (kind === 'pdf' || kind === 'image') {
+      return (menu.data?.pages || []).map((url, i) => ({ key: `pg-${i}`, kind: 'page', payload: { url, index: i } }));
+    }
+    return [{ key: 'placeholder', kind: 'placeholder', payload: null }];
+  }, [data, kind, menu.data]);
+
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  // Reset index when slide set shrinks (e.g. a category was hidden).
+  useEffect(() => {
+    if (idx >= slides.length) setIdx(0);
+  }, [slides.length, idx]);
+
+  // Rotation: hide → swap → show, for a clean crossfade.
+  useEffect(() => {
+    if (slides.length <= 1) return;
+    const tick = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIdx(i => (i + 1) % slides.length);
+        setVisible(true);
+      }, 350);
+    }, rotationMs);
+    return () => clearInterval(tick);
+  }, [slides.length, rotationMs]);
+
+  // Wake Lock — quiet best-effort. Some browsers require a gesture; if the
+  // request rejects we just let the screen sleep rather than nag the viewer.
+  useEffect(() => {
+    let sentinel = null;
+    let released = false;
+    async function acquire() {
+      try {
+        if ('wakeLock' in navigator) {
+          sentinel = await navigator.wakeLock.request('screen');
+        }
+      } catch { /* ignore */ }
+    }
+    function onVisibility() {
+      // Browsers auto-release on tab hide; reacquire when shown again.
+      if (document.visibilityState === 'visible' && !released) acquire();
+    }
+    acquire();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      released = true;
+      document.removeEventListener('visibilitychange', onVisibility);
+      if (sentinel) sentinel.release().catch(() => {});
+    };
+  }, []);
+
+  const slide = slides[idx];
+
+  return (
+    <div style={tvPageStyle}>
+      <div style={{ ...tvHeaderStyle, background: brand }}>
+        <h1 style={tvHeaderTitleStyle}>{data.shop?.name || 'Menu'}</h1>
+        {slides.length > 1 && (
+          <div style={tvDotsStyle}>
+            {slides.map((_, i) => (
+              <span key={i} style={{ ...tvDotStyle, background: i === idx ? 'white' : 'rgba(255,255,255,0.35)' }} />
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ ...tvSlideStyle, opacity: visible ? 1 : 0 }}>
+        {slide?.kind === 'category' && <TvCategorySlide category={slide.payload} groupsById={mapGroups(data.modifier_groups)} lang={lang} brand={brand} />}
+        {slide?.kind === 'page' && <TvPageSlide url={slide.payload.url} />}
+        {slide?.kind === 'placeholder' && (
+          <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1.5rem' }}>
+            {menu.name || 'Menú'} — formato no disponible aún
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function mapGroups(groups) {
+  const m = new Map();
+  (groups || []).forEach(g => m.set(g.id, g));
+  return m;
+}
+
+function TvCategorySlide({ category, groupsById, lang, brand }) {
+  const items = category?.items || [];
+  return (
+    <div style={{ width: '100%', height: '100%', padding: '40px 80px 60px', display: 'flex', flexDirection: 'column', gap: 40, color: 'white' }}>
+      <h2 style={{ margin: 0, fontSize: 'clamp(2.5rem, 5vw, 4.5rem)', fontWeight: 900, letterSpacing: '-0.02em', color: brand }}>
+        {category?.name || ''}
+      </h2>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: items.length > 6 ? '1fr 1fr' : '1fr',
+        gap: '18px 60px',
+        flex: 1,
+        overflow: 'hidden',
+        alignContent: 'start'
+      }}>
+        {items.map(item => (
+          <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 24, borderBottom: '1px solid rgba(255,255,255,0.12)', paddingBottom: 14 }}>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 'clamp(1.4rem, 2.2vw, 2rem)', fontWeight: 800, lineHeight: 1.2 }}>
+                {item.emoji ? `${item.emoji} ` : ''}{item.name}
+              </div>
+              {item.modifier_group_ids?.length > 0 && (
+                <div style={{ fontSize: 'clamp(0.9rem, 1.2vw, 1.1rem)', color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
+                  {item.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
+                </div>
+              )}
+            </div>
+            <div style={{ fontSize: 'clamp(1.4rem, 2.2vw, 2rem)', fontWeight: 900, whiteSpace: 'nowrap' }}>
+              {item.price_type === 'open' ? '—' : formatForDisplay(item.price_cents, lang)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TvPageSlide({ url }) {
+  return (
+    <img src={url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />
+  );
+}
+
+const tvPageStyle = {
+  position: 'fixed',
+  inset: 0,
+  background: '#0b0b0b',
+  color: 'white',
+  display: 'flex',
+  flexDirection: 'column',
+  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  overflow: 'hidden'
+};
+
+const tvHeaderStyle = {
+  padding: '24px 80px',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  color: 'white'
+};
+
+const tvHeaderTitleStyle = {
+  margin: 0,
+  fontSize: 'clamp(1.4rem, 2.4vw, 2.4rem)',
+  fontWeight: 900,
+  letterSpacing: '-0.01em'
+};
+
+const tvDotsStyle = { display: 'flex', gap: 8 };
+const tvDotStyle = { width: 10, height: 10, borderRadius: 999, display: 'inline-block' };
+
+const tvSlideStyle = {
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  transition: 'opacity 350ms ease',
+  minHeight: 0
 };
 
 function LoadingState() {
