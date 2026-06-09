@@ -19,6 +19,7 @@ import { uploadMenuFile, deleteMenuUploads, MAX_PDF_BYTES, MAX_IMAGE_BYTES } fro
 import MenuShareCard from './MenuShareCard';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 import { FONT_PRESETS } from '../../utils/menuTheme';
+import { sampleDocument } from '../../utils/canvasDocument';
 import QRCode from 'qrcode';
 
 function MenusTab({ showAlert, showConfirm, menuData }) {
@@ -360,6 +361,54 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames }) {
       </div>
 
       <ThemeEditor menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
+
+      <CanvasBetaToggle menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
+    </div>
+  );
+}
+
+// 4c.0 — beta seed/clear. Lets the owner flip a designed menu into canvas
+// mode using a sample document so the renderer + URL pipeline can be
+// verified before the editor (4c.1) ships. Removing the document drops the
+// menu back to template mode without losing the rest of menu.data.
+function CanvasBetaToggle({ menu, data, onChange, showAlert }) {
+  const hasDoc = !!data.document;
+
+  async function seed() {
+    try {
+      const doc = sampleDocument({});
+      await updateMenu(menu.id, { data: { ...data, document: doc } });
+      onChange();
+    } catch (err) { showAlert?.('Error', err.message); }
+  }
+
+  async function clear() {
+    try {
+      const { document: _doc, ...rest } = data;
+      await updateMenu(menu.id, { data: rest });
+      onChange();
+    } catch (err) { showAlert?.('Error', err.message); }
+  }
+
+  return (
+    <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <div style={{ flex: 1, minWidth: 220 }}>
+        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lienzo libre (beta)</p>
+        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          {hasDoc
+            ? 'Este menú se renderiza desde un documento de lienzo. Plantilla y categorías arriba quedan ignoradas.'
+            : 'Activa el lienzo para usar un documento libre. El editor llega en próxima fase; por ahora se carga un diseño de ejemplo.'}
+        </p>
+      </div>
+      {hasDoc ? (
+        <button onClick={clear} style={dangerBtn}>
+          <Icon icon="lucide:x" /> Quitar lienzo
+        </button>
+      ) : (
+        <button onClick={seed} style={btnSecondary}>
+          <Icon icon="lucide:layout-template" /> Activar con ejemplo
+        </button>
+      )}
     </div>
   );
 }

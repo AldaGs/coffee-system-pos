@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { formatForDisplay } from '../utils/moneyUtils';
 import { applyTheme, syncGoogleFontLink } from '../utils/menuTheme';
+import CanvasRenderer from './menuCanvas/CanvasRenderer';
 
 // Standard base64 → string. Tolerates URL-safe variants in case the link was
 // rewritten by a QR scanner or messaging app.
@@ -97,10 +98,14 @@ function PublicMenu() {
     return <TvMode data={data} brand={brand} lang={lang} />;
   }
 
-  // Designer kind: render through a template selected on menu.data.template.
-  // Filtering by menu.data.category_names is applied first so the user sees
-  // exactly the slice they configured.
+  // Designer kind:
+  //   - menu.data.document present → freeform canvas (Phase 4c) renders it.
+  //   - otherwise → template-mode (Phase 4a) renders categories via the
+  //     chosen template + theme.
   if (menuKind === 'designed') {
+    if (data.menu?.data?.document) {
+      return <CanvasRenderer document={data.menu.data.document} data={data} lang={lang} />;
+    }
     return <TemplatedMenu data={data} brand={brand} lang={lang} />;
   }
 
