@@ -21,6 +21,7 @@ import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
 import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontFamilies } from '../../utils/canvasDocument';
 import { CANVAS_FONTS, googleUrlForToken, fontIdForStack, parseGoogleFontUrl } from '../../utils/canvasFonts';
+import { PaletteContext } from './paletteContext';
 import { updateMenu } from '../../api/menus';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
@@ -34,7 +35,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   const [past, setPast] = useState([]);
   const [future, setFuture] = useState([]);
   const [pageIndex, setPageIndex] = useState(0);
-  const [selectedId, setSelectedId] = useState(null);
+  // Multi-selection: selectedIds drives the transformer + group drag; the
+  // properties panel only opens when exactly one node is selected.
+  const [selectedIds, setSelectedIds] = useState([]);
+  const selectedId = selectedIds.length === 1 ? selectedIds[0] : null;
+  const selectOne = id => setSelectedIds(id ? [id] : []);
+  const toggleSelect = id => setSelectedIds(ids => ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   // When set, AssetPicker is open. The callback fires with the chosen URL
@@ -56,6 +62,15 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   const [activeGuide, setActiveGuide] = useState(null); // { axis:'v'|'h', index, pos }
   const activePosRef = useRef(0);
   const stageBoxRef = useRef(null);
+  const stageRef = useRef(null);
+
+  // Marquee selection (drag on empty canvas) + group-drag bookkeeping.
+  const [marquee, setMarquee] = useState(null); // { x, y, w, h } in page coords
+  const marqueeStartRef = useRef(null);
+  const groupDragRef = useRef(null); // { starts: {id:{x,y}}, leadId }
+
+  // PNG export hides editor chrome (selection/guides/grid) for one frame.
+  const [exporting, setExporting] = useState(false);
 
   // Web fonts declared on the document (e.g. chalkboard's Permanent Marker).
   // Konva caches glyph metrics at draw time, so a font that arrives after the
@@ -109,9 +124,11 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedId && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
         e.preventDefault();
-        removeNode(selectedId);
+        removeNodes(selectedIds);
+      } else if (e.key === 'Escape') {
+        setSelectedIds([]);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -128,7 +145,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   function addNode(node) {
     const withId = { id: nanoid(8), z: nextZ(page), ...node };
     mutatePage(p => ({ ...p, nodes: [...(p.nodes || []), withId] }));
-    setSelectedId(withId.id);
+    selectOne(withId.id);
   }
 
   function updateNode(id, patch) {
@@ -138,9 +155,23 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     }));
   }
 
-  function removeNode(id) {
-    mutatePage(p => ({ ...p, nodes: (p.nodes || []).filter(n => n.id !== id) }));
-    setSelectedId(null);
+  // Geometry sync for auto-width text — updates the doc WITHOUT a history
+  // entry so re-measuring on every keystroke/font change doesn't flood undo.
+  function updateNodeSilent(id, patch) {
+    setDoc(d => ({
+      ...d,
+      pages: d.pages.map((p, i) => i === pageIndex ? {
+        ...p, nodes: (p.nodes || []).map(n => n.id === id ? { ...n, ...patch } : n)
+      } : p)
+    }));
+    setDirty(true);
+  }
+
+  function removeNode(id) { removeNodes([id]); }
+  function removeNodes(ids) {
+    const set = new Set(ids);
+    mutatePage(p => ({ ...p, nodes: (p.nodes || []).filter(n => !set.has(n.id)) }));
+    setSelectedIds([]);
   }
 
   // Set a node's font family and, if it's a web font, register its URL on the
@@ -187,13 +218,13 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   function addPage() {
     commit({ ...doc, pages: [...doc.pages, newPage()] });
     setPageIndex(doc.pages.length);
-    setSelectedId(null);
+    setSelectedIds([]);
   }
   function deletePage(idx) {
     if (doc.pages.length <= 1) return;
     commit({ ...doc, pages: doc.pages.filter((_, i) => i !== idx) });
     setPageIndex(Math.max(0, Math.min(pageIndex, doc.pages.length - 2)));
-    setSelectedId(null);
+    setSelectedIds([]);
   }
   function changePageBg(color) {
     mutatePage(p => ({ ...p, background: color }));
@@ -274,9 +305,37 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     return () => window.removeEventListener('resize', recalc);
   }, [pageW, pageH, showRulers]);
 
-  // Click on empty area deselects.
+  // Pointer position in page coordinates (undo the stage scale).
+  function pagePointer(e) {
+    const stage = e.target.getStage();
+    const pos = stage.getPointerPosition();
+    return { x: pos.x / (stageScale || 1), y: pos.y / (stageScale || 1) };
+  }
+
+  // Press on empty canvas: begin a marquee (and clear selection unless Shift).
   function onStageMouseDown(e) {
-    if (e.target === e.target.getStage()) setSelectedId(null);
+    if (e.target !== e.target.getStage()) return;
+    if (!e.evt.shiftKey) setSelectedIds([]);
+    const p = pagePointer(e);
+    marqueeStartRef.current = p;
+    setMarquee({ x: p.x, y: p.y, w: 0, h: 0 });
+  }
+  function onStageMouseMove(e) {
+    if (!marqueeStartRef.current) return;
+    const p = pagePointer(e);
+    const s = marqueeStartRef.current;
+    setMarquee({ x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y) });
+  }
+  function onStageMouseUp(e) {
+    if (!marqueeStartRef.current) return;
+    const m = marquee;
+    marqueeStartRef.current = null;
+    setMarquee(null);
+    if (!m || (m.w < 4 && m.h < 4)) return; // a click, not a drag
+    const hit = (page?.nodes || [])
+      .filter(n => rectsOverlap(m, { x: n.x, y: n.y, w: n.w, h: n.h }))
+      .map(n => n.id);
+    setSelectedIds(prev => e.evt.shiftKey ? Array.from(new Set([...prev, ...hit])) : hit);
   }
 
   // ---------- Snapping + smart guides ---------------------------------------
@@ -322,7 +381,38 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     return { x, y, w: node.w, h: node.h };
   }
 
+  // Begin dragging: if the grabbed node is part of a multi-selection, snapshot
+  // every selected node's konva position so the whole group can follow.
+  function handleDragStart(e, node) {
+    if (selectedIds.length > 1 && selectedIds.includes(node.id)) {
+      const stage = stageRef.current;
+      const starts = {};
+      for (const id of selectedIds) {
+        const kn = stage?.findOne('#' + id);
+        if (kn) starts[id] = { x: kn.x(), y: kn.y() };
+      }
+      groupDragRef.current = { starts, leadId: node.id };
+    } else {
+      groupDragRef.current = null;
+    }
+  }
+
   function handleDragMove(e, node) {
+    const g = groupDragRef.current;
+    // Group drag: translate every other selected node by the lead's delta.
+    // Snapping is skipped for groups to keep the relative layout intact.
+    if (g && g.leadId === node.id) {
+      const lead = e.target;
+      const dx = lead.x() - g.starts[node.id].x;
+      const dy = lead.y() - g.starts[node.id].y;
+      const stage = stageRef.current;
+      for (const id of Object.keys(g.starts)) {
+        if (id === node.id) continue;
+        const kn = stage?.findOne('#' + id);
+        if (kn) { kn.x(g.starts[id].x + dx); kn.y(g.starts[id].y + dy); }
+      }
+      return;
+    }
     if (!snapEnabled) return;
     const kn = e.target;
     const { x, y, w, h } = liveBBox(kn, node);
@@ -332,7 +422,128 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     kn.y(isCircle ? ny + node.h / 2 : ny);
     setGuides(lines);
   }
-  function clearGuides() { if (guides.length) setGuides([]); }
+
+  // Drag end: bake the dragged node's (and, for a group drag, every selected
+  // node's) final konva position into the document in ONE commit. Doing it in
+  // a single mutation avoids the stale-closure race where a second commit in
+  // the same tick would revert the first. Circles store a top-left bbox, so
+  // convert their center back. Rotation/scale aren't touched by a drag —
+  // onTransformEnd handles those.
+  function handleNodeDragEnd(node) {
+    if (guides.length) setGuides([]);
+    const stage = stageRef.current;
+    const g = groupDragRef.current;
+    const ids = (g && g.leadId === node.id) ? selectedIds : [node.id];
+    const set = new Set(ids);
+    mutatePage(p => ({
+      ...p,
+      nodes: (p.nodes || []).map(n => {
+        if (!set.has(n.id)) return n;
+        const kn = stage?.findOne('#' + n.id);
+        if (!kn) return n;
+        let x = kn.x(), y = kn.y();
+        if (n.type === 'shape' && n.shape === 'circle') { x -= n.w / 2; y -= n.h / 2; }
+        return { ...n, x: Math.round(x), y: Math.round(y) };
+      })
+    }));
+    groupDragRef.current = null;
+  }
+
+  // Transform end: bake scale → w/h (and rotation/position) for the dragged
+  // node, or for the whole selection on a group transform, in ONE commit.
+  // The Transformer fires transformend once PER attached node, so a guard ref
+  // makes only the first call of a gesture do the work (it already resets
+  // every selected node's scale), keeping it to a single undo step.
+  const transformGuardRef = useRef(false);
+  function handleNodeTransformEnd(node) {
+    if (transformGuardRef.current) return;
+    transformGuardRef.current = true;
+    requestAnimationFrame(() => { transformGuardRef.current = false; });
+
+    const stage = stageRef.current;
+    const ids = selectedIds.length > 1 && selectedIds.includes(node.id) ? selectedIds : [node.id];
+    const set = new Set(ids);
+    mutatePage(p => ({
+      ...p,
+      nodes: (p.nodes || []).map(n => {
+        if (!set.has(n.id)) return n;
+        const kn = stage?.findOne('#' + n.id);
+        if (!kn) return n;
+        const sx = kn.scaleX(), sy = kn.scaleY();
+        let patch;
+        if (n.type === 'shape' && n.shape === 'circle') {
+          const r = kn.radius() * Math.max(sx, sy);
+          patch = { x: Math.round(kn.x() - r), y: Math.round(kn.y() - r), w: Math.round(r * 2), h: Math.round(r * 2), rotation: Math.round(kn.rotation()) };
+        } else {
+          patch = {
+            x: Math.round(kn.x()), y: Math.round(kn.y()),
+            w: Math.max(10, Math.round(n.w * sx)), h: Math.max(10, Math.round(n.h * sy)),
+            rotation: Math.round(kn.rotation())
+          };
+          if (n.type === 'text' && n.autoWidth && Math.abs(sx - 1) > 0.001) patch.autoWidth = false;
+        }
+        kn.scaleX(1); kn.scaleY(1);
+        return { ...n, ...patch };
+      })
+    }));
+  }
+
+  // Align the multi-selection within its own bounding box.
+  function alignSelected(dir) {
+    if (selectedIds.length < 2) return;
+    const set = new Set(selectedIds);
+    const sel = (page?.nodes || []).filter(n => set.has(n.id));
+    const minX = Math.min(...sel.map(n => n.x)), maxX = Math.max(...sel.map(n => n.x + n.w));
+    const minY = Math.min(...sel.map(n => n.y)), maxY = Math.max(...sel.map(n => n.y + n.h));
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    mutatePage(p => ({
+      ...p,
+      nodes: (p.nodes || []).map(n => {
+        if (!set.has(n.id)) return n;
+        let { x, y } = n;
+        if (dir === 'left') x = minX; else if (dir === 'right') x = maxX - n.w; else if (dir === 'hcenter') x = cx - n.w / 2;
+        else if (dir === 'top') y = minY; else if (dir === 'bottom') y = maxY - n.h; else if (dir === 'vcenter') y = cy - n.h / 2;
+        return { ...n, x: Math.round(x), y: Math.round(y) };
+      })
+    }));
+  }
+
+  // ---------- Document palette (shared with every ColorPicker) ---------------
+  const palette = doc.palette || [];
+  function addSwatch(hex) {
+    if (!hex) return;
+    const h = hex.toLowerCase();
+    if (palette.some(c => c.toLowerCase() === h)) return;
+    commit({ ...doc, palette: [...palette, hex] });
+  }
+  function removeSwatch(hex) {
+    commit({ ...doc, palette: palette.filter(c => c.toLowerCase() !== hex.toLowerCase()) });
+  }
+  const paletteCtx = { palette, addSwatch, removeSwatch };
+
+  // ---------- PNG export -----------------------------------------------------
+  // Hide selection/guides/grid for one frame, snapshot the stage at native
+  // page resolution (undo the on-screen scale via pixelRatio), then restore.
+  function exportPng() { setSelectedIds([]); setExporting(true); }
+  useEffect(() => {
+    if (!exporting) return;
+    const raf = requestAnimationFrame(() => {
+      try {
+        const url = stageRef.current?.toDataURL({ pixelRatio: 1 / (stageScale || 1) });
+        if (url) {
+          const a = document.createElement('a');
+          a.download = `${(menu.name || 'menu').replace(/\s+/g, '-')}-pagina-${pageIndex + 1}.png`;
+          a.href = url;
+          a.click();
+        }
+      } catch (err) {
+        showAlert?.('Error al exportar', err.message);
+      }
+      setExporting(false);
+    });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exporting]);
 
   // ---------- Ruler guides --------------------------------------------------
   const pageGuides = page?.guides || { v: [], h: [] };
@@ -413,6 +624,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   }, [activeGuide?.axis, activeGuide?.index, stageScale, pageW, pageH, doc, pageIndex]);
 
   return (
+   <PaletteContext.Provider value={paletteCtx}>
     <div style={overlay} onContextMenu={e => e.preventDefault()}>
       <Topbar
         menuName={menu.name}
@@ -425,6 +637,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         onSave={save}
         onClose={tryClose}
         onPrint={openPrint}
+        onExportPng={exportPng}
         showRulers={showRulers} onToggleRulers={() => setShowRulers(v => !v)}
         showGrid={showGrid} onToggleGrid={() => setShowGrid(v => !v)}
         snapEnabled={snapEnabled} onToggleSnap={() => setSnapEnabled(v => !v)}
@@ -433,7 +646,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       <PageTabs
         doc={doc}
         pageIndex={pageIndex}
-        onSelect={i => { setPageIndex(i); setSelectedId(null); }}
+        onSelect={i => { setPageIndex(i); setSelectedIds([]); }}
         onAdd={addPage}
         onDelete={deletePage}
       />
@@ -441,8 +654,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       <div style={mainRow}>
         <Toolbar
           onAddText={() => addNode({
-            type: 'text', x: pageW / 2 - 200, y: pageH / 2 - 40, w: 400, h: 80, rotation: 0,
-            text: 'Texto', style: { fontFamily: 'Georgia, serif', fontSize: 48, fontWeight: 700, color: '#111', align: 'center' }
+            type: 'text', autoWidth: true, x: pageW / 2 - 200, y: pageH / 2 - 40, w: 240, h: 64, rotation: 0,
+            text: 'Texto', style: { fontFamily: 'Georgia, serif', fontSize: 48, fontWeight: 700, color: '#111', align: 'left' }
           })}
           onAddRect={() => addNode({
             type: 'shape', shape: 'rect', x: pageW / 2 - 150, y: pageH / 2 - 100, w: 300, h: 200, rotation: 0,
@@ -483,7 +696,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
               const z0 = nextZ(page);
               const withIds = created.map((n, i) => ({ id: nanoid(8), z: z0 + i, ...n }));
               mutatePage(p => ({ ...p, nodes: [...(p.nodes || []), ...withIds] }));
-              setSelectedId(withIds[withIds.length - 1].id);
+              setSelectedIds(withIds.map(n => n.id));
               setItemPickerCb(null);
             });
           }}
@@ -498,39 +711,53 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             {showRulers && <Ruler axis="y" pageSize={pageH} scale={stageScale} onStart={e => startGuideFromRuler('v', e)} />}
             <div ref={stageBoxRef} style={{ position: 'relative', width: pageW * stageScale, height: pageH * stageScale, boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
               <Stage
+                ref={stageRef}
                 width={pageW * stageScale}
                 height={pageH * stageScale}
                 scaleX={stageScale}
                 scaleY={stageScale}
                 onMouseDown={onStageMouseDown}
+                onMouseMove={onStageMouseMove}
+                onMouseUp={onStageMouseUp}
                 onTouchStart={onStageMouseDown}
                 style={{ background: page.background }}
               >
-                {showGrid && (
+                {showGrid && !exporting && (
                   <Layer listening={false}>
                     <GridOverlay pageW={pageW} pageH={pageH} />
                   </Layer>
                 )}
                 <Layer>
+                  {/* Opaque page background so PNG export isn't transparent. */}
+                  <Rect x={0} y={0} width={pageW} height={pageH} fill={page.background || '#ffffff'} listening={false} />
                   {sortedNodes(page).map(node => (
                     <NodeKonva
                       key={node.id}
                       node={node}
                       menuData={menuData}
                       fontEpoch={fontEpoch}
-                      isSelected={node.id === selectedId}
-                      onSelect={() => setSelectedId(node.id)}
+                      isSelected={selectedIds.includes(node.id)}
+                      onSelect={e => (e?.evt?.shiftKey ? toggleSelect(node.id) : selectOne(node.id))}
                       onChange={patch => updateNode(node.id, patch)}
+                      onMeasure={updateNodeSilent}
+                      onDragStart={e => handleDragStart(e, node)}
                       onDragMove={e => handleDragMove(e, node)}
-                      onDragSettled={clearGuides}
+                      onNodeDragEnd={handleNodeDragEnd}
+                      onNodeTransformEnd={handleNodeTransformEnd}
                     />
                   ))}
-                  <SelectionTransformer selectedId={selectedId} />
+                  {!exporting && <SelectionTransformer selectedIds={selectedIds} />}
                 </Layer>
                 <Layer listening={false}>
-                  {guides.map(g => (
+                  {!exporting && guides.map(g => (
                     <Line key={g.key} points={g.points} stroke="#ff3b9a" strokeWidth={1 / stageScale} dash={[6 / stageScale, 4 / stageScale]} />
                   ))}
+                  {marquee && (
+                    <Rect
+                      x={marquee.x} y={marquee.y} width={marquee.w} height={marquee.h}
+                      fill="rgba(31,111,235,0.12)" stroke="#1f6feb" strokeWidth={1 / stageScale} dash={[4 / stageScale, 3 / stageScale]}
+                    />
+                  )}
                 </Layer>
               </Stage>
               <GuidesOverlay
@@ -549,6 +776,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           changePageBg={changePageBg}
           changePageSize={changePageSize}
           selected={selected}
+          multiCount={selectedIds.length}
+          onAlign={dir => alignSelected(dir)}
           onUpdate={patch => selected && updateNode(selected.id, patch)}
           onSetFont={(stack, url) => selected && setNodeFont(selected.id, stack, url)}
           onDelete={() => selected && removeNode(selected.id)}
@@ -576,6 +805,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         />
       )}
     </div>
+   </PaletteContext.Provider>
   );
 }
 
@@ -586,6 +816,11 @@ function sortedNodes(page) {
 function nextZ(page) {
   const max = (page?.nodes || []).reduce((m, n) => Math.max(m, n.z || 0), -1);
   return max + 1;
+}
+
+// Axis-aligned rectangle overlap (used for marquee hit-testing).
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
 const RULER = 22; // px gutter for the on-screen rulers
@@ -688,57 +923,58 @@ function GuidesOverlay({ guides, scale, activeGuide, onStartDragGuide }) {
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChange, onDragMove, onDragSettled }) {
+function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd }) {
   const shapeRef = useRef(null);
 
-  // After a drag or transform, persist the resulting x/y/w/h/rotation into
-  // the document. Konva mutates the node directly; we read it back here.
-  function commitTransform() {
+  // Auto-width text: after each render, read the konva-measured size and
+  // persist it (silently) so the doc box matches the glyphs everywhere.
+  useEffect(() => {
+    if (node.type !== 'text' || !node.autoWidth) return;
     const n = shapeRef.current;
     if (!n) return;
-    const scaleX = n.scaleX();
-    const scaleY = n.scaleY();
-    onChange({
-      x: Math.round(n.x()),
-      y: Math.round(n.y()),
-      w: Math.max(10, Math.round(node.w * scaleX)),
-      h: Math.max(10, Math.round(node.h * scaleY)),
-      rotation: Math.round(n.rotation())
-    });
-    n.scaleX(1);
-    n.scaleY(1);
-  }
+    const w = Math.ceil(n.width());
+    const h = Math.ceil(n.height());
+    if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) onMeasure?.(node.id, { w, h });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.type, node.autoWidth, node.text, node.w, node.h, node.style?.fontFamily, node.style?.fontSize, node.style?.fontWeight, fontEpoch]);
 
+  // Drag end and transform end are baked into the document by the parent (so
+  // group gestures land in a single, undoable commit). See handleNodeDragEnd
+  // / handleNodeTransformEnd in CanvasEditor.
   const common = {
     ref: shapeRef,
     id: node.id,
     x: node.x, y: node.y, rotation: node.rotation || 0,
     draggable: true,
     onClick: onSelect, onTap: onSelect,
+    onDragStart,
     onDragMove,
-    onDragEnd: () => { commitTransform(); onDragSettled?.(); },
-    onTransformEnd: commitTransform
+    onDragEnd: () => onNodeDragEnd?.(node),
+    onTransformEnd: () => onNodeTransformEnd?.(node)
   };
 
   if (node.type === 'text') {
     const s = node.style || {};
-    // Konva caches the rendered text's glyph metrics. When fontFamily,
-    // fontSize, or fontWeight change the cache becomes stale and the
-    // node keeps drawing with the previous font. Forcing a remount via
-    // `key` is the cheapest fix — re-creates the underlying Konva.Text
-    // so it picks up the new metrics.
+    // Auto-width text hugs its glyphs: render with no fixed width so Konva
+    // measures it, then persist the measured w/h back (silently, no undo
+    // entry) so snapping/transform/public render all agree. Fixed text keeps
+    // its authored box. The font key forces a remount so stale glyph metrics
+    // don't linger when the font/size/weight changes.
+    const auto = !!node.autoWidth;
     return (
       <Text
-        key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}-${fontEpoch}`}
+        key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}-${fontEpoch}-${auto}`}
         {...common}
         text={node.text || ''}
-        width={node.w} height={node.h}
+        width={auto ? undefined : node.w}
+        height={auto ? undefined : node.h}
+        wrap={auto ? 'none' : 'word'}
         fontFamily={s.fontFamily || 'Georgia, serif'}
         fontSize={s.fontSize || 24}
         fontStyle={`${s.fontStyle || 'normal'} ${s.fontWeight || 400}`.trim()}
         fill={s.color || '#111'}
         align={s.align || 'left'}
-        verticalAlign="middle"
+        verticalAlign={auto ? 'top' : 'middle'}
       />
     );
   }
@@ -754,30 +990,8 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
         fill={s.fill || '#ccc'}
         stroke={s.stroke || undefined}
         strokeWidth={s.strokeWidth || 0}
-        // The circle is drawn from its center, so a drag's resulting x/y is a
-        // center — convert back to the doc's top-left bounding box. Without
-        // this the node jumps by its radius on the next render.
-        onDragEnd={() => {
-          const n = shapeRef.current;
-          onChange({
-            x: Math.round(n.x() - node.w / 2),
-            y: Math.round(n.y() - node.h / 2)
-          });
-          onDragSettled?.();
-        }}
-        // onTransformEnd: convert circle back to bounding box.
-        onTransformEnd={() => {
-          const n = shapeRef.current;
-          const r = n.radius() * Math.max(n.scaleX(), n.scaleY());
-          n.scaleX(1); n.scaleY(1);
-          onChange({
-            x: Math.round(n.x() - r),
-            y: Math.round(n.y() - r),
-            w: Math.round(r * 2),
-            h: Math.round(r * 2),
-            rotation: Math.round(n.rotation())
-          });
-        }}
+        // Drag end and transform end (incl. circle center→bbox + radius
+        // conversion) are baked by the parent via `common`.
       />
     );
   }
@@ -993,15 +1207,16 @@ function formatPrice(cents) {
 // their font key changes and image nodes resolve async, so the konva instance
 // behind a given id can be replaced — re-finding it each render keeps the
 // transformer on the live node and prevents a detached "ghost" box.
-function SelectionTransformer({ selectedId }) {
+function SelectionTransformer({ selectedIds }) {
   const trRef = useRef(null);
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
     const stage = tr.getStage();
-    const node = selectedId ? stage.findOne(`#${selectedId}`) : null;
-    tr.nodes(node ? [node] : []);
+    const nodes = (selectedIds || []).map(id => stage.findOne(`#${id}`)).filter(Boolean);
+    tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   });
   return (
     <Transformer
@@ -1021,7 +1236,7 @@ function SelectionTransformer({ selectedId }) {
 // Chrome
 // ============================================================================
 
-function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint, showRulers, onToggleRulers, showGrid, onToggleGrid, snapEnabled, onToggleSnap }) {
+function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint, onExportPng, showRulers, onToggleRulers, showGrid, onToggleGrid, snapEnabled, onToggleSnap }) {
   const toggle = on => ({ ...ghostBtn, background: on ? 'rgba(31,111,235,0.35)' : 'transparent' });
   return (
     <div style={topbar}>
@@ -1037,6 +1252,7 @@ function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onS
       <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
       <button onClick={onUndo} disabled={!canUndo} style={ghostBtn} title="Deshacer (Ctrl+Z)"><Icon icon="lucide:undo-2" /></button>
       <button onClick={onRedo} disabled={!canRedo} style={ghostBtn} title="Rehacer (Ctrl+Shift+Z)"><Icon icon="lucide:redo-2" /></button>
+      <button onClick={onExportPng} style={ghostBtn} title="Exportar página como PNG"><Icon icon="lucide:image-down" /> PNG</button>
       <button onClick={onPrint} style={ghostBtn} title="Vista previa de impresión"><Icon icon="lucide:printer" /> Imprimir</button>
       <button onClick={onSave} disabled={saving} style={primaryBtn}>
         <Icon icon={saving ? 'lucide:loader' : 'lucide:save'} /> {saving ? 'Guardando…' : 'Guardar'}
@@ -1091,10 +1307,14 @@ function ToolBtn({ icon, label, onClick }) {
   );
 }
 
-function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, onAlign, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <aside style={propsPanel}>
-      {!selected ? <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} /> : (
+      {multiCount > 1 ? (
+        <MultiSelectProps count={multiCount} onAlign={onAlign} />
+      ) : !selected ? (
+        <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} />
+      ) : (
         <NodeProperties
           node={selected}
           onUpdate={onUpdate}
@@ -1108,6 +1328,35 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, on
         />
       )}
     </aside>
+  );
+}
+
+// Shown when 2+ nodes are selected: alignment tools for the group.
+function MultiSelectProps({ count, onAlign }) {
+  const aligns = [
+    { dir: 'left', icon: 'lucide:align-start-vertical', label: 'Izq.' },
+    { dir: 'hcenter', icon: 'lucide:align-center-vertical', label: 'Centro H' },
+    { dir: 'right', icon: 'lucide:align-end-vertical', label: 'Der.' },
+    { dir: 'top', icon: 'lucide:align-start-horizontal', label: 'Arriba' },
+    { dir: 'vcenter', icon: 'lucide:align-center-horizontal', label: 'Centro V' },
+    { dir: 'bottom', icon: 'lucide:align-end-horizontal', label: 'Abajo' }
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <h3 style={panelTitle}>{count} seleccionados</h3>
+      <p style={{ margin: 0, fontSize: '0.78rem', color: '#8b949e' }}>
+        Arrastra cualquiera para moverlos juntos, o usa el recuadro para escalar/rotar el grupo.
+      </p>
+      <Row label="Alinear">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+          {aligns.map(a => (
+            <button key={a.dir} onClick={() => onAlign(a.dir)} title={a.label} style={{ ...smallBtn, justifyContent: 'center', padding: '8px 4px' }}>
+              <Icon icon={a.icon} />
+            </button>
+          ))}
+        </div>
+      </Row>
+    </div>
   );
 }
 
@@ -1268,12 +1517,21 @@ function TextProps({ node, onUpdate, onSetFont }) {
         <ColorPicker value={s.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} />
       </Row>
       <Row label="Alineación">
-        <select value={s.align || 'left'} onChange={e => onUpdate({ style: { align: e.target.value } })} style={selectStyle}>
+        <select value={s.align || 'left'} onChange={e => onUpdate({ style: { align: e.target.value } })} style={selectStyle} disabled={!!node.autoWidth}>
           <option value="left">Izquierda</option>
           <option value="center">Centro</option>
           <option value="right">Derecha</option>
         </select>
       </Row>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={!!node.autoWidth}
+          onChange={e => onUpdate({ autoWidth: e.target.checked })}
+        />
+        Ancho automático
+        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(la caja se ajusta al texto)</span>
+      </label>
     </>
   );
 }

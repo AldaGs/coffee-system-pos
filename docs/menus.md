@@ -505,10 +505,38 @@ Ordering follows the staged plan we agreed.
   pipeline; the editor's `fontEpoch` remounts the Konva text once the
   face is ready.
 
+### Editor — auto-width text, multi-select, palette, PNG  *(shipped)*
+- **Auto-width text** (Figma-style): text nodes carry `autoWidth`. In the
+  editor the Konva `<Text>` renders with no fixed width (`wrap:'none'`)
+  and an effect persists the measured `w/h` back via `updateNodeSilent`
+  (no undo entry) so snapping/transform/public all agree. A manual width
+  resize flips `autoWidth` off (baked box). The public `NodeView` renders
+  auto-width text with `width:auto; white-space:nowrap`. Toggle +
+  default-on for the Texto tool. Template nodes stay fixed-width.
+- **Multi-select**: `selectedIds[]` replaces the single id (with a
+  derived `selectedId` for the 1-selected properties panel). Shift-click
+  toggles; marquee drag on empty canvas selects intersecting nodes
+  (`rectsOverlap`); the `Transformer` attaches to all selected for group
+  scale/rotate. **Group drag**: `handleDragStart` snapshots positions,
+  `handleDragMove` translates siblings by the lead's delta (snapping
+  skipped for groups), and `handleNodeDragEnd` bakes every selected
+  node's final position in ONE commit (single mutation avoids the
+  stale-closure revert). A `MultiSelectProps` panel offers 6-way align.
+- **Color palette** (per-document `doc.palette`): `PaletteContext`
+  provides swatches + add/remove to every `ColorPicker`; click a swatch
+  to apply, Alt-click to remove, "+ Guardar" to store the current color.
+- **PNG export**: Topbar button snapshots the current page at native
+  resolution (`stage.toDataURL({ pixelRatio: 1/stageScale })`); an
+  `exporting` flag hides selection/guides/grid for the frame and a
+  background `<Rect>` keeps the export opaque.
+
 ### Deferred / nice-to-have
-- **Per-shop color library** — `posSettings.colorPalette = [{name, hex},
-  ...]` swatches rendered above the wheel in `ColorPicker`. Cross-menu
-  reuse. Cleanly scopes to a small follow-up after 4c lands.
+- **Custom Bézier path node** — a pen tool + new `type:'path'` node
+  (store an SVG path `d`), rendered as `<path>` in the DOM renderer and a
+  Konva `Path`/`Line` with bezier in the editor. Biggest remaining lift
+  (pen-tool UX, anchor/handle editing); not yet started.
+- **Per-shop color library** — the shipped palette is per-document; a
+  cross-menu `posSettings.colorPalette` is still possible as a follow-up.
 - **Hard manual override radio** — single "Forzar este menú" radio
   across menus that pins one regardless of schedule. (Already discussed;
   decided to wait and see if real use makes the case.)

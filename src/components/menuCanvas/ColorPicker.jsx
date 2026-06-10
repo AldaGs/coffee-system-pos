@@ -9,12 +9,14 @@
 // Click the swatch → popover opens; click outside → closes. Hex field
 // inside the popover lets users paste exact colors.
 
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
+import { PaletteContext } from './paletteContext';
 
 export default function ColorPicker({ value, onChange, swatchStyle }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
+  const { palette, addSwatch, removeSwatch } = useContext(PaletteContext);
 
   // Close on outside click. Capture phase so we beat the popover's own
   // mousedown handlers on Konva or other overlays.
@@ -50,6 +52,34 @@ export default function ColorPicker({ value, onChange, swatchStyle }) {
               style={hexInput}
               prefixed={false}
             />
+          </div>
+
+          {/* Document palette: click to apply, Alt-click to remove. */}
+          <div style={{ marginTop: 10, borderTop: '1px solid #30363d', paddingTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ color: '#8b949e', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Paleta</span>
+              <button
+                type="button"
+                onClick={() => value && addSwatch(value)}
+                title="Guardar el color actual en la paleta"
+                style={{ background: 'transparent', border: '1px solid #30363d', color: '#ddd', borderRadius: 6, padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
+              >+ Guardar</button>
+            </div>
+            {palette.length === 0 ? (
+              <span style={{ color: '#586069', fontSize: '0.68rem' }}>Sin colores guardados</span>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {palette.map(hex => (
+                  <button
+                    key={hex}
+                    type="button"
+                    onClick={e => (e.altKey ? removeSwatch(hex) : onChange(hex))}
+                    title={`${hex} — clic para aplicar, Alt+clic para quitar`}
+                    style={{ width: 20, height: 20, borderRadius: 4, border: hex.toLowerCase() === (value || '').toLowerCase() ? '2px solid #1f6feb' : '1px solid #30363d', background: hex, cursor: 'pointer', padding: 0 }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

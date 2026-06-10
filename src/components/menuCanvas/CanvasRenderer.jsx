@@ -186,6 +186,16 @@ function NodeView({ node, itemIndex, lang }) {
   };
 
   if (node.type === 'text') {
+    // Auto-width text hugs its glyphs: drop the fixed width and don't wrap, so
+    // the DOM box matches what the editor measured (avoids 1-px engine
+    // differences clipping the last letter).
+    if (node.autoWidth) {
+      return (
+        <div style={{ ...baseStyle, width: 'auto', height: 'auto', whiteSpace: 'nowrap', ...textStyle(node.style) }}>
+          {node.text || ''}
+        </div>
+      );
+    }
     return <div style={{ ...baseStyle, ...textStyle(node.style), display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(node.style?.align) }}>{node.text || ''}</div>;
   }
 
