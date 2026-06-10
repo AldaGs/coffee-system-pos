@@ -448,6 +448,15 @@ Ordering follows the staged plan we agreed.
 
 ### Deferred / nice-to-have
 
+- **Editor polish — boundaries, smart guides, rulers.** The canvas editor
+  currently lets nodes drift outside the page bounds and offers no
+  alignment help. Add: visible page edge (already drawn via box-shadow
+  on the wrapper, but no snapping); snap-to-edge while dragging; smart
+  guides (pink-line, Adobe-style) when a moving node's edges/centers
+  align with another node's; rulers along top/left of the stage in page
+  pixels; optional toggleable grid overlay. Implementation: konva-style
+  ghost lines drawn in an overlay Layer, computed in onDragMove. Ship
+  after 4c.6.
 - **Per-shop color library** — `posSettings.colorPalette = [{name, hex},
   ...]` swatches rendered above the wheel in `ColorPicker`. Cross-menu
   reuse. Cleanly scopes to a small follow-up after 4c lands.

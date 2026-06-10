@@ -409,8 +409,14 @@ function NodeKonva({ node, menuData, isSelected, onSelect, onChange }) {
 
   if (node.type === 'text') {
     const s = node.style || {};
+    // Konva caches the rendered text's glyph metrics. When fontFamily,
+    // fontSize, or fontWeight change the cache becomes stale and the
+    // node keeps drawing with the previous font. Forcing a remount via
+    // `key` is the cheapest fix — re-creates the underlying Konva.Text
+    // so it picks up the new metrics.
     return (
       <Text
+        key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}`}
         {...common}
         text={node.text || ''}
         width={node.w} height={node.h}
@@ -572,8 +578,10 @@ function BindingPlaceholder({ node, common, menuData }) {
           cornerRadius={6}
         />
       )}
+      {/* Same metric-cache workaround as text nodes — see comment above. */}
       {!stacked && (
         <Text
+          key={`${fontFamily}-${fontSize}-${fontStyleStr}`}
           x={pad} y={0}
           width={Math.max(0, node.w - pad * 2)}
           height={node.h}
@@ -589,6 +597,7 @@ function BindingPlaceholder({ node, common, menuData }) {
       {stacked && (
         <>
           <Text
+            key={`name-${fontFamily}-${fontSize}-${fontStyleStr}`}
             x={pad} y={pad}
             width={Math.max(0, node.w - pad * 2)}
             height={node.h - pad * 2}
@@ -602,6 +611,7 @@ function BindingPlaceholder({ node, common, menuData }) {
           />
           {showPrice && priceText && (
             <Text
+              key={`price-${fontFamily}-${fontSize}-${fontStyleStr}`}
               x={pad} y={node.h - fontSize * 0.9 - pad}
               width={Math.max(0, node.w - pad * 2)}
               text={priceText}

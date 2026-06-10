@@ -931,7 +931,7 @@ export default async function handler(req, res) {
                     (SELECT current_stock FROM public.inventory
                       WHERE id = (CASE WHEN (ing.val->>'id') ~ '^[0-9]+$' THEN (ing.val->>'id')::bigint ELSE NULL END)),
                     0
-                  ) < COALESCE((ing.val->>'qty')::numeric, 0)
+                  ) < (CASE WHEN (ing.val->>'qty') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (ing.val->>'qty')::numeric ELSE 0 END)
           );
         END;
       END IF;
