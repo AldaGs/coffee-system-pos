@@ -11,7 +11,7 @@ import {
   setItemModifiers,
   addDiscountRule, updateDiscountRule, deleteDiscountRule
 } from './api/menu';
-import { uploadItemImage, clearItemImage, setItemImageUrl } from './api/menuImages';
+import { uploadAsset, clearItemImage, setItemImageUrl, listAssets, deleteAsset } from './api/menuImages';
 import { debouncedSnapshot, snapshotIfStale } from './api/menuVersions';
 import * as XLSX from 'xlsx';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -420,14 +420,60 @@ function Admin() {
   const handleSetItemImage = (itemId, blob) => {
     const optimistic = patchItemImageInMenu(itemId, URL.createObjectURL(blob));
     runMenuWrite(optimistic, async () => {
-      const url = await uploadItemImage(itemId, blob);
+      const url = await uploadAsset(blob);
       await setItemImageUrl(itemId, url);
+      loadAssets();
     });
   };
 
   const handleClearItemImage = (itemId) => {
     const optimistic = patchItemImageInMenu(itemId, '');
     runMenuWrite(optimistic, () => clearItemImage(itemId));
+  };
+
+  // --- Asset library (content-addressed image store, deduped) ---
+  const [assets, setAssets] = useState([]);
+  const [assetsLoading, setAssetsLoading] = useState(false);
+  const [assetsBusy, setAssetsBusy] = useState(false);
+
+  const loadAssets = async () => {
+    setAssetsLoading(true);
+    try {
+      setAssets(await listAssets());
+    } catch (err) {
+      console.error('listAssets failed:', err);
+    } finally {
+      setAssetsLoading(false);
+    }
+  };
+
+  // Assign an already-uploaded asset to an item — no upload, just a URL write.
+  const handleSelectAssetForItem = (itemId, url) => {
+    const optimistic = patchItemImageInMenu(itemId, url);
+    runMenuWrite(optimistic, () => setItemImageUrl(itemId, url));
+  };
+
+  // Upload-only (from the manager, no target item). Returns the asset URL.
+  const handleUploadAsset = async (blob) => {
+    setAssetsBusy(true);
+    try {
+      return await uploadAsset(blob);
+    } finally {
+      setAssetsBusy(false);
+    }
+  };
+
+  const handleDeleteAsset = async (path) => {
+    setAssetsBusy(true);
+    try {
+      await deleteAsset(path);
+      await loadAssets();
+    } catch (err) {
+      console.error('deleteAsset failed:', err);
+      showAlert?.(t('common.error') || 'Error', t('menu.deleteAssetFailed') || 'No se pudo eliminar la imagen.');
+    } finally {
+      setAssetsBusy(false);
+    }
   };
 
   // --- NEW: RECEIPT LOGIC ---
@@ -1706,6 +1752,13 @@ function Admin() {
             handleToggleCategoryVisibility={handleToggleCategoryVisibility}
             handleSetItemImage={handleSetItemImage}
             handleClearItemImage={handleClearItemImage}
+            assets={assets}
+            assetsLoading={assetsLoading}
+            assetsBusy={assetsBusy}
+            loadAssets={loadAssets}
+            handleSelectAssetForItem={handleSelectAssetForItem}
+            handleDeleteAsset={handleDeleteAsset}
+            handleUploadAsset={handleUploadAsset}
           />
         )}
 

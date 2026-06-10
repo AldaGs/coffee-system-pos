@@ -4,8 +4,19 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, fromCents } from '../../utils/moneyUtils';
 import ImageCropModal from './ImageCropModal';
+import AssetLibraryModal from './AssetLibraryModal';
 import MenuHistoryPanel from './MenuHistoryPanel';
 import { MAX_SOURCE_BYTES } from '../../api/menuImages';
+
+// Full public URL → storage path ("assets/<hash>.webp"). Lets us match an
+// item's image_url back to the storage object so we know which assets are used.
+function urlToAssetPath(url) {
+  if (!url) return null;
+  const clean = url.split('?')[0];
+  const marker = '/menu-assets/';
+  const i = clean.indexOf(marker);
+  return i === -1 ? null : clean.slice(i + marker.length);
+}
 
 function MenuEditorTab({
   menuData, newCategoryName, setNewCategoryName, handleAddCategory,
@@ -14,13 +25,52 @@ function MenuEditorTab({
   recipes, inventoryItems,
   handleRenameCategory, editingItemId, setEditingItemId,
   handleMoveCategory, handleToggleCategoryVisibility,
-  handleSetItemImage, handleClearItemImage
+  handleSetItemImage, handleClearItemImage,
+  assets = [], assetsLoading = false, assetsBusy = false,
+  loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset
 }) {
   const { t } = useTranslation();
-  const { showPrompt, showAlert } = useDialog();
+  const { showPrompt, showAlert, showConfirm } = useDialog();
   const fileInputRef = useRef(null);
   const [pendingItemId, setPendingItemId] = useState(null);
   const [cropSrc, setCropSrc] = useState(null);
+  // null = closed. { mode: 'manage' } or { mode: 'pick', itemId } when open.
+  const [library, setLibrary] = useState(null);
+
+  // Which item names reference each stored asset path — drives usage badges
+  // and blocks deleting an in-use asset.
+  const usageByPath = (() => {
+    const map = new Map();
+    for (const items of Object.values(menuData.categories || {})) {
+      for (const item of items) {
+        const path = urlToAssetPath(item.imageUrl);
+        if (!path) continue;
+        if (!map.has(path)) map.set(path, []);
+        map.get(path).push(item.name);
+      }
+    }
+    return map;
+  })();
+
+  const openLibrary = (next) => {
+    loadAssets?.();
+    setLibrary(next);
+  };
+
+  const onPickAsset = (url) => {
+    if (library?.mode === 'pick' && library.itemId && handleSelectAssetForItem) {
+      handleSelectAssetForItem(library.itemId, url);
+    }
+    setLibrary(null);
+  };
+
+  const onDeleteAsset = (path) => {
+    showConfirm?.(
+      t('menu.confirmDeleteAsset') || 'Eliminar imagen',
+      t('menu.confirmDeleteAssetBody') || '¿Eliminar esta imagen de la biblioteca? Esta acción no se puede deshacer.',
+      () => handleDeleteAsset?.(path)
+    );
+  };
 
   const openPicker = (itemId) => {
     setPendingItemId(itemId);
@@ -44,7 +94,14 @@ function MenuEditorTab({
     const itemId = pendingItemId;
     setCropSrc(null);
     setPendingItemId(null);
-    if (itemId && handleSetItemImage) handleSetItemImage(itemId, blob);
+    if (itemId) {
+      // Upload + assign to the item.
+      handleSetItemImage?.(itemId, blob);
+      setLibrary(null);
+    } else {
+      // "Upload new" from the manager with no target item — add to library only.
+      handleUploadAsset?.(blob).then(() => loadAssets?.());
+    }
   };
 
   return (
@@ -249,10 +306,19 @@ function MenuEditorTab({
 
         {/* PREVIEW SECTION */}
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
-            <Icon icon="lucide:layout-panel-left" style={{ color: 'var(--brand-color)' }} />
-            {t('menu.livePreview')}
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '12px', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
+              <Icon icon="lucide:layout-panel-left" style={{ color: 'var(--brand-color)' }} />
+              {t('menu.livePreview')}
+            </h3>
+            <button
+              onClick={() => openLibrary({ mode: 'manage' })}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--brand-color)', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              <Icon icon="lucide:images" />
+              {t('menu.assetLibrary') || 'Biblioteca de imágenes'}
+            </button>
+          </div>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {(() => {
@@ -339,11 +405,18 @@ function MenuEditorTab({
                                 <span>{item.emoji || '•'}</span>
                               )}
                             </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openLibrary({ mode: 'pick', itemId: item.id }); }}
+                              title="Elegir de la biblioteca"
+                              style={{ background: 'transparent', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', padding: 4, marginLeft: -8 }}
+                            >
+                              <Icon icon="lucide:images" />
+                            </button>
                             {item.imageUrl && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleClearItemImage && handleClearItemImage(item.id); }}
                                 title="Quitar foto"
-                                style={{ background: 'transparent', border: 'none', color: '#e74c3c', cursor: 'pointer', padding: 4, marginLeft: -8 }}
+                                style={{ background: 'transparent', border: 'none', color: '#e74c3c', cursor: 'pointer', padding: 4 }}
                               >
                                 <Icon icon="lucide:image-off" />
                               </button>
@@ -427,6 +500,18 @@ function MenuEditorTab({
           imageSrc={cropSrc}
           onConfirm={onCropConfirm}
           onCancel={() => { setCropSrc(null); setPendingItemId(null); }}
+        />
+      )}
+      {library && (
+        <AssetLibraryModal
+          assets={assets}
+          usageByPath={usageByPath}
+          loading={assetsLoading}
+          busy={assetsBusy}
+          onSelect={library.mode === 'pick' ? onPickAsset : undefined}
+          onUploadNew={() => openPicker(library.mode === 'pick' ? library.itemId : null)}
+          onDelete={onDeleteAsset}
+          onClose={() => setLibrary(null)}
         />
       )}
     </div>
