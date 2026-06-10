@@ -235,6 +235,50 @@ export function templateChalkboardDoc({ shopName = 'Menú', categories = [] } = 
   return { document, theme };
 }
 
+// ── Bézier path nodes ───────────────────────────────────────────────────
+// A 'path' node stores its anchors in PAGE coordinates:
+//   { type:'path', closed, points:[{ x, y, hIn:{x,y}|null, hOut:{x,y}|null }],
+//     style:{ stroke, strokeWidth, fill }, x:0, y:0, w, h }
+// Each segment is drawn as a cubic Bézier; a null handle falls back to the
+// anchor itself, yielding a straight line. x/y stay 0 (points are absolute);
+// w/h mirror the bbox so selection/snapping keep working like other nodes.
+
+export function pathToSvgD(points, closed) {
+  if (!points || points.length === 0) return '';
+  let d = `M ${r(points[0].x)} ${r(points[0].y)}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1], cur = points[i];
+    const c1 = prev.hOut || prev, c2 = cur.hIn || cur;
+    d += ` C ${r(c1.x)} ${r(c1.y)} ${r(c2.x)} ${r(c2.y)} ${r(cur.x)} ${r(cur.y)}`;
+  }
+  if (closed && points.length > 1) {
+    const prev = points[points.length - 1], cur = points[0];
+    const c1 = prev.hOut || prev, c2 = cur.hIn || cur;
+    d += ` C ${r(c1.x)} ${r(c1.y)} ${r(c2.x)} ${r(c2.y)} ${r(cur.x)} ${r(cur.y)} Z`;
+  }
+  return d;
+}
+function r(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+// Tight-ish bbox over anchors + handles (good enough for selection/snapping).
+export function pathBBox(points) {
+  const xs = [], ys = [];
+  for (const p of (points || [])) {
+    xs.push(p.x); ys.push(p.y);
+    if (p.hIn) { xs.push(p.hIn.x); ys.push(p.hIn.y); }
+    if (p.hOut) { xs.push(p.hOut.x); ys.push(p.hOut.y); }
+  }
+  if (xs.length === 0) return { x: 0, y: 0, w: 0, h: 0 };
+  const minX = Math.min(...xs), minY = Math.min(...ys);
+  return { x: minX, y: minY, w: Math.max(1, Math.max(...xs) - minX), h: Math.max(1, Math.max(...ys) - minY) };
+}
+
+// Translate every anchor + handle by (dx, dy). Returns a new points array.
+export function translatePath(points, dx, dy) {
+  const t = pt => pt ? { x: pt.x + dx, y: pt.y + dy } : null;
+  return (points || []).map(p => ({ x: p.x + dx, y: p.y + dy, hIn: t(p.hIn), hOut: t(p.hOut) }));
+}
+
 // ── Web-font loading for canvas documents ───────────────────────────────
 // A document may carry `fonts: [googleFontsUrl, ...]`. Both renderers (public
 // DOM + Konva editor) inject these as <link> tags so node `style.fontFamily`

@@ -10,7 +10,7 @@
 // editors.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontFamilies } from '../../utils/canvasDocument';
+import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontFamilies, pathToSvgD } from '../../utils/canvasDocument';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
 export default function CanvasRenderer({ document, data, lang, isTv = false, tvPageIndex = 0, isPrint = false }) {
@@ -209,6 +209,29 @@ function NodeView({ node, itemIndex, lang }) {
           style={{ width: '100%', height: '100%', objectFit: node.fit || 'cover', display: 'block', borderRadius: node.style?.borderRadius || 0 }}
         />
       </div>
+    );
+  }
+
+  if (node.type === 'path') {
+    // Points are page-absolute; a viewBox at the node's bbox maps them 1:1
+    // into an SVG positioned at that bbox. overflow:visible so wide strokes
+    // near the edge aren't clipped.
+    const s = node.style || {};
+    const x = node.x || 0, y = node.y || 0, w = Math.max(1, node.w || 1), h = Math.max(1, node.h || 1);
+    return (
+      <svg
+        style={{ position: 'absolute', left: x, top: y, width: w, height: h, overflow: 'visible' }}
+        viewBox={`${x} ${y} ${w} ${h}`}
+      >
+        <path
+          d={pathToSvgD(node.points, node.closed)}
+          fill={s.fill && s.fill !== 'transparent' ? s.fill : 'none'}
+          stroke={s.stroke || '#111'}
+          strokeWidth={s.strokeWidth ?? 4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
     );
   }
 

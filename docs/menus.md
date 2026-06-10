@@ -530,11 +530,31 @@ Ordering follows the staged plan we agreed.
   `exporting` flag hides selection/guides/grid for the frame and a
   background `<Rect>` keeps the export opaque.
 
+### Bézier pen tool  *(shipped — v1)*
+- New `type:'path'` node: `{ points:[{x,y,hIn,hOut}], closed, style:
+  {stroke,strokeWidth,fill}, x/y/w/h:bbox }`. Points are page-absolute;
+  helpers `pathToSvgD`/`pathBBox`/`translatePath` in canvasDocument.js.
+- Public renders an `<svg>` with a `viewBox` at the node bbox; editor
+  renders a Konva `<Path>` pinned at (0,0) (name `pathnode`).
+- Pen tool (`penMode`): click = corner anchor, click-drag = smooth anchor
+  (symmetric handles), rubber-band preview (`PenPreview`); finish via
+  Enter / double-click / click the first anchor (closes) / Esc cancels.
+  Drawing disables node-layer hit-testing so clicks land on the stage.
+- Paths drag freely (no snapping; the offset is folded back into the
+  points on drop) and opt out of the box Transformer — a dashed bbox
+  shows selection instead. `PathProps` panel: stroke/width/fill/close.
+- **Not yet:** post-creation anchor/handle re-editing (drag the points of
+  an existing path). The pen's click-drag already makes curves; refining
+  them later is the next increment.
+
 ### Deferred / nice-to-have
-- **Custom Bézier path node** — a pen tool + new `type:'path'` node
-  (store an SVG path `d`), rendered as `<path>` in the DOM renderer and a
-  Konva `Path`/`Line` with bezier in the editor. Biggest remaining lift
-  (pen-tool UX, anchor/handle editing); not yet started.
+- **Align & distribute panel** (requested) — extend the multi-select
+  `MultiSelectProps` align (currently left/right/center/top/bottom/middle
+  **to the selection bbox**) with: a target switch (to **selection**, to
+  **canvas/page**, or to a **key object** = first-selected), plus
+  **distribute** (even horizontal/vertical spacing). Key-object mode
+  needs selection order preserved (selectedIds already is ordered).
+- **Path anchor editing** — see Bézier v1 note above.
 - **Per-shop color library** — the shipped palette is per-document; a
   cross-menu `posSettings.colorPalette` is still possible as a follow-up.
 - **Hard manual override radio** — single "Forzar este menú" radio

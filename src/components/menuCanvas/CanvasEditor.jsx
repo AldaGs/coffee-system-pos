@@ -16,10 +16,10 @@
 //   - Print + page-size presets switching (4c.5)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Label, Tag } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Path, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
-import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontFamilies } from '../../utils/canvasDocument';
+import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontFamilies, pathToSvgD, pathBBox, translatePath } from '../../utils/canvasDocument';
 import { CANVAS_FONTS, googleUrlForToken, fontIdForStack, parseGoogleFontUrl } from '../../utils/canvasFonts';
 import { PaletteContext } from './paletteContext';
 import { updateMenu } from '../../api/menus';
@@ -71,6 +71,14 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 
   // PNG export hides editor chrome (selection/guides/grid) for one frame.
   const [exporting, setExporting] = useState(false);
+
+  // Pen tool (Bézier). penDraft holds the in-progress path; penCursor drives
+  // the rubber-band preview; penDownRef tracks whether the mouse is held so a
+  // click-drag can pull smooth handles out of the anchor being placed.
+  const [penMode, setPenMode] = useState(false);
+  const [penDraft, setPenDraft] = useState(null); // { points:[], closed:false }
+  const [penCursor, setPenCursor] = useState(null);
+  const penDownRef = useRef(false);
 
   // Web fonts declared on the document (e.g. chalkboard's Permanent Marker).
   // Konva caches glyph metrics at draw time, so a font that arrives after the
@@ -124,11 +132,14 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
+      } else if (e.key === 'Enter' && penMode) {
+        e.preventDefault();
+        finishPath(penDraft, false);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
         e.preventDefault();
         removeNodes(selectedIds);
       } else if (e.key === 'Escape') {
-        setSelectedIds([]);
+        if (penMode) cancelPen(); else setSelectedIds([]);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -312,8 +323,59 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     return { x: pos.x / (stageScale || 1), y: pos.y / (stageScale || 1) };
   }
 
+  // ---------- Pen tool (Bézier paths) ---------------------------------------
+  function mirror(around, p) { return { x: 2 * around.x - p.x, y: 2 * around.y - p.y }; }
+
+  function penDown(e) {
+    const p = pagePointer(e);
+    const draft = penDraft || { points: [], closed: false };
+    // Click near the first anchor (with 3+ points) closes + finishes the path.
+    if (draft.points.length > 2) {
+      const f = draft.points[0];
+      if (Math.hypot(f.x - p.x, f.y - p.y) < 10 / (stageScale || 1)) {
+        finishPath(draft, true);
+        return;
+      }
+    }
+    penDownRef.current = true;
+    setPenDraft({ ...draft, points: [...draft.points, { x: p.x, y: p.y, hIn: null, hOut: null }] });
+  }
+  function penMove(e) {
+    const p = pagePointer(e);
+    setPenCursor(p);
+    if (!penDownRef.current) return;
+    // Dragging while placing an anchor pulls symmetric bézier handles out.
+    setPenDraft(d => {
+      if (!d || d.points.length === 0) return d;
+      const pts = d.points.slice();
+      const i = pts.length - 1;
+      const a = pts[i];
+      pts[i] = { ...a, hOut: { x: p.x, y: p.y }, hIn: mirror({ x: a.x, y: a.y }, p) };
+      return { ...d, points: pts };
+    });
+  }
+  function penUp() { penDownRef.current = false; }
+
+  function finishPath(draft, closed) {
+    const d = draft || penDraft;
+    penDownRef.current = false;
+    setPenDraft(null);
+    setPenCursor(null);
+    setPenMode(false);
+    if (!d || d.points.length < 2) return;
+    const points = d.points;
+    const bb = pathBBox(points);
+    addNode({
+      type: 'path', points, closed: !!closed,
+      x: bb.x, y: bb.y, w: bb.w, h: bb.h, rotation: 0,
+      style: { stroke: '#111111', strokeWidth: 6, fill: 'transparent' }
+    });
+  }
+  function cancelPen() { penDownRef.current = false; setPenDraft(null); setPenCursor(null); setPenMode(false); }
+
   // Press on empty canvas: begin a marquee (and clear selection unless Shift).
   function onStageMouseDown(e) {
+    if (penMode) { penDown(e); return; }
     if (e.target !== e.target.getStage()) return;
     if (!e.evt.shiftKey) setSelectedIds([]);
     const p = pagePointer(e);
@@ -321,12 +383,14 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     setMarquee({ x: p.x, y: p.y, w: 0, h: 0 });
   }
   function onStageMouseMove(e) {
+    if (penMode) { penMove(e); return; }
     if (!marqueeStartRef.current) return;
     const p = pagePointer(e);
     const s = marqueeStartRef.current;
     setMarquee({ x: Math.min(s.x, p.x), y: Math.min(s.y, p.y), w: Math.abs(p.x - s.x), h: Math.abs(p.y - s.y) });
   }
   function onStageMouseUp(e) {
+    if (penMode) { penUp(e); return; }
     if (!marqueeStartRef.current) return;
     const m = marquee;
     marqueeStartRef.current = null;
@@ -413,7 +477,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       }
       return;
     }
-    if (!snapEnabled) return;
+    if (!snapEnabled || node.type === 'path') return; // paths drag free (points are absolute)
     const kn = e.target;
     const { x, y, w, h } = liveBBox(kn, node);
     const { nx, ny, lines } = computeSnap(node.id, x, y, w, h);
@@ -441,6 +505,16 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         if (!set.has(n.id)) return n;
         const kn = stage?.findOne('#' + n.id);
         if (!kn) return n;
+        // Paths are drawn from absolute points with the konva node at (0,0);
+        // a drag leaves the offset on kn.x/y, so fold it into the points.
+        if (n.type === 'path') {
+          const dx = kn.x(), dy = kn.y();
+          if (!dx && !dy) return n;
+          const pts = translatePath(n.points, dx, dy);
+          const bb = pathBBox(pts);
+          kn.x(0); kn.y(0);
+          return { ...n, points: pts, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
+        }
         let x = kn.x(), y = kn.y();
         if (n.type === 'shape' && n.shape === 'circle') { x -= n.w / 2; y -= n.h / 2; }
         return { ...n, x: Math.round(x), y: Math.round(y) };
@@ -671,6 +745,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
               setAssetPickerCb(null);
             });
           }}
+          onTogglePen={() => { setSelectedIds([]); setPenMode(m => !m); setPenDraft(null); setPenCursor(null); }}
+          penActive={penMode}
           onAddBinding={() => {
             setItemPickerCb(() => (itemIds) => {
               // Materialize-on-drop: one binding node per id, stacked
@@ -719,15 +795,16 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                 onMouseDown={onStageMouseDown}
                 onMouseMove={onStageMouseMove}
                 onMouseUp={onStageMouseUp}
+                onDblClick={() => { if (penMode) finishPath(penDraft, false); }}
                 onTouchStart={onStageMouseDown}
-                style={{ background: page.background }}
+                style={{ background: page.background, cursor: penMode ? 'crosshair' : 'default' }}
               >
                 {showGrid && !exporting && (
                   <Layer listening={false}>
                     <GridOverlay pageW={pageW} pageH={pageH} />
                   </Layer>
                 )}
-                <Layer>
+                <Layer listening={!penMode}>
                   {/* Opaque page background so PNG export isn't transparent. */}
                   <Rect x={0} y={0} width={pageW} height={pageH} fill={page.background || '#ffffff'} listening={false} />
                   {sortedNodes(page).map(node => (
@@ -758,6 +835,14 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                       fill="rgba(31,111,235,0.12)" stroke="#1f6feb" strokeWidth={1 / stageScale} dash={[4 / stageScale, 3 / stageScale]}
                     />
                   )}
+                  {penDraft && (
+                    <PenPreview draft={penDraft} cursor={penCursor} scale={stageScale} />
+                  )}
+                  {!exporting && selectedIds.map(id => {
+                    const n = (page?.nodes || []).find(x => x.id === id);
+                    if (!n || n.type !== 'path') return null; // paths skip the transformer; show a bbox
+                    return <Rect key={'psel' + id} x={n.x} y={n.y} width={n.w} height={n.h} stroke="#1f6feb" strokeWidth={1 / stageScale} dash={[5 / stageScale, 3 / stageScale]} listening={false} />;
+                  })}
                 </Layer>
               </Stage>
               <GuidesOverlay
@@ -1010,6 +1095,26 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
     );
   }
 
+  if (node.type === 'path') {
+    const s = node.style || {};
+    // Points are absolute, so pin the konva node at (0,0). `name` flags it so
+    // the Transformer skips it (freeform paths aren't box-resized).
+    return (
+      <Path
+        {...common}
+        name="pathnode"
+        x={0} y={0}
+        data={pathToSvgD(node.points, node.closed)}
+        stroke={s.stroke || '#111'}
+        strokeWidth={s.strokeWidth ?? 6}
+        fill={s.fill && s.fill !== 'transparent' ? s.fill : undefined}
+        lineCap="round"
+        lineJoin="round"
+        hitStrokeWidth={Math.max(14, (s.strokeWidth ?? 6) + 8)}
+      />
+    );
+  }
+
   if (node.type === 'image') {
     return <KonvaImageNode node={node} common={common} fit={node.fit || 'cover'} />;
   }
@@ -1021,6 +1126,33 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
   // Unknown — render a dashed outline so the user can see + delete it.
   return (
     <Rect {...common} width={node.w} height={node.h} stroke="#888" strokeWidth={1} dash={[6, 4]} fill="rgba(0,0,0,0.04)" />
+  );
+}
+
+// Live preview of the in-progress pen path: the committed segments (dashed),
+// a rubber-band to the cursor, anchor dots, and any bézier handles being
+// pulled. Rendered in a non-listening overlay layer.
+function PenPreview({ draft, cursor, scale }) {
+  const pts = draft.points || [];
+  const k = n => n / (scale || 1);
+  if (pts.length === 0) {
+    return cursor ? <Circle x={cursor.x} y={cursor.y} radius={k(4)} stroke="#1f6feb" strokeWidth={k(1)} /> : null;
+  }
+  const last = pts[pts.length - 1];
+  return (
+    <>
+      <Path data={pathToSvgD(pts, false)} stroke="#1f6feb" strokeWidth={k(2)} dash={[k(5), k(4)]} />
+      {cursor && <Line points={[last.x, last.y, cursor.x, cursor.y]} stroke="#1f6feb" strokeWidth={k(1)} dash={[k(3), k(3)]} />}
+      {pts.map((p, i) => (
+        <Group key={i}>
+          {p.hOut && <Line points={[p.x, p.y, p.hOut.x, p.hOut.y]} stroke="#1f6feb" strokeWidth={k(1)} />}
+          {p.hIn && <Line points={[p.x, p.y, p.hIn.x, p.hIn.y]} stroke="#1f6feb" strokeWidth={k(1)} />}
+          {p.hOut && <Circle x={p.hOut.x} y={p.hOut.y} radius={k(3)} fill="#1f6feb" />}
+          {p.hIn && <Circle x={p.hIn.x} y={p.hIn.y} radius={k(3)} fill="#1f6feb" />}
+          <Circle x={p.x} y={p.y} radius={k(i === 0 ? 5 : 4)} fill={i === 0 ? '#ffffff' : '#1f6feb'} stroke="#1f6feb" strokeWidth={k(1.5)} />
+        </Group>
+      ))}
+    </>
   );
 }
 
@@ -1213,7 +1345,8 @@ function SelectionTransformer({ selectedIds }) {
     const tr = trRef.current;
     if (!tr) return;
     const stage = tr.getStage();
-    const nodes = (selectedIds || []).map(id => stage.findOne(`#${id}`)).filter(Boolean);
+    // Paths opt out of the box transformer (name="pathnode").
+    const nodes = (selectedIds || []).map(id => stage.findOne(`#${id}`)).filter(Boolean).filter(n => n.name() !== 'pathnode');
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1285,12 +1418,13 @@ function PageTabs({ doc, pageIndex, onSelect, onAdd, onDelete }) {
   );
 }
 
-function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding }) {
+function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, onTogglePen, penActive }) {
   return (
     <div style={toolbar}>
       <ToolBtn icon="lucide:type" label="Texto" onClick={onAddText} />
       <ToolBtn icon="lucide:square" label="Rect" onClick={onAddRect} />
       <ToolBtn icon="lucide:circle" label="Círculo" onClick={onAddCircle} />
+      <ToolBtn icon="lucide:pen-tool" label="Pluma" onClick={onTogglePen} active={penActive} />
       <ToolBtn icon="lucide:image" label="Imagen" onClick={onAddImage} />
       <div style={{ height: 1, background: 'rgba(255,255,255,0.15)', margin: '4px 0' }} />
       <ToolBtn icon="lucide:link" label="Producto" onClick={onAddBinding} />
@@ -1298,9 +1432,9 @@ function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding }
   );
 }
 
-function ToolBtn({ icon, label, onClick }) {
+function ToolBtn({ icon, label, onClick, active }) {
   return (
-    <button onClick={onClick} style={toolBtnStyle}>
+    <button onClick={onClick} style={{ ...toolBtnStyle, ...(active ? { background: '#1f6feb', borderColor: '#1f6feb' } : null) }}>
       <Icon icon={icon} style={{ fontSize: '1.3rem' }} />
       <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.02em' }}>{label}</span>
     </button>
@@ -1410,20 +1544,27 @@ function NodeProperties({ node, onUpdate, onSetFont, onDelete, onForward, onBack
         <button onClick={onForward} style={smallBtn}><Icon icon="lucide:chevron-up" /> Adelante</button>
       </Row>
 
-      <Row label="Posición">
-        <NumInput value={node.x} onChange={v => onUpdate({ x: v })} suffix="X" />
-        <NumInput value={node.y} onChange={v => onUpdate({ y: v })} suffix="Y" />
-      </Row>
-      <Row label="Tamaño">
-        <NumInput value={node.w} onChange={v => onUpdate({ w: Math.max(10, v) })} suffix="W" />
-        <NumInput value={node.h} onChange={v => onUpdate({ h: Math.max(10, v) })} suffix="H" />
-      </Row>
-      <Row label="Rotación">
-        <NumInput value={node.rotation || 0} onChange={v => onUpdate({ rotation: v })} suffix="°" />
-      </Row>
+      {/* Paths are absolute point geometry — numeric x/y/w/h editing would
+          desync them, so those rows are hidden for paths (drag to move). */}
+      {node.type !== 'path' && (
+        <>
+          <Row label="Posición">
+            <NumInput value={node.x} onChange={v => onUpdate({ x: v })} suffix="X" />
+            <NumInput value={node.y} onChange={v => onUpdate({ y: v })} suffix="Y" />
+          </Row>
+          <Row label="Tamaño">
+            <NumInput value={node.w} onChange={v => onUpdate({ w: Math.max(10, v) })} suffix="W" />
+            <NumInput value={node.h} onChange={v => onUpdate({ h: Math.max(10, v) })} suffix="H" />
+          </Row>
+          <Row label="Rotación">
+            <NumInput value={node.rotation || 0} onChange={v => onUpdate({ rotation: v })} suffix="°" />
+          </Row>
+        </>
+      )}
 
       {node.type === 'text' && <TextProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} />}
       {node.type === 'shape' && <ShapeProps node={node} onUpdate={onUpdate} />}
+      {node.type === 'path' && <PathProps node={node} onUpdate={onUpdate} />}
       {node.type === 'image' && <ImageProps node={node} onUpdate={onUpdate} openAssetPicker={openAssetPicker} />}
       {node.type === 'item-binding' && <BindingProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} openItemPicker={openItemPicker} menuData={menuData} />}
 
@@ -1439,7 +1580,28 @@ function labelForNode(n) {
   if (n.type === 'shape') return n.shape === 'circle' ? 'Círculo' : 'Rectángulo';
   if (n.type === 'image') return 'Imagen';
   if (n.type === 'item-binding') return 'Producto vinculado';
+  if (n.type === 'path') return 'Trazo';
   return n.type;
+}
+
+function PathProps({ node, onUpdate }) {
+  const s = node.style || {};
+  return (
+    <>
+      <Row label="Trazo"><ColorPicker value={s.stroke || '#111111'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
+      <Row label="Grosor"><NumInput value={s.strokeWidth ?? 6} onChange={v => onUpdate({ style: { strokeWidth: Math.max(0, v) } })} /></Row>
+      <Row label="Relleno">
+        <ColorPicker value={s.fill && s.fill !== 'transparent' ? s.fill : '#000000'} onChange={c => onUpdate({ style: { fill: c } })} />
+        {s.fill && s.fill !== 'transparent' && (
+          <button onClick={() => onUpdate({ style: { fill: 'transparent' } })} style={smallBtn} title="Sin relleno"><Icon icon="lucide:x" /></button>
+        )}
+      </Row>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
+        <input type="checkbox" checked={!!node.closed} onChange={e => onUpdate({ closed: e.target.checked })} />
+        Cerrar trazo
+      </label>
+    </>
+  );
 }
 
 // Font dropdown (curated system + Google families) with a custom Google
