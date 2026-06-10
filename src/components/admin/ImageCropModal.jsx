@@ -131,7 +131,9 @@ function ImageCropModal({ imageSrc, onConfirm, onCancel }) {
 const overlayStyle = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  zIndex: 1000, padding: 16
+  // Above the asset library modal (z 1000) so "upload new" cropping stacks
+  // on top of it, then drops back to the library after confirming.
+  zIndex: 1100, padding: 16
 };
 
 const modalStyle = {
