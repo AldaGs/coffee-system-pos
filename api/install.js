@@ -338,7 +338,7 @@ export default async function handler(req, res) {
     $$;
 
     -- One-time backfill: every cashier in menu_data.cashiers that has a
-    -- plaintext `pin` but no row in cashier_pins gets one now. Idempotent —
+    -- plaintext 'pin' but no row in cashier_pins gets one now. Idempotent —
     -- existing hashes are left alone (ON CONFLICT DO NOTHING). This patches
     -- installs where cashiers were added through Admin before set_cashier_pin
     -- existed.
