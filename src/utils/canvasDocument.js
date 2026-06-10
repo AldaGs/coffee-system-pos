@@ -13,10 +13,27 @@
 // Live name/price/image come from the RPC payload at render time, so a
 // price change in the catalog propagates without re-saving the document.
 
+// Page presets. Digital sizes are CSS pixels; print sizes are pixel
+// equivalents at 150 DPI so they round-trip cleanly through @page CSS
+// rules. The renderer treats every value as opaque pixels — the print
+// CSS is what tells the browser to lay them out on physical paper.
 export const PAGE_PRESETS = {
-  '16:9': { label: 'Pantalla 16:9 (1920×1080)', w: 1920, h: 1080 },
-  '9:16': { label: 'Vertical 9:16 (1080×1920)', w: 1080, h: 1920 }
+  '16:9':     { label: 'Pantalla 16:9 (1920×1080)', w: 1920, h: 1080, category: 'digital' },
+  '9:16':     { label: 'Vertical 9:16 (1080×1920)', w: 1080, h: 1920, category: 'digital' },
+  'a4-p':     { label: 'A4 vertical (210×297mm)',   w: 1240, h: 1754, category: 'print', paper: { w: '210mm', h: '297mm' } },
+  'a4-l':     { label: 'A4 horizontal (297×210mm)', w: 1754, h: 1240, category: 'print', paper: { w: '297mm', h: '210mm' } },
+  'letter-p': { label: 'Carta vertical (8.5×11")',  w: 1275, h: 1650, category: 'print', paper: { w: '8.5in', h: '11in' } },
+  'letter-l': { label: 'Carta horizontal (11×8.5")', w: 1650, h: 1275, category: 'print', paper: { w: '11in', h: '8.5in' } }
 };
+
+// Reverse-lookup a preset key from a page_size, for editor UI display.
+export function presetKeyFor(size) {
+  if (!size) return null;
+  for (const [key, p] of Object.entries(PAGE_PRESETS)) {
+    if (p.w === size.w && p.h === size.h) return key;
+  }
+  return null;
+}
 
 export const DOC_VERSION = 1;
 

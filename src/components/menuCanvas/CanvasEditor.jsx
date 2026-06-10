@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
-import { newDocument, newPage, PAGE_PRESETS, buildItemIndex } from '../../utils/canvasDocument';
+import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex } from '../../utils/canvasDocument';
 import { updateMenu } from '../../api/menus';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
@@ -148,6 +148,41 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     mutatePage(p => ({ ...p, background: color }));
   }
 
+  function changePageSize(presetKey) {
+    const preset = PAGE_PRESETS[presetKey];
+    if (!preset) return;
+    const cur = doc.page_size || {};
+    if (cur.w === preset.w && cur.h === preset.h) return;
+    // Warn if any node would land outside the new bounds — the user can
+    // still proceed; we don't crop, just flag the risk.
+    const overflow = doc.pages.some(p => (p.nodes || []).some(n =>
+      (n.x || 0) + (n.w || 0) > preset.w || (n.y || 0) + (n.h || 0) > preset.h
+    ));
+    if (overflow && !window.confirm(
+      'Algunos elementos quedan fuera del nuevo tamaño de página. Se conservan ' +
+      'sus coordenadas — los puedes mover después. ¿Continuar?'
+    )) return;
+    commit({ ...doc, page_size: { w: preset.w, h: preset.h } });
+  }
+
+  // Opens the menu's print URL in a new window. The public page detects
+  // ?print=1 and triggers window.print() once rendered.
+  function openPrint() {
+    if (typeof window === 'undefined') return;
+    const url = localStorage.getItem('tinypos_supabase_url');
+    const key = localStorage.getItem('tinypos_supabase_anon_key');
+    if (!url || !key) {
+      showAlert?.('Configuración faltante', 'Faltan credenciales locales para imprimir.');
+      return;
+    }
+    if (dirty && !window.confirm('Hay cambios sin guardar. Imprime guardará primero.')) return;
+    const go = () => {
+      const printUrl = `${window.location.origin}/menu?u=${btoa(url)}&k=${btoa(key)}&m=${menu.id}&print=1`;
+      window.open(printUrl, '_blank', 'noopener,noreferrer');
+    };
+    if (dirty) save().then(go).catch(() => {}); else go();
+  }
+
   // ---------- Save / close --------------------------------------------------
 
   async function save() {
@@ -204,6 +239,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         canRedo={future.length > 0}
         onSave={save}
         onClose={tryClose}
+        onPrint={openPrint}
       />
 
       <PageTabs
@@ -294,8 +330,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         </div>
 
         <PropertiesPanel
+          doc={doc}
           page={page}
           changePageBg={changePageBg}
+          changePageSize={changePageSize}
           selected={selected}
           onUpdate={patch => selected && updateNode(selected.id, patch)}
           onDelete={() => selected && removeNode(selected.id)}
@@ -620,7 +658,7 @@ function SelectionTransformer({ selectedId }) {
 // Chrome
 // ============================================================================
 
-function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose }) {
+function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint }) {
   return (
     <div style={topbar}>
       <button onClick={onClose} style={ghostBtn} title="Cerrar editor">
@@ -631,6 +669,7 @@ function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onS
       </div>
       <button onClick={onUndo} disabled={!canUndo} style={ghostBtn} title="Deshacer (Ctrl+Z)"><Icon icon="lucide:undo-2" /></button>
       <button onClick={onRedo} disabled={!canRedo} style={ghostBtn} title="Rehacer (Ctrl+Shift+Z)"><Icon icon="lucide:redo-2" /></button>
+      <button onClick={onPrint} style={ghostBtn} title="Vista previa de impresión"><Icon icon="lucide:printer" /> Imprimir</button>
       <button onClick={onSave} disabled={saving} style={primaryBtn}>
         <Icon icon={saving ? 'lucide:loader' : 'lucide:save'} /> {saving ? 'Guardando…' : 'Guardar'}
       </button>
@@ -684,10 +723,10 @@ function ToolBtn({ icon, label, onClick }) {
   );
 }
 
-function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, onUpdate, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <aside style={propsPanel}>
-      {!selected ? <PageProperties page={page} changePageBg={changePageBg} /> : (
+      {!selected ? <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} /> : (
         <NodeProperties
           node={selected}
           onUpdate={onUpdate}
@@ -703,10 +742,35 @@ function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onF
   );
 }
 
-function PageProperties({ page, changePageBg }) {
+function PageProperties({ doc, page, changePageBg, changePageSize }) {
+  const presetKey = presetKeyFor(doc.page_size) || '';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h3 style={panelTitle}>Página</h3>
+      <h3 style={panelTitle}>Documento</h3>
+      <Row label="Tamaño de página">
+        <select
+          value={presetKey}
+          onChange={e => changePageSize(e.target.value)}
+          style={selectStyle}
+        >
+          {!presetKey && <option value="">Personalizado ({doc.page_size?.w}×{doc.page_size?.h})</option>}
+          <optgroup label="Pantalla">
+            {Object.entries(PAGE_PRESETS).filter(([, p]) => p.category === 'digital').map(([k, p]) => (
+              <option key={k} value={k}>{p.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Impresión">
+            {Object.entries(PAGE_PRESETS).filter(([, p]) => p.category === 'print').map(([k, p]) => (
+              <option key={k} value={k}>{p.label}</option>
+            ))}
+          </optgroup>
+        </select>
+      </Row>
+      <p style={{ margin: 0, fontSize: '0.72rem', color: '#777' }}>
+        Aplica a todo el documento. Tamaños de impresión se usan al imprimir.
+      </p>
+
+      <h3 style={{ ...panelTitle, marginTop: 10 }}>Página actual</h3>
       <Row label="Fondo">
         <ColorPicker value={page.background || '#ffffff'} onChange={changePageBg} />
         <code style={{ fontSize: '0.78rem', color: '#aaa' }}>{page.background || '#ffffff'}</code>

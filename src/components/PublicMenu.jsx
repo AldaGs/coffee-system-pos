@@ -40,6 +40,7 @@ function PublicMenu() {
   const [error, setError] = useState(null);
   const [activeCategoryId, setActiveCategoryId] = useState(null);
   const isTvMode = typeof window !== 'undefined' && window.location.pathname === '/menu/tv';
+  const isPrintMode = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('print') === '1';
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -108,7 +109,14 @@ function PublicMenu() {
   //     chosen template + theme.
   if (menuKind === 'designed') {
     if (data.menu?.data?.document) {
-      return <CanvasRenderer document={data.menu.data.document} data={data} lang={lang} />;
+      return <PrintWrapper enabled={isPrintMode}>
+        <CanvasRenderer
+          document={data.menu.data.document}
+          data={data}
+          lang={lang}
+          isPrint={isPrintMode}
+        />
+      </PrintWrapper>;
     }
     return <TemplatedMenu data={data} brand={brand} lang={lang} />;
   }
@@ -367,6 +375,19 @@ const carouselBtn = {
   lineHeight: 1
 };
 
+// Print mode wrapper. Fires window.print() once on mount so the user lands
+// in the print dialog without an extra click. Browsers handle the rest —
+// the @page CSS injected by CanvasRenderer's PrintStack tells them what
+// paper size to use.
+function PrintWrapper({ enabled, children }) {
+  useEffect(() => {
+    if (!enabled) return;
+    const t = setTimeout(() => { try { window.print(); } catch { /* ignore */ } }, 400);
+    return () => clearTimeout(t);
+  }, [enabled]);
+  return children;
+}
+
 // Phase 4a templates. All three templates take the same props and render the
 // catalog payload returned by get_active_menu (kind='designed' gets the same
 // shape as 'live'). Bindings stay live — prices, hidden state, and modifier
@@ -547,6 +568,14 @@ function TvMode({ data, brand, lang }) {
   const rotationMs = Math.max(3000, menu.data?.rotation_ms || 12000);
 
   const slides = useMemo(() => {
+    // Canvas-mode designed menus → one slide per document page. Beats the
+    // category-list fallback because the owner picked exactly the layout
+    // they want on the screen.
+    if (kind === 'designed' && menu.data?.document?.pages?.length) {
+      return menu.data.document.pages.map((_, i) => ({
+        key: `canvaspg-${i}`, kind: 'canvas-page', payload: { index: i }
+      }));
+    }
     if (kind === 'live' || kind === 'designed') {
       const wanted = menu.data?.category_names && menu.data.category_names.length > 0
         ? new Set(menu.data.category_names)
@@ -627,6 +656,15 @@ function TvMode({ data, brand, lang }) {
       <div style={{ ...tvSlideStyle, opacity: visible ? 1 : 0 }}>
         {slide?.kind === 'category' && <TvCategorySlide category={slide.payload} groupsById={mapGroups(data.modifier_groups)} lang={lang} brand={brand} />}
         {slide?.kind === 'page' && <TvPageSlide url={slide.payload.url} />}
+        {slide?.kind === 'canvas-page' && (
+          <CanvasRenderer
+            document={menu.data.document}
+            data={data}
+            lang={lang}
+            isTv={true}
+            tvPageIndex={slide.payload.index}
+          />
+        )}
         {slide?.kind === 'placeholder' && (
           <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '1.5rem' }}>
             {menu.name || 'Menú'} — formato no disponible aún
