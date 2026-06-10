@@ -10,18 +10,37 @@
 // editors.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildItemIndex, PAGE_PRESETS, syncDocFonts } from '../../utils/canvasDocument';
+import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontFamilies } from '../../utils/canvasDocument';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
 export default function CanvasRenderer({ document, data, lang, isTv = false, tvPageIndex = 0, isPrint = false }) {
   // Load any web fonts the document declares (e.g. the chalkboard template's
   // Permanent Marker) so style.fontFamily stacks resolve to the real face.
-  useEffect(() => { syncDocFonts(document); }, [document?.fonts]);
+  //
+  // NOTE: the `document` PROP shadows the global, so the browser FontFaceSet
+  // must be reached via `window.document.fonts` — `document.fonts` here is the
+  // doc model's URL array. Injecting the <link> alone is unreliable on the
+  // public/kiosk page (no force-fetch, no repaint), so we also FontFaceSet-load
+  // each family and bump state to repaint once ready — mirroring the editor.
+  const [, setFontTick] = useState(0);
+  const fontsKey = JSON.stringify(document?.fonts || []);
+  useEffect(() => {
+    syncDocFonts(document);
+    const fonts = (typeof window !== 'undefined') && window.document?.fonts;
+    const fams = docFontFamilies(document);
+    if (!fonts || fams.length === 0) return;
+    let active = true;
+    Promise.all(fams.map(f => fonts.load(`16px ${f}`).catch(() => {})))
+      .then(() => { if (active) setFontTick(t => t + 1); });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fontsKey]);
+
+  const pageW = document?.page_size?.w || 1920;
+  const pageH = document?.page_size?.h || 1080;
+  const itemIndex = useMemo(() => buildItemIndex(data?.categories || []), [data]);
 
   if (!document?.pages?.length) return null;
-  const pageW = document.page_size?.w || 1920;
-  const pageH = document.page_size?.h || 1080;
-  const itemIndex = useMemo(() => buildItemIndex(data?.categories || []), [data]);
 
   // Print mode: render every page at native size with page-break separators
   // and inject an @page rule so the browser's print dialog sizes paper
@@ -31,10 +50,17 @@ export default function CanvasRenderer({ document, data, lang, isTv = false, tvP
     return <PrintStack document={document} itemIndex={itemIndex} lang={lang} />;
   }
 
-  // TV mode: render only one page in fullscreen. TvMode owns the rotation.
+  // TV mode: render only one page, fit-to-viewport, no surrounding chrome.
+  // TvMode owns the rotation and the fullscreen black backdrop, so we return a
+  // bare centered page (PageStack would add its own padding/background and push
+  // the page down from the top-left).
   if (isTv) {
     const idx = Math.max(0, Math.min(tvPageIndex, document.pages.length - 1));
-    return <PageStack pages={[document.pages[idx]]} pageW={pageW} pageH={pageH} itemIndex={itemIndex} lang={lang} fit="contain" />;
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <ScaledPage page={document.pages[idx]} pageW={pageW} pageH={pageH} itemIndex={itemIndex} lang={lang} fit="contain" />
+      </div>
+    );
   }
   return <PageStack pages={document.pages} pageW={pageW} pageH={pageH} itemIndex={itemIndex} lang={lang} fit="width" />;
 }

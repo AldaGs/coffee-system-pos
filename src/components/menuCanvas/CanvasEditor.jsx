@@ -413,7 +413,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   }, [activeGuide?.axis, activeGuide?.index, stageScale, pageW, pageH, doc, pageIndex]);
 
   return (
-    <div style={overlay}>
+    <div style={overlay} onContextMenu={e => e.preventDefault()}>
       <Topbar
         menuName={menu.name}
         dirty={dirty}
@@ -797,7 +797,7 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
   }
 
   if (node.type === 'image') {
-    return <KonvaImageNode node={node} common={common} />;
+    return <KonvaImageNode node={node} common={common} fit={node.fit || 'cover'} />;
   }
 
   if (node.type === 'item-binding') {
@@ -810,12 +810,17 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
   );
 }
 
-// Loads an Image() element and feeds it to Konva once ready. Falls back to
-// a dashed placeholder if loading fails (e.g. CORS, missing).
-function KonvaImageNode({ node, common }) {
+// Image node. Rendered as a stable Group (the draggable/transform target) with
+// a transparent box Rect defining the bounds and the bitmap inside it, so the
+// konva node identity never swaps as the image loads — that swap was leaving a
+// detached transformer ghost behind. `fit` honours the Ajuste control:
+//   cover   → fill the box, centre-crop (no distortion)
+//   contain → fit inside the box, letterboxed + centred (no distortion)
+function KonvaImageNode({ node, common, fit }) {
   const [img, setImg] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
+    setImg(null); setFailed(false);
     const i = new window.Image();
     i.crossOrigin = 'anonymous';
     i.src = node.src;
@@ -823,13 +828,35 @@ function KonvaImageNode({ node, common }) {
     i.onerror = () => setFailed(true);
   }, [node.src]);
 
-  if (failed) {
-    return <Rect {...common} width={node.w} height={node.h} stroke="#c33" strokeWidth={2} dash={[4, 4]} fill="rgba(204,51,51,0.08)" />;
+  const w = node.w, h = node.h;
+  let inner = null;
+  if (img) {
+    if (fit === 'contain') {
+      const s = Math.min(w / img.width, h / img.height);
+      const dw = img.width * s, dh = img.height * s;
+      inner = <KImage image={img} x={(w - dw) / 2} y={(h - dh) / 2} width={dw} height={dh} listening={false} />;
+    } else {
+      // cover: crop the source to the box's aspect ratio.
+      const ar = w / h, iar = img.width / img.height;
+      let cw, ch, cx, cy;
+      if (iar > ar) { ch = img.height; cw = img.height * ar; cx = (img.width - cw) / 2; cy = 0; }
+      else { cw = img.width; ch = img.width / ar; cx = 0; cy = (img.height - ch) / 2; }
+      inner = <KImage image={img} width={w} height={h} crop={{ x: cx, y: cy, width: cw, height: ch }} listening={false} />;
+    }
   }
-  if (!img) {
-    return <Rect {...common} width={node.w} height={node.h} fill="#eee" />;
-  }
-  return <KImage {...common} image={img} width={node.w} height={node.h} />;
+
+  return (
+    <Group {...common}>
+      <Rect
+        width={w} height={h}
+        fill={img ? 'transparent' : 'rgba(120,120,120,0.12)'}
+        stroke={failed ? '#c33' : undefined}
+        strokeWidth={failed ? 2 : 0}
+        dash={failed ? [4, 4] : undefined}
+      />
+      {inner}
+    </Group>
+  );
 }
 
 // Editor preview for item-binding nodes. Renders the same fields the
@@ -961,7 +988,11 @@ function formatPrice(cents) {
   return `$${n.toFixed(2)}`;
 }
 
-// Transformer follows whichever node is currently selected.
+// Transformer follows whichever node is currently selected. The attach runs
+// on EVERY render (no dep array) on purpose: text/binding nodes remount when
+// their font key changes and image nodes resolve async, so the konva instance
+// behind a given id can be replaced — re-finding it each render keeps the
+// transformer on the live node and prevents a detached "ghost" box.
 function SelectionTransformer({ selectedId }) {
   const trRef = useRef(null);
   useEffect(() => {
@@ -969,17 +1000,15 @@ function SelectionTransformer({ selectedId }) {
     if (!tr) return;
     const stage = tr.getStage();
     const node = selectedId ? stage.findOne(`#${selectedId}`) : null;
-    if (node) {
-      tr.nodes([node]);
-    } else {
-      tr.nodes([]);
-    }
+    tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [selectedId]);
+  });
   return (
     <Transformer
       ref={trRef}
       rotateEnabled={true}
+      ignoreStroke={true}
+      padding={0}
       anchorSize={10}
       borderStroke="#1f6feb"
       anchorStroke="#1f6feb"

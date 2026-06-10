@@ -646,6 +646,25 @@ function TvMode({ data, brand, lang }) {
 
   const slide = slides[idx];
 
+  // Canvas-designed menus own the whole screen — the document IS the design,
+  // so skip the brand header/dots chrome and render edge-to-edge from the
+  // top-left on a black backdrop. (The header was the orange bar bleeding in.)
+  if (slide?.kind === 'canvas-page') {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: '#000', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '100%', opacity: visible ? 1 : 0, transition: 'opacity 0.35s ease' }}>
+          <CanvasRenderer
+            document={menu.data.document}
+            data={data}
+            lang={lang}
+            isTv={true}
+            tvPageIndex={slide.payload.index}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={tvPageStyle}>
       <div style={{ ...tvHeaderStyle, background: brand }}>
