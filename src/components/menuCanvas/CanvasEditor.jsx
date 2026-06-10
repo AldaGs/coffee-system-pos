@@ -464,9 +464,12 @@ function KonvaImageNode({ node, common }) {
   return <KImage {...common} image={img} width={node.w} height={node.h} />;
 }
 
-// Visual proxy for item-binding nodes in the editor — shows the item name
-// from menuData. The public renderer pulls live data; the editor doesn't
-// need to be byte-perfect.
+// Editor preview for item-binding nodes. Renders the same fields the
+// public ItemBindingView does — emoji + name + price respecting the
+// `fields` array and `layout` — so the user sees toggle effects live.
+// Background/stroke/borderRadius come from node.style so visual edits
+// match what customers will see. Unbound nodes get a faint dashed
+// outline so they're discoverable.
 function BindingPlaceholder({ node, common, menuData }) {
   const idx = useMemo(() => {
     const m = new Map();
@@ -474,23 +477,116 @@ function BindingPlaceholder({ node, common, menuData }) {
     return m;
   }, [menuData]);
   const item = idx.get(node.item_id);
-  const label = item ? `${item.emoji ? item.emoji + ' ' : ''}${item.name}` : `(item ${node.item_id})`;
   const s = node.style || {};
+  const fields = node.fields && node.fields.length > 0 ? node.fields : ['name', 'price'];
+  const stacked = node.layout === 'stacked';
+  const fontSize = s.fontSize || 48;
+  const color = s.color || '#111';
+  const fontFamily = s.fontFamily || 'Georgia, serif';
+  const align = s.align || 'left';
+  const fontStyleStr = `${s.fontWeight || 400}`;
+  const pad = s.padding ?? 8;
+
+  // Build the parts in the order specified by `fields`.
+  const showEmoji = fields.includes('emoji') && item?.emoji;
+  const showImage = fields.includes('image') && item?.image_url;
+  const showName  = fields.includes('name');
+  const showPrice = fields.includes('price');
+
+  const nameText = item ? item.name : `(item ${node.item_id || '—'})`;
+  const priceText = item
+    ? (item.basePrice != null ? formatPrice(item.basePrice) : '')
+    : '';
+
+  // For inline layout we paint everything in one Text node with separators
+  // so Konva measures the line as a single unit (no Flexbox in Konva). For
+  // stacked we stack two Texts: name row + price row.
+  const inlineParts = [];
+  if (showEmoji) inlineParts.push(item.emoji);
+  if (showName)  inlineParts.push(nameText);
+  if (showPrice && priceText) inlineParts.push(priceText);
+  const inlineText = inlineParts.join('   ');
+
+  const bg = s.fill || 'transparent';
+  const stroke = s.stroke && (s.strokeWidth || 0) > 0 ? s.stroke : (item ? undefined : '#f28b05');
+  const strokeWidth = stroke ? (s.strokeWidth || (item ? 0 : 2)) : 0;
+  const dash = item ? undefined : [6, 6];
+
   return (
     <Group {...common}>
-      <Rect width={node.w} height={node.h} fill="rgba(242,139,5,0.08)" stroke="#f28b05" strokeWidth={2} dash={[6, 6]} />
-      <Text
-        x={12} y={0} width={node.w - 24} height={node.h}
-        text={label}
-        fontFamily={s.fontFamily || 'Georgia, serif'}
-        fontSize={s.fontSize || 48}
-        fontStyle={`${s.fontWeight || 400}`}
-        fill={s.color || '#111'}
-        align={s.align || 'left'}
-        verticalAlign="middle"
+      <Rect
+        width={node.w} height={node.h}
+        fill={bg}
+        stroke={stroke}
+        strokeWidth={strokeWidth}
+        dash={dash}
+        cornerRadius={s.borderRadius || 0}
       />
+      {showImage && (
+        // Use a placeholder rect for the image area in the editor — Konva
+        // image loading is expensive when many bindings exist. Public
+        // renderer shows the actual photo.
+        <Rect
+          x={pad} y={pad}
+          width={Math.max(0, Math.min(node.h - pad * 2, node.w * 0.25))}
+          height={Math.max(0, node.h - pad * 2)}
+          fill="rgba(0,0,0,0.08)"
+          cornerRadius={6}
+        />
+      )}
+      {!stacked && (
+        <Text
+          x={pad} y={0}
+          width={Math.max(0, node.w - pad * 2)}
+          height={node.h}
+          text={inlineText}
+          fontFamily={fontFamily}
+          fontSize={fontSize}
+          fontStyle={fontStyleStr}
+          fill={color}
+          align={align}
+          verticalAlign="middle"
+        />
+      )}
+      {stacked && (
+        <>
+          <Text
+            x={pad} y={pad}
+            width={Math.max(0, node.w - pad * 2)}
+            height={node.h - pad * 2}
+            text={[showEmoji ? item.emoji : '', showName ? nameText : ''].filter(Boolean).join(' ')}
+            fontFamily={fontFamily}
+            fontSize={fontSize}
+            fontStyle={fontStyleStr}
+            fill={color}
+            align={align}
+            verticalAlign="top"
+          />
+          {showPrice && priceText && (
+            <Text
+              x={pad} y={node.h - fontSize * 0.9 - pad}
+              width={Math.max(0, node.w - pad * 2)}
+              text={priceText}
+              fontFamily={fontFamily}
+              fontSize={fontSize * 0.9}
+              fontStyle={fontStyleStr}
+              fill={color}
+              align={align}
+            />
+          )}
+        </>
+      )}
     </Group>
   );
+}
+
+// Editor-only price helper — menuData prices are in cents on `basePrice`.
+// We can't read the shop's locale here, so just render with two decimals
+// and a dollar sign as a visual proxy; the public renderer uses the real
+// formatForDisplay() utility.
+function formatPrice(cents) {
+  const n = Math.round(cents || 0) / 100;
+  return `$${n.toFixed(2)}`;
 }
 
 // Transformer follows whichever node is currently selected.
@@ -773,7 +869,23 @@ function BindingProps({ node, onUpdate, openItemPicker, menuData }) {
         </select>
       </Row>
       <Row label="Tamaño texto"><NumInput value={node.style?.fontSize || 48} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
-      <Row label="Color"><ColorPicker value={node.style?.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
+      <Row label="Color texto"><ColorPicker value={node.style?.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
+
+      <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4 }}>
+        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>Fondo</p>
+      </div>
+      <Row label="Color fondo">
+        <ColorPicker value={node.style?.fill || '#ffffff'} onChange={c => onUpdate({ style: { fill: c } })} />
+        {node.style?.fill && (
+          <button onClick={() => onUpdate({ style: { fill: '' } })} style={smallBtn} title="Sin fondo">
+            <Icon icon="lucide:x" />
+          </button>
+        )}
+      </Row>
+      <Row label="Borde"><ColorPicker value={node.style?.stroke || '#000000'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
+      <Row label="Grosor borde"><NumInput value={node.style?.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
+      <Row label="Radio esquinas"><NumInput value={node.style?.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
+      <Row label="Padding interno"><NumInput value={node.style?.padding ?? 8} onChange={v => onUpdate({ style: { padding: v } })} /></Row>
     </>
   );
 }

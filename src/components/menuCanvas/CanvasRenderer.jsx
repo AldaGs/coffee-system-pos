@@ -147,6 +147,7 @@ function NodeView({ node, itemIndex, lang }) {
 function ItemBindingView({ node, item, lang }) {
   const fields = node.fields && node.fields.length > 0 ? node.fields : ['name', 'price'];
   const layout = node.layout === 'stacked' ? 'column' : 'row';
+  const s = node.style || {};
   const parts = [];
 
   for (const f of fields) {
@@ -169,8 +170,13 @@ function ItemBindingView({ node, item, lang }) {
     flexDirection: layout,
     alignItems: 'center',
     gap: 8,
-    ...textStyle(node.style),
-    justifyContent: justifyFromAlign(node.style?.align)
+    padding: s.padding ?? 8,
+    background: s.fill || 'transparent',
+    border: s.stroke && s.strokeWidth ? `${s.strokeWidth}px solid ${s.stroke}` : undefined,
+    borderRadius: s.borderRadius || 0,
+    boxSizing: 'border-box',
+    ...textStyle(s),
+    justifyContent: justifyFromAlign(s.align)
   };
 
   return <div style={baseStyle}>{parts}</div>;
