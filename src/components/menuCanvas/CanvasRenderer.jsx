@@ -237,14 +237,21 @@ function NodeView({ node, itemIndex, lang }) {
 
   if (node.type === 'shape') {
     const s = node.style || {};
-    if (node.shape === 'circle') {
-      return <div style={{ ...baseStyle, borderRadius: '50%', background: s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined }} />;
-    }
-    if (node.shape === 'line') {
-      return <div style={{ ...baseStyle, background: s.fill || s.stroke || '#000' }} />;
-    }
-    // rect (default)
-    return <div style={{ ...baseStyle, background: s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined, borderRadius: s.borderRadius || 0 }} />;
+    const shapeStyle = node.shape === 'circle'
+      ? { ...baseStyle, borderRadius: '50%', background: s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined }
+      : node.shape === 'line'
+      ? { ...baseStyle, background: s.fill || s.stroke || '#000' }
+      : { ...baseStyle, background: s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined, borderRadius: s.borderRadius || 0 };
+    if (!node.label) return <div style={shapeStyle} />;
+    // Centered label rides inside the shape box.
+    const ls = node.labelStyle || {};
+    return (
+      <div style={{ ...shapeStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' }}>
+        <span style={{ fontFamily: ls.fontFamily || 'Georgia, serif', fontSize: ls.fontSize || 32, fontWeight: ls.fontWeight || 700, color: ls.color || '#ffffff', textAlign: 'center', lineHeight: 1.15 }}>
+          {node.label}
+        </span>
+      </div>
+    );
   }
 
   if (node.type === 'item-binding') {

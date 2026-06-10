@@ -80,6 +80,13 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   const [penCursor, setPenCursor] = useState(null);
   const penDownRef = useRef(false);
 
+  // Double-click editing: inline text (text content / shape label) and path
+  // anchor editing. `editing` = { id, kind:'text'|'label' }; `editingPathId`
+  // shows draggable anchors/handles for one path.
+  const [editing, setEditing] = useState(null);
+  const [editingPathId, setEditingPathId] = useState(null);
+  const editStartDocRef = useRef(null);
+
   // Web fonts declared on the document (e.g. chalkboard's Permanent Marker).
   // Konva caches glyph metrics at draw time, so a font that arrives after the
   // first paint leaves text mis-measured. We inject the <link>, wait for the
@@ -96,6 +103,11 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       .then(() => { if (active) setFontEpoch(e => e + 1); });
     return () => { active = false; };
   }, [fontsKey]);
+
+  // Leave path anchor-editing when the path is no longer the selection.
+  useEffect(() => {
+    if (editingPathId && !selectedIds.includes(editingPathId)) setEditingPathId(null);
+  }, [selectedIds, editingPathId]);
 
   const page = doc.pages[pageIndex] || doc.pages[0];
   const selected = useMemo(() => page?.nodes?.find(n => n.id === selectedId) || null, [page, selectedId]);
@@ -125,9 +137,20 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     setDoc(next);
   }
 
+  // Record a single undo step for an edit that mutated the doc via silent
+  // updates (e.g. dragging a path anchor): pass the pre-edit snapshot.
+  function pushHistory(prevDoc) {
+    if (!prevDoc) return;
+    setPast(p => [...p.slice(-HISTORY_LIMIT), prevDoc]);
+    setFuture([]);
+    setDirty(true);
+  }
+
   // Keyboard: Ctrl/Cmd+Z / Shift+Z. Delete removes selected node.
   useEffect(() => {
     function onKey(e) {
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return; // let the inline editor own its keys
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -139,7 +162,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         e.preventDefault();
         removeNodes(selectedIds);
       } else if (e.key === 'Escape') {
-        if (penMode) cancelPen(); else setSelectedIds([]);
+        if (penMode) cancelPen();
+        else if (editingPathId) setEditingPathId(null);
+        else if (editing) setEditing(null);
+        else setSelectedIds([]);
       }
     }
     window.addEventListener('keydown', onKey);
@@ -373,6 +399,49 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   }
   function cancelPen() { penDownRef.current = false; setPenDraft(null); setPenCursor(null); setPenMode(false); }
 
+  // ---------- Double-click editing ------------------------------------------
+  function handleNodeDblClick(node) {
+    if (penMode) return;
+    if (node.type === 'text') { setEditingPathId(null); setEditing({ id: node.id, kind: 'text' }); }
+    else if (node.type === 'shape') { setEditingPathId(null); setEditing({ id: node.id, kind: 'label' }); }
+    else if (node.type === 'path') { setEditing(null); setEditingPathId(node.id); }
+  }
+  // Commit inline text (text content or shape label) and close the editor.
+  function commitInlineText(value) {
+    if (!editing) return;
+    updateNode(editing.id, editing.kind === 'label' ? { label: value } : { text: value });
+    setEditing(null);
+  }
+
+  // Path anchor editing: silent updates while dragging, one undo step on end.
+  function pathEditStart() { editStartDocRef.current = doc; }
+  function setPathPoint(id, i, fn) {
+    setDoc(d => ({
+      ...d,
+      pages: d.pages.map((p, pi) => pi === pageIndex ? {
+        ...p, nodes: (p.nodes || []).map(n => n.id === id ? { ...n, points: n.points.map((pt, k) => k === i ? fn(pt) : pt) } : n)
+      } : p)
+    }));
+    setDirty(true);
+  }
+  function moveAnchor(id, i, pos) {
+    setPathPoint(id, i, p => {
+      const dx = pos.x - p.x, dy = pos.y - p.y;
+      return { x: pos.x, y: pos.y, hIn: p.hIn ? { x: p.hIn.x + dx, y: p.hIn.y + dy } : null, hOut: p.hOut ? { x: p.hOut.x + dx, y: p.hOut.y + dy } : null };
+    });
+  }
+  function moveHandle(id, i, which, pos) { setPathPoint(id, i, p => ({ ...p, [which]: { x: pos.x, y: pos.y } })); }
+  function pathEditEnd(id) {
+    setDoc(d => ({
+      ...d,
+      pages: d.pages.map((p, pi) => pi === pageIndex ? {
+        ...p, nodes: (p.nodes || []).map(n => { if (n.id !== id) return n; const bb = pathBBox(n.points); return { ...n, x: bb.x, y: bb.y, w: bb.w, h: bb.h }; })
+      } : p)
+    }));
+    pushHistory(editStartDocRef.current);
+    editStartDocRef.current = null;
+  }
+
   // Press on empty canvas: begin a marquee (and clear selection unless Shift).
   function onStageMouseDown(e) {
     if (penMode) { penDown(e); return; }
@@ -438,11 +507,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     return { nx, ny, lines };
   }
 
-  // Top-left page bbox of a live-dragging konva node (circles report center).
+  // Top-left page bbox of a live-dragging konva node. All node types (incl.
+  // shapes, now Group-based) report their top-left position directly.
   function liveBBox(konvaNode, node) {
-    let x = konvaNode.x(), y = konvaNode.y();
-    if (node.type === 'shape' && node.shape === 'circle') { x -= node.w / 2; y -= node.h / 2; }
-    return { x, y, w: node.w, h: node.h };
+    return { x: konvaNode.x(), y: konvaNode.y(), w: node.w, h: node.h };
   }
 
   // Begin dragging: if the grabbed node is part of a multi-selection, snapshot
@@ -515,9 +583,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           kn.x(0); kn.y(0);
           return { ...n, points: pts, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
         }
-        let x = kn.x(), y = kn.y();
-        if (n.type === 'shape' && n.shape === 'circle') { x -= n.w / 2; y -= n.h / 2; }
-        return { ...n, x: Math.round(x), y: Math.round(y) };
+        return { ...n, x: Math.round(kn.x()), y: Math.round(kn.y()) };
       })
     }));
     groupDragRef.current = null;
@@ -544,18 +610,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         const kn = stage?.findOne('#' + n.id);
         if (!kn) return n;
         const sx = kn.scaleX(), sy = kn.scaleY();
-        let patch;
-        if (n.type === 'shape' && n.shape === 'circle') {
-          const r = kn.radius() * Math.max(sx, sy);
-          patch = { x: Math.round(kn.x() - r), y: Math.round(kn.y() - r), w: Math.round(r * 2), h: Math.round(r * 2), rotation: Math.round(kn.rotation()) };
-        } else {
-          patch = {
-            x: Math.round(kn.x()), y: Math.round(kn.y()),
-            w: Math.max(10, Math.round(n.w * sx)), h: Math.max(10, Math.round(n.h * sy)),
-            rotation: Math.round(kn.rotation())
-          };
-          if (n.type === 'text' && n.autoWidth && Math.abs(sx - 1) > 0.001) patch.autoWidth = false;
-        }
+        const patch = {
+          x: Math.round(kn.x()), y: Math.round(kn.y()),
+          w: Math.max(10, Math.round(n.w * sx)), h: Math.max(10, Math.round(n.h * sy)),
+          rotation: Math.round(kn.rotation())
+        };
+        if (n.type === 'text' && n.autoWidth && Math.abs(sx - 1) > 0.001) patch.autoWidth = false;
         kn.scaleX(1); kn.scaleY(1);
         return { ...n, ...patch };
       })
@@ -864,6 +924,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                       fontEpoch={fontEpoch}
                       isSelected={selectedIds.includes(node.id)}
                       onSelect={e => (e?.evt?.shiftKey ? toggleSelect(node.id) : selectOne(node.id))}
+                      onDblClick={handleNodeDblClick}
                       onChange={patch => updateNode(node.id, patch)}
                       onMeasure={updateNodeSilent}
                       onDragStart={e => handleDragStart(e, node)}
@@ -893,6 +954,22 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                     return <Rect key={'psel' + id} x={n.x} y={n.y} width={n.w} height={n.h} stroke="#1f6feb" strokeWidth={1 / stageScale} dash={[5 / stageScale, 3 / stageScale]} listening={false} />;
                   })}
                 </Layer>
+                {editingPathId && (() => {
+                  const pn = (page?.nodes || []).find(x => x.id === editingPathId && x.type === 'path');
+                  if (!pn) return null;
+                  return (
+                    <Layer>
+                      <PathEditor
+                        node={pn}
+                        scale={stageScale}
+                        onStart={pathEditStart}
+                        onAnchor={(i, pos) => moveAnchor(pn.id, i, pos)}
+                        onHandle={(i, which, pos) => moveHandle(pn.id, i, which, pos)}
+                        onEnd={() => pathEditEnd(pn.id)}
+                      />
+                    </Layer>
+                  );
+                })()}
               </Stage>
               <GuidesOverlay
                 guides={pageGuides}
@@ -900,6 +977,19 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                 activeGuide={activeGuide}
                 onStartDragGuide={startDragGuide}
               />
+              {editing && (() => {
+                const en = (page?.nodes || []).find(x => x.id === editing.id);
+                if (!en) return null;
+                return (
+                  <InlineTextEditor
+                    node={en}
+                    kind={editing.kind}
+                    scale={stageScale}
+                    onCommit={commitInlineText}
+                    onCancel={() => setEditing(null)}
+                  />
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -1058,7 +1148,7 @@ function GuidesOverlay({ guides, scale, activeGuide, onStartDragGuide }) {
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd }) {
+function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblClick, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd }) {
   const shapeRef = useRef(null);
 
   // Auto-width text: after each render, read the konva-measured size and
@@ -1082,6 +1172,7 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
     x: node.x, y: node.y, rotation: node.rotation || 0,
     draggable: true,
     onClick: onSelect, onTap: onSelect,
+    onDblClick: () => onDblClick?.(node), onDblTap: () => onDblClick?.(node),
     onDragStart,
     onDragMove,
     onDragEnd: () => onNodeDragEnd?.(node),
@@ -1114,34 +1205,44 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
     );
   }
 
-  if (node.type === 'shape' && node.shape === 'circle') {
-    const s = node.style || {};
-    return (
-      <Circle
-        {...common}
-        x={node.x + node.w / 2}
-        y={node.y + node.h / 2}
-        radius={Math.min(node.w, node.h) / 2}
-        fill={s.fill || '#ccc'}
-        stroke={s.stroke || undefined}
-        strokeWidth={s.strokeWidth || 0}
-        // Drag end and transform end (incl. circle center→bbox + radius
-        // conversion) are baked by the parent via `common`.
-      />
-    );
-  }
-
   if (node.type === 'shape') {
     const s = node.style || {};
+    // Both shapes render inside a Group at (node.x, node.y) with a node.w×node.h
+    // box, so drag/transform are uniform (no circle center special-casing) and
+    // an optional centered label can ride along.
     return (
-      <Rect
-        {...common}
-        width={node.w} height={node.h}
-        fill={s.fill || '#ccc'}
-        stroke={s.stroke || undefined}
-        strokeWidth={s.strokeWidth || 0}
-        cornerRadius={s.borderRadius || 0}
-      />
+      <Group {...common}>
+        {node.shape === 'circle' ? (
+          <Circle
+            x={node.w / 2} y={node.h / 2}
+            radius={Math.min(node.w, node.h) / 2}
+            fill={s.fill || '#ccc'}
+            stroke={s.stroke || undefined}
+            strokeWidth={s.strokeWidth || 0}
+          />
+        ) : (
+          <Rect
+            width={node.w} height={node.h}
+            fill={s.fill || '#ccc'}
+            stroke={s.stroke || undefined}
+            strokeWidth={s.strokeWidth || 0}
+            cornerRadius={s.borderRadius || 0}
+          />
+        )}
+        {node.label ? (
+          <Text
+            key={`lbl-${node.label.length}-${node.labelStyle?.fontSize}-${fontEpoch}`}
+            x={8} y={0} width={Math.max(0, node.w - 16)} height={node.h}
+            text={node.label}
+            fontFamily={node.labelStyle?.fontFamily || 'Georgia, serif'}
+            fontSize={node.labelStyle?.fontSize || 32}
+            fontStyle={`${node.labelStyle?.fontWeight || 700}`}
+            fill={node.labelStyle?.color || '#ffffff'}
+            align="center" verticalAlign="middle"
+            listening={false}
+          />
+        ) : null}
+      </Group>
     );
   }
 
@@ -1176,6 +1277,71 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
   // Unknown — render a dashed outline so the user can see + delete it.
   return (
     <Rect {...common} width={node.w} height={node.h} stroke="#888" strokeWidth={1} dash={[6, 4]} fill="rgba(0,0,0,0.04)" />
+  );
+}
+
+// Anchor/handle editing overlay for one selected path (entered via
+// double-click). Dragging an anchor moves it + its handles; dragging a handle
+// moves just that handle. Updates are silent per-move; the parent records a
+// single undo step on drag end.
+function PathEditor({ node, scale, onStart, onAnchor, onHandle, onEnd }) {
+  const k = n => n / (scale || 1);
+  const pts = node.points || [];
+  return (
+    <>
+      {pts.map((p, i) => (
+        <Group key={i}>
+          {p.hIn && <Line points={[p.x, p.y, p.hIn.x, p.hIn.y]} stroke="#1f6feb" strokeWidth={k(1)} />}
+          {p.hOut && <Line points={[p.x, p.y, p.hOut.x, p.hOut.y]} stroke="#1f6feb" strokeWidth={k(1)} />}
+          {p.hIn && (
+            <Circle x={p.hIn.x} y={p.hIn.y} radius={k(4)} fill="#fff" stroke="#1f6feb" strokeWidth={k(1.5)} draggable
+              onDragStart={onStart} onDragMove={e => onHandle(i, 'hIn', { x: e.target.x(), y: e.target.y() })} onDragEnd={onEnd} />
+          )}
+          {p.hOut && (
+            <Circle x={p.hOut.x} y={p.hOut.y} radius={k(4)} fill="#fff" stroke="#1f6feb" strokeWidth={k(1.5)} draggable
+              onDragStart={onStart} onDragMove={e => onHandle(i, 'hOut', { x: e.target.x(), y: e.target.y() })} onDragEnd={onEnd} />
+          )}
+          <Circle x={p.x} y={p.y} radius={k(5.5)} fill="#1f6feb" stroke="#fff" strokeWidth={k(1.5)} draggable
+            onDragStart={onStart} onDragMove={e => onAnchor(i, { x: e.target.x(), y: e.target.y() })} onDragEnd={onEnd} />
+        </Group>
+      ))}
+    </>
+  );
+}
+
+// DOM <textarea> overlay for inline text editing (text node content or a
+// shape's centered label). Positioned over the node in screen space.
+function InlineTextEditor({ node, kind, scale, onCommit, onCancel }) {
+  const initial = kind === 'label' ? (node.label || '') : (node.text || '');
+  const [val, setVal] = useState(initial);
+  const ref = useRef(null);
+  useEffect(() => { const t = ref.current; if (t) { t.focus(); t.select(); } }, []);
+  const s = (kind === 'label' ? node.labelStyle : node.style) || {};
+  const style = {
+    position: 'absolute',
+    left: node.x * scale, top: node.y * scale,
+    width: Math.max(40, node.w * scale), height: Math.max(24, node.h * scale),
+    fontFamily: s.fontFamily || 'Georgia, serif',
+    fontSize: (s.fontSize || (kind === 'label' ? 32 : 24)) * scale,
+    fontWeight: s.fontWeight || (kind === 'label' ? 700 : 400),
+    color: s.color || (kind === 'label' ? '#ffffff' : '#111111'),
+    textAlign: kind === 'label' ? 'center' : (s.align || 'left'),
+    lineHeight: 1.15, background: 'rgba(13,17,23,0.35)', border: '1.5px solid #1f6feb',
+    outline: 'none', resize: 'none', padding: 0, margin: 0, overflow: 'hidden', boxSizing: 'border-box', zIndex: 5
+  };
+  return (
+    <textarea
+      ref={ref}
+      value={val}
+      style={style}
+      onChange={e => setVal(e.target.value)}
+      onBlur={() => onCommit(val)}
+      onKeyDown={e => {
+        e.stopPropagation();
+        if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+        else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onCommit(val); }
+      }}
+    />
   );
 }
 
@@ -1786,6 +1952,7 @@ function TextProps({ node, onUpdate, onSetFont }) {
 
 function ShapeProps({ node, onUpdate }) {
   const s = node.style || {};
+  const ls = node.labelStyle || {};
   return (
     <>
       <Row label="Relleno"><ColorPicker value={s.fill || '#cccccc'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
@@ -1794,6 +1961,15 @@ function ShapeProps({ node, onUpdate }) {
       {node.shape !== 'circle' && (
         <Row label="Radio"><NumInput value={s.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
       )}
+      <Row label="Etiqueta">
+        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder="Doble clic para editar" style={textInputStyle} />
+      </Row>
+      {node.label ? (
+        <>
+          <Row label="Tamaño etiqueta"><NumInput value={ls.fontSize || 32} onChange={v => onUpdate({ labelStyle: { ...ls, fontSize: v } })} /></Row>
+          <Row label="Color etiqueta"><ColorPicker value={ls.color || '#ffffff'} onChange={c => onUpdate({ labelStyle: { ...ls, color: c } })} /></Row>
+        </>
+      ) : null}
     </>
   );
 }

@@ -543,9 +543,23 @@ Ordering follows the staged plan we agreed.
 - Paths drag freely (no snapping; the offset is folded back into the
   points on drop) and opt out of the box Transformer — a dashed bbox
   shows selection instead. `PathProps` panel: stroke/width/fill/close.
-- **Not yet:** post-creation anchor/handle re-editing (drag the points of
-  an existing path). The pen's click-drag already makes curves; refining
-  them later is the next increment.
+
+### Double-click editing  *(shipped)*
+- Double-click routes by node type (`handleNodeDblClick`):
+  - **Text** → inline `<textarea>` overlay (`InlineTextEditor`) over the
+    node in screen space; Enter/blur commits, Esc cancels. The global key
+    handler bails while an INPUT/TEXTAREA is focused so undo/delete don't
+    fire mid-edit.
+  - **Shape** → edits a centered `node.label` (same inline editor). Shapes
+    are now Group-based (rect + circle drawn in a node.w×node.h box), which
+    unified drag/transform — the circle center/​radius special-cases are
+    gone — and lets the label ride inside. Public renderer centers the
+    label too. `ShapeProps` also exposes the label + its size/color.
+  - **Path** → `PathEditor` overlay with draggable anchors + handles
+    (anchor drag carries its handles; handle drag moves only itself).
+    Silent per-move updates; one undo step on release via
+    `pathEditStart`/`moveAnchor`/`moveHandle`/`pathEditEnd` +
+    `pushHistory(snapshot)`.
 
 ### Align & distribute panel  *(shipped)*
 - `MultiSelectProps` now has a **target switch** — Selección (selection
@@ -558,7 +572,6 @@ Ordering follows the staged plan we agreed.
   points instead of writing a raw x/y).
 
 ### Deferred / nice-to-have
-- **Path anchor editing** — see Bézier v1 note above.
 - **Per-shop color library** — the shipped palette is per-document; a
   cross-menu `posSettings.colorPalette` is still possible as a follow-up.
 - **Hard manual override radio** — single "Forzar este menú" radio
