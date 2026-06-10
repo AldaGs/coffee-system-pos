@@ -18,7 +18,7 @@ export const FONT_PRESETS = {
   serif:       { label: 'Serif clásica', stack: 'Georgia, "Times New Roman", "Iowan Old Style", serif' },
   display:     { label: 'Sans display',  stack: '"Helvetica Neue", "Inter", system-ui, sans-serif' },
   mono:        { label: 'Mono',          stack: '"SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace' },
-  handwritten: { label: 'Manuscrita',    stack: '"Marker Felt", "Brush Script MT", "Comic Sans MS", cursive' }
+  handwritten: { label: 'Manuscrita',    stack: '"Chalkboard SE", "Bradley Hand", "Segoe Script", "Marker Felt", cursive' }
 };
 
 const DENSITY = {

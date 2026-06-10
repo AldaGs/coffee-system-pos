@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
-import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex } from '../../utils/canvasDocument';
+import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontFamilies } from '../../utils/canvasDocument';
 import { updateMenu } from '../../api/menus';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
@@ -40,6 +40,23 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   // and decides what to do (add new image node vs replace selected node's src).
   const [assetPickerCb, setAssetPickerCb] = useState(null);
   const [itemPickerCb, setItemPickerCb] = useState(null);
+
+  // Web fonts declared on the document (e.g. chalkboard's Permanent Marker).
+  // Konva caches glyph metrics at draw time, so a font that arrives after the
+  // first paint leaves text mis-measured. We inject the <link>, wait for the
+  // family to actually load, then bump fontEpoch — which feeds the Text node
+  // keys below to force a remount with correct metrics.
+  const [fontEpoch, setFontEpoch] = useState(0);
+  const fontsKey = JSON.stringify(doc.fonts || []);
+  useEffect(() => {
+    syncDocFonts(doc);
+    const fams = docFontFamilies(doc);
+    if (typeof document === 'undefined' || !document.fonts || fams.length === 0) return;
+    let active = true;
+    Promise.all(fams.map(f => document.fonts.load(`16px ${f}`).catch(() => {})))
+      .then(() => { if (active) setFontEpoch(e => e + 1); });
+    return () => { active = false; };
+  }, [fontsKey]);
 
   const page = doc.pages[pageIndex] || doc.pages[0];
   const selected = useMemo(() => page?.nodes?.find(n => n.id === selectedId) || null, [page, selectedId]);
@@ -318,6 +335,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                     key={node.id}
                     node={node}
                     menuData={menuData}
+                    fontEpoch={fontEpoch}
                     isSelected={node.id === selectedId}
                     onSelect={() => setSelectedId(node.id)}
                     onChange={patch => updateNode(node.id, patch)}
@@ -377,7 +395,7 @@ function nextZ(page) {
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, isSelected, onSelect, onChange }) {
+function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChange }) {
   const shapeRef = useRef(null);
 
   // After a drag or transform, persist the resulting x/y/w/h/rotation into
@@ -416,7 +434,7 @@ function NodeKonva({ node, menuData, isSelected, onSelect, onChange }) {
     // so it picks up the new metrics.
     return (
       <Text
-        key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}`}
+        key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}-${fontEpoch}`}
         {...common}
         text={node.text || ''}
         width={node.w} height={node.h}
@@ -441,6 +459,16 @@ function NodeKonva({ node, menuData, isSelected, onSelect, onChange }) {
         fill={s.fill || '#ccc'}
         stroke={s.stroke || undefined}
         strokeWidth={s.strokeWidth || 0}
+        // The circle is drawn from its center, so a drag's resulting x/y is a
+        // center — convert back to the doc's top-left bounding box. Without
+        // this the node jumps by its radius on the next render.
+        onDragEnd={() => {
+          const n = shapeRef.current;
+          onChange({
+            x: Math.round(n.x() - node.w / 2),
+            y: Math.round(n.y() - node.h / 2)
+          });
+        }}
         // onTransformEnd: convert circle back to bounding box.
         onTransformEnd={() => {
           const n = shapeRef.current;
@@ -477,7 +505,7 @@ function NodeKonva({ node, menuData, isSelected, onSelect, onChange }) {
   }
 
   if (node.type === 'item-binding') {
-    return <BindingPlaceholder node={node} common={common} menuData={menuData} />;
+    return <BindingPlaceholder node={node} common={common} menuData={menuData} fontEpoch={fontEpoch} />;
   }
 
   // Unknown — render a dashed outline so the user can see + delete it.
@@ -514,7 +542,7 @@ function KonvaImageNode({ node, common }) {
 // Background/stroke/borderRadius come from node.style so visual edits
 // match what customers will see. Unbound nodes get a faint dashed
 // outline so they're discoverable.
-function BindingPlaceholder({ node, common, menuData }) {
+function BindingPlaceholder({ node, common, menuData, fontEpoch = 0 }) {
   const idx = useMemo(() => {
     const m = new Map();
     Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
@@ -581,7 +609,7 @@ function BindingPlaceholder({ node, common, menuData }) {
       {/* Same metric-cache workaround as text nodes — see comment above. */}
       {!stacked && (
         <Text
-          key={`${fontFamily}-${fontSize}-${fontStyleStr}`}
+          key={`${fontFamily}-${fontSize}-${fontStyleStr}-${fontEpoch}`}
           x={pad} y={0}
           width={Math.max(0, node.w - pad * 2)}
           height={node.h}
@@ -597,7 +625,7 @@ function BindingPlaceholder({ node, common, menuData }) {
       {stacked && (
         <>
           <Text
-            key={`name-${fontFamily}-${fontSize}-${fontStyleStr}`}
+            key={`name-${fontFamily}-${fontSize}-${fontStyleStr}-${fontEpoch}`}
             x={pad} y={pad}
             width={Math.max(0, node.w - pad * 2)}
             height={node.h - pad * 2}
@@ -611,7 +639,7 @@ function BindingPlaceholder({ node, common, menuData }) {
           />
           {showPrice && priceText && (
             <Text
-              key={`price-${fontFamily}-${fontSize}-${fontStyleStr}`}
+              key={`price-${fontFamily}-${fontSize}-${fontStyleStr}-${fontEpoch}`}
               x={pad} y={node.h - fontSize * 0.9 - pad}
               width={Math.max(0, node.w - pad * 2)}
               text={priceText}

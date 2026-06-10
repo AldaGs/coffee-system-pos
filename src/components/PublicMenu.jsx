@@ -109,14 +109,19 @@ function PublicMenu() {
   //     chosen template + theme.
   if (menuKind === 'designed') {
     if (data.menu?.data?.document) {
-      return <PrintWrapper enabled={isPrintMode}>
-        <CanvasRenderer
-          document={data.menu.data.document}
-          data={data}
-          lang={lang}
-          isPrint={isPrintMode}
-        />
-      </PrintWrapper>;
+      if (isPrintMode) {
+        return <PrintWrapper enabled>
+          <CanvasRenderer document={data.menu.data.document} data={data} lang={lang} isPrint />
+        </PrintWrapper>;
+      }
+      // The global `body { overflow: hidden }` (POS anti-bounce in index.css)
+      // would otherwise trap the page stack, so the canvas renderer needs its
+      // own scroll container for multi-page / tall (9:16) documents.
+      return (
+        <div style={{ height: '100dvh', overflowY: 'auto', overflowX: 'hidden', background: '#0a0a0a', WebkitOverflowScrolling: 'touch' }}>
+          <CanvasRenderer document={data.menu.data.document} data={data} lang={lang} />
+        </div>
+      );
     }
     return <TemplatedMenu data={data} brand={brand} lang={lang} />;
   }

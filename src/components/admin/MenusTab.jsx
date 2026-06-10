@@ -19,7 +19,7 @@ import { uploadMenuFile, deleteMenuUploads, MAX_PDF_BYTES, MAX_IMAGE_BYTES } fro
 import MenuShareCard from './MenuShareCard';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 import { FONT_PRESETS } from '../../utils/menuTheme';
-import { sampleDocument } from '../../utils/canvasDocument';
+import { sampleDocument, templateDoc } from '../../utils/canvasDocument';
 import CanvasEditor from '../menuCanvas/CanvasEditor';
 import QRCode from 'qrcode';
 
@@ -204,6 +204,7 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
             onScheduleChange={reload}
             showAlert={showAlert}
             categoryNames={menuData?.categoryOrder || []}
+            menuCategories={menuData?.categories || {}}
             onOpenCanvas={() => setEditingCanvasFor(menu.id)}
           />
         ))}
@@ -228,7 +229,7 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
   );
 }
 
-function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriority, onDelete, onScheduleChange, showAlert, categoryNames, onOpenCanvas }) {
+function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriority, onDelete, onScheduleChange, showAlert, categoryNames, menuCategories, onOpenCanvas }) {
   const [name, setName] = useState(menu.name);
   useEffect(() => { setName(menu.name); }, [menu.name]);
 
@@ -281,7 +282,7 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
       {expanded && (
         <>
           {menu.kind === 'designed' && (
-            <DesignedEditor menu={menu} onChange={onScheduleChange} showAlert={showAlert} categoryNames={categoryNames} onOpenCanvas={onOpenCanvas} />
+            <DesignedEditor menu={menu} onChange={onScheduleChange} showAlert={showAlert} categoryNames={categoryNames} menuCategories={menuCategories} onOpenCanvas={onOpenCanvas} />
           )}
           <ScheduleEditor
             menu={menu}
@@ -300,7 +301,17 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
 // color. Bindings are by category name (matches how the rest of the app
 // stores category references in JSONB); renaming a category will silently
 // drop it from the selection.
-function DesignedEditor({ menu, onChange, showAlert, categoryNames, onOpenCanvas }) {
+// Resolve the catalog into the [{ name, items: [{ id }] }] shape the canvas
+// template factories expect, honoring the same category selection the
+// template/list renderer uses (empty selection = all categories, in order).
+function buildTemplateCatalog(menuCategories, selectedNames, allNames) {
+  const names = (selectedNames && selectedNames.length > 0)
+    ? allNames.filter(n => selectedNames.includes(n))   // keep catalog order
+    : allNames;
+  return names.map(name => ({ name, items: menuCategories?.[name] || [] }));
+}
+
+function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategories, onOpenCanvas }) {
   const data = menu.data || {};
   const [template, setTemplate] = useState(data.template || 'list');
   const [selected, setSelected] = useState(data.category_names || []);
@@ -395,23 +406,49 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, onOpenCanvas
 
       <ThemeEditor menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
 
-      <CanvasBetaToggle menu={menu} data={data} onChange={onChange} showAlert={showAlert} onOpenCanvas={onOpenCanvas} />
+      <CanvasBetaToggle
+        menu={menu}
+        data={data}
+        onChange={onChange}
+        showAlert={showAlert}
+        onOpenCanvas={onOpenCanvas}
+        template={template}
+        catalog={buildTemplateCatalog(menuCategories, all ? categoryNames : selected, categoryNames)}
+      />
     </div>
   );
 }
 
-// 4c.0 — beta seed/clear. Lets the owner flip a designed menu into canvas
-// mode using a sample document so the renderer + URL pipeline can be
-// verified before the editor (4c.1) ships. Removing the document drops the
-// menu back to template mode without losing the rest of menu.data.
-function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas }) {
+// 4c.6 — beta seed/clear. Flips a designed menu into canvas mode by
+// materializing the selected template (Lista / Tarjetas / Pizarra) into a
+// real document the owner can fork-and-edit, seeding menu.data.theme too so
+// the visual identity carries over. Removing the document drops the menu
+// back to template mode without losing the rest of menu.data.
+function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas, template, catalog }) {
   const hasDoc = !!data.document;
+  const shopName = menu.name || 'Menú';
 
-  async function seed() {
+  // Seed from a starter template, or blank when the user wants a clean slate.
+  async function seed({ kind = template, open = false } = {}) {
     try {
-      const doc = sampleDocument({});
-      await updateMenu(menu.id, { data: { ...data, document: doc } });
-      onChange();
+      let doc, theme;
+      if (kind === 'blank') {
+        doc = sampleDocument({ shopName });
+      } else {
+        const built = templateDoc(kind, { shopName, categories: catalog });
+        doc = built.document;
+        theme = built.theme;
+      }
+      const nextData = { ...data, document: doc };
+      // Only seed a theme if the menu doesn't already carry one, so re-seeding
+      // never clobbers tweaks the owner made in the Estilo editor.
+      if (theme && !data.theme) nextData.theme = theme;
+      await updateMenu(menu.id, { data: nextData });
+      // Await the reload so the menus list carries the freshly-seeded
+      // document before the editor mounts — CanvasEditor snapshots
+      // menu.data.document once, so opening against a stale menu shows blank.
+      await onChange?.();
+      if (open) onOpenCanvas?.();
     } catch (err) { showAlert?.('Error', err.message); }
   }
 
@@ -423,6 +460,8 @@ function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas }) {
     } catch (err) { showAlert?.('Error', err.message); }
   }
 
+  const TEMPLATE_LABEL = { list: 'Lista', cards: 'Tarjetas', chalkboard: 'Pizarra' };
+
   return (
     <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <div style={{ flex: 1, minWidth: 220 }}>
@@ -430,7 +469,7 @@ function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas }) {
         <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
           {hasDoc
             ? 'Este menú se renderiza desde un documento de lienzo. Plantilla y categorías arriba quedan ignoradas.'
-            : 'Activa el lienzo para usar un documento libre. El editor llega en próxima fase; por ahora se carga un diseño de ejemplo.'}
+            : `Convierte la plantilla “${TEMPLATE_LABEL[template] || 'Lista'}” y las categorías de arriba en un lienzo editable. Cada producto se coloca como un bloque que puedes mover y rediseñar.`}
         </p>
       </div>
       {hasDoc ? (
@@ -444,11 +483,11 @@ function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas }) {
         </>
       ) : (
         <>
-          <button onClick={() => { seed().then(() => onOpenCanvas && onOpenCanvas()); }} style={btnPrimary}>
-            <Icon icon="lucide:pen-tool" /> Crear lienzo
+          <button onClick={() => seed({ open: true })} style={btnPrimary}>
+            <Icon icon="lucide:layout-template" /> Crear lienzo desde “{TEMPLATE_LABEL[template] || 'Lista'}”
           </button>
-          <button onClick={seed} style={btnSecondary}>
-            <Icon icon="lucide:layout-template" /> Solo activar con ejemplo
+          <button onClick={() => seed({ kind: 'blank', open: true })} style={btnSecondary}>
+            <Icon icon="lucide:square" /> Lienzo en blanco
           </button>
         </>
       )}

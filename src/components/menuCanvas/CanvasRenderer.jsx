@@ -10,10 +10,14 @@
 // editors.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildItemIndex, PAGE_PRESETS } from '../../utils/canvasDocument';
+import { buildItemIndex, PAGE_PRESETS, syncDocFonts } from '../../utils/canvasDocument';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
 export default function CanvasRenderer({ document, data, lang, isTv = false, tvPageIndex = 0, isPrint = false }) {
+  // Load any web fonts the document declares (e.g. the chalkboard template's
+  // Permanent Marker) so style.fontFamily stacks resolve to the real face.
+  useEffect(() => { syncDocFonts(document); }, [document?.fonts]);
+
   if (!document?.pages?.length) return null;
   const pageW = document.page_size?.w || 1920;
   const pageH = document.page_size?.h || 1080;

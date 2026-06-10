@@ -102,3 +102,267 @@ export function buildItemIndex(categories) {
   }
   return m;
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// Phase 4c.6 — starter templates.
+//
+// These materialize the three Phase 4a layouts (Lista / Tarjetas / Pizarra)
+// as canvas documents so a user opening a blank designed menu gets a real
+// fork-and-edit starting point instead of the near-empty sample. Each
+// factory takes the catalog (already filtered to the selected categories)
+// and spawns one item-binding node per item — matching the materialize-on-
+// drop binding model: the *set* of nodes is fixed at design time, but each
+// node still pulls live name/price/availability by item_id at render.
+//
+// Catalog shape expected (from menu.js loadMenu(), assembled by the caller):
+//   [{ name: string, items: [{ id, name }] }]   // only id is load-bearing
+//
+// Each factory returns { document, theme } so the caller can write both
+// menu.data.document and menu.data.theme in one update — the theme keeps the
+// template-mode → canvas-mode visual identity (Phase 4b tokens).
+
+function emptyCatNotice(page, msg, W, M, y, color, font) {
+  page.nodes.push({
+    id: nodeId(), type: 'text', x: M, y, w: W - 2 * M, h: 80, rotation: 0, z: 1,
+    text: msg, style: { fontFamily: font, fontSize: 32, fontWeight: 400, fontStyle: 'italic', color, align: 'left' }
+  });
+}
+
+// Shared vertical-flow engine for the list-shaped templates (Lista, Pizarra).
+// Lays the shop title, then each category as a heading + a stack of full-width
+// item rows, opening a fresh page per category and overflowing onto
+// continuation pages when a category is taller than one page.
+function flowListDoc({ W, H, M, shopName, categories, s }) {
+  const doc = { version: DOC_VERSION, page_size: { w: W, h: H }, pages: [] };
+  const bottom = H - M;
+  let page = null, y = 0, first = true;
+
+  function newPage() {
+    page = { background: s.bg, nodes: [] };
+    doc.pages.push(page);
+    y = M;
+  }
+  function heading(text) {
+    page.nodes.push({
+      id: nodeId(), type: 'text', x: M, y, w: W - 2 * M, h: s.headingH, rotation: 0, z: 1,
+      text, style: { fontFamily: s.font, fontSize: s.headingSize, fontWeight: 800, color: s.accent, align: 'left' }
+    });
+    y += s.headingH;
+    if (s.divider) {
+      page.nodes.push({
+        id: nodeId(), type: 'shape', shape: 'line', x: M, y, w: W - 2 * M, h: 3, rotation: 0, z: 0,
+        style: { fill: s.divider }
+      });
+    }
+    y += s.headingGap;
+  }
+
+  for (const cat of (categories || [])) {
+    newPage();
+    if (first) {
+      page.nodes.push({
+        id: nodeId(), type: 'text', x: M, y, w: W - 2 * M, h: s.titleH, rotation: 0, z: 1,
+        text: shopName, style: { fontFamily: s.font, fontSize: s.titleSize, fontWeight: 800, color: s.ink, align: 'center' }
+      });
+      y += s.titleH + s.titleGap;
+      first = false;
+    }
+    heading(cat.name);
+
+    const items = cat.items || [];
+    if (items.length === 0) {
+      emptyCatNotice(page, '(sin productos)', W, M, y, s.muted, s.font);
+      continue;
+    }
+    for (const it of items) {
+      if (y + s.rowH > bottom) {
+        newPage();
+        heading(cat.name + ' …');
+      }
+      page.nodes.push({
+        id: nodeId(), type: 'item-binding', x: M, y, w: W - 2 * M, h: s.rowH, rotation: 0, z: 1,
+        item_id: it.id, fields: ['name', 'price'], layout: 'inline',
+        style: { fontFamily: s.font, fontSize: s.rowSize, fontWeight: 400, color: s.ink, align: 'left', padding: 4 }
+      });
+      y += s.rowH + s.rowGap;
+    }
+  }
+
+  if (doc.pages.length === 0) {
+    newPage();
+    page.nodes.push({
+      id: nodeId(), type: 'text', x: M, y, w: W - 2 * M, h: s.titleH, rotation: 0, z: 1,
+      text: shopName, style: { fontFamily: s.font, fontSize: s.titleSize, fontWeight: 800, color: s.ink, align: 'center' }
+    });
+  }
+  return doc;
+}
+
+// Lista — clean serif menu on warm paper. Vertical 9:16, one category/page.
+export function templateListDoc({ shopName = 'Menú', categories = [] } = {}) {
+  const theme = { font_preset: 'serif', background: '#fbf7ef', text: '#2a2118', accent: '#a9612b', density: 'cozy' };
+  const document = flowListDoc({
+    W: 1080, H: 1920, M: 80, shopName, categories,
+    s: {
+      bg: '#fbf7ef', ink: '#2a2118', muted: '#9a8f80', accent: '#a9612b',
+      font: 'Georgia, "Times New Roman", serif',
+      titleSize: 88, titleH: 120, titleGap: 48,
+      headingSize: 52, headingH: 72, headingGap: 28, divider: '#e0d4c0',
+      rowSize: 40, rowH: 72, rowGap: 14
+    }
+  });
+  return { document, theme };
+}
+
+// Pizarra — chalkboard look: dark slate, handwritten font, chalk-light text.
+// Vertical 9:16, one category/page. Loads the "Permanent Marker" web font so
+// the chalk look is identical on every device instead of falling back to
+// whatever cursive face the OS happens to ship.
+const CHALK_FONT_URL = 'https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap';
+export function templateChalkboardDoc({ shopName = 'Menú', categories = [] } = {}) {
+  const theme = { font_preset: 'handwritten', background: '#1d2722', text: '#f3efe2', accent: '#e7c14c', density: 'cozy' };
+  const document = flowListDoc({
+    W: 1080, H: 1920, M: 90, shopName, categories,
+    s: {
+      bg: '#1d2722', ink: '#f3efe2', muted: '#8aa093', accent: '#e7c14c',
+      font: '"Permanent Marker", "Chalkboard SE", "Bradley Hand", "Segoe Script", "Marker Felt", cursive',
+      titleSize: 96, titleH: 130, titleGap: 50,
+      headingSize: 60, headingH: 80, headingGap: 26, divider: '#3a4a40',
+      rowSize: 44, rowH: 78, rowGap: 12
+    }
+  });
+  document.fonts = [CHALK_FONT_URL];
+  return { document, theme };
+}
+
+// ── Web-font loading for canvas documents ───────────────────────────────
+// A document may carry `fonts: [googleFontsUrl, ...]`. Both renderers (public
+// DOM + Konva editor) inject these as <link> tags so node `style.fontFamily`
+// stacks that reference the web family resolve consistently. Independent of
+// the Phase 4b theme font URL (menuTheme.js) — that path is template-mode.
+
+export function docFontUrls(doc) {
+  return Array.isArray(doc?.fonts) ? doc.fonts.filter(Boolean) : [];
+}
+
+// Pull the quoted CSS family name out of a Google Fonts URL, for
+// document.fonts.load() priming in the editor. Returns [] on anything odd.
+export function docFontFamilies(doc) {
+  const out = [];
+  for (const url of docFontUrls(doc)) {
+    try {
+      const u = new URL(url);
+      // css2 uses ?family=Name:..., css (v1) uses ?family=Name|Name2
+      const raw = u.searchParams.get('family');
+      if (!raw) continue;
+      for (const part of raw.split('|')) {
+        const name = part.split(':')[0].replace(/\+/g, ' ').trim();
+        if (name) out.push(`"${name}"`);
+      }
+    } catch { /* ignore malformed */ }
+  }
+  return out;
+}
+
+// Idempotently sync <link rel=stylesheet> tags for the document's fonts,
+// removing any previously-injected ones no longer referenced.
+export function syncDocFonts(doc) {
+  if (typeof window === 'undefined' || !window.document) return;
+  const head = window.document.head;
+  const urls = docFontUrls(doc);
+  head.querySelectorAll('link[data-tinypos-doc-font]').forEach(l => {
+    if (!urls.includes(l.href) && !urls.includes(l.getAttribute('href'))) l.remove();
+  });
+  for (const url of urls) {
+    const already = Array.from(head.querySelectorAll('link[data-tinypos-doc-font]'))
+      .some(l => l.getAttribute('href') === url);
+    if (already) continue;
+    const link = window.document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = url;
+    link.setAttribute('data-tinypos-doc-font', '1');
+    head.appendChild(link);
+  }
+}
+
+// Tarjetas — card grid on a 16:9 page. Each item is a rounded panel with the
+// name + price stacked inside. Cards flow left-to-right, top-to-bottom across
+// pages; categories are introduced by a band that spans the row.
+export function templateCardsDoc({ shopName = 'Menú', categories = [] } = {}) {
+  const W = 1920, H = 1080, M = 80;
+  const bg = '#f4f1ec', ink = '#2b2b2b', accent = '#c2703d', card = '#ffffff';
+  const font = '"Helvetica Neue", "Inter", system-ui, sans-serif';
+  const cols = 3, gap = 36;
+  const cardW = Math.floor((W - 2 * M - (cols - 1) * gap) / cols);
+  const cardH = 280;
+  const headingH = 84;
+  const bottom = H - M;
+
+  const theme = { font_preset: 'display', background: bg, text: ink, accent, density: 'cozy' };
+  const doc = { version: DOC_VERSION, page_size: { w: W, h: H }, pages: [] };
+  let page = null, y = 0, col = 0, first = true;
+
+  function newPage() {
+    page = { background: bg, nodes: [] };
+    doc.pages.push(page);
+    y = M; col = 0;
+  }
+  function rowBreak() { col = 0; y += cardH + gap; }
+  function band(text, withTitle) {
+    if (col !== 0) rowBreak();
+    if (y + headingH > bottom) newPage();
+    if (withTitle) {
+      page.nodes.push({
+        id: nodeId(), type: 'text', x: M, y, w: W - 2 * M, h: 90, rotation: 0, z: 1,
+        text: shopName, style: { fontFamily: font, fontSize: 72, fontWeight: 800, color: ink, align: 'center' }
+      });
+      y += 110;
+      if (y + headingH > bottom) newPage();
+    }
+    page.nodes.push({
+      id: nodeId(), type: 'text', x: M, y, w: W - 2 * M, h: headingH, rotation: 0, z: 1,
+      text, style: { fontFamily: font, fontSize: 46, fontWeight: 800, color: accent, align: 'left' }
+    });
+    y += headingH + 12;
+  }
+
+  newPage();
+  for (const cat of (categories || [])) {
+    band(cat.name, first);
+    first = false;
+    const items = cat.items || [];
+    if (items.length === 0) {
+      emptyCatNotice(page, '(sin productos)', W, M, y, '#9a8f80', font);
+      rowBreak();
+      continue;
+    }
+    for (const it of items) {
+      if (col >= cols) rowBreak();
+      if (y + cardH > bottom) { newPage(); }
+      const x = M + col * (cardW + gap);
+      page.nodes.push({
+        id: nodeId(), type: 'shape', shape: 'rect', x, y, w: cardW, h: cardH, rotation: 0, z: 0,
+        style: { fill: card, stroke: '#e6e0d6', strokeWidth: 1, borderRadius: 18 }
+      });
+      page.nodes.push({
+        id: nodeId(), type: 'item-binding', x: x + 24, y: y + 24, w: cardW - 48, h: cardH - 48, rotation: 0, z: 1,
+        item_id: it.id, fields: ['name', 'price'], layout: 'stacked',
+        style: { fontFamily: font, fontSize: 38, fontWeight: 700, color: ink, align: 'center', padding: 8 }
+      });
+      col++;
+    }
+    rowBreak();
+  }
+  return { document: doc, theme };
+}
+
+// Lookup by template id, mirroring DesignedEditor's template ids
+// ('list' | 'cards' | 'chalkboard'). Returns { document, theme }.
+export function templateDoc(template, ctx) {
+  switch (template) {
+    case 'cards':      return templateCardsDoc(ctx);
+    case 'chalkboard': return templateChalkboardDoc(ctx);
+    case 'list':
+    default:           return templateListDoc(ctx);
+  }
+}

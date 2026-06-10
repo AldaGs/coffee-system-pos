@@ -440,11 +440,27 @@ Ordering follows the staged plan we agreed.
   existing rotation/crossfade.
 - `window.print()` button using CSS `@page` rules.
 
-#### Phase 4c.6 — canvas templates
-- Reimplement the three Phase 4a templates as canvas starter
-  documents so the owner can fork and freeform-edit them.
-- Bridges template mode and canvas mode (one less either/or for
-  new users).
+#### Phase 4c.6 — canvas templates  *(shipped)*
+- The three Phase 4a layouts are now canvas starter-document factories
+  in `src/utils/canvasDocument.js`: `templateListDoc`,
+  `templateCardsDoc`, `templateChalkboardDoc`, plus a `templateDoc(id,
+  ctx)` dispatcher keyed by the same `'list' | 'cards' | 'chalkboard'`
+  ids `DesignedEditor` uses. Each takes the catalog
+  (`[{ name, items: [{ id }] }]`, already filtered to the selected
+  categories) and materializes one `item-binding` node per item —
+  honoring materialize-on-drop: the node set is fixed at design time,
+  but price/name/availability still resolve live by `item_id`.
+- Lista & Pizarra share a vertical-flow engine (9:16, one category per
+  page, overflow → continuation pages); Tarjetas is a 3-col card grid
+  on 16:9. Each factory returns `{ document, theme }` and the seed
+  writes `menu.data.theme` too (only if absent, so re-seeding never
+  clobbers Estilo tweaks) to carry the visual identity across the
+  template→canvas bridge.
+- `CanvasBetaToggle` in `MenusTab.jsx` now offers "Crear lienzo desde
+  «<template>»" (uses the currently-selected template + categories) and
+  a "Lienzo en blanco" escape hatch (the old `sampleDocument`). The
+  catalog is resolved by `buildTemplateCatalog()` from
+  `menuData.categories`, threaded MenusTab → MenuCard → DesignedEditor.
 
 ### Deferred / nice-to-have
 
