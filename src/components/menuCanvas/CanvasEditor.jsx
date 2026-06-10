@@ -23,6 +23,7 @@ import { newDocument, newPage, PAGE_PRESETS, buildItemIndex } from '../../utils/
 import { updateMenu } from '../../api/menus';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
+import ItemPicker from './ItemPicker';
 
 const HISTORY_LIMIT = 50;
 
@@ -38,6 +39,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   // When set, AssetPicker is open. The callback fires with the chosen URL
   // and decides what to do (add new image node vs replace selected node's src).
   const [assetPickerCb, setAssetPickerCb] = useState(null);
+  const [itemPickerCb, setItemPickerCb] = useState(null);
 
   const page = doc.pages[pageIndex] || doc.pages[0];
   const selected = useMemo(() => page?.nodes?.find(n => n.id === selectedId) || null, [page, selectedId]);
@@ -233,12 +235,32 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             });
           }}
           onAddBinding={() => {
-            const id = window.prompt('ID del producto a vincular (4c.3 traerá un picker)');
-            if (!id) return;
-            addNode({
-              type: 'item-binding', x: pageW / 2 - 400, y: pageH / 2 - 40, w: 800, h: 80, rotation: 0,
-              item_id: id, fields: ['name', 'price'], layout: 'inline',
-              style: { fontFamily: 'Georgia, serif', fontSize: 48, fontWeight: 600, color: '#111', align: 'left' }
+            setItemPickerCb(() => (itemIds) => {
+              // Materialize-on-drop: one binding node per id, stacked
+              // vertically starting near page center. User can rearrange
+              // freely after — the set of nodes is fixed at design time
+              // (renames/new items don't auto-appear), but each node's
+              // displayed data is live via the RPC.
+              const baseX = Math.round(pageW * 0.1);
+              const baseY = Math.round(pageH * 0.2);
+              const rowH = 96;
+              const rowGap = 16;
+              const created = itemIds.map((id, i) => ({
+                type: 'item-binding',
+                x: baseX, y: baseY + i * (rowH + rowGap),
+                w: Math.round(pageW * 0.8), h: rowH,
+                rotation: 0,
+                item_id: id,
+                fields: ['emoji', 'name', 'price'],
+                layout: 'inline',
+                style: { fontFamily: 'Georgia, serif', fontSize: 48, fontWeight: 600, color: '#111', align: 'left' }
+              }));
+              // Commit all at once so undo treats it as one step.
+              const z0 = nextZ(page);
+              const withIds = created.map((n, i) => ({ id: nanoid(8), z: z0 + i, ...n }));
+              mutatePage(p => ({ ...p, nodes: [...(p.nodes || []), ...withIds] }));
+              setSelectedId(withIds[withIds.length - 1].id);
+              setItemPickerCb(null);
             });
           }}
         />
@@ -280,6 +302,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           onForward={() => selected && bringForward(selected.id)}
           onBack={() => selected && sendBack(selected.id)}
           openAssetPicker={(cb) => setAssetPickerCb(() => (url) => { cb(url); setAssetPickerCb(null); })}
+          openItemPicker={(cb) => setItemPickerCb(() => (ids) => { cb(ids); setItemPickerCb(null); })}
+          menuData={menuData}
         />
       </div>
 
@@ -288,6 +312,14 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           menuId={menu.id}
           onPick={assetPickerCb}
           onClose={() => setAssetPickerCb(null)}
+        />
+      )}
+
+      {itemPickerCb && (
+        <ItemPicker
+          menuData={menuData}
+          onPick={itemPickerCb}
+          onClose={() => setItemPickerCb(null)}
         />
       )}
     </div>
@@ -556,7 +588,7 @@ function ToolBtn({ icon, label, onClick }) {
   );
 }
 
-function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onForward, onBack, openAssetPicker }) {
+function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <aside style={propsPanel}>
       {!selected ? <PageProperties page={page} changePageBg={changePageBg} /> : (
@@ -567,6 +599,8 @@ function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onF
           onForward={onForward}
           onBack={onBack}
           openAssetPicker={openAssetPicker}
+          openItemPicker={openItemPicker}
+          menuData={menuData}
         />
       )}
     </aside>
@@ -588,7 +622,7 @@ function PageProperties({ page, changePageBg }) {
   );
 }
 
-function NodeProperties({ node, onUpdate, onDelete, onForward, onBack, openAssetPicker }) {
+function NodeProperties({ node, onUpdate, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h3 style={panelTitle}>{labelForNode(node)}</h3>
@@ -613,7 +647,7 @@ function NodeProperties({ node, onUpdate, onDelete, onForward, onBack, openAsset
       {node.type === 'text' && <TextProps node={node} onUpdate={onUpdate} />}
       {node.type === 'shape' && <ShapeProps node={node} onUpdate={onUpdate} />}
       {node.type === 'image' && <ImageProps node={node} onUpdate={onUpdate} openAssetPicker={openAssetPicker} />}
-      {node.type === 'item-binding' && <BindingProps node={node} onUpdate={onUpdate} />}
+      {node.type === 'item-binding' && <BindingProps node={node} onUpdate={onUpdate} openItemPicker={openItemPicker} menuData={menuData} />}
 
       <button onClick={onDelete} style={{ ...smallBtn, color: '#ff7e7e', borderColor: '#ff7e7e' }}>
         <Icon icon="lucide:trash-2" /> Eliminar
@@ -695,15 +729,32 @@ function ImageProps({ node, onUpdate, openAssetPicker }) {
   );
 }
 
-function BindingProps({ node, onUpdate }) {
+function BindingProps({ node, onUpdate, openItemPicker, menuData }) {
   const fields = node.fields || ['name', 'price'];
   function toggle(f) {
     const next = fields.includes(f) ? fields.filter(x => x !== f) : [...fields, f];
     onUpdate({ fields: next });
   }
+  const itemIndex = useMemo(() => {
+    const m = new Map();
+    Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
+    return m;
+  }, [menuData]);
+  const item = itemIndex.get(node.item_id);
   return (
     <>
-      <Row label="ID producto"><input value={node.item_id || ''} onChange={e => onUpdate({ item_id: e.target.value })} style={textInputStyle} /></Row>
+      <Row label="Producto">
+        <button
+          onClick={() => openItemPicker?.(ids => { if (ids[0]) onUpdate({ item_id: ids[0] }); })}
+          style={{ ...smallBtn, flex: 1, justifyContent: 'flex-start', background: '#0d1117' }}
+        >
+          <Icon icon={item ? 'lucide:check-circle' : 'lucide:alert-circle'} style={{ color: item ? '#3fb950' : '#f0883e' }} />
+          <span style={{ flex: 1, textAlign: 'left' }}>
+            {item ? `${item.emoji ? item.emoji + ' ' : ''}${item.name}` : `(sin vincular: ${node.item_id || '—'})`}
+          </span>
+          <Icon icon="lucide:repeat" />
+        </button>
+      </Row>
       <Row label="Campos">
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {['emoji', 'image', 'name', 'price'].map(f => (
