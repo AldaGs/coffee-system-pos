@@ -14,6 +14,15 @@ export default defineConfig({
         clientsClaim: true, // Takes control of the client immediately
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // Serve the SPA shell for in-app navigations...
+        navigateFallback: 'index.html',
+        // ...but NEVER for server routes. Without this denylist the SW
+        // hijacks the OAuth redirect to /api/auth/callback (and every other
+        // serverless endpoint), returns index.html, and React Router 404s
+        // with "No routes matched location /api/...". That silently breaks
+        // the Update Schema flow (token exchange never runs). Let /api/* and
+        // the SW asset itself fall through to the network.
+        navigateFallbackDenylist: [/^\/api\//, /^\/sw\.js$/],
       },
       manifest: {
         short_name: "tinypos",
