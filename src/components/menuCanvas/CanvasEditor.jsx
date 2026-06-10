@@ -21,6 +21,8 @@ import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
 import { newDocument, newPage, PAGE_PRESETS, buildItemIndex } from '../../utils/canvasDocument';
 import { updateMenu } from '../../api/menus';
+import AssetPicker from './AssetPicker';
+import ColorPicker from './ColorPicker';
 
 const HISTORY_LIMIT = 50;
 
@@ -33,6 +35,9 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   const [selectedId, setSelectedId] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  // When set, AssetPicker is open. The callback fires with the chosen URL
+  // and decides what to do (add new image node vs replace selected node's src).
+  const [assetPickerCb, setAssetPickerCb] = useState(null);
 
   const page = doc.pages[pageIndex] || doc.pages[0];
   const selected = useMemo(() => page?.nodes?.find(n => n.id === selectedId) || null, [page, selectedId]);
@@ -222,9 +227,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             style: { fill: '#1c2a3a', stroke: 'transparent', strokeWidth: 0 }
           })}
           onAddImage={() => {
-            const url = window.prompt('URL de la imagen');
-            if (!url) return;
-            addNode({ type: 'image', x: 200, y: 200, w: 600, h: 400, rotation: 0, src: url, fit: 'cover' });
+            setAssetPickerCb(() => (url) => {
+              addNode({ type: 'image', x: 200, y: 200, w: 600, h: 400, rotation: 0, src: url, fit: 'cover' });
+              setAssetPickerCb(null);
+            });
           }}
           onAddBinding={() => {
             const id = window.prompt('ID del producto a vincular (4c.3 traerá un picker)');
@@ -273,8 +279,17 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           onDelete={() => selected && removeNode(selected.id)}
           onForward={() => selected && bringForward(selected.id)}
           onBack={() => selected && sendBack(selected.id)}
+          openAssetPicker={(cb) => setAssetPickerCb(() => (url) => { cb(url); setAssetPickerCb(null); })}
         />
       </div>
+
+      {assetPickerCb && (
+        <AssetPicker
+          menuId={menu.id}
+          onPick={assetPickerCb}
+          onClose={() => setAssetPickerCb(null)}
+        />
+      )}
     </div>
   );
 }
@@ -541,7 +556,7 @@ function ToolBtn({ icon, label, onClick }) {
   );
 }
 
-function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onForward, onBack }) {
+function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onForward, onBack, openAssetPicker }) {
   return (
     <aside style={propsPanel}>
       {!selected ? <PageProperties page={page} changePageBg={changePageBg} /> : (
@@ -551,6 +566,7 @@ function PropertiesPanel({ page, changePageBg, selected, onUpdate, onDelete, onF
           onDelete={onDelete}
           onForward={onForward}
           onBack={onBack}
+          openAssetPicker={openAssetPicker}
         />
       )}
     </aside>
@@ -562,7 +578,7 @@ function PageProperties({ page, changePageBg }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h3 style={panelTitle}>Página</h3>
       <Row label="Fondo">
-        <input type="color" value={page.background || '#ffffff'} onChange={e => changePageBg(e.target.value)} style={colorInput} />
+        <ColorPicker value={page.background || '#ffffff'} onChange={changePageBg} />
         <code style={{ fontSize: '0.78rem', color: '#aaa' }}>{page.background || '#ffffff'}</code>
       </Row>
       <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa' }}>
@@ -572,7 +588,7 @@ function PageProperties({ page, changePageBg }) {
   );
 }
 
-function NodeProperties({ node, onUpdate, onDelete, onForward, onBack }) {
+function NodeProperties({ node, onUpdate, onDelete, onForward, onBack, openAssetPicker }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h3 style={panelTitle}>{labelForNode(node)}</h3>
@@ -596,7 +612,7 @@ function NodeProperties({ node, onUpdate, onDelete, onForward, onBack }) {
 
       {node.type === 'text' && <TextProps node={node} onUpdate={onUpdate} />}
       {node.type === 'shape' && <ShapeProps node={node} onUpdate={onUpdate} />}
-      {node.type === 'image' && <ImageProps node={node} onUpdate={onUpdate} />}
+      {node.type === 'image' && <ImageProps node={node} onUpdate={onUpdate} openAssetPicker={openAssetPicker} />}
       {node.type === 'item-binding' && <BindingProps node={node} onUpdate={onUpdate} />}
 
       <button onClick={onDelete} style={{ ...smallBtn, color: '#ff7e7e', borderColor: '#ff7e7e' }}>
@@ -629,7 +645,7 @@ function TextProps({ node, onUpdate }) {
         <input value={s.fontFamily || ''} onChange={e => onUpdate({ style: { fontFamily: e.target.value } })} placeholder="Georgia, serif" style={textInputStyle} />
       </Row>
       <Row label="Color">
-        <input type="color" value={s.color || '#111111'} onChange={e => onUpdate({ style: { color: e.target.value } })} style={colorInput} />
+        <ColorPicker value={s.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} />
       </Row>
       <Row label="Alineación">
         <select value={s.align || 'left'} onChange={e => onUpdate({ style: { align: e.target.value } })} style={selectStyle}>
@@ -646,8 +662,8 @@ function ShapeProps({ node, onUpdate }) {
   const s = node.style || {};
   return (
     <>
-      <Row label="Relleno"><input type="color" value={s.fill || '#cccccc'} onChange={e => onUpdate({ style: { fill: e.target.value } })} style={colorInput} /></Row>
-      <Row label="Borde"><input type="color" value={s.stroke || '#000000'} onChange={e => onUpdate({ style: { stroke: e.target.value } })} style={colorInput} /></Row>
+      <Row label="Relleno"><ColorPicker value={s.fill || '#cccccc'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
+      <Row label="Borde"><ColorPicker value={s.stroke || '#000000'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
       <Row label="Grosor"><NumInput value={s.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
       {node.shape !== 'circle' && (
         <Row label="Radio"><NumInput value={s.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
@@ -656,10 +672,19 @@ function ShapeProps({ node, onUpdate }) {
   );
 }
 
-function ImageProps({ node, onUpdate }) {
+function ImageProps({ node, onUpdate, openAssetPicker }) {
   return (
     <>
-      <Row label="URL"><input value={node.src || ''} onChange={e => onUpdate({ src: e.target.value })} style={textInputStyle} /></Row>
+      <Row label="Imagen">
+        <button onClick={() => openAssetPicker?.(url => onUpdate({ src: url }))} style={{ ...smallBtn, background: '#1f6feb', color: 'white', borderColor: '#1f6feb' }}>
+          <Icon icon="lucide:image-plus" /> Cambiar imagen
+        </button>
+      </Row>
+      {node.src && (
+        <div style={{ marginTop: -4 }}>
+          <img src={node.src} alt="" style={{ width: '100%', maxHeight: 120, objectFit: 'contain', borderRadius: 6, background: '#0d1117' }} />
+        </div>
+      )}
       <Row label="Ajuste">
         <select value={node.fit || 'cover'} onChange={e => onUpdate({ fit: e.target.value })} style={selectStyle}>
           <option value="cover">Cubrir</option>
@@ -697,7 +722,7 @@ function BindingProps({ node, onUpdate }) {
         </select>
       </Row>
       <Row label="Tamaño texto"><NumInput value={node.style?.fontSize || 48} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
-      <Row label="Color"><input type="color" value={node.style?.color || '#111111'} onChange={e => onUpdate({ style: { color: e.target.value } })} style={colorInput} /></Row>
+      <Row label="Color"><ColorPicker value={node.style?.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
     </>
   );
 }
