@@ -562,22 +562,71 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     }));
   }
 
-  // Align the multi-selection within its own bounding box.
-  function alignSelected(dir) {
-    if (selectedIds.length < 2) return;
+  // Move a node to (x, y) — path-safe: paths translate their points instead
+  // of having a raw x/y written (which would desync the absolute geometry).
+  function moveNodeTo(n, x, y) {
+    if (n.type === 'path') {
+      const pts = translatePath(n.points, x - n.x, y - n.y);
+      const bb = pathBBox(pts);
+      return { ...n, points: pts, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
+    }
+    return { ...n, x, y };
+  }
+
+  // Align the selection's edges/centers to a reference frame: the selection's
+  // own bbox, the page, or the "key object" (the first node selected, which
+  // stays put). Single-node align only makes sense against canvas/key.
+  function alignSelected(dir, target = 'selection') {
     const set = new Set(selectedIds);
     const sel = (page?.nodes || []).filter(n => set.has(n.id));
-    const minX = Math.min(...sel.map(n => n.x)), maxX = Math.max(...sel.map(n => n.x + n.w));
-    const minY = Math.min(...sel.map(n => n.y)), maxY = Math.max(...sel.map(n => n.y + n.h));
+    if (sel.length === 0) return;
+    let minX, maxX, minY, maxY;
+    if (target === 'canvas') {
+      minX = 0; maxX = pageW; minY = 0; maxY = pageH;
+    } else if (target === 'key') {
+      const key = sel.find(n => n.id === selectedIds[0]) || sel[0];
+      minX = key.x; maxX = key.x + key.w; minY = key.y; maxY = key.y + key.h;
+    } else {
+      minX = Math.min(...sel.map(n => n.x)); maxX = Math.max(...sel.map(n => n.x + n.w));
+      minY = Math.min(...sel.map(n => n.y)); maxY = Math.max(...sel.map(n => n.y + n.h));
+    }
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
     mutatePage(p => ({
       ...p,
       nodes: (p.nodes || []).map(n => {
         if (!set.has(n.id)) return n;
+        if (target === 'key' && n.id === selectedIds[0]) return n; // key object stays
         let { x, y } = n;
         if (dir === 'left') x = minX; else if (dir === 'right') x = maxX - n.w; else if (dir === 'hcenter') x = cx - n.w / 2;
         else if (dir === 'top') y = minY; else if (dir === 'bottom') y = maxY - n.h; else if (dir === 'vcenter') y = cy - n.h / 2;
-        return { ...n, x: Math.round(x), y: Math.round(y) };
+        return moveNodeTo(n, Math.round(x), Math.round(y));
+      })
+    }));
+  }
+
+  // Distribute 3+ nodes so the gaps between them (edge to edge) are equal,
+  // keeping the outermost two fixed. axis 'h' = horizontal, 'v' = vertical.
+  function distributeSelected(axis) {
+    const set = new Set(selectedIds);
+    const sel = (page?.nodes || []).filter(n => set.has(n.id));
+    if (sel.length < 3) return;
+    const pos = axis === 'h' ? 'x' : 'y';
+    const size = axis === 'h' ? 'w' : 'h';
+    const sorted = [...sel].sort((a, b) => a[pos] - b[pos]);
+    const spanStart = sorted[0][pos];
+    const spanEnd = sorted[sorted.length - 1][pos] + sorted[sorted.length - 1][size];
+    const totalSize = sorted.reduce((s, n) => s + n[size], 0);
+    const gap = (spanEnd - spanStart - totalSize) / (sorted.length - 1);
+    const placed = {};
+    let cur = spanStart;
+    for (const n of sorted) { placed[n.id] = cur; cur += n[size] + gap; }
+    mutatePage(p => ({
+      ...p,
+      nodes: (p.nodes || []).map(n => {
+        if (!(n.id in placed)) return n;
+        const x = axis === 'h' ? placed[n.id] : n.x;
+        const y = axis === 'v' ? placed[n.id] : n.y;
+        return moveNodeTo(n, Math.round(x), Math.round(y));
       })
     }));
   }
@@ -862,7 +911,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           changePageSize={changePageSize}
           selected={selected}
           multiCount={selectedIds.length}
-          onAlign={dir => alignSelected(dir)}
+          onAlign={(dir, target) => alignSelected(dir, target)}
+          onDistribute={axis => distributeSelected(axis)}
           onUpdate={patch => selected && updateNode(selected.id, patch)}
           onSetFont={(stack, url) => selected && setNodeFont(selected.id, stack, url)}
           onDelete={() => selected && removeNode(selected.id)}
@@ -1441,11 +1491,11 @@ function ToolBtn({ icon, label, onClick, active }) {
   );
 }
 
-function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, onAlign, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, onAlign, onDistribute, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <aside style={propsPanel}>
       {multiCount > 1 ? (
-        <MultiSelectProps count={multiCount} onAlign={onAlign} />
+        <MultiSelectProps count={multiCount} onAlign={onAlign} onDistribute={onDistribute} />
       ) : !selected ? (
         <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} />
       ) : (
@@ -1465,15 +1515,23 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
   );
 }
 
-// Shown when 2+ nodes are selected: alignment tools for the group.
-function MultiSelectProps({ count, onAlign }) {
+// Shown when 2+ nodes are selected: alignment + distribution tools. The
+// target switch decides the reference frame — the selection bbox, the page,
+// or the key object (the first node selected, which stays put).
+function MultiSelectProps({ count, onAlign, onDistribute }) {
+  const [target, setTarget] = useState('selection');
   const aligns = [
-    { dir: 'left', icon: 'lucide:align-start-vertical', label: 'Izq.' },
-    { dir: 'hcenter', icon: 'lucide:align-center-vertical', label: 'Centro H' },
-    { dir: 'right', icon: 'lucide:align-end-vertical', label: 'Der.' },
+    { dir: 'left', icon: 'lucide:align-start-vertical', label: 'Izquierda' },
+    { dir: 'hcenter', icon: 'lucide:align-center-vertical', label: 'Centro horizontal' },
+    { dir: 'right', icon: 'lucide:align-end-vertical', label: 'Derecha' },
     { dir: 'top', icon: 'lucide:align-start-horizontal', label: 'Arriba' },
-    { dir: 'vcenter', icon: 'lucide:align-center-horizontal', label: 'Centro V' },
+    { dir: 'vcenter', icon: 'lucide:align-center-horizontal', label: 'Centro vertical' },
     { dir: 'bottom', icon: 'lucide:align-end-horizontal', label: 'Abajo' }
+  ];
+  const targets = [
+    { id: 'selection', label: 'Selección' },
+    { id: 'canvas', label: 'Lienzo' },
+    { id: 'key', label: 'Objeto clave' }
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1481,13 +1539,41 @@ function MultiSelectProps({ count, onAlign }) {
       <p style={{ margin: 0, fontSize: '0.78rem', color: '#8b949e' }}>
         Arrastra cualquiera para moverlos juntos, o usa el recuadro para escalar/rotar el grupo.
       </p>
+
+      <Row label="Alinear respecto a">
+        <div style={{ display: 'flex', gap: 4, width: '100%' }}>
+          {targets.map(t => (
+            <button key={t.id} onClick={() => setTarget(t.id)} style={{
+              ...smallBtn, flex: 1, justifyContent: 'center', padding: '6px 2px', fontSize: '0.72rem',
+              ...(target === t.id ? { background: '#1f6feb', color: 'white', borderColor: '#1f6feb' } : null)
+            }}>{t.label}</button>
+          ))}
+        </div>
+      </Row>
+      {target === 'key' && (
+        <p style={{ margin: '-6px 0 0', fontSize: '0.7rem', color: '#8b949e' }}>
+          El objeto clave es el primero seleccionado y no se mueve.
+        </p>
+      )}
+
       <Row label="Alinear">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
           {aligns.map(a => (
-            <button key={a.dir} onClick={() => onAlign(a.dir)} title={a.label} style={{ ...smallBtn, justifyContent: 'center', padding: '8px 4px' }}>
+            <button key={a.dir} onClick={() => onAlign(a.dir, target)} title={a.label} style={{ ...smallBtn, justifyContent: 'center', padding: '8px 4px' }}>
               <Icon icon={a.icon} />
             </button>
           ))}
+        </div>
+      </Row>
+
+      <Row label="Distribuir">
+        <div style={{ display: 'flex', gap: 6, width: '100%' }}>
+          <button onClick={() => onDistribute('h')} disabled={count < 3} title="Espaciado horizontal uniforme" style={{ ...smallBtn, flex: 1, justifyContent: 'center', opacity: count < 3 ? 0.5 : 1 }}>
+            <Icon icon="lucide:align-horizontal-distribute-center" /> H
+          </button>
+          <button onClick={() => onDistribute('v')} disabled={count < 3} title="Espaciado vertical uniforme" style={{ ...smallBtn, flex: 1, justifyContent: 'center', opacity: count < 3 ? 0.5 : 1 }}>
+            <Icon icon="lucide:align-vertical-distribute-center" /> V
+          </button>
         </div>
       </Row>
     </div>

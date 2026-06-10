@@ -547,13 +547,17 @@ Ordering follows the staged plan we agreed.
   an existing path). The pen's click-drag already makes curves; refining
   them later is the next increment.
 
+### Align & distribute panel  *(shipped)*
+- `MultiSelectProps` now has a **target switch** — Selección (selection
+  bbox), Lienzo (page), or Objeto clave (the first node selected, which
+  stays put). `alignSelected(dir, target)` computes the reference frame
+  accordingly; the 6 align buttons (L/R/H-center, T/B/V-center) apply it.
+- **Distribute** H/V (`distributeSelected(axis)`, needs 3+): even
+  edge-to-edge gaps, outermost two fixed.
+- Both go through `moveNodeTo` which is path-safe (translates a path's
+  points instead of writing a raw x/y).
+
 ### Deferred / nice-to-have
-- **Align & distribute panel** (requested) — extend the multi-select
-  `MultiSelectProps` align (currently left/right/center/top/bottom/middle
-  **to the selection bbox**) with: a target switch (to **selection**, to
-  **canvas/page**, or to a **key object** = first-selected), plus
-  **distribute** (even horizontal/vertical spacing). Key-object mode
-  needs selection order preserved (selectedIds already is ordered).
 - **Path anchor editing** — see Bézier v1 note above.
 - **Per-shop color library** — the shipped palette is per-document; a
   cross-menu `posSettings.colorPalette` is still possible as a follow-up.
