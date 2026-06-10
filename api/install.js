@@ -1127,6 +1127,31 @@ export default async function handler(req, res) {
       FOR DELETE TO authenticated
       USING (bucket_id = 'menu-assets');
 
+    -- ==========================================
+    -- STORAGE: menu bucket for short-URL redirect HTML files.
+    -- Each shop uploads a tiny m.html that meta-refreshes to the long
+    -- /menu?u=…&k=… URL. Public read so any visitor can hit the short
+    -- link; writes gated to authenticated (admins).
+    -- ==========================================
+    INSERT INTO storage.buckets (id, name, public)
+    VALUES ('menu', 'menu', true)
+    ON CONFLICT (id) DO UPDATE SET public = true;
+
+    DROP POLICY IF EXISTS "menu public read" ON storage.objects;
+    DROP POLICY IF EXISTS "menu auth insert" ON storage.objects;
+    DROP POLICY IF EXISTS "menu auth update" ON storage.objects;
+
+    CREATE POLICY "menu public read" ON storage.objects
+      FOR SELECT TO public
+      USING (bucket_id = 'menu');
+    CREATE POLICY "menu auth insert" ON storage.objects
+      FOR INSERT TO authenticated
+      WITH CHECK (bucket_id = 'menu');
+    CREATE POLICY "menu auth update" ON storage.objects
+      FOR UPDATE TO authenticated
+      USING (bucket_id = 'menu')
+      WITH CHECK (bucket_id = 'menu');
+
     -- Atomic inventory deduction (prevents race conditions)
     DROP FUNCTION IF EXISTS deduct_inventory(BIGINT, NUMERIC);
     CREATE OR REPLACE FUNCTION deduct_inventory(item_id BIGINT, qty NUMERIC)

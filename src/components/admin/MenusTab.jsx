@@ -750,6 +750,13 @@ function MenuShareBlock({ menu }) {
     const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
     const key = localStorage.getItem('tinypos_supabase_anon_key');
     if (!supabaseUrl || !key) return '';
+    const projectRef = (() => {
+      try { return new URL(supabaseUrl).hostname.split('.')[0]; }
+      catch { return ''; }
+    })();
+    if (projectRef) {
+      return `${window.location.origin}/menu?p=${projectRef}&m=${menu.id}`;
+    }
     return `${window.location.origin}/menu?u=${btoa(supabaseUrl)}&k=${btoa(key)}&m=${menu.id}`;
   })();
 
@@ -778,6 +785,19 @@ function MenuShareBlock({ menu }) {
     a.click();
   }
 
+  async function downloadQrSvg() {
+    const svgString = await QRCode.toString(link, { type: 'svg', width: 1024, margin: 2, errorCorrectionLevel: 'L', color: { dark: '#111', light: '#ffffff' } });
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `menu-${menu.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase() || menu.id}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   if (!link) {
     return (
       <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
@@ -802,9 +822,14 @@ function MenuShareBlock({ menu }) {
             <Icon icon={copied ? 'lucide:check' : 'lucide:copy'} /> {copied ? 'Copiado' : 'Copiar'}
           </button>
         </div>
-        <button onClick={downloadQr} style={{ ...btnSecondary, alignSelf: 'flex-start' }}>
-          <Icon icon="lucide:download" /> Descargar QR (PNG)
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={downloadQr} style={{ ...btnSecondary, alignSelf: 'flex-start' }}>
+            <Icon icon="lucide:image" /> PNG
+          </button>
+          <button onClick={downloadQrSvg} style={{ ...btnSecondary, alignSelf: 'flex-start' }}>
+            <Icon icon="lucide:move-diagonal" /> SVG
+          </button>
+        </div>
       </div>
     </div>
   );
