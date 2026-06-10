@@ -462,17 +462,50 @@ Ordering follows the staged plan we agreed.
   catalog is resolved by `buildTemplateCatalog()` from
   `menuData.categories`, threaded MenusTab → MenuCard → DesignedEditor.
 
-### Deferred / nice-to-have
+### Editor polish — smart guides, rulers, snap, grid  *(shipped)*
+- `computeSnap()` in `CanvasEditor.jsx` snaps a dragging node's
+  edges/centers to the page edges/center and to every other node's
+  edges/centers (threshold = 7 on-screen px ÷ stage scale). The match is
+  surfaced as a pink guide `<Line>` in a non-listening overlay Layer.
+  `handleDragMove` adjusts the konva node position imperatively (circles
+  convert via center↔bbox); `onDragSettled` clears the guides on drop.
+  Works because the `x`/`y` props stay at the old doc value during the
+  drag, so react-konva never re-applies them mid-drag.
+- Rulers: SVG `<Ruler>` gutters (top/left, `RULER`=22px) labelled in page
+  px with a "nice" tick step (~80px on screen). The stage sits in a CSS
+  grid next to them; grid is dropped entirely when rulers are off so the
+  stage doesn't collapse into a 0px track.
+- `<GridOverlay>`: faint 120px page-grid Layer, toggleable.
+- Topbar toggles (magnet/ruler/grid icons) drive `snapEnabled`,
+  `showRulers`, `showGrid`. Snap defaults on, rulers on, grid off.
+- **Draggable ruler guides** (Figma/Photoshop-style): press a ruler and
+  drag onto the canvas to create a guide (top ruler → horizontal, left →
+  vertical); drag an existing guide to move it, or off-canvas to delete.
+  Stored per-page on `page.guides = { v:[x…], h:[y…] }` (persisted in the
+  document; public renderer ignores it). Drawn as a DOM overlay above the
+  Konva stage (`<GuidesOverlay>`, cyan) so screen-space hit math stays
+  simple under the stage scale; only thin grab strips capture pointer
+  events. `activeGuide` state + `activePosRef` drive create/move/delete
+  via window mouse listeners; `computeSnap` adds guide positions as node
+  snap targets.
 
-- **Editor polish — boundaries, smart guides, rulers.** The canvas editor
-  currently lets nodes drift outside the page bounds and offers no
-  alignment help. Add: visible page edge (already drawn via box-shadow
-  on the wrapper, but no snapping); snap-to-edge while dragging; smart
-  guides (pink-line, Adobe-style) when a moving node's edges/centers
-  align with another node's; rulers along top/left of the stage in page
-  pixels; optional toggleable grid overlay. Implementation: konva-style
-  ghost lines drawn in an overlay Layer, computed in onDragMove. Ship
-  after 4c.6.
+### Font picker — curated dropdown + Google Fonts override  *(shipped)*
+- `src/utils/canvasFonts.js` — `CANVAS_FONTS` catalog (system stacks +
+  Google families with weight tokens), `googleUrlForToken`,
+  `fontIdForStack`, `parseGoogleFontUrl`.
+- `<FontPicker>` in `CanvasEditor.jsx` replaces the free-text family
+  input on text **and** binding nodes: a grouped `<select>` (Sistema /
+  Google Fonts) plus a "Personalizado (enlace)…" option that reveals a
+  Google Fonts URL field with a third-party-resource warning.
+- Picking a Google family (or applying a valid link) calls
+  `onSetFont(stack, url)` → `setNodeFont()`, which writes the node's
+  `style.fontFamily` **and** registers the URL on `document.fonts` in a
+  single commit (avoids the stale-closure clobber of two back-to-back
+  doc mutations). The font then loads via the 4c.6 `syncDocFonts`
+  pipeline; the editor's `fontEpoch` remounts the Konva text once the
+  face is ready.
+
+### Deferred / nice-to-have
 - **Per-shop color library** — `posSettings.colorPalette = [{name, hex},
   ...]` swatches rendered above the wheel in `ColorPicker`. Cross-menu
   reuse. Cleanly scopes to a small follow-up after 4c lands.

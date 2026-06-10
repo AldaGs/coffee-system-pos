@@ -16,10 +16,11 @@
 //   - Print + page-size presets switching (4c.5)
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Label, Tag } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
 import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontFamilies } from '../../utils/canvasDocument';
+import { CANVAS_FONTS, googleUrlForToken, fontIdForStack, parseGoogleFontUrl } from '../../utils/canvasFonts';
 import { updateMenu } from '../../api/menus';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
@@ -40,6 +41,21 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   // and decides what to do (add new image node vs replace selected node's src).
   const [assetPickerCb, setAssetPickerCb] = useState(null);
   const [itemPickerCb, setItemPickerCb] = useState(null);
+
+  // Editor aids (4c.6 polish): rulers, grid overlay, and snap-to-guide while
+  // dragging. `guides` holds the live alignment lines drawn during a drag.
+  const [showRulers, setShowRulers] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [guides, setGuides] = useState([]);
+
+  // Ruler guides (Figma/Photoshop-style): persistent lines stored per page on
+  // page.guides = { v:[x...], h:[y...] }. `activeGuide` is the one currently
+  // being created (index=null) or repositioned; its live pos is mirrored in a
+  // ref so the window mouseup handler reads the final value without re-binding.
+  const [activeGuide, setActiveGuide] = useState(null); // { axis:'v'|'h', index, pos }
+  const activePosRef = useRef(0);
+  const stageBoxRef = useRef(null);
 
   // Web fonts declared on the document (e.g. chalkboard's Permanent Marker).
   // Konva caches glyph metrics at draw time, so a font that arrives after the
@@ -125,6 +141,24 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   function removeNode(id) {
     mutatePage(p => ({ ...p, nodes: (p.nodes || []).filter(n => n.id !== id) }));
     setSelectedId(null);
+  }
+
+  // Set a node's font family and, if it's a web font, register its URL on the
+  // document in ONE commit. Doing both in a single doc mutation avoids the
+  // stale-closure race where two back-to-back commits clobber each other.
+  function setNodeFont(id, stack, url) {
+    let next = doc;
+    if (url && !(doc.fonts || []).includes(url)) {
+      next = { ...next, fonts: [...(next.fonts || []), url] };
+    }
+    next = {
+      ...next,
+      pages: next.pages.map((p, i) => i === pageIndex ? {
+        ...p,
+        nodes: (p.nodes || []).map(n => n.id === id ? { ...n, style: { ...n.style, fontFamily: stack } } : n)
+      } : p)
+    };
+    commit(next);
   }
 
   function bringForward(id) {
@@ -230,19 +264,153 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     function recalc() {
       const el = stageWrapRef.current;
       if (!el) return;
-      const aw = el.clientWidth - 40;
-      const ah = el.clientHeight - 40;
+      const pad = 40 + (showRulers ? RULER : 0);
+      const aw = el.clientWidth - pad;
+      const ah = el.clientHeight - pad;
       setStageScale(Math.min(aw / pageW, ah / pageH));
     }
     recalc();
     window.addEventListener('resize', recalc);
     return () => window.removeEventListener('resize', recalc);
-  }, [pageW, pageH]);
+  }, [pageW, pageH, showRulers]);
 
   // Click on empty area deselects.
   function onStageMouseDown(e) {
     if (e.target === e.target.getStage()) setSelectedId(null);
   }
+
+  // ---------- Snapping + smart guides ---------------------------------------
+  // While dragging, snap the moving node's edges/centers to the page
+  // edges/center and to other nodes' edges/centers, and surface the match as
+  // a guide line. All math is in page coordinates; the snap threshold is a
+  // fixed on-screen distance converted back through the current stage scale.
+  function computeSnap(activeId, x, y, w, h) {
+    const thresh = 7 / (stageScale || 1);
+    const vT = [0, pageW / 2, pageW];   // candidate x targets
+    const hT = [0, pageH / 2, pageH];   // candidate y targets
+    for (const n of (page?.nodes || [])) {
+      if (n.id === activeId) continue;
+      vT.push(n.x, n.x + n.w / 2, n.x + n.w);
+      hT.push(n.y, n.y + n.h / 2, n.y + n.h);
+    }
+    // Ruler guides are snap targets too.
+    for (const x of (page?.guides?.v || [])) vT.push(x);
+    for (const y of (page?.guides?.h || [])) hT.push(y);
+    // Active edges paired with the offset that turns a target into a new x/y.
+    const vC = [{ val: x, off: 0 }, { val: x + w / 2, off: w / 2 }, { val: x + w, off: w }];
+    const hC = [{ val: y, off: 0 }, { val: y + h / 2, off: h / 2 }, { val: y + h, off: h }];
+    let bV = null, bH = null;
+    for (const c of vC) for (const t of vT) {
+      const d = Math.abs(c.val - t);
+      if (d <= thresh && (!bV || d < bV.d)) bV = { d, target: t, off: c.off };
+    }
+    for (const c of hC) for (const t of hT) {
+      const d = Math.abs(c.val - t);
+      if (d <= thresh && (!bH || d < bH.d)) bH = { d, target: t, off: c.off };
+    }
+    const lines = [];
+    let nx = x, ny = y;
+    if (bV) { nx = bV.target - bV.off; lines.push({ key: 'v' + bV.target, points: [bV.target, 0, bV.target, pageH] }); }
+    if (bH) { ny = bH.target - bH.off; lines.push({ key: 'h' + bH.target, points: [0, bH.target, pageW, bH.target] }); }
+    return { nx, ny, lines };
+  }
+
+  // Top-left page bbox of a live-dragging konva node (circles report center).
+  function liveBBox(konvaNode, node) {
+    let x = konvaNode.x(), y = konvaNode.y();
+    if (node.type === 'shape' && node.shape === 'circle') { x -= node.w / 2; y -= node.h / 2; }
+    return { x, y, w: node.w, h: node.h };
+  }
+
+  function handleDragMove(e, node) {
+    if (!snapEnabled) return;
+    const kn = e.target;
+    const { x, y, w, h } = liveBBox(kn, node);
+    const { nx, ny, lines } = computeSnap(node.id, x, y, w, h);
+    const isCircle = node.type === 'shape' && node.shape === 'circle';
+    kn.x(isCircle ? nx + node.w / 2 : nx);
+    kn.y(isCircle ? ny + node.h / 2 : ny);
+    setGuides(lines);
+  }
+  function clearGuides() { if (guides.length) setGuides([]); }
+
+  // ---------- Ruler guides --------------------------------------------------
+  const pageGuides = page?.guides || { v: [], h: [] };
+
+  function addGuide(axis, pos) {
+    mutatePage(p => {
+      const g = p.guides || { v: [], h: [] };
+      return { ...p, guides: { ...g, [axis]: [...(g[axis] || []), pos] } };
+    });
+  }
+  function updateGuide(axis, index, pos) {
+    mutatePage(p => {
+      const g = p.guides || { v: [], h: [] };
+      const arr = [...(g[axis] || [])]; arr[index] = pos;
+      return { ...p, guides: { ...g, [axis]: arr } };
+    });
+  }
+  function removeGuide(axis, index) {
+    mutatePage(p => {
+      const g = p.guides || { v: [], h: [] };
+      return { ...p, guides: { ...g, [axis]: (g[axis] || []).filter((_, i) => i !== index) } };
+    });
+  }
+
+  // Convert a pointer event to a page coordinate on the chosen axis.
+  function pointerToPage(ev, axis) {
+    const box = stageBoxRef.current?.getBoundingClientRect();
+    if (!box) return 0;
+    const raw = axis === 'h' ? (ev.clientY - box.top) : (ev.clientX - box.left);
+    return Math.round(raw / (stageScale || 1));
+  }
+
+  // Begin pulling a brand-new guide out of a ruler. Top ruler (x) spawns a
+  // horizontal guide; left ruler (y) spawns a vertical one — matching how
+  // design tools map rulers to guide orientation.
+  function startGuideFromRuler(axis, ev) {
+    ev.preventDefault();
+    const pos = pointerToPage(ev, axis);
+    activePosRef.current = pos;
+    setActiveGuide({ axis, index: null, pos });
+  }
+  // Begin repositioning an existing guide.
+  function startDragGuide(axis, index, ev) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const pos = (pageGuides[axis] || [])[index] ?? 0;
+    activePosRef.current = pos;
+    setActiveGuide({ axis, index, pos });
+  }
+
+  useEffect(() => {
+    if (!activeGuide) return;
+    const axis = activeGuide.axis;
+    const index = activeGuide.index;
+    function move(ev) {
+      const pos = pointerToPage(ev, axis);
+      activePosRef.current = pos;
+      setActiveGuide(g => g ? { ...g, pos } : g);
+    }
+    function up() {
+      const pos = activePosRef.current;
+      const dim = axis === 'h' ? pageH : pageW;
+      const inside = pos >= 0 && pos <= dim;
+      if (index == null) {
+        if (inside) addGuide(axis, pos);       // dropped on canvas → keep
+      } else if (inside) {
+        updateGuide(axis, index, pos);
+      } else {
+        removeGuide(axis, index);              // dragged off → delete
+      }
+      setActiveGuide(null);
+    }
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+    // Re-bind only when the drag identity or geometry changes — pos lives in a
+    // ref so per-move state updates don't thrash the listeners.
+  }, [activeGuide?.axis, activeGuide?.index, stageScale, pageW, pageH, doc, pageIndex]);
 
   return (
     <div style={overlay}>
@@ -257,6 +425,9 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         onSave={save}
         onClose={tryClose}
         onPrint={openPrint}
+        showRulers={showRulers} onToggleRulers={() => setShowRulers(v => !v)}
+        showGrid={showGrid} onToggleGrid={() => setShowGrid(v => !v)}
+        snapEnabled={snapEnabled} onToggleSnap={() => setSnapEnabled(v => !v)}
       />
 
       <PageTabs
@@ -319,31 +490,56 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         />
 
         <div ref={stageWrapRef} style={stageArea}>
-          <div style={{ width: pageW * stageScale, height: pageH * stageScale, boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
-            <Stage
-              width={pageW * stageScale}
-              height={pageH * stageScale}
-              scaleX={stageScale}
-              scaleY={stageScale}
-              onMouseDown={onStageMouseDown}
-              onTouchStart={onStageMouseDown}
-              style={{ background: page.background }}
-            >
-              <Layer>
-                {sortedNodes(page).map(node => (
-                  <NodeKonva
-                    key={node.id}
-                    node={node}
-                    menuData={menuData}
-                    fontEpoch={fontEpoch}
-                    isSelected={node.id === selectedId}
-                    onSelect={() => setSelectedId(node.id)}
-                    onChange={patch => updateNode(node.id, patch)}
-                  />
-                ))}
-                <SelectionTransformer selectedId={selectedId} />
-              </Layer>
-            </Stage>
+          <div style={showRulers
+            ? { display: 'grid', gridTemplateColumns: `${RULER}px auto`, gridTemplateRows: `${RULER}px auto` }
+            : undefined}>
+            {showRulers && <div style={{ background: '#161b22', borderRight: '1px solid #30363d', borderBottom: '1px solid #30363d' }} />}
+            {showRulers && <Ruler axis="x" pageSize={pageW} scale={stageScale} onStart={e => startGuideFromRuler('h', e)} />}
+            {showRulers && <Ruler axis="y" pageSize={pageH} scale={stageScale} onStart={e => startGuideFromRuler('v', e)} />}
+            <div ref={stageBoxRef} style={{ position: 'relative', width: pageW * stageScale, height: pageH * stageScale, boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
+              <Stage
+                width={pageW * stageScale}
+                height={pageH * stageScale}
+                scaleX={stageScale}
+                scaleY={stageScale}
+                onMouseDown={onStageMouseDown}
+                onTouchStart={onStageMouseDown}
+                style={{ background: page.background }}
+              >
+                {showGrid && (
+                  <Layer listening={false}>
+                    <GridOverlay pageW={pageW} pageH={pageH} />
+                  </Layer>
+                )}
+                <Layer>
+                  {sortedNodes(page).map(node => (
+                    <NodeKonva
+                      key={node.id}
+                      node={node}
+                      menuData={menuData}
+                      fontEpoch={fontEpoch}
+                      isSelected={node.id === selectedId}
+                      onSelect={() => setSelectedId(node.id)}
+                      onChange={patch => updateNode(node.id, patch)}
+                      onDragMove={e => handleDragMove(e, node)}
+                      onDragSettled={clearGuides}
+                    />
+                  ))}
+                  <SelectionTransformer selectedId={selectedId} />
+                </Layer>
+                <Layer listening={false}>
+                  {guides.map(g => (
+                    <Line key={g.key} points={g.points} stroke="#ff3b9a" strokeWidth={1 / stageScale} dash={[6 / stageScale, 4 / stageScale]} />
+                  ))}
+                </Layer>
+              </Stage>
+              <GuidesOverlay
+                guides={pageGuides}
+                scale={stageScale}
+                activeGuide={activeGuide}
+                onStartDragGuide={startDragGuide}
+              />
+            </div>
           </div>
         </div>
 
@@ -354,6 +550,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           changePageSize={changePageSize}
           selected={selected}
           onUpdate={patch => selected && updateNode(selected.id, patch)}
+          onSetFont={(stack, url) => selected && setNodeFont(selected.id, stack, url)}
           onDelete={() => selected && removeNode(selected.id)}
           onForward={() => selected && bringForward(selected.id)}
           onBack={() => selected && sendBack(selected.id)}
@@ -391,11 +588,107 @@ function nextZ(page) {
   return max + 1;
 }
 
+const RULER = 22; // px gutter for the on-screen rulers
+
+// Pick a "nice" tick spacing (in page px) so labels stay readable at the
+// current zoom — aim for ticks ~80px apart on screen.
+function tickStep(scale) {
+  const target = 80 / (scale || 1);
+  const steps = [50, 100, 200, 250, 500, 1000];
+  return steps.find(s => s >= target) || 1000;
+}
+
+// SVG ruler along the top (x) or left (y) of the stage, labelled in page px.
+// Pressing on it starts pulling a guide (onStart).
+function Ruler({ axis, pageSize, scale, onStart }) {
+  const px = pageSize * scale;
+  const step = tickStep(scale);
+  const ticks = [];
+  for (let v = 0; v <= pageSize; v += step) ticks.push(v);
+  const isX = axis === 'x';
+  return (
+    <svg
+      width={isX ? px : RULER}
+      height={isX ? RULER : px}
+      onMouseDown={onStart}
+      style={{ background: '#161b22', display: 'block', cursor: isX ? 'row-resize' : 'col-resize', borderRight: isX ? 'none' : '1px solid #30363d', borderBottom: isX ? '1px solid #30363d' : 'none' }}
+    >
+      {ticks.map(v => {
+        const p = v * scale;
+        return isX ? (
+          <g key={v}>
+            <line x1={p} y1={RULER - 6} x2={p} y2={RULER} stroke="#586069" strokeWidth={1} />
+            <text x={p + 2} y={10} fill="#8b949e" fontSize={9} fontFamily="system-ui">{v}</text>
+          </g>
+        ) : (
+          <g key={v}>
+            <line x1={RULER - 6} y1={p} x2={RULER} y2={p} stroke="#586069" strokeWidth={1} />
+            <text x={2} y={p + 9} fill="#8b949e" fontSize={9} fontFamily="system-ui">{v}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+// Faint full-page grid drawn inside the (scaled) stage. Page coordinates, so
+// the lines track the document, not the screen.
+function GridOverlay({ pageW, pageH, step = 120 }) {
+  const lines = [];
+  for (let x = step; x < pageW; x += step) lines.push(<Line key={'gx' + x} points={[x, 0, x, pageH]} stroke="rgba(127,127,127,0.18)" strokeWidth={1} />);
+  for (let y = step; y < pageH; y += step) lines.push(<Line key={'gy' + y} points={[0, y, pageW, y]} stroke="rgba(127,127,127,0.18)" strokeWidth={1} />);
+  return <>{lines}</>;
+}
+
+// DOM overlay (above the Konva stage) that draws the persistent ruler guides
+// in page coords scaled to screen, plus the in-flight guide preview. Only the
+// thin grab strips capture pointer events; everything else stays click-through
+// so node interaction is unaffected. Drawn in DOM rather than Konva to keep
+// the screen-space hit math simple under the stage's scale transform.
+const GUIDE_COLOR = '#19c3d6';
+function GuidesOverlay({ guides, scale, activeGuide, onStartDragGuide }) {
+  const dragging = activeGuide; // { axis, index, pos } or null
+  function lineStyle(axis, pos) {
+    return axis === 'v'
+      ? { position: 'absolute', left: pos * scale, top: 0, width: 1, height: '100%', background: GUIDE_COLOR, pointerEvents: 'none' }
+      : { position: 'absolute', top: pos * scale, left: 0, height: 1, width: '100%', background: GUIDE_COLOR, pointerEvents: 'none' };
+  }
+  function hitStyle(axis, pos) {
+    return axis === 'v'
+      ? { position: 'absolute', left: pos * scale - 4, top: 0, width: 9, height: '100%', cursor: 'col-resize', pointerEvents: 'auto' }
+      : { position: 'absolute', top: pos * scale - 4, left: 0, height: 9, width: '100%', cursor: 'row-resize', pointerEvents: 'auto' };
+  }
+  return (
+    <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
+      {['v', 'h'].flatMap(axis => (guides[axis] || []).map((pos, i) => {
+        // Hide the guide that's currently being dragged; the preview shows it.
+        if (dragging && dragging.index === i && dragging.axis === axis) return null;
+        return (
+          <div key={axis + i}>
+            <div style={lineStyle(axis, pos)} />
+            <div style={hitStyle(axis, pos)} onMouseDown={e => onStartDragGuide(axis, i, e)} />
+          </div>
+        );
+      }))}
+      {dragging && (
+        <>
+          <div style={{ ...lineStyle(dragging.axis, dragging.pos), background: GUIDE_COLOR, boxShadow: `0 0 0 1px ${GUIDE_COLOR}` }} />
+          <div style={dragging.axis === 'v'
+            ? { position: 'absolute', left: dragging.pos * scale + 4, top: 4, padding: '1px 5px', background: GUIDE_COLOR, color: '#06222a', fontSize: 10, fontWeight: 800, borderRadius: 3, pointerEvents: 'none' }
+            : { position: 'absolute', top: dragging.pos * scale + 4, left: 4, padding: '1px 5px', background: GUIDE_COLOR, color: '#06222a', fontSize: 10, fontWeight: 800, borderRadius: 3, pointerEvents: 'none' }}>
+            {dragging.pos}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ============================================================================
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChange }) {
+function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChange, onDragMove, onDragSettled }) {
   const shapeRef = useRef(null);
 
   // After a drag or transform, persist the resulting x/y/w/h/rotation into
@@ -422,7 +715,9 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
     x: node.x, y: node.y, rotation: node.rotation || 0,
     draggable: true,
     onClick: onSelect, onTap: onSelect,
-    onDragEnd: commitTransform, onTransformEnd: commitTransform
+    onDragMove,
+    onDragEnd: () => { commitTransform(); onDragSettled?.(); },
+    onTransformEnd: commitTransform
   };
 
   if (node.type === 'text') {
@@ -468,6 +763,7 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onChan
             x: Math.round(n.x() - node.w / 2),
             y: Math.round(n.y() - node.h / 2)
           });
+          onDragSettled?.();
         }}
         // onTransformEnd: convert circle back to bounding box.
         onTransformEnd={() => {
@@ -696,7 +992,8 @@ function SelectionTransformer({ selectedId }) {
 // Chrome
 // ============================================================================
 
-function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint }) {
+function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint, showRulers, onToggleRulers, showGrid, onToggleGrid, snapEnabled, onToggleSnap }) {
+  const toggle = on => ({ ...ghostBtn, background: on ? 'rgba(31,111,235,0.35)' : 'transparent' });
   return (
     <div style={topbar}>
       <button onClick={onClose} style={ghostBtn} title="Cerrar editor">
@@ -705,6 +1002,10 @@ function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onS
       <div style={{ flex: 1, color: 'rgba(255,255,255,0.85)', fontWeight: 800 }}>
         Editor de lienzo — {menuName} {dirty && <span style={{ color: '#ffb84d', fontWeight: 700, marginLeft: 6 }}>•</span>}
       </div>
+      <button onClick={onToggleSnap} style={toggle(snapEnabled)} title="Ajuste y guías inteligentes"><Icon icon="lucide:magnet" /></button>
+      <button onClick={onToggleRulers} style={toggle(showRulers)} title="Reglas"><Icon icon="lucide:ruler" /></button>
+      <button onClick={onToggleGrid} style={toggle(showGrid)} title="Cuadrícula"><Icon icon="lucide:grid-3x3" /></button>
+      <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
       <button onClick={onUndo} disabled={!canUndo} style={ghostBtn} title="Deshacer (Ctrl+Z)"><Icon icon="lucide:undo-2" /></button>
       <button onClick={onRedo} disabled={!canRedo} style={ghostBtn} title="Rehacer (Ctrl+Shift+Z)"><Icon icon="lucide:redo-2" /></button>
       <button onClick={onPrint} style={ghostBtn} title="Vista previa de impresión"><Icon icon="lucide:printer" /> Imprimir</button>
@@ -761,13 +1062,14 @@ function ToolBtn({ icon, label, onClick }) {
   );
 }
 
-function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, onUpdate, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <aside style={propsPanel}>
       {!selected ? <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} /> : (
         <NodeProperties
           node={selected}
           onUpdate={onUpdate}
+          onSetFont={onSetFont}
           onDelete={onDelete}
           onForward={onForward}
           onBack={onBack}
@@ -820,7 +1122,7 @@ function PageProperties({ doc, page, changePageBg, changePageSize }) {
   );
 }
 
-function NodeProperties({ node, onUpdate, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+function NodeProperties({ node, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h3 style={panelTitle}>{labelForNode(node)}</h3>
@@ -842,10 +1144,10 @@ function NodeProperties({ node, onUpdate, onDelete, onForward, onBack, openAsset
         <NumInput value={node.rotation || 0} onChange={v => onUpdate({ rotation: v })} suffix="°" />
       </Row>
 
-      {node.type === 'text' && <TextProps node={node} onUpdate={onUpdate} />}
+      {node.type === 'text' && <TextProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} />}
       {node.type === 'shape' && <ShapeProps node={node} onUpdate={onUpdate} />}
       {node.type === 'image' && <ImageProps node={node} onUpdate={onUpdate} openAssetPicker={openAssetPicker} />}
-      {node.type === 'item-binding' && <BindingProps node={node} onUpdate={onUpdate} openItemPicker={openItemPicker} menuData={menuData} />}
+      {node.type === 'item-binding' && <BindingProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} openItemPicker={openItemPicker} menuData={menuData} />}
 
       <button onClick={onDelete} style={{ ...smallBtn, color: '#ff7e7e', borderColor: '#ff7e7e' }}>
         <Icon icon="lucide:trash-2" /> Eliminar
@@ -862,7 +1164,66 @@ function labelForNode(n) {
   return n.type;
 }
 
-function TextProps({ node, onUpdate }) {
+// Font dropdown (curated system + Google families) with a custom Google
+// Fonts URL override. Picking a Google family or applying a valid link
+// registers the stylesheet on the document via onSetFont(stack, url) so both
+// renderers load it; system fonts pass a null url.
+function FontPicker({ value, onSetFont }) {
+  const currentId = fontIdForStack(value);
+  const [customOpen, setCustomOpen] = useState(currentId === 'custom');
+  const [url, setUrl] = useState('');
+  const [err, setErr] = useState('');
+
+  function onSelect(e) {
+    const id = e.target.value;
+    if (id === 'custom') { setCustomOpen(true); return; }
+    setCustomOpen(false);
+    const f = CANVAS_FONTS.find(x => x.id === id);
+    if (f) onSetFont?.(f.stack, f.google ? googleUrlForToken(f.google) : null);
+  }
+  function applyCustom() {
+    const parsed = parseGoogleFontUrl(url);
+    if (!parsed) { setErr('Enlace no válido. Pega una URL de fonts.googleapis.com.'); return; }
+    setErr('');
+    onSetFont?.(parsed.stack, parsed.url);
+  }
+
+  return (
+    <>
+      <Row label="Tipografía">
+        <select value={currentId} onChange={onSelect} style={selectStyle}>
+          <optgroup label="Sistema">
+            {CANVAS_FONTS.filter(f => !f.google).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+          </optgroup>
+          <optgroup label="Google Fonts">
+            {CANVAS_FONTS.filter(f => f.google).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+          </optgroup>
+          <option value="custom">Personalizado (enlace)…</option>
+        </select>
+      </Row>
+      {customOpen && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <input
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://fonts.googleapis.com/css2?family=…"
+            style={textInputStyle}
+          />
+          <button onClick={applyCustom} style={{ ...smallBtn, background: '#1f6feb', color: 'white', borderColor: '#1f6feb', justifyContent: 'center' }}>
+            <Icon icon="lucide:check" /> Aplicar enlace
+          </button>
+          {err && <span style={{ color: '#ff7e7e', fontSize: '0.72rem' }}>{err}</span>}
+          <span style={{ color: '#d8a657', fontSize: '0.7rem', lineHeight: 1.35, display: 'flex', gap: 4 }}>
+            <Icon icon="lucide:alert-triangle" style={{ flexShrink: 0, marginTop: 2 }} />
+            Los enlaces externos cargan recursos de terceros; pueden tardar o no mostrarse en todos los dispositivos. Usa solo enlaces de Google Fonts.
+          </span>
+        </div>
+      )}
+    </>
+  );
+}
+
+function TextProps({ node, onUpdate, onSetFont }) {
   const s = node.style || {};
   return (
     <>
@@ -873,9 +1234,7 @@ function TextProps({ node, onUpdate }) {
           {[300, 400, 500, 600, 700, 800, 900].map(w => <option key={w} value={w}>{w}</option>)}
         </select>
       </Row>
-      <Row label="Familia">
-        <input value={s.fontFamily || ''} onChange={e => onUpdate({ style: { fontFamily: e.target.value } })} placeholder="Georgia, serif" style={textInputStyle} />
-      </Row>
+      <FontPicker value={s.fontFamily} onSetFont={onSetFont} />
       <Row label="Color">
         <ColorPicker value={s.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} />
       </Row>
@@ -927,7 +1286,7 @@ function ImageProps({ node, onUpdate, openAssetPicker }) {
   );
 }
 
-function BindingProps({ node, onUpdate, openItemPicker, menuData }) {
+function BindingProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
   const fields = node.fields || ['name', 'price'];
   function toggle(f) {
     const next = fields.includes(f) ? fields.filter(x => x !== f) : [...fields, f];
@@ -970,6 +1329,7 @@ function BindingProps({ node, onUpdate, openItemPicker, menuData }) {
           <option value="stacked">Apilado</option>
         </select>
       </Row>
+      <FontPicker value={node.style?.fontFamily} onSetFont={onSetFont} />
       <Row label="Tamaño texto"><NumInput value={node.style?.fontSize || 48} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
       <Row label="Color texto"><ColorPicker value={node.style?.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
 
