@@ -856,6 +856,44 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             );
         $$;
 
+        -- Per-item availability (migration 018).
+        CREATE OR REPLACE FUNCTION public.menu_item_available(p_item_id text)
+        RETURNS bool LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+        DECLARE
+          v_data jsonb; v_mode text; v_short_id bigint;
+        BEGIN
+          SELECT data INTO v_data FROM public.menu_items WHERE id = p_item_id;
+          IF v_data IS NULL THEN RETURN true; END IF;
+          v_mode := COALESCE(v_data->>'inventoryMode', 'none');
+          IF v_mode = 'warehouse' THEN
+            BEGIN v_short_id := NULLIF(v_data->>'linkedWarehouseId','')::bigint;
+            EXCEPTION WHEN OTHERS THEN RETURN true; END;
+            IF v_short_id IS NULL THEN RETURN true; END IF;
+            RETURN COALESCE((SELECT current_stock > 0 FROM public.inventory WHERE id = v_short_id), true);
+          END IF;
+          IF v_mode = 'recipe' THEN
+            DECLARE v_rid uuid;
+            BEGIN
+              BEGIN v_rid := NULLIF(v_data->>'linkedRecipeId','')::uuid;
+              EXCEPTION WHEN OTHERS THEN RETURN true; END;
+              IF v_rid IS NULL THEN RETURN true; END IF;
+              RETURN NOT EXISTS (
+                SELECT 1 FROM public.recipes r,
+                     LATERAL jsonb_array_elements(COALESCE(r.ingredients,'[]'::jsonb)) AS ing(val)
+                WHERE r.id = v_rid
+                  AND COALESCE(
+                        (SELECT current_stock FROM public.inventory
+                          WHERE id = (CASE WHEN (ing.val->>'id') ~ '^[0-9]+$' THEN (ing.val->>'id')::bigint ELSE NULL END)),
+                        0
+                      ) < COALESCE((ing.val->>'qty')::numeric, 0)
+              );
+            END;
+          END IF;
+          RETURN true;
+        END $$;
+        REVOKE ALL ON FUNCTION public.menu_item_available(text) FROM PUBLIC;
+        GRANT EXECUTE ON FUNCTION public.menu_item_available(text) TO anon, authenticated;
+
         CREATE OR REPLACE FUNCTION public.get_active_menu(p_now timestamptz DEFAULT now())
         RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
         DECLARE
@@ -899,6 +937,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       'id', i.id, 'name', i.name, 'price_cents', i.base_price_cents,
                       'price_type', i.price_type, 'emoji', i.emoji, 'image_url', i.image_url,
                       'sort_order', i.sort_order,
+                      'available', public.menu_item_available(i.id),
                       'modifier_group_ids', COALESCE((
                         SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                         FROM public.menu_item_modifier_groups l WHERE l.item_id = i.id
@@ -974,6 +1013,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       'id', i.id, 'name', i.name, 'price_cents', i.base_price_cents,
                       'price_type', i.price_type, 'emoji', i.emoji, 'image_url', i.image_url,
                       'sort_order', i.sort_order,
+                      'available', public.menu_item_available(i.id),
                       'modifier_group_ids', COALESCE((
                         SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                         FROM public.menu_item_modifier_groups l WHERE l.item_id = i.id

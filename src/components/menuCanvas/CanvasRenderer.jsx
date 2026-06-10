@@ -136,6 +136,14 @@ function NodeView({ node, itemIndex, lang }) {
       // sees it on next preview and re-binds.
       return <div style={{ ...baseStyle, ...textStyle(node.style), opacity: 0.35 }}>(no disponible)</div>;
     }
+    // Out-of-stock handling: hide entirely if hide_when_out_of_stock is set,
+    // otherwise dim + strikethrough so the slot is visible but obviously
+    // unavailable. Default behavior (no flag) keeps the original render
+    // — the editor opts in per binding.
+    if (item.available === false) {
+      if (node.hide_when_out_of_stock) return null;
+      return <ItemBindingView node={node} item={item} lang={lang} outOfStock />;
+    }
     return <ItemBindingView node={node} item={item} lang={lang} />;
   }
 
@@ -144,7 +152,7 @@ function NodeView({ node, itemIndex, lang }) {
   return <div style={baseStyle} />;
 }
 
-function ItemBindingView({ node, item, lang }) {
+function ItemBindingView({ node, item, lang, outOfStock = false }) {
   const fields = node.fields && node.fields.length > 0 ? node.fields : ['name', 'price'];
   const layout = node.layout === 'stacked' ? 'column' : 'row';
   const s = node.style || {};
@@ -176,7 +184,8 @@ function ItemBindingView({ node, item, lang }) {
     borderRadius: s.borderRadius || 0,
     boxSizing: 'border-box',
     ...textStyle(s),
-    justifyContent: justifyFromAlign(s.align)
+    justifyContent: justifyFromAlign(s.align),
+    ...(outOfStock ? { opacity: 0.45, textDecoration: 'line-through' } : null)
   };
 
   return <div style={baseStyle}>{parts}</div>;

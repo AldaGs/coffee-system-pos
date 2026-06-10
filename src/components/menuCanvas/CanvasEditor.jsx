@@ -886,6 +886,20 @@ function BindingProps({ node, onUpdate, openItemPicker, menuData }) {
       <Row label="Grosor borde"><NumInput value={node.style?.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
       <Row label="Radio esquinas"><NumInput value={node.style?.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
       <Row label="Padding interno"><NumInput value={node.style?.padding ?? 8} onChange={v => onUpdate({ style: { padding: v } })} /></Row>
+
+      <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4 }}>
+        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>Inventario</p>
+      </div>
+      <Row label="Cuando se agote">
+        <select
+          value={node.hide_when_out_of_stock ? 'hide' : 'strikethrough'}
+          onChange={e => onUpdate({ hide_when_out_of_stock: e.target.value === 'hide' })}
+          style={selectStyle}
+        >
+          <option value="strikethrough">Mostrar tachado</option>
+          <option value="hide">Ocultar del menú</option>
+        </select>
+      </Row>
     </>
   );
 }

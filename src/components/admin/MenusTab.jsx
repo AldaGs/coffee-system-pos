@@ -379,6 +379,20 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, onOpenCanvas
         )}
       </div>
 
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={data.hide_out_of_stock !== false}
+          onChange={e => patch({ hide_out_of_stock: e.target.checked })}
+        />
+        <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+          Ocultar productos agotados
+          <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
+            (basado en inventario)
+          </span>
+        </span>
+      </label>
+
       <ThemeEditor menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
 
       <CanvasBetaToggle menu={menu} data={data} onChange={onChange} showAlert={showAlert} onOpenCanvas={onOpenCanvas} />

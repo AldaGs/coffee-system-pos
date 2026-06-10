@@ -91,7 +91,11 @@ function PublicMenu() {
   const brand = shop.brand_color || '#f28b05';
   const lang = shop.language || 'es';
   const menuKind = data.menu?.kind || 'live';
-  const categories = data.categories || [];
+  // Live mode hides out-of-stock items by default — there's no opt-out
+  // surface for it on the catalog itself yet; if shops ask for one we add
+  // posSettings.publicMenuShowOos.
+  const categories = (data.categories || [])
+    .map(c => ({ ...c, items: c.items.filter(it => it.available !== false) }));
   const activeCategory = categories.find(c => c.id === activeCategoryId) || categories[0];
 
   if (isTvMode) {
@@ -373,7 +377,10 @@ function TemplatedMenu({ data, brand, lang }) {
   const wanted = opts.category_names && opts.category_names.length > 0
     ? new Set(opts.category_names)
     : null;
-  const categories = (data.categories || []).filter(c => !wanted || wanted.has(c.name));
+  const hideOos = opts.hide_out_of_stock !== false; // default ON for templates
+  const categories = (data.categories || [])
+    .filter(c => !wanted || wanted.has(c.name))
+    .map(c => hideOos ? { ...c, items: c.items.filter(it => it.available !== false) } : c);
   const groupsById = mapGroups(data.modifier_groups);
 
   const template = opts.template || 'list';
@@ -544,7 +551,11 @@ function TvMode({ data, brand, lang }) {
       const wanted = menu.data?.category_names && menu.data.category_names.length > 0
         ? new Set(menu.data.category_names)
         : null;
-      const cats = (data.categories || []).filter(c => !wanted || wanted.has(c.name));
+      // TV always hides out-of-stock items — a kiosk advertising sold-out
+      // items is the worst case for this feature.
+      const cats = (data.categories || [])
+        .filter(c => !wanted || wanted.has(c.name))
+        .map(c => ({ ...c, items: c.items.filter(it => it.available !== false) }));
       return cats.map(c => ({ key: `cat-${c.id}`, kind: 'category', payload: c }));
     }
     if (kind === 'pdf' || kind === 'image') {
