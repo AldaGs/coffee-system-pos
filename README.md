@@ -16,6 +16,8 @@
 
 [![Vitest](https://img.shields.io/badge/Tested-Vitest-yellow.svg)](https://vitest.dev/)
 
+[![Schema](https://img.shields.io/badge/Schema-v0.3-blue.svg)](db/install.sql)
+
 
 
 TinyPOS is a purpose-built operating system for specialty coffee businesses — engineered for financial precision, zero-downtime service, and frictionless deployment. This repo contains the React frontend, the admin dashboard, and the Vercel serverless functions that drive zero-touch onboarding.
@@ -112,13 +114,17 @@ All three share a single Supabase project per tenant.
 
 - Live sync status indicator; full i18n (EN/ES).
 
+- **Item image cards** — menu items show their uploaded photo in the register product grid.
+
+- **Dual-layout / OrderFlow mode** — per-device toggle switches between the classic grid layout and a drill-down order flow (ticket → categories → items). OrderFlow hides the tab strip and renders a full-screen cart on mobile; the action bar is shared between both layouts. Enabled from General Settings per device.
+
 
 
 ### 📈 Admin Dashboard ([`src/Admin.jsx`](src/Admin.jsx))
 
 - Revenue / refunds / **payment-method reconciliation** (card / cash / transfer split).
 
-- **Inventory + The Roaster:** raw stock, multi-warehouse linking, BOM recipes, green-to-finished transformation with shrinkage + cost-per-gram.
+- **Inventory + The Roaster:** raw stock, multi-warehouse linking, BOM recipes, green-to-finished transformation. The roaster now takes a **final yield weight** instead of a shrinkage percentage — enter what you actually got out of the drum, not a loss estimate.
 
 - **COGS / Profit Engine:** target margin → recommended price, computed from live ingredient cost.
 
@@ -146,6 +152,48 @@ All three share a single Supabase project per tenant.
 
 
 
+### 🍽️ TinyMenu — Digital Menu System
+
+A full multi-menu platform layered on top of TinyPOS, served from the same deploy. Menus are built in the Admin → Menus tab and published at `/menu`.
+
+**Public URL** — menus are served via base64-encoded `u`/`k` query params (`/menu?u=…&k=…`) so a single Vercel deploy serves every shop tenant. Short aliases can be registered in `config.json`. All routes are offline-capable via the service worker.
+
+**Multi-menu + Scheduling** — a shop can have multiple named menus (breakfast, lunch, seasonal) and a weekly + time-of-day schedule picks the active one automatically. Timezone is configurable from General Settings.
+
+**Per-item photos** — every catalog item can have a photo. Upload goes through an interactive crop modal → WebP conversion → Supabase Storage. The same image shows in the register grid and the public menu.
+
+**Phase 2 — PDF/PNG menus** — upload a static PDF or PNG and the public page renders it as a full-bleed carousel. Good for shops that already have a designed menu.
+
+**Phase 3 — TV / Kiosk mode** (`/menu/tv`) — a full-screen, auto-rotating display designed for a wall-mounted screen. Font size, transitions, and layout are optimized for distance reading.
+
+**Phase 4a — Designer templates** — pre-built HTML/CSS layouts (card, grid, list, hero) applied to live catalog data. Template tokens use CSS custom properties so brand colours propagate automatically.
+
+**Phase 4b — Theme tokens** — per-menu colour, font, and spacing tokens are stored alongside the menu record and injected at render time.
+
+**Phase 4c — react-konva Canvas Editor** — a full drag-and-drop canvas builder inside the Admin panel:
+
+- Free-form shapes (rect, circle, text, image, path), all draggable and resizable with a Konva Transformer
+- **Smart guides, rulers, and snap** — alignment guides appear between objects; a pixel ruler borders the canvas; objects snap to guides and to each other
+- **Bézier pen tool** — click/drag to place anchor points and control handles; double-click to close a path
+- **Align & distribute panel** — align selected objects left/center/right/top/middle/bottom; distribute evenly with one click
+- **Double-click editing** — text layers, shape labels, and path anchors are all editable in place
+- **Font picker** — system and Google Fonts selectable per text layer, cached to avoid repeated network loads
+- **Asset library** — upload images once, reuse across canvas layers; deduped across menus
+- **react-colorful colour pickers** — for fill, stroke, and text colour
+- **Catalog item binding** — drop a menu item onto the canvas; its name, price, and photo sync live from the catalog
+- **Out-of-stock control** — items marked out-of-stock hide their price or show an "agotado" badge; an availability toggle is on each item
+- **Page size presets** — A4, A5, letter, custom; canvas scales to match
+- **PNG export** — renders the canvas at 2× via `canvas.toDataURL` and downloads a print-ready PNG
+- **Print** — sends the canvas to the browser print dialog with the correct page dimensions
+- **SVG download** — alternative vector export for high-res menus
+- **Templates** — start from a blank or from a gallery of pre-built canvas layouts; template fonts are auto-registered with Konva
+
+**Snapshots & restore** (`menu_versions`) — every save writes a point-in-time snapshot. Admin can browse and restore any prior version from the Menus tab.
+
+**Emergency recovery** — a static `recover.html` page exports IndexedDB state directly to JSON, bypassing the React app, for disaster recovery when the main app fails to load.
+
+**Per-menu deep links + share UI** — each menu has a shareable card with a QR code and a copy-link button. The Settings tab shows a "Tu menú público" panel with the same share UI.
+
 ### 📱 Loyalty + Receipts
 
 - Phone-number loyalty with both **recurring** and **single-use** programs (see migrations `006`–`008`). Accrual is bound to `sales` inserts via a Postgres trigger, so receipt resends never double-count.
@@ -160,7 +208,7 @@ All three share a single Supabase project per tenant.
 
 
 
-## 🔐 Role-Based Access & Maintenance (schema `0.1`)
+## 🔐 Role-Based Access & Maintenance (schema `0.3`)
 
 Opt-in privilege gating for shops that need it; transparent for shops that don't.
 
@@ -213,7 +261,7 @@ These shipped to production but haven't seen enough real-world hours yet:
 
 
 
-- **Frontend:** React 19, Vite, Zustand (immer), Iconify
+- **Frontend:** React 19, Vite, Zustand (immer), Iconify, react-konva (canvas editor)
 
 - **Local DB:** Dexie.js (IndexedDB) — see [`src/db.js`](src/db.js)
 
@@ -275,7 +323,7 @@ The full canonical schema lives in [`db/install.sql`](db/install.sql) and is wha
 
 **Tables**
 
-`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`.
+`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`, `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options`, `menus`, `menu_schedules`, `menu_versions`.
 
 
 
@@ -332,6 +380,18 @@ If you installed before the latest schema version, apply these **in order**:
 | `007_loyalty_redemption.sql` | Explicit redemption; trigger applies net delta |
 
 | `008_loyalty_program_type.sql` | `completed_at` + recurring/single program modes |
+| `009_backfill_inventory_logs_ticket_id.sql` | Backfill `ticket_id` on legacy `inventory_logs` rows so analytics can retire its timestamp-based COGS fallback |
+| `010_split_menu_data.sql` | Splits `shop_settings.menu_data` JSONB into relational tables: `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options` |
+| `011_public_menu_rpc.sql` | Adds `get_public_menu()` `SECURITY DEFINER` RPC — anon-accessible, sanitized menu payload for the customer-facing live menu page |
+| `012_normalize_menu_fks.sql` | Self-heals FK `ON UPDATE CASCADE` on modifier-group join tables so renaming a group no longer violates the constraint |
+| `013_menu_item_images.sql` | Adds `menu_items.image_url`; creates the `menu-assets` public Storage bucket for item photos |
+| `014_menu_versions.sql` | `menu_versions` snapshots table + retention trigger — every meaningful save writes a row; admins can browse and restore |
+| `015_menus_and_schedules.sql` | `menus` and `menu_schedules` tables; multi-menu support with clock/date-based auto-switching |
+| `016_designed_menu_payload.sql` | Extends `get_active_menu` so `kind='designed'` menus return the full catalog payload (categories + modifiers), enabling designer templates |
+| `017_get_menu_by_id.sql` | Adds `get_menu_by_id(id)` RPC for permanent per-menu deep links that bypass the schedule resolver |
+| `018_menu_item_availability.sql` | Exposes per-item availability in the public menu RPCs so renderers can hide or strike through out-of-stock items |
+| `019_menu_item_available_safe_cast.sql` | Fixes `018`'s numeric cast on recipe ingredient `qty` — an empty-string qty from older catalog saves would crash `get_active_menu` with a 400 |
+| `020_menu_redirect_bucket.sql` | Creates the `menu` Storage bucket for short-URL redirect HTML files (meta-refresh to the long `?u=…&k=…` URL) |
 
 
 
@@ -410,6 +470,16 @@ Planned / under consideration. Not yet implemented — do not assume any of this
 - Time-of-day heatmap on top of the existing payment-method reconciliation card.
 
 - Per-cashier sales attribution surfaced in the audit log view.
+
+
+
+### TinyMenu
+
+- Video background support for canvas layers.
+
+- Animated entrance transitions for TV/kiosk mode.
+
+- QR code generation as a native canvas element (currently rendered in the share UI, not the canvas editor).
 
 
 
