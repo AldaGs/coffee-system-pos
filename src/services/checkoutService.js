@@ -3,6 +3,81 @@ import { db } from '../db';
 import { computeStarsForTicket } from '../hooks/useLoyalty';
 import { recordTipAccrual } from './tipsService';
 
+// Pre-flight stock check against local Dexie inventory. Mirrors the deduction
+// logic in processCheckout but only reads — used to surface "insufficient
+// stock" before the success flyout animates in. Online RPC is still the
+// source of truth and will throw later if local state is stale.
+export const validateStockLocally = async ({ activeTicket, recipes }) => {
+  if (!activeTicket?.items?.length) return null;
+  const inventory = await db.inventory.toArray();
+  const usage = new Map(); // id -> qty needed
+
+  const need = (id, qty) => {
+    if (!id || !(qty > 0)) return;
+    usage.set(String(id), (usage.get(String(id)) || 0) + qty);
+  };
+  const findByNameId = (id, name) =>
+    (id && inventory.find(inv => String(inv.id) === String(id)))
+    || (name && inventory.find(inv => inv.name === name))
+    || null;
+
+  for (const item of activeTicket.items) {
+    const itemQty = item.qty || 1;
+
+    if (item.inventoryMode === "standard" && item.linkedWarehouseId) {
+      need(item.linkedWarehouseId, itemQty);
+      if (item.selectedModifiers?.length) {
+        for (const mod of item.selectedModifiers) {
+          const hasDeduct = mod.deductionTargetId || mod.deductionTarget;
+          const hasSub = mod.substitutionTargetId || mod.substitutionTarget;
+          if (hasDeduct && !hasSub) {
+            const modItem = findByNameId(mod.deductionTargetId, mod.deductionTarget);
+            if (modItem) need(modItem.id, itemQty);
+          }
+        }
+      }
+    } else if (item.inventoryMode === "recipe" && item.linkedRecipeId) {
+      const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
+      if (!recipe?.ingredients) continue;
+      let cartBOM = recipe.ingredients.map(ing => ({
+        id: ing.id,
+        item_name: ing.name,
+        qty: (parseFloat(ing.qty) || 0) * itemQty
+      }));
+      if (item.selectedModifiers?.length) {
+        item.selectedModifiers.forEach(mod => {
+          const hasDeduct = mod.deductionTargetId || mod.deductionTarget;
+          const hasSub = mod.substitutionTargetId || mod.substitutionTarget;
+          if (hasDeduct && hasSub) {
+            const baseIndex = mod.substitutionTargetId
+              ? cartBOM.findIndex(ing => String(ing.id) === String(mod.substitutionTargetId))
+              : cartBOM.findIndex(ing => ing.item_name === mod.substitutionTarget);
+            if (baseIndex !== -1) {
+              const baseQty = cartBOM[baseIndex].qty;
+              cartBOM.splice(baseIndex, 1);
+              cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: baseQty });
+            }
+          } else if (hasDeduct && !hasSub) {
+            cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: 1 });
+          }
+        });
+      }
+      for (const ing of cartBOM) {
+        const whItem = findByNameId(ing.id, ing.item_name);
+        if (whItem) need(whItem.id, ing.qty);
+      }
+    }
+  }
+
+  for (const [id, qty] of usage) {
+    const inv = inventory.find(i => String(i.id) === id);
+    if (inv && (inv.current_stock ?? 0) < qty) {
+      return `Insufficient stock for ${inv.name}`;
+    }
+  }
+  return null;
+};
+
 export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0, loyaltySettings = null }) => {
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;

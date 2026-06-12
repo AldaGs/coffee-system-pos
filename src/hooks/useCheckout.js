@@ -1,4 +1,4 @@
-import { processCheckout } from '../services/checkoutService';
+import { processCheckout, validateStockLocally } from '../services/checkoutService';
 import { attemptBackgroundSync } from '../services/syncService';
 import { logActivity } from '../services/activityService';
 import { useCartStore } from '../store/useCartStore';
@@ -28,53 +28,72 @@ export const useCheckout = (posState) => {
   const { recipes } = useMenuStore();
 
   const handleConfirmPayment = async (paymentsArray) => {
-    try {
-      // 1. Call our decoupled backend service
-      const { masterMethodString } = await processCheckout({
-        activeTicket,
-        cartTotal,
-        paymentsArray,
-        activeCashier,
-        recipes,
-        tipAmount,
-        loyaltySettings
-      });
-
-      // 2. Handle the UI Side Effects (React state, animations, resets)
-      if (setSuccessTicket) {
-        setSuccessTicket({
-          name: activeTicket.name,
-          items: activeTicket.items,
-          total: cartTotal,
-          method: masterMethodString
-        });
-        setTimeout(() => setSuccessTicket(null), 2500);
-      }
-
-      // 3. Clear state
-      resetCheckoutState();
-      clearCurrentTicket();
-      // Layouts can override the post-checkout destination (e.g. orders mode
-      // wants to land back on the tickets list instead of auto-jumping into
-      // whatever ticket clearCurrentTicket happened to select next).
-      if (onAfterCheckout) onAfterCheckout();
-
-      // 4. Optional: Realtime sync trigger
-      attemptBackgroundSync();
-
-      // 5. Analytics
-      logActivity('sale', null, {
-        amount: cartTotal,
-        method: masterMethodString,
-        items_count: (activeTicket?.items || []).reduce((s, it) => s + (it.qty || 1), 0)
-      });
-
-      return true;
-    } catch (error) {
-      console.error("Checkout failed:", error);
-      showAlert("Checkout Error", error.message || "An unexpected error occurred during checkout.");
+    // Pre-flight stock check against local Dexie inventory so we can abort
+    // before the success flyout animates in. The server-side RPC remains the
+    // source of truth (and may still reject during background sync).
+    const stockError = await validateStockLocally({ activeTicket, recipes });
+    if (stockError) {
+      showAlert("Checkout Error", stockError);
       return false;
     }
+
+    // Snapshot ticket data for the flyout before we clear state. The success
+    // flyout and state reset run immediately so the cashier sees instant
+    // feedback; the actual checkout (Dexie write + inventory deduction +
+    // cloud sync) runs in the background, and any pending cloud work is
+    // surfaced via PendingSyncCard / the offline syncQueue.
+    const ticketSnapshot = {
+      name: activeTicket?.name,
+      items: activeTicket?.items,
+      total: cartTotal,
+    };
+    const itemsCount = (activeTicket?.items || []).reduce((s, it) => s + (it.qty || 1), 0);
+    const isSplit = paymentsArray.length > 1;
+    const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
+
+    if (setSuccessTicket) {
+      setSuccessTicket({
+        name: ticketSnapshot.name,
+        items: ticketSnapshot.items,
+        total: ticketSnapshot.total,
+        method: masterMethodString
+      });
+      setTimeout(() => setSuccessTicket(null), 2500);
+    }
+
+    resetCheckoutState();
+    clearCurrentTicket();
+    // Layouts can override the post-checkout destination (e.g. orders mode
+    // wants to land back on the tickets list instead of auto-jumping into
+    // whatever ticket clearCurrentTicket happened to select next).
+    if (onAfterCheckout) onAfterCheckout();
+
+    // Fire-and-forget the heavy work. processCheckout already falls back to
+    // the offline syncQueue on cloud failures, so the only error we still
+    // need to surface synchronously to the cashier is insufficient stock.
+    processCheckout({
+      activeTicket,
+      cartTotal,
+      paymentsArray,
+      activeCashier,
+      recipes,
+      tipAmount,
+      loyaltySettings
+    })
+      .then(() => {
+        attemptBackgroundSync();
+        logActivity('sale', null, {
+          amount: cartTotal,
+          method: masterMethodString,
+          items_count: itemsCount
+        });
+      })
+      .catch((error) => {
+        console.error("Checkout failed:", error);
+        showAlert("Checkout Error", error.message || "An unexpected error occurred during checkout.");
+      });
+
+    return true;
   };
 
   const handleOpenCheckout = () => {
