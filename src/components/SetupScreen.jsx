@@ -881,9 +881,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                 SELECT 1 FROM public.recipes r,
                      LATERAL jsonb_array_elements(COALESCE(r.ingredients,'[]'::jsonb)) AS ing(val)
                 WHERE r.id = v_rid
+                  AND COALESCE((ing.val->>'isManual')::bool, false) = false
                   AND COALESCE(
                         (SELECT current_stock FROM public.inventory
-                          WHERE id = (CASE WHEN (ing.val->>'id') ~ '^[0-9]+$' THEN (ing.val->>'id')::bigint ELSE NULL END)),
+                          WHERE name = (ing.val->>'name') LIMIT 1),
                         0
                       ) < (CASE WHEN (ing.val->>'qty') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (ing.val->>'qty')::numeric ELSE 0 END)
               );
