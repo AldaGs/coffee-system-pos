@@ -12,7 +12,7 @@ export default function UpgradeGuide() {
       icon: 'lucide:user-plus',
       title: 'Crea una cuenta en Supabase',
       body: (
-        <>Entra a <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" style={{ color: '#099b46', fontWeight: 700 }}>supabase.com</a> y regístrate gratis. Supabase es el servicio que guardará una copia de tus datos en la nube.</>
+        <>Entra a <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" style={{ color: '#f28b05', fontWeight: 700 }}>supabase.com</a> y regístrate gratis. Supabase es el servicio que guardará una copia de tus datos en la nube.</>
       ),
     },
     {
@@ -43,9 +43,9 @@ export default function UpgradeGuide() {
         </button>
       </nav>
 
-      <main style={{ maxWidth: '760px', margin: '0 auto', padding: 'clamp(32px, 6vw, 64px) 5%' }}>
+      <main style={{ maxWidth: '1040px', margin: '0 auto', padding: 'clamp(32px, 6vw, 64px) 5%' }}>
         <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-          <div style={{ width: '72px', height: '72px', background: 'rgba(9, 155, 70, 0.1)', color: '#099b46', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.2rem', margin: '0 auto 20px' }}>
+          <div style={{ width: '72px', height: '72px', background: 'rgba(242, 139, 5, 0.12)', color: '#f28b05', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.2rem', margin: '0 auto 20px' }}>
             <Icon icon="lucide:cloud-upload" />
           </div>
           <h1 style={{ fontSize: 'clamp(1.8rem, 5vw, 2.6rem)', fontWeight: 900, margin: '0 0 12px', letterSpacing: '-0.5px' }}>
@@ -57,12 +57,12 @@ export default function UpgradeGuide() {
           </p>
         </div>
 
-        <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '20px' }}>
           {steps.map((s, i) => (
-            <li key={i} style={{ display: 'flex', gap: '18px', background: 'white', border: '1px solid #f0f0f0', borderRadius: '18px', padding: '24px' }}>
-              <div style={{ width: '48px', height: '48px', flexShrink: 0, background: 'rgba(13, 58, 102, 0.06)', color: '#0d3a66', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', position: 'relative' }}>
+            <li key={i} style={{ display: 'flex', gap: '18px', background: 'white', border: '1px solid #f0f0f0', borderRadius: '18px', padding: '24px', alignItems: 'flex-start' }}>
+              <div style={{ width: '48px', height: '48px', flexShrink: 0, background: 'rgba(242, 139, 5, 0.1)', color: '#f28b05', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', position: 'relative' }}>
                 <Icon icon={s.icon} />
-                <span style={{ position: 'absolute', top: '-8px', left: '-8px', width: '24px', height: '24px', borderRadius: '50%', background: '#099b46', color: 'white', fontSize: '0.8rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
+                <span style={{ position: 'absolute', top: '-8px', left: '-8px', width: '24px', height: '24px', borderRadius: '50%', background: '#f28b05', color: 'white', fontSize: '0.8rem', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
               </div>
               <div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '1.2rem', fontWeight: 800 }}>{s.title}</h3>
@@ -75,7 +75,7 @@ export default function UpgradeGuide() {
         <div style={{ marginTop: '40px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
           <button
             onClick={beginCloudUpgrade}
-            style={{ padding: '16px 40px', background: '#099b46', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 78, 35, 0.25)', display: 'inline-flex', alignItems: 'center', gap: '10px' }}
+            style={{ padding: '16px 40px', background: '#f28b05', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 12px rgba(242, 139, 5, 0.3)', display: 'inline-flex', alignItems: 'center', gap: '10px' }}
           >
             <Icon icon="lucide:cloud-upload" />
             Crear respaldo gratis ahora
