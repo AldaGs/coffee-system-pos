@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { computeStarsForTicket } from '../hooks/useLoyalty';
 import { recordTipAccrual } from './tipsService';
+import { isLocalMode } from '../utils/appMode';
 
 // Pre-flight stock check against local Dexie inventory. Mirrors the deduction
 // logic in processCheckout but only reads — used to surface "insufficient
@@ -88,6 +89,12 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   const centsTip = tipAmount;
   const localId = crypto.randomUUID();
 
+  // Local ('guest') mode has no Supabase client, so every cloud RPC/upsert below
+  // must be skipped. Treating it as "offline" routes the sale through the same
+  // catch path that persists to Dexie (syncQueue + inventory_logs) — which also
+  // becomes the payload the upgrade migration pushes up later.
+  const isOnline = !isLocalMode() && navigator.onLine;
+
   // Loyalty accrual: if a phone is attached to this ticket AND the loyalty program
   // qualifies the cart, record the phone + stars on the sale row. A server-side
   // trigger (trg_award_loyalty) will increment customers.visits exactly once on INSERT.
@@ -148,7 +155,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
 
         if (warehouseItem) {
           // ONLINE ATOMIC DEDUCTION
-          if (navigator.onLine) {
+          if (isOnline) {
             const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(warehouseItem.id), qty: itemQty });
             if (error) throw new Error(`RPC error deducting ${warehouseItem.name}: ${error.message}`);
             if (!data || data.length === 0) throw new Error(`Insufficient stock for ${warehouseItem.name}`);
@@ -179,7 +186,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                 || (mod.deductionTarget && currentInventory.find(inv => inv.name === mod.deductionTarget));
 
               if (modItem) {
-                if (navigator.onLine) {
+                if (isOnline) {
                   const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(modItem.id), qty: itemQty });
                   if (error) throw new Error(`RPC error deducting modifier ${modItem.name}: ${error.message}`);
                   if (!data || data.length === 0) throw new Error(`Insufficient stock for modifier ${modItem.name}`);
@@ -243,7 +250,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                 || currentInventory.find(inv => inv.name === ing.item_name);
 
               if (whItem) {
-                if (navigator.onLine) {
+                if (isOnline) {
                   const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(whItem.id), qty: ing.qty });
                   if (error) throw new Error(`RPC error deducting ingredient ${whItem.name}: ${error.message}`);
                   if (!data || data.length === 0) throw new Error(`Insufficient stock for ingredient ${whItem.name}`);
@@ -270,7 +277,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     }
 
     // --- CLOUD SYNC ATTEMPT ---
-    if (!navigator.onLine) throw new Error("Device is offline");
+    if (!isOnline) throw new Error("Device is offline");
 
     const { id: _UNUSED, ...cleanSale } = finalizedSale;
     const { error: salesError } = await supabase.from('sales').upsert(cleanSale, { onConflict: 'local_id' });
@@ -291,6 +298,27 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     }
     // If it was a stock error, we should probably re-throw to alert the UI
     if (error.message.includes("Insufficient stock")) throw error;
+  }
+
+  // Local ('guest') mode loyalty: the cloud trg_award_loyalty trigger doesn't
+  // run here, so replicate its effect against the Dexie `customers` store —
+  // keyed by phone, same shape that migrates to the cloud table on upgrade.
+  if (isLocalMode() && currentSale.loyalty_phone) {
+    try {
+      const phone = currentSale.loyalty_phone;
+      const existing = await db.customers.get(phone);
+      const visits = Math.max(0, (existing?.visits || 0) + loyaltyStars - loyaltyRedeemed);
+      await db.customers.put({
+        phone,
+        visits,
+        completed_at: existing?.completed_at
+          || (loyaltySettings?.programType === 'single' && visits >= (loyaltySettings?.visitsRequired || Infinity)
+              ? new Date().toISOString()
+              : null),
+      });
+    } catch (e) {
+      console.warn('local loyalty increment failed', e);
+    }
   }
 
   // Record the tip accrual as a custodial-liability event. Best-effort:

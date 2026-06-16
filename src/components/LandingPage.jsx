@@ -48,21 +48,38 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
             Sin mensualidades. Sin suscripciones en la nube. Sé dueño de tus datos, conecta tu hardware y gestiona tu negocio a tu manera.
           </p>
 
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {/* PRIMARY CTA: zero-infrastructure local start. */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+            <button
+              onClick={() => onSelectMode('local')}
+              style={{ padding: '20px 48px', backgroundColor: '#099b46', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.25rem', fontWeight: '900', cursor: 'pointer', boxShadow: '0 6px 18px rgba(5, 78, 35, 0.3)', transition: 'transform 0.2s ease', display: 'inline-flex', alignItems: 'center', gap: '12px' }}
+              onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <Icon icon="lucide:rocket" />
+              Empezar ahora — en este dispositivo
+            </button>
+            <span style={{ fontSize: '0.95rem', color: '#94a3b8', fontWeight: '500' }}>
+              Sin cuenta, sin nube. Listo en segundos.
+            </span>
+          </div>
+
+          {/* SECONDARY: advanced / cloud-backed setup (the original flow). */}
+          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '28px' }}>
             <button
               onClick={() => onSelectMode('new')}
-              style={{ padding: '18px 40px', backgroundColor: '#099b46', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '900', cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 78, 35, 0.25)', transition: 'transform 0.2s ease' }}
-              onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-              onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+              style={{ padding: '14px 28px', backgroundColor: 'white', color: '#0d3a66', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1rem', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s ease' }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0d3a66'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}
             >
-              Crear tu tienda
+              Crear tu tienda con respaldo en la nube
             </button>
 
             <button
               onClick={() => onSelectMode('connect')}
-              style={{ padding: '18px 40px', backgroundColor: 'white', color: '#0d3a66', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1.15rem', fontWeight: '900', cursor: 'pointer', transition: 'all 0.2s ease' }}
-              onMouseEnter={(e) => { e.target.style.borderColor = '#0d3a66'; e.target.style.backgroundColor = '#f8fafc'; }}
-              onMouseLeave={(e) => { e.target.style.borderColor = '#e2e8f0'; e.target.style.backgroundColor = 'white'; }}
+              style={{ padding: '14px 28px', backgroundColor: 'white', color: '#0d3a66', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1rem', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s ease' }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0d3a66'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}
             >
               Conectar dispositivo existente
             </button>

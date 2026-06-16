@@ -5,6 +5,7 @@ import { supabase } from '../supabaseClient';
 import { toCents, formatForDisplay } from '../utils/moneyUtils';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
+import { isLocalMode } from '../utils/appMode';
 
 const LS_EXPENSES_KEY = 'tinypos_expenses';
 const LS_QUEUE_KEY = 'tinypos_expense_queue';
@@ -85,7 +86,11 @@ export function useExpenses({ activeCashier, t, showAlert }) {
 
     let cloudOk = false;
     let cloudErr = null;
-    try {
+    if (isLocalMode()) {
+      // Local ('guest') mode: the Dexie write below is authoritative; there is
+      // no cloud to sync to, so report success without queueing.
+      cloudOk = true;
+    } else try {
       if (!navigator.onLine) throw new Error('Device is offline');
       const { error } = await supabase.from('expenses').insert([cloudExpense]);
       if (error) throw error;

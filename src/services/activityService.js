@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { useAuthStore } from '../store/useAuthStore';
+import { isLocalMode } from '../utils/appMode';
 
 /**
  * Logs an action to the activity_logs table.
@@ -20,6 +21,8 @@ import { useAuthStore } from '../store/useAuthStore';
  *   or admin who authorized this override, if any.
  */
 export const logActivity = async (actionType, description = null, metadata = null, authorizedBy = null) => {
+  // Local ('guest') mode has no activity_logs table and no Activity viewer.
+  if (isLocalMode()) return;
   try {
     // We grab the current cashier straight from the global store
     const { activeCashier } = useAuthStore.getState();

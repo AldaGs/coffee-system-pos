@@ -63,6 +63,13 @@ export const useMenuStore = create((set, get) => ({
 
   
   verifyPin: async (cashierId, pin) => {
+    // Local ('guest') mode: verify against the on-device hashed PIN store — no
+    // network, no Supabase RPC.
+    const { isLocalMode } = await import('../utils/appMode');
+    if (isLocalMode()) {
+      const { verifyLocalPin } = await import('../utils/localAuth');
+      return verifyLocalPin(cashierId, pin);
+    }
     const { supabase } = await import('../supabaseClient');
     if (!navigator.onLine) {
       throw new Error("Internet connection required for PIN verification");

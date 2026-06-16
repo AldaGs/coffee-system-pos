@@ -23,6 +23,7 @@ import { useTheme } from './hooks/useTheme';
 import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
 import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
+import { isLocalMode } from './utils/appMode';
 
 import AnalyticsTab from './components/admin/AnalyticsTab';
 import OrdersTab from './components/admin/OrdersTab';
@@ -269,48 +270,64 @@ function Admin() {
         //    Cashiers, posSettings, receiptSettings, loyaltySettings still ride on
         //    shop_settings.menu_data. They're merged here so the in-memory `menuData`
         //    shape stays identical for child components.
-        const [menu, settingsRes] = await Promise.all([
-          loadMenu(),
-          supabase.from('shop_settings').select('menu_data').eq('id', 1).single()
-        ]);
-        if (settingsRes.error) throw settingsRes.error;
-        const settings = settingsRes.data?.menu_data || {};
-        setMenuData({ ...menu, ...settings });
+        //
+        //    Local ('guest') mode: the menu comes from Dexie via the dispatcher,
+        //    settings come from whatever useMenuStore has cached locally, and the
+        //    cloud-only reads (recipes, server inventory/logs, sales pull) are
+        //    skipped — Dexie live queries already feed those views.
+        const local = isLocalMode();
+        const menu = await loadMenu();
+        const settings = local
+          ? (useMenuStore.getState().menuData || {})
+          : await (async () => {
+              const settingsRes = await supabase.from('shop_settings').select('menu_data').eq('id', 1).single();
+              if (settingsRes.error) throw settingsRes.error;
+              return settingsRes.data?.menu_data || {};
+            })();
+        setMenuData({ ...settings, ...menu });
 
         const firstCategory = menu.categoryOrder[0];
         if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
-
-        // 2. Pull every device's expenses into Dexie. The useLiveQuery above
-        // will pick up the merged rows automatically.
-        await fetchAndMergeExpenses();
 
         // 3. Load UI Settings (Receipt, General, Loyalty)
         if (settings.receiptSettings) setReceiptForm(prev => ({ ...prev, ...settings.receiptSettings }));
         if (settings.posSettings) setGeneralSettings(prev => ({ ...prev, ...settings.posSettings }));
         if (settings.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...settings.loyaltySettings }));
 
-        // 4. Fetch Sales History (dedupe by local_id — see salesSync.js)
-        await fetchAndMergeSales();
+        if (local) {
+          // Inventory lives in Dexie locally; recipes/sales-pull are cloud-only.
+          const invData = await db.inventory.toArray();
+          if (invData) setInventoryItems(invData);
+          const logsData = await db.inventory_logs.toArray();
+          if (logsData) setInventoryLogs(logsData);
+        } else {
+          // 2. Pull every device's expenses into Dexie. The useLiveQuery above
+          // will pick up the merged rows automatically.
+          await fetchAndMergeExpenses();
 
-        // 5. Fetch Recipes & Inventory
-        const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
-        if (recipesData) {
-          // Convert cents back to decimal strings for the Recipe Builder UI
-          const mappedRecipes = recipesData.map(r => ({
-            ...r,
-            custom_price: r.custom_price ? fromCents(r.custom_price).toString() : null
-          }));
-          setRecipes(mappedRecipes); // Use mappedRecipes instead of raw recipesData
+          // 4. Fetch Sales History (dedupe by local_id — see salesSync.js)
+          await fetchAndMergeSales();
+
+          // 5. Fetch Recipes & Inventory
+          const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
+          if (recipesData) {
+            // Convert cents back to decimal strings for the Recipe Builder UI
+            const mappedRecipes = recipesData.map(r => ({
+              ...r,
+              custom_price: r.custom_price ? fromCents(r.custom_price).toString() : null
+            }));
+            setRecipes(mappedRecipes); // Use mappedRecipes instead of raw recipesData
+          }
+
+          const { data: invData } = await supabase.from('inventory').select('*');
+          if (invData) {
+            setInventoryItems(invData);
+            await db.inventory.bulkPut(invData);
+          }
+
+          const { data: logsData } = await supabase.from('inventory_logs').select('*');
+          if (logsData) setInventoryLogs(logsData);
         }
-
-        const { data: invData } = await supabase.from('inventory').select('*');
-        if (invData) {
-          setInventoryItems(invData);
-          await db.inventory.bulkPut(invData);
-        }
-
-        const { data: logsData } = await supabase.from('inventory_logs').select('*');
-        if (logsData) setInventoryLogs(logsData);
 
       } catch (error) {
         console.error("Error fetching data:", error.message);
@@ -335,6 +352,13 @@ function Admin() {
   // state matches what's actually persisted.
   const reloadMenuFromCloud = async () => {
     try {
+      if (isLocalMode()) {
+        // No cloud — reload the menu from Dexie and keep cached settings.
+        const menu = await loadMenu();
+        const settings = useMenuStore.getState().menuData || {};
+        setMenuData({ ...settings, ...menu });
+        return;
+      }
       const [menu, settingsRes] = await Promise.all([
         loadMenu(),
         supabase.from('shop_settings').select('menu_data').eq('id', 1).single()
@@ -371,6 +395,21 @@ function Admin() {
   const saveSettingsToCloud = async (updatedMenu) => {
     setIsSaving(true);
     try {
+      // Local ('guest') mode: there is no shop_settings table. Persist settings
+      // into the local cache (useMenuStore scrubs PINs before writing), and route
+      // any PINs into the hashed app_local store so they survive — the master PIN
+      // is cashier id 0 (posSettings.pinCode), plus any per-cashier PINs.
+      if (isLocalMode()) {
+        const { setLocalPin } = await import('./utils/localAuth');
+        if (updatedMenu.posSettings?.pinCode) {
+          await setLocalPin(0, updatedMenu.posSettings.pinCode);
+        }
+        for (const c of (updatedMenu.cashiers || [])) {
+          if (c?.pin) await setLocalPin(c.id, c.pin);
+        }
+        setMenuData(updatedMenu);
+        return;
+      }
       const settingsOnly = {
         cashiers: updatedMenu.cashiers,
         posSettings: updatedMenu.posSettings,
@@ -1594,16 +1633,19 @@ function Admin() {
             { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
             { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
             { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
-            { id: 'menus', icon: 'lucide:layout-list', label: t('admin.publicMenus') },
+            // Public menus (TinyMenu) need a Supabase project to publish — cloud only.
+            { id: 'menus', icon: 'lucide:layout-list', label: t('admin.publicMenus'), cloudOnly: true },
             { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
             { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
             { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
-            { id: 'team', icon: 'lucide:users', label: t('admin.team') },
-            { id: 'devices', icon: 'lucide:tablet-smartphone', label: t('admin.devices') },
+            // Team (server-side PINs/app_users), Devices (Management API provisioning),
+            // and Activity (server feed) are meaningless on a single local device.
+            { id: 'team', icon: 'lucide:users', label: t('admin.team'), cloudOnly: true },
+            { id: 'devices', icon: 'lucide:tablet-smartphone', label: t('admin.devices'), cloudOnly: true },
             { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
-            { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true },
+            { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true, cloudOnly: true },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
-          ].map(tab => {
+          ].filter(tab => !(tab.cloudOnly && isLocalMode())).map(tab => {
             const isLocked = tab.advancedOnly && generalSettings.isAdvancedMode !== true;
             return (
               <button

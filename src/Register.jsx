@@ -5,6 +5,7 @@ import { db } from './db';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { loadMenu } from './api/menu';
+import { isLocalMode } from './utils/appMode';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
@@ -133,18 +134,31 @@ function Register() {
         // 1. Fetch Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
         //    Merged so the in-memory `menuData` shape stays identical for the
         //    Register UI and modifier rendering logic.
-        const [menu, settingsRes, recipeResp] = await Promise.all([
-          loadMenu(),
-          supabase.from('shop_settings').select('menu_data').eq('id', 1).single(),
-          supabase.from('recipes').select('*')
-        ]);
-        if (settingsRes.error) throw settingsRes.error;
-        if (recipeResp.error) throw recipeResp.error;
+        //
+        //    Local ('guest') mode has no cloud project: load the menu from Dexie
+        //    (via the dispatcher) and merge with whatever settings are already
+        //    cached locally by useMenuStore. The cloud-only fetches (shop_settings,
+        //    recipes) are skipped entirely — supabase is null in this mode.
+        let merged;
+        if (isLocalMode()) {
+          const menu = await loadMenu();
+          const cachedSettings = useMenuStore.getState().menuData || {};
+          merged = { ...cachedSettings, ...menu };
+          setMenuData(merged);
+        } else {
+          const [menu, settingsRes, recipeResp] = await Promise.all([
+            loadMenu(),
+            supabase.from('shop_settings').select('menu_data').eq('id', 1).single(),
+            supabase.from('recipes').select('*')
+          ]);
+          if (settingsRes.error) throw settingsRes.error;
+          if (recipeResp.error) throw recipeResp.error;
 
-        const settings = settingsRes.data?.menu_data || {};
-        const merged = { ...menu, ...settings };
-        setMenuData(merged);
-        setRecipes(recipeResp.data);
+          const settings = settingsRes.data?.menu_data || {};
+          merged = { ...menu, ...settings };
+          setMenuData(merged);
+          setRecipes(recipeResp.data);
+        }
 
         // SAFE ACTIVE CATEGORY ASSIGNMENT
         // Open on the first *visible, ordered* tab (matches MenuArea) instead
@@ -156,15 +170,20 @@ function Register() {
           setActiveCategory(ordered[0] || allCats[0]);
         }
 
-        // 3. Pull down active tickets from other devices into local Dexie
-        await fetchActiveTickets();
+        // Steps 3-5 pull data down from other devices via Supabase. In local
+        // ('guest') mode there is nothing to pull — Dexie is the only store —
+        // so skip them; live queries already read the local tables directly.
+        if (!isLocalMode()) {
+          // 3. Pull down active tickets from other devices into local Dexie
+          await fetchActiveTickets();
 
-        // 4. Pull down historical sales into local Dexie (for OrdersTab refunds)
-        await fetchAndMergeSales();
+          // 4. Pull down historical sales into local Dexie (for OrdersTab refunds)
+          await fetchAndMergeSales();
 
-        // 5. Pull down expenses from every device so shift calc covers the
-        // whole shop, not just this terminal's local writes.
-        await fetchAndMergeExpenses();
+          // 5. Pull down expenses from every device so shift calc covers the
+          // whole shop, not just this terminal's local writes.
+          await fetchAndMergeExpenses();
+        }
 
         setIsLoading(false);
       } catch (err) {

@@ -2,6 +2,7 @@ import React from 'react';
 import { supabase } from '../supabaseClient';
 import { useDialog } from '../hooks/useDialog';
 import { useTranslation } from '../hooks/useTranslation';
+import { isLocalMode } from '../utils/appMode';
 import { Icon } from '@iconify/react';
 
 export default function SignOutButton({ variant = 'default' }) {
@@ -14,6 +15,13 @@ export default function SignOutButton({ variant = 'default' }) {
       t('settings.signOutConfirm', 'Your session will be closed, but your offline data will be kept safe. You will need to log in again to resume syncing.'),
       async () => {
         try {
+          // Local ('guest') mode: there's no cloud session. Reloading drops the
+          // in-memory localAuthed flag, so App re-renders the LocalAuthGate
+          // unlock screen — effectively re-locking the device.
+          if (isLocalMode()) {
+            window.location.replace('/');
+            return;
+          }
           if (supabase) {
             await supabase.auth.signOut();
             // App.jsx listener will handle the redirect
