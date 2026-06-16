@@ -27,6 +27,25 @@ export function isLocalMode() {
   return getMode() === MODE_LOCAL;
 }
 
+// ---- Local → cloud upgrade handshake ---------------------------------------
+// The upgrade spans a page reload (SetupScreen saves keys then reloads), so we
+// persist a flag across it. beginCloudUpgrade() is the single entry point any
+// in-app "back up to the cloud" button calls.
+const UPGRADE_FLAG = 'tinypos_upgrade_pending';
+
+export function beginCloudUpgrade() {
+  try { localStorage.setItem(UPGRADE_FLAG, '1'); } catch { /* noop */ }
+  window.location.href = '/';
+}
+
+export function isUpgradePending() {
+  try { return localStorage.getItem(UPGRADE_FLAG) === '1'; } catch { return false; }
+}
+
+export function clearUpgradePending() {
+  try { localStorage.removeItem(UPGRADE_FLAG); } catch { /* noop */ }
+}
+
 export function setMode(mode) {
   try {
     if (mode === MODE_LOCAL) {

@@ -1,4 +1,5 @@
 import { Icon } from '@iconify/react';
+import { beginCloudUpgrade } from '../utils/appMode';
 
 // Static "how to upgrade to a free Supabase backup" page. Reached from the
 // upgrade nudge (UpgradeNagModal) and the General Settings upgrade card in local
@@ -71,14 +72,21 @@ export default function UpgradeGuide() {
           ))}
         </ol>
 
-        <div style={{ marginTop: '40px', textAlign: 'center' }}>
+        <div style={{ marginTop: '40px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+          <button
+            onClick={beginCloudUpgrade}
+            style={{ padding: '16px 40px', background: '#099b46', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 78, 35, 0.25)', display: 'inline-flex', alignItems: 'center', gap: '10px' }}
+          >
+            <Icon icon="lucide:cloud-upload" />
+            Crear respaldo gratis ahora
+          </button>
           <button
             onClick={() => { window.location.href = '/'; }}
-            style={{ padding: '16px 40px', background: '#099b46', color: 'white', border: 'none', borderRadius: '14px', fontSize: '1.1rem', fontWeight: 900, cursor: 'pointer', boxShadow: '0 4px 12px rgba(5, 78, 35, 0.25)' }}
+            style={{ padding: '10px 24px', background: 'transparent', color: '#546e7a', border: 'none', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: '4px' }}
           >
-            Seguir usando tinypos
+            Ahora no, seguir usando tinypos
           </button>
-          <p style={{ marginTop: '16px', color: '#94a3b8', fontSize: '0.9rem' }}>
+          <p style={{ marginTop: '4px', color: '#94a3b8', fontSize: '0.9rem' }}>
             Puedes hacer el respaldo cuando quieras — tus datos seguirán aquí.
           </p>
         </div>

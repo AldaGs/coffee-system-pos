@@ -11,8 +11,9 @@ import PublicMenu from './components/PublicMenu';
 import LocalAuthGate from './components/LocalAuthGate';
 import UpgradeGuide from './components/UpgradeGuide';
 import UpgradeNagModal from './components/UpgradeNagModal';
+import MigrationScreen from './components/MigrationScreen';
 import { supabase } from './supabaseClient';
-import { getMode, setMode, MODE_LOCAL } from './utils/appMode';
+import { getMode, setMode, MODE_LOCAL, isUpgradePending, clearUpgradePending } from './utils/appMode';
 import UpdateNotification from './components/shared/UpdateNotification';
 
 function App() {
@@ -270,6 +271,41 @@ function App() {
   // --- NEW GATE: THE GUIDE ---
   if (showGuide) {
     return <SupabaseGuide onBack={() => setShowGuide(false)} />;
+  }
+
+  // --- LOCAL → CLOUD UPGRADE GATE ---
+  // A local install that has chosen to back up to the cloud. The handshake spans
+  // a reload (SetupScreen saves keys, then reloads):
+  //   1. No keys yet  → run the normal "create your store" SetupScreen.
+  //   2. Keys present → run the one-time data migration, then flip to cloud mode.
+  if (localMode && isUpgradePending()) {
+    if (!isInstalled) {
+      return (
+        <SetupScreen
+          initialMode="new"
+          onBack={() => { clearUpgradePending(); window.location.href = '/'; }}
+          onComplete={(newUrl, newAnonKey) => {
+            localStorage.setItem('tinypos_supabase_url', newUrl);
+            localStorage.setItem('tinypos_supabase_anon_key', newAnonKey);
+            setIsInstalled(true);
+            // Reload so the supabase client picks up the new keys before the
+            // migration runs; the upgrade flag is still set, so we land on the
+            // MigrationScreen branch below.
+            window.location.href = '/';
+          }}
+          onShowGuide={() => setShowGuide(true)}
+        />
+      );
+    }
+    return (
+      <MigrationScreen
+        onDone={() => {
+          setMode('cloud');
+          clearUpgradePending();
+          window.location.href = '/';
+        }}
+      />
+    );
   }
 
   // --- LOCAL MODE PIPELINE ---

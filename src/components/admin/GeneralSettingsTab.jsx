@@ -10,6 +10,7 @@ import { supabase } from '../../supabaseClient';
 import { updateItem, updateModifierOption, updateDiscountRule } from '../../api/menu';
 import { useMenuStore } from '../../store/useMenuStore';
 import { db } from '../../db';
+import { isLocalMode, beginCloudUpgrade } from '../../utils/appMode';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
 
@@ -72,6 +73,8 @@ function GeneralSettingsTab({
   const schemaResumedRef = useRef(false);
 
   const fetchSchemaVersion = async () => {
+    // Local ('guest') mode has no cloud schema to report.
+    if (isLocalMode()) { setDbVersion('local'); return; }
     try {
       const { data, error } = await supabase
         .from('schema_meta')
@@ -585,7 +588,8 @@ function GeneralSettingsTab({
 
           {/* --- SCHEMA MAINTENANCE: brings the tenant's Supabase project up to
               the schema version this build of the app expects. Idempotent and
-              safe to re-run. --- */}
+              safe to re-run. Cloud-only — hidden in local ('guest') mode. --- */}
+          {!isLocalMode() && (
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
             <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <Icon icon="lucide:database-zap" style={{ color: 'var(--brand-color)' }} />
@@ -646,6 +650,7 @@ function GeneralSettingsTab({
               </button>
             </div>
           </div>
+          )}
         </div>
 
         {/* --- RIGHT COLUMN: WORKFLOW & HARDWARE --- */}
@@ -937,22 +942,55 @@ function GeneralSettingsTab({
             </div>
             */}
 
-            <div style={{
-              border: '2px solid rgba(231, 76, 60, 0.2)',
-              padding: '24px',
-              borderRadius: '24px',
-              backgroundColor: 'rgba(231, 76, 60, 0.05)'
-            }}>
-              <h3 style={{ marginTop: 0, color: '#d63031', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Icon icon="lucide:alert-triangle" />
-                {t('settings.dangerZone')}
-              </h3>
-              <p style={{ color: '#d63031', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
-                {t('settings.disconnectDesc')}
-              </p>
+            {isLocalMode() ? (
+              /* Local mode: no cloud connection to disconnect. Offer the upgrade
+                 to a free cloud backup instead. */
+              <div style={{
+                border: '2px solid rgba(52, 152, 219, 0.25)',
+                padding: '24px',
+                borderRadius: '24px',
+                backgroundColor: 'rgba(52, 152, 219, 0.06)'
+              }}>
+                <h3 style={{ marginTop: 0, color: 'var(--text-main)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon icon="lucide:cloud-upload" style={{ color: '#3498db' }} />
+                  Respaldo en la nube
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
+                  Tus datos viven solo en este dispositivo. Crea una cuenta gratuita
+                  de Supabase para respaldarlos y usarlos en otros dispositivos.
+                </p>
+                <button
+                  onClick={beginCloudUpgrade}
+                  style={{ width: '100%', padding: '14px', background: '#099b46', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  <Icon icon="lucide:cloud-upload" />
+                  Crear respaldo gratis
+                </button>
+                <button
+                  onClick={() => { window.location.href = '/upgrade-guide'; }}
+                  style={{ width: '100%', marginTop: '10px', padding: '10px', background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', textUnderlineOffset: '3px' }}
+                >
+                  ¿Cómo funciona?
+                </button>
+              </div>
+            ) : (
+              <div style={{
+                border: '2px solid rgba(231, 76, 60, 0.2)',
+                padding: '24px',
+                borderRadius: '24px',
+                backgroundColor: 'rgba(231, 76, 60, 0.05)'
+              }}>
+                <h3 style={{ marginTop: 0, color: '#d63031', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Icon icon="lucide:alert-triangle" />
+                  {t('settings.dangerZone')}
+                </h3>
+                <p style={{ color: '#d63031', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
+                  {t('settings.disconnectDesc')}
+                </p>
 
-              <DisconnectButton />
-            </div>
+                <DisconnectButton />
+              </div>
+            )}
           </div>
         </div>
 
