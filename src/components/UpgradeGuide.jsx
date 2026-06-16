@@ -33,7 +33,7 @@ export default function UpgradeGuide() {
   ];
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#fdfdfd', color: '#0d3a66', fontFamily: 'var(--font-main, system-ui)', overflowY: 'auto' }}>
+    <div style={{ height: '100dvh', background: '#fdfdfd', color: '#0d3a66', fontFamily: 'var(--font-main, system-ui)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
       <nav style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 5%', borderBottom: '1px solid #f0f0f0', background: 'white' }}>
         <button
           onClick={() => { window.location.href = '/'; }}
