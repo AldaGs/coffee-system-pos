@@ -2,6 +2,7 @@ import { numeroALetras } from './numeroALetras';
 import { calculateTaxBreakdown } from './posMath';
 import * as htmlToImage from 'html-to-image';
 import { formatForDisplay } from './moneyUtils';
+import { useUpgradeNagStore } from '../store/useUpgradeNagStore';
 
 export const convertLogoToESCPOS = async (base64Data) => {
   return new Promise((resolve) => {
@@ -385,6 +386,8 @@ export const saveTicketAsPNG = async (elementId, fileName = 'ticket.png') => {
           title: 'Ticket',
           text: 'Aquí tienes tu ticket.'
         });
+        // Local-mode growth loop: count a shared ticket (no-op in cloud mode).
+        useUpgradeNagStore.getState().trigger('ticket_shared');
         return;
       } catch (err) {
         if (err?.name === 'AbortError') return;

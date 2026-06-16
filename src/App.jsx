@@ -9,6 +9,8 @@ import SupabaseGuide from './components/SupabaseGuide';
 import RecipeCostCalculator from './components/RecipeCostCalculator';
 import PublicMenu from './components/PublicMenu';
 import LocalAuthGate from './components/LocalAuthGate';
+import UpgradeGuide from './components/UpgradeGuide';
+import UpgradeNagModal from './components/UpgradeNagModal';
 import { supabase } from './supabaseClient';
 import { getMode, setMode, MODE_LOCAL } from './utils/appMode';
 import UpdateNotification from './components/shared/UpdateNotification';
@@ -260,6 +262,11 @@ function App() {
     return <RecipeCostCalculator />;
   }
 
+  // Static upgrade tutorial — reached from the local-mode upgrade nudge.
+  if (window.location.pathname === '/upgrade-guide') {
+    return <UpgradeGuide />;
+  }
+
   // --- NEW GATE: THE GUIDE ---
   if (showGuide) {
     return <SupabaseGuide onBack={() => setShowGuide(false)} />;
@@ -276,6 +283,7 @@ function App() {
     return (
       <BrowserRouter>
         <UpdateNotification />
+        <UpgradeNagModal />
         <Routes>
           <Route path="/" element={<Register />} />
           <Route path="/admin" element={<Admin />} />

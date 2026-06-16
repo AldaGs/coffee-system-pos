@@ -3,6 +3,7 @@ import { db } from '../db';
 import { computeStarsForTicket } from '../hooks/useLoyalty';
 import { recordTipAccrual } from './tipsService';
 import { isLocalMode } from '../utils/appMode';
+import { useUpgradeNagStore } from '../store/useUpgradeNagStore';
 
 // Pre-flight stock check against local Dexie inventory. Mirrors the deduction
 // logic in processCheckout but only reads — used to surface "insufficient
@@ -335,6 +336,10 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
       console.warn('tip accrual event failed', e);
     }
   }
+
+  // Local-mode growth loop: count this sale toward the upgrade nudge. No-ops in
+  // cloud mode (recordEvent short-circuits), so it's safe to call unconditionally.
+  useUpgradeNagStore.getState().trigger('sales_completed');
 
   return { localAnalyticsRecord: finalizedSale, masterMethodString };
 };

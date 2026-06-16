@@ -24,6 +24,7 @@ import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
 import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 import { isLocalMode } from './utils/appMode';
+import { useUpgradeNagStore } from './store/useUpgradeNagStore';
 
 import AnalyticsTab from './components/admin/AnalyticsTab';
 import OrdersTab from './components/admin/OrdersTab';
@@ -438,6 +439,7 @@ function Admin() {
       }
     };
     runMenuWrite(updatedMenu, () => addItem(categoryName, item));
+    useUpgradeNagStore.getState().trigger('items_added');
   };
 
   // Patches a single item's imageUrl across whichever category currently
@@ -862,6 +864,7 @@ function Admin() {
     };
 
     runMenuWrite(updatedMenu, () => addItem(newItemForm.category, newDrink));
+    useUpgradeNagStore.getState().trigger('items_added');
 
     logActivity('menu_item_added', null, {
       name: newItemForm.name,

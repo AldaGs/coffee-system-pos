@@ -5,6 +5,51 @@ import { db } from '../../db';
 import { useTranslation } from '../../hooks/useTranslation';
 import { logActivity } from '../../services/activityService';
 import { toCents, toMillicents, fromMillicents, formatForDisplay, formatMillicentsForDisplay, millicentsToCents } from '../../utils/moneyUtils';
+import { isLocalMode } from '../../utils/appMode';
+import { useUpgradeNagStore } from '../../store/useUpgradeNagStore';
+
+// --- Mode-aware persistence helpers ---------------------------------------
+// In cloud mode each write goes to Supabase and the returned row (with its
+// server id) is mirrored into Dexie. In local ('guest') mode there is no
+// Supabase: we generate the id locally and write straight to Dexie, returning
+// the same row shape so the callers below are identical across modes.
+async function persistInventory(payload, id) {
+  if (isLocalMode()) {
+    // Merge onto the existing row for partial updates (Dexie put replaces the
+    // whole record, unlike a Supabase column update).
+    const existing = id != null ? (await db.inventory.get(id)) : null;
+    const row = { ...(existing || {}), ...payload, id: id ?? Date.now() };
+    await db.inventory.put(row);
+    return row;
+  }
+  const q = id != null
+    ? supabase.from('inventory').update(payload).eq('id', id).select()
+    : supabase.from('inventory').insert([payload]).select();
+  const { data, error } = await q;
+  if (error) throw error;
+  await db.inventory.put(data[0]);
+  return data[0];
+}
+
+async function persistInventoryLog(log) {
+  if (isLocalMode()) { await db.inventory_logs.add(log); return; }
+  const { error } = await supabase.from('inventory_logs').insert([log]);
+  if (error) throw error;
+}
+
+async function persistInventoryExpense(expense) {
+  if (isLocalMode()) {
+    await db.expenses.put({
+      ...expense,
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      cashierId: 'inventory',
+    });
+    return;
+  }
+  const { error } = await supabase.from('expenses').insert([expense]);
+  if (error) throw error;
+}
 
 function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -41,8 +86,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     };
 
     try {
-      const { data, error } = await supabase.from('inventory').insert([itemToSave]).select();
-      if (error) throw error;
+      const saved = await persistInventory(itemToSave);
 
       // 3. ONLY create an expense if they actually entered a cost > 0
       if (costInCents > 0) {
@@ -52,17 +96,17 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           category: 'Inventario',
           cashier_name: 'Inventory System'
         };
-        const { error: expenseError } = await supabase.from('expenses').insert([purchaseExpense]);
-        if (expenseError) console.error("Failed to log purchase expense:", expenseError);
+        try { await persistInventoryExpense(purchaseExpense); }
+        catch (e) { console.error("Failed to log purchase expense:", e); }
       }
 
       // LOG ACTIVITY
       logActivity('inventory_created', null, { name: itemToSave.name, stock: stockVal, unit: itemToSave.unit });
 
-      await db.inventory.put(data[0]);
-      setInventoryItems([...inventoryItems, data[0]]);
+      setInventoryItems([...inventoryItems, saved]);
       setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '' });
       setActiveView('list');
+      useUpgradeNagStore.getState().trigger('inventory_logged');
 
       showAlert(t('inv.alertSuccess'), `${itemToSave.name} ${t('inv.added')}`);
     } catch (_UNUSED) { // eslint-disable-line no-unused-vars
@@ -111,7 +155,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
     try {
       const newSourceStock = sourceItem.current_stock - usedQty;
-      await supabase.from('inventory').update({ current_stock: newSourceStock }).eq('id', sourceItem.id);
+      const updatedSource = await persistInventory({ current_stock: newSourceStock }, sourceItem.id);
 
       const targetItemPayload = {
         name: existingTarget ? existingTarget.name : transformForm.targetItemName.trim(),
@@ -120,16 +164,24 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         unit_cost: finalUnitCost
       };
 
-      const { data: upsertData, error: upsertErr } = await supabase.from('inventory').upsert([targetItemPayload], { onConflict: 'name' }).select();
-      if (upsertErr) throw upsertErr;
+      // Cloud upserts by unique name; locally we resolve the conflict ourselves
+      // via existingTarget (update) vs new item (insert).
+      let targetRow;
+      if (isLocalMode()) {
+        targetRow = await persistInventory(targetItemPayload, existingTarget ? existingTarget.id : undefined);
+      } else {
+        const { data: upsertData, error: upsertErr } = await supabase.from('inventory').upsert([targetItemPayload], { onConflict: 'name' }).select();
+        if (upsertErr) throw upsertErr;
+        await db.inventory.put(upsertData[0]);
+        targetRow = upsertData[0];
+      }
 
-      const updatedSource = { ...sourceItem, current_stock: newSourceStock };
       setInventoryItems(prev => {
         let next = prev.map(i => i.id === updatedSource.id ? updatedSource : i);
         if (existingTarget) {
-          next = next.map(i => i.id === existingTarget.id ? upsertData[0] : i);
+          next = next.map(i => i.id === existingTarget.id ? targetRow : i);
         } else {
-          next = [...next, upsertData[0]];
+          next = [...next, targetRow];
         }
         return next;
       });
@@ -164,11 +216,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         unit_cost: toMillicents(editingItem.unit_cost)
       };
 
-      const { data, error } = await supabase.from('inventory').update(payload).eq('id', editingItem.id).select();
-      if (error) throw error;
-
-      await db.inventory.put(data[0]);
-      setInventoryItems(inventoryItems.map(item => item.id === editingItem.id ? data[0] : item));
+      const saved = await persistInventory(payload, editingItem.id);
+      setInventoryItems(inventoryItems.map(item => item.id === editingItem.id ? saved : item));
       setEditingItem(null);
     } catch (err) {
       console.error(err);
@@ -193,8 +242,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     const deductionType = variance < 0 ? (auditingItem.reason || 'waste') : 'audit_correction';
 
     try {
-      const { data, error } = await supabase.from('inventory').update({ current_stock: actualCount }).eq('id', auditingItem.id).select();
-      if (error) throw error;
+      const saved = await persistInventory({ current_stock: actualCount }, auditingItem.id);
 
       const auditLog = {
         item_name: auditingItem.name,
@@ -206,11 +254,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         local_id: crypto.randomUUID()
       };
 
-      const { error: logError } = await supabase.from('inventory_logs').insert([auditLog]);
-      if (logError) throw logError;
-
-      await db.inventory.put(data[0]);
-      setInventoryItems(inventoryItems.map(item => item.id === auditingItem.id ? data[0] : item));
+      await persistInventoryLog(auditLog);
+      setInventoryItems(inventoryItems.map(item => item.id === auditingItem.id ? saved : item));
       setAuditingItem(null);
 
       const impactMsg = variance < 0
@@ -251,10 +296,10 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
 
     try {
-      const { data, error } = await supabase.from('inventory')
-        .update({ current_stock: newStock, unit_cost: newUnitCostInMillicents })
-        .eq('id', restockingItem.id).select();
-      if (error) throw error;
+      const saved = await persistInventory(
+        { current_stock: newStock, unit_cost: newUnitCostInMillicents },
+        restockingItem.id
+      );
 
       const restockLog = {
         item_name: restockingItem.name,
@@ -265,7 +310,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         unit_cost: newUnitCostInMillicents,
         local_id: crypto.randomUUID()
       };
-      await supabase.from('inventory_logs').insert([restockLog]);
+      await persistInventoryLog(restockLog);
 
       if (restockingItem.paidFromRegister && totalPaidInCents > 0) {
         const expense = {
@@ -274,15 +319,15 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           category: 'Inventario',
           cashier_name: 'Inventory System'
         };
-        await supabase.from('expenses').insert([expense]);
+        await persistInventoryExpense(expense);
       }
 
       // LOG ACTIVITY
       logActivity('inventory_restock', null, { name: restockingItem.name, qty: qtyBought, unit: restockingItem.unit, cost: totalPaidInCents });
 
-      await db.inventory.put(data[0]);
-      setInventoryItems(inventoryItems.map(item => item.id === restockingItem.id ? data[0] : item));
+      setInventoryItems(inventoryItems.map(item => item.id === restockingItem.id ? saved : item));
       setRestockingItem(null);
+      useUpgradeNagStore.getState().trigger('inventory_logged');
 
       showAlert(t('inv.alertRestockComplete'), `${qtyBought}${restockingItem.unit} ${t('inv.added')} ${t('inv.to')} ${restockingItem.name}.`);
 
@@ -298,7 +343,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       // enough context to reconcile later (otherwise a deleted item just
       // vanishes from the system with no record of what was lost).
       const item = inventoryItems.find(i => i.id === id);
-      await supabase.from('inventory').delete().eq('id', id);
+      if (!isLocalMode()) await supabase.from('inventory').delete().eq('id', id);
       await db.inventory.delete(id);
       logActivity('inventory_deleted', null, {
         name,
