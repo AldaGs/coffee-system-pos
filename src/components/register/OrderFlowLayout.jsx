@@ -174,10 +174,22 @@ function OrderFlowLayout({
 
             <div className="menu-grid">
               {currentProducts.map((item) => (
-                <button key={item.id} onClick={() => handleItemClick(item)} className="item-btn">
-                  <span className="item-name">{item.emoji || ''} {item.name}</span>
-                  <span className="item-price">{formatForDisplay(item.basePrice)}</span>
-                </button>
+                item.imageUrl ? (
+                  <button key={item.id} onClick={() => handleItemClick(item)} className="item-btn item-btn--photo">
+                    <span className="item-photo">
+                      <img src={item.imageUrl} alt="" loading="lazy" />
+                    </span>
+                    <span className="item-photo-info">
+                      <span className="item-name">{item.name}</span>
+                      <span className="item-price">{formatForDisplay(item.basePrice)}</span>
+                    </span>
+                  </button>
+                ) : (
+                  <button key={item.id} onClick={() => handleItemClick(item)} className="item-btn">
+                    <span className="item-name">{item.emoji || ''} {item.name}</span>
+                    <span className="item-price">{formatForDisplay(item.basePrice)}</span>
+                  </button>
+                )
               ))}
             </div>
           </>
