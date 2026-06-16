@@ -570,6 +570,11 @@ html, body {
 
 /* By default, variables are set in :root (Light Mode) */
 :root {
+  /* Default brand accent. Overridden at runtime by ThemeContext.updateTheme()
+     from saved posSettings.brandColor; without this default, bare
+     `var(--brand-color)` usages render with no color (e.g. on a fresh local
+     install that has no settings yet). */
+  --brand-color: #f28b05;
   --bg-main: #f4f6f8;
   --bg-surface: #ffffff;
   --text-main: #111827;
@@ -579,7 +584,9 @@ html, body {
   --admin-card-radius: 24px;
   /* Semantic action colors (audit 4.6) */
   --action-primary: var(--brand-color, #f28b05);
-  --border: var(--brand-color, #e5e7eb);
+  /* NOTE: --border intentionally stays neutral (#e5e7eb above). A leftover
+     duplicate here re-coupled it to --brand-color, which tinted every neutral
+     border once a brand color resolved (orange on a fresh install). */
   --action-success: #27ae60;
   --action-danger: #e74c3c;
   --action-neutral: #6b7280;

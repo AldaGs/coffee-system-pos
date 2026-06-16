@@ -31,7 +31,11 @@ export const useMenuStore = create((set, get) => ({
     const defaults = {
       name: "Main Register",
       language: "en",
-      brandColor: 'var(--brand-color)',
+      // Concrete default (matches a fresh cloud store). The old 'var(--brand-color)'
+      // placeholder leaked into the color picker as a literal string and, when fed
+      // back into ThemeContext.setProperty('--brand-color', …), created a
+      // self-referential (invalid) value that wiped the accent color entirely.
+      brandColor: '#f28b05',
       isDarkMode: false,
       autoLockMinutes: 5,
       enableCorte: true,

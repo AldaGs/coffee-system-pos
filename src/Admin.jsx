@@ -56,13 +56,16 @@ function Admin() {
   // --- ZUSTAND GLOBAL STORE ---
   const { menuData, setMenuData, recipes, setRecipes } = useMenuStore();
   const { t } = useTranslation();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Local ('guest') mode: the device was already unlocked by LocalAuthGate, so
+  // there is no separate cloud account login — start authenticated and skip the
+  // Supabase session machinery entirely. The admin PIN gate below still applies.
+  const [isAuthenticated, setIsAuthenticated] = useState(isLocalMode());
   // Tracks whether the initial supabase.auth.getSession() has resolved.
   // Without this flag the first render shows the email/password form for
   // the window between mount and session-promise resolution — long enough
   // to be visible (and interactive) when the page is busy with other work
   // (sync queue, presence subs, etc.).
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [isCheckingSession, setIsCheckingSession] = useState(!isLocalMode());
 
   // strictAdminAccess guard: when on, the active cashier role must be 'admin'
   // to even reach this page. We check on mount and on every menuData refresh
@@ -227,7 +230,7 @@ function Admin() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (!isLocalMode() && supabase) await supabase.auth.signOut();
     setIsAuthenticated(false);
   };
 
@@ -240,6 +243,8 @@ function Admin() {
 
   // --- AUTHENTICATION LISTENER (For Offline Support & Persistence) ---
   useEffect(() => {
+    // Local mode has no cloud session — nothing to check or subscribe to.
+    if (isLocalMode() || !supabase) return;
     // Check if an active session already exists in localStorage. Render
     // gates wait on `isCheckingSession` so we don't flash the login form
     // before this promise resolves.
