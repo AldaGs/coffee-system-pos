@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { supabase } from '../supabaseClient'; // Ensure this points to your standard client
 import { createClient } from '@supabase/supabase-js';
+import { isUpgradePending } from '../utils/appMode';
 
 export default function SetupScreen({ initialMode, onBack, onComplete, onShowGuide }) {
   const isConnectingExisting = initialMode === 'connect';
@@ -1255,6 +1256,23 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       });
 
       if (authError) throw new Error(`Error en Auth: ${authError.message}`);
+
+      // Local→cloud upgrade only: sign in as the new admin (persisted session)
+      // BEFORE reloading. The migration runs immediately on reload — before the
+      // normal device-login gate — so without this it would write as the anon
+      // role and be blocked by RLS. The normal new-store flow is unchanged: it
+      // still routes through the device-login gate after reload.
+      if (isUpgradePending()) {
+        setLoadingStep('Preparando la migración de tus datos...');
+        const sessionClient = createClient(projectUrl, anonKeyObj.api_key, {
+          auth: { persistSession: true, autoRefreshToken: true },
+        });
+        const { error: signInErr } = await sessionClient.auth.signInWithPassword({
+          email: adminEmail,
+          password: adminPassword,
+        });
+        if (signInErr) throw new Error(`No se pudo iniciar sesión para migrar: ${signInErr.message}`);
+      }
 
       // --- STEP D: Complete! Boot the app ---
       setLoadingStep('¡Todo listo! Arrancando tinypos...');

@@ -41,6 +41,24 @@ export async function migrateLocalToCloud(onProgress = noop) {
   const notes = [];
   const invIdMap = new Map(); // String(localId) -> cloudId
 
+  // ---- 0. ALLOWLIST: register this admin so RLS permits the writes ---------
+  // The signed-in admin (established by SetupScreen before the reload) must
+  // exist in app_users for the per-table RLS policies to allow inserts. App's
+  // allowlist effect normally does this on SIGNED_IN, but it's skipped during
+  // the local-mode migration — so we run the bootstrap RPC explicitly first.
+  onProgress({ phase: 'auth' });
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      return { ok: false, errors: ['No hay sesión activa. Vuelve a intentar el respaldo.'], notes: [] };
+    }
+    await supabase.rpc('claim_or_bootstrap_app_user');
+  } catch (e) {
+    // Older schemas may not have the RPC; the writes below will reveal if RLS
+    // still blocks. Don't hard-fail here.
+    console.warn('claim_or_bootstrap_app_user during migration:', e?.message);
+  }
+
   // ---- 1. INVENTORY -------------------------------------------------------
   onProgress({ phase: 'inventory' });
   try {

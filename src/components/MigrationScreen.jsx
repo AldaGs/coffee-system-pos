@@ -8,6 +8,7 @@ import { migrateLocalToCloud } from '../services/localToCloudMigration';
 // into a normal cloud install). On error it stops and lets the user retry or
 // continue anyway, so a transient failure never strands them.
 const PHASE_LABELS = {
+  auth: 'Verificando tu cuenta…',
   inventory: 'Subiendo inventario…',
   customers: 'Subiendo clientes y lealtad…',
   menu: 'Subiendo el menú…',
