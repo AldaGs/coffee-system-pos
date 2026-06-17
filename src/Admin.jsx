@@ -128,6 +128,7 @@ function Admin() {
     price: '',
     priceType: 'fixed',
     emoji: '☕',
+    ivaTreatment: 'tasa0',
     allowedModifiers: [],
     item_type: "none",
 
@@ -821,6 +822,7 @@ function Admin() {
       price: "",
       priceType: 'fixed',
       emoji: '☕',
+      ivaTreatment: 'tasa0',
       inventoryMode: 'none',
       linkedWarehouseId: '',
       linkedRecipeId: ''
@@ -849,6 +851,7 @@ function Admin() {
         basePrice: toCents(newItemForm.price || 0),
         priceType: newItemForm.priceType || 'fixed',
         emoji: newItemForm.emoji || '',
+        ivaTreatment: newItemForm.ivaTreatment || 'tasa0',
         inventoryMode: newItemForm.inventoryMode || 'none',
         linkedWarehouseId: newItemForm.linkedWarehouseId || '',
         linkedRecipeId: newItemForm.linkedRecipeId || ''
@@ -884,6 +887,7 @@ function Admin() {
       basePrice: toCents(newItemForm.price || 0),
       priceType: newItemForm.priceType || 'fixed',
       emoji: newItemForm.emoji || '',
+      ivaTreatment: newItemForm.ivaTreatment || 'tasa0',
       allowedModifiers: [],
       inventoryMode: newItemForm.inventoryMode || 'none',
       linkedWarehouseId: newItemForm.linkedWarehouseId || '',

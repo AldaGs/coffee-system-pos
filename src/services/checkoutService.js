@@ -107,9 +107,30 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     : 0;
   const loyaltyRedeemed = loyaltyPhone ? (activeTicket?.loyalty_stars_pending || 0) : 0;
 
+  // IVA breakdown for the books (tinybooks ingests sales.tax_amount instead of
+  // assuming a flat 16%). Each item carries an ivaTreatment from its menu_item
+  // (stored in the item's data jsonb): 'iva16' = prepared/served, taxed at 16%;
+  // 'tasa0' / 'exento' = unprepared food (e.g. ground coffee) -> no IVA charged.
+  // MX prices are tax-INCLUSIVE, so the IVA is carved out of the line, not added.
+  // We compute on raw line totals then scale by any ticket-level discount so the
+  // taxable base tracks what was actually charged (centsTotal excludes the tip).
+  const lineGross = (it) => {
+    const mods = (it.selectedModifiers || []).reduce((s, m) => s + (Number(m.price) || 0), 0);
+    return ((Number(it.basePrice) || 0) + mods) * (it.qty || 1);
+  };
+  const rawSubtotal = (activeTicket.items || []).reduce((s, it) => s + lineGross(it), 0);
+  const taxableRaw = (activeTicket.items || [])
+    .filter((it) => (it.ivaTreatment || 'tasa0') === 'iva16')
+    .reduce((s, it) => s + lineGross(it), 0);
+  const discountScale = rawSubtotal > 0 ? centsTotal / rawSubtotal : 1;
+  const centsTaxable = Math.round(taxableRaw * discountScale);
+  const centsTax = Math.round(centsTaxable - centsTaxable / 1.16); // IVA carved out of gross
+
   // 1. Build the CLOUD Data specifically matching your Supabase columns
   const currentSale = {
     total_amount: centsTotal,
+    tax_amount: centsTax,
+    taxable_amount: centsTaxable,
     payment_method: masterMethodString,
     splits: isSplit ? paymentsArray.map(p => ({ ...p, amount: p.amount })) : null,
     tip_amount: centsTip,

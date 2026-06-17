@@ -217,7 +217,23 @@ function MenuEditorTab({
                   </div>
                 </div>
               </div>
-              
+
+              {/* IVA TREATMENT — drives the tax split tinybooks ingests. MX:
+                  prepared/served = 16%; unprepared food (ground coffee to-go) =
+                  tasa 0%; exento = no IVA and no input-IVA credit. */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelIva') || 'Tratamiento de IVA'}</label>
+                <select
+                  value={newItemForm.ivaTreatment || 'tasa0'}
+                  onChange={(e) => setNewItemForm({ ...newItemForm, ivaTreatment: e.target.value })}
+                  style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  <option value="iva16">{t('menu.ivaRate16') || 'Grava IVA 16% (preparado)'}</option>
+                  <option value="tasa0">{t('menu.ivaRate0') || 'Tasa 0% (alimento no preparado)'}</option>
+                  <option value="exento">{t('menu.ivaExento') || 'Exento'}</option>
+                </select>
+              </div>
+
               {/* INVENTORY TRACKING */}
               <div style={{ marginTop: '8px', background: 'var(--bg-main)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '12px', color: 'var(--text-main)' }}>
@@ -302,6 +318,7 @@ function MenuEditorTab({
                         name: '',
                         price: '',
                         emoji: '☕',
+                        ivaTreatment: 'tasa0',
                         inventoryMode: 'none',
                         linkedWarehouseId: '',
                         linkedRecipeId: ''
@@ -474,6 +491,7 @@ function MenuEditorTab({
                                   price: String(fromCents(item.basePrice ?? 0)),
                                   priceType: item.priceType || 'fixed',
                                   emoji: item.emoji || '☕',
+                                  ivaTreatment: item.ivaTreatment || 'tasa0',
                                   inventoryMode: item.inventoryMode || 'none',
                                   linkedWarehouseId: item.linkedWarehouseId || '',
                                   linkedRecipeId: item.linkedRecipeId || ''
