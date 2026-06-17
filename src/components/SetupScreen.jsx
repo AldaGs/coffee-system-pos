@@ -1511,7 +1511,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
     },
     successBtn: {
       padding: '16px',
-      background: 'var(--color-success)',
+      background: 'var(--brand-color)',
       color: '#fff',
       border: 'none',
       borderRadius: '14px',
@@ -1522,7 +1522,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       alignItems: 'center',
       justifyContent: 'center',
       gap: '10px',
-      boxShadow: '0 8px 22px rgba(39, 174, 96, 0.3)',
+      boxShadow: '0 8px 22px rgba(242, 139, 5, 0.3)',
       transition: 'box-shadow 0.2s ease, opacity 0.2s ease',
     },
     helperText: {
@@ -1588,7 +1588,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           box-shadow: 0 12px 30px rgba(242, 139, 5, 0.45);
         }
         .setup-success-cta:hover {
-          box-shadow: 0 12px 30px rgba(39, 174, 96, 0.45);
+          box-shadow: 0 12px 30px rgba(242, 139, 5, 0.45);
         }
         .setup-primary-cta:disabled,
         .setup-success-cta:disabled {
