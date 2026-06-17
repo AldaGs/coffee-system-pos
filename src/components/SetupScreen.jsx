@@ -205,7 +205,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       const serviceRoleObj = keysData.find(k => k.name === 'service_role');
       if (!anonKeyObj || !serviceRoleObj) throw new Error("Llaves de API no encontradas");
 
-      const projectRef = projects.find(p => p.id === selectedProject)?.id;
+      // selectedProject IS the project ref (used directly by get-keys/run-sql
+      // above). Don't look it up in `projects` — a just-created project isn't in
+      // that pre-fetched list, which yielded https://undefined.supabase.co.
+      const projectRef = selectedProject;
       const projectUrl = `https://${projectRef}.supabase.co`;
 
       // --- STEP B: Inject the SQL Schema ---
@@ -1427,8 +1430,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       // Device provisioning re-authorizes via OAuth on demand from the
       // Admin "Dispositivos" tab.
 
-      // Calculate the Project URL
-      const projectRef = projects.find(p => p.id === selectedProject)?.id;
+      // Calculate the Project URL — selectedProject is already the ref.
+      const projectRef = selectedProject;
       const projectUrl = `https://${projectRef}.supabase.co`;
 
       // Pass the keys back to App.jsx so it saves them to localStorage and reloads!
