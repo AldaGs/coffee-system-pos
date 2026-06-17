@@ -30,6 +30,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
   const [region, setRegion] = useState('us-east-1'); // East US (N. Virginia)
   const [projectName, setProjectName] = useState('tinypos');
   const [createMode, setCreateMode] = useState(false); // show the create-project UI
+  const [installStep, setInstallStep] = useState(1); // 1 = project, 2 = admin (install flow only)
   const [creating, setCreating] = useState(false);
   const [provisionStatus, setProvisionStatus] = useState(''); // '', 'provisioning', 'ready'
   const [createdProject, setCreatedProject] = useState(null); // { ref, dbPass }
@@ -1451,9 +1452,15 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
     page: {
       display: 'flex',
       minHeight: '100dvh',
+      height: '100dvh',
       backgroundColor: 'var(--bg-app)',
       justifyContent: 'center',
-      alignItems: 'center',
+      // flex-start + margin:auto on the card centers it when it fits and lets the
+      // page scroll when it's taller than the viewport (centering alone clips the
+      // top in flexbox). overflowY makes the whole page a scroll area.
+      alignItems: 'flex-start',
+      overflowY: 'auto',
+      WebkitOverflowScrolling: 'touch',
       fontFamily: 'var(--font-main, system-ui)',
       padding: '20px',
       boxSizing: 'border-box',
@@ -1464,6 +1471,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       borderRadius: '24px',
       width: '100%',
       maxWidth: '440px',
+      margin: 'auto',
       boxShadow: '0 20px 50px rgba(0,0,0,0.18)',
       border: '1px solid var(--border)',
       position: 'relative',
@@ -1829,7 +1837,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                     className="setup-cta-supabase"
                     style={{
                       padding: '18px',
-                      background: '#3eb370',
+                      background: 'var(--brand-color)',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '14px',
@@ -1840,7 +1848,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       justifyContent: 'center',
                       alignItems: 'center',
                       gap: '10px',
-                      boxShadow: '0 10px 28px rgba(62, 179, 112, 0.4)',
+                      boxShadow: '0 10px 28px rgba(242, 139, 5, 0.4)',
                       transition: 'box-shadow 0.2s ease',
                     }}
                   >
@@ -1875,7 +1883,17 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                   style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
                 >
 
+                  {/* Step indicator (install flow only) */}
+                  {!isConnectingExisting && (
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
+                      {[1, 2].map((s) => (
+                        <span key={s} style={{ width: '32px', height: '5px', borderRadius: '3px', background: installStep >= s ? 'var(--brand-color)' : 'var(--border)' }} />
+                      ))}
+                    </div>
+                  )}
+
                   {/* Step 1 — Project */}
+                  {(isConnectingExisting || installStep === 1) && (
                   <div style={styles.stepCard}>
                     <div style={styles.stepHeader}>
                       <div style={styles.stepBadge}>1</div>
@@ -1998,9 +2016,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       );
                     })()}
                   </div>
+                  )}
 
-                  {/* Step 2 — Admin (only when installing from scratch) */}
-                  {!isConnectingExisting && (
+                  {/* Step 2 — Admin (install flow, second step) */}
+                  {!isConnectingExisting && installStep === 2 && (
                   <div style={styles.stepCard}>
                     <div style={styles.stepHeader}>
                       <div style={styles.stepBadge}>2</div>
@@ -2064,22 +2083,52 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                   </div>
                   )}
 
-                  <button
-                    type="submit"
-                    disabled={
-                      loading
-                      || !selectedProject
-                      // a just-created project must finish provisioning first
-                      || (createdProject && provisionStatus !== 'ready')
-                      // mid-create form with nothing selected yet
-                      || (createMode && !createdProject)
+                  {(() => {
+                    const projectReady = selectedProject
+                      && !(createdProject && provisionStatus !== 'ready')
+                      && !(createMode && !createdProject);
+
+                    // Install flow, step 1 → advance to admin step (no submit yet).
+                    if (!isConnectingExisting && installStep === 1) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => { if (projectReady) { setInstallStep(2); } }}
+                          disabled={loading || !projectReady}
+                          className="setup-success-cta"
+                          style={{ ...styles.successBtn, marginTop: '4px' }}
+                        >
+                          <Icon icon="lucide:arrow-right" width="20" />
+                          <span>Continuar</span>
+                        </button>
+                      );
                     }
-                    className="setup-success-cta"
-                    style={{ ...styles.successBtn, marginTop: '4px' }}
-                  >
-                    <Icon icon={isConnectingExisting ? 'lucide:log-in' : 'lucide:rocket'} width="20" />
-                    <span>{isConnectingExisting ? 'Acceder a tinypos' : 'Instalar tinypos'}</span>
-                  </button>
+
+                    // Install flow, step 2 → submit + back.
+                    if (!isConnectingExisting && installStep === 2) {
+                      return (
+                        <>
+                          <button type="submit" disabled={loading} className="setup-success-cta" style={{ ...styles.successBtn, marginTop: '4px' }}>
+                            <Icon icon="lucide:rocket" width="20" />
+                            <span>Instalar tinypos</span>
+                          </button>
+                          {!loading && (
+                            <button type="button" onClick={() => setInstallStep(1)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '6px' }}>
+                              <Icon icon="lucide:arrow-left" /> Volver
+                            </button>
+                          )}
+                        </>
+                      );
+                    }
+
+                    // Connect-existing flow → single submit.
+                    return (
+                      <button type="submit" disabled={loading || !selectedProject} className="setup-success-cta" style={{ ...styles.successBtn, marginTop: '4px' }}>
+                        <Icon icon="lucide:log-in" width="20" />
+                        <span>Acceder a tinypos</span>
+                      </button>
+                    );
+                  })()}
                 </form>
               )}
             </>
