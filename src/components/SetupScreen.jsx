@@ -90,10 +90,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
     if (!selectedProject || !adminEmail || !adminPassword) {
       return showAlert("Por favor, llena todos los campos", "error");
     }
-    // The PIN is interpolated into the seed SQL, so it must be exactly 4 digits
+    // The PIN is interpolated into the seed SQL, so it must be 4-6 digits only
     // — this both enforces the format and prevents SQL injection.
-    if (!/^\d{4}$/.test(adminPin)) {
-      return showAlert("El PIN de administrador debe ser de 4 dígitos.", "error");
+    if (!/^\d{4,6}$/.test(adminPin)) {
+      return showAlert("El PIN de administrador debe tener entre 4 y 6 dígitos.", "error");
     }
 
     setLoading(true);
@@ -1867,9 +1867,9 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                           type="text"
                           inputMode="numeric"
                           autoComplete="off"
-                          placeholder="PIN de administrador (4 dígitos)"
+                          placeholder="PIN de administrador (4-6 dígitos)"
                           value={adminPin}
-                          onChange={e => setAdminPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          onChange={e => setAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                           required
                           style={styles.input}
                         />
