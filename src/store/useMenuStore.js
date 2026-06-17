@@ -31,12 +31,16 @@ export const useMenuStore = create((set, get) => ({
     const defaults = {
       name: "Main Register",
       language: "en",
-      brandColor: 'var(--brand-color)',
+      // Concrete default (matches a fresh cloud store). The old 'var(--brand-color)'
+      // placeholder leaked into the color picker as a literal string and, when fed
+      // back into ThemeContext.setProperty('--brand-color', …), created a
+      // self-referential (invalid) value that wiped the accent color entirely.
+      brandColor: '#f28b05',
       isDarkMode: false,
       autoLockMinutes: 5,
       enableCorte: true,
       ticketVisibility: "open",
-      pinCode: "1234"
+      pinCode: "" // no hardcoded master PIN; set during onboarding
     };
     if (!menuData?.posSettings) return defaults;
     return { ...defaults, ...menuData.posSettings };
@@ -63,6 +67,13 @@ export const useMenuStore = create((set, get) => ({
 
   
   verifyPin: async (cashierId, pin) => {
+    // Local ('guest') mode: verify against the on-device hashed PIN store — no
+    // network, no Supabase RPC.
+    const { isLocalMode } = await import('../utils/appMode');
+    if (isLocalMode()) {
+      const { verifyLocalPin } = await import('../utils/localAuth');
+      return verifyLocalPin(cashierId, pin);
+    }
     const { supabase } = await import('../supabaseClient');
     if (!navigator.onLine) {
       throw new Error("Internet connection required for PIN verification");

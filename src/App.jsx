@@ -8,7 +8,12 @@ import LandingPage from './components/LandingPage';
 import SupabaseGuide from './components/SupabaseGuide';
 import RecipeCostCalculator from './components/RecipeCostCalculator';
 import PublicMenu from './components/PublicMenu';
+import LocalAuthGate from './components/LocalAuthGate';
+import UpgradeGuide from './components/UpgradeGuide';
+import UpgradeNagModal from './components/UpgradeNagModal';
+import MigrationScreen from './components/MigrationScreen';
 import { supabase } from './supabaseClient';
+import { getMode, setMode, MODE_LOCAL, isUpgradePending, clearUpgradePending } from './utils/appMode';
 import UpdateNotification from './components/shared/UpdateNotification';
 
 function App() {
@@ -28,6 +33,14 @@ function App() {
   const [isInstalled, setIsInstalled] = useState(
     !!localStorage.getItem('tinypos_supabase_url') && !!localStorage.getItem('tinypos_supabase_anon_key')
   );
+
+  // --- LOCAL ('guest') MODE ---
+  // When the install runs in local mode there is no Supabase project: the app is
+  // "installed" without keys, the cloud session gate is replaced by a local
+  // credential check (LocalAuthGate), and sync is a no-op. `localMode` is kept in
+  // state so selecting it on the LandingPage re-renders into the local pipeline.
+  const [localMode, setLocalMode] = useState(() => getMode() === MODE_LOCAL);
+  const [localAuthed, setLocalAuthed] = useState(false);
 
   const [showGuide, setShowGuide] = useState(false);
 
@@ -97,7 +110,9 @@ function App() {
   //      out immediately. Devices and the first human are seeded by the
   //      bootstrap_app_user trigger so they pass this check transparently.
   useEffect(() => {
-    if (!isInstalled || !supabase) {
+    // Local mode has no Supabase session to verify — skip the whole cloud
+    // auth/allowlist machinery and let the local credential gate take over.
+    if (!isInstalled || !supabase || localMode) {
       setTimeout(() => setIsCheckingSession(false), 0);
       return;
     }
@@ -225,7 +240,7 @@ function App() {
     });
 
     return () => subscription.unsubscribe();
-  }, [isInstalled]);
+  }, [isInstalled, localMode]);
 
   const handleDeviceLogin = async (e) => {
     e.preventDefault();
@@ -248,15 +263,84 @@ function App() {
     return <RecipeCostCalculator />;
   }
 
+  // Static upgrade tutorial — reached from the local-mode upgrade nudge.
+  if (window.location.pathname === '/upgrade-guide') {
+    return <UpgradeGuide />;
+  }
+
   // --- NEW GATE: THE GUIDE ---
   if (showGuide) {
     return <SupabaseGuide onBack={() => setShowGuide(false)} />;
   }
 
+  // --- LOCAL → CLOUD UPGRADE GATE ---
+  // A local install that has chosen to back up to the cloud. The handshake spans
+  // a reload (SetupScreen saves keys, then reloads):
+  //   1. No keys yet  → run the normal "create your store" SetupScreen.
+  //   2. Keys present → run the one-time data migration, then flip to cloud mode.
+  if (localMode && isUpgradePending()) {
+    if (!isInstalled) {
+      return (
+        <SetupScreen
+          initialMode="new"
+          onBack={() => { clearUpgradePending(); window.location.href = '/'; }}
+          onComplete={(newUrl, newAnonKey) => {
+            localStorage.setItem('tinypos_supabase_url', newUrl);
+            localStorage.setItem('tinypos_supabase_anon_key', newAnonKey);
+            setIsInstalled(true);
+            // Reload so the supabase client picks up the new keys before the
+            // migration runs; the upgrade flag is still set, so we land on the
+            // MigrationScreen branch below.
+            window.location.href = '/';
+          }}
+          onShowGuide={() => setShowGuide(true)}
+        />
+      );
+    }
+    return (
+      <MigrationScreen
+        onDone={() => {
+          setMode('cloud');
+          clearUpgradePending();
+          window.location.href = '/';
+        }}
+      />
+    );
+  }
+
+  // --- LOCAL MODE PIPELINE ---
+  // Short-circuits the cloud setup/session gates entirely. Once the user picks
+  // local mode (or returns to a local install) we only need the device-local
+  // credential gate before the main app.
+  if (localMode) {
+    if (!localAuthed) {
+      return <LocalAuthGate onAuthed={() => setLocalAuthed(true)} />;
+    }
+    return (
+      <BrowserRouter>
+        <UpdateNotification />
+        <UpgradeNagModal />
+        <Routes>
+          <Route path="/" element={<Register />} />
+          <Route path="/admin" element={<Admin />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
   // --- GATE 0: THE LANDING PAGE ---
   if (!isInstalled && !setupMode) {
-    return <LandingPage 
-      onSelectMode={(mode) => setSetupMode(mode)} 
+    return <LandingPage
+      onSelectMode={(mode) => {
+        // 'local' is the new no-infrastructure path; 'new'/'connect' keep the
+        // existing Supabase setup flow untouched.
+        if (mode === 'local') {
+          setMode(MODE_LOCAL);
+          setLocalMode(true);
+          return;
+        }
+        setSetupMode(mode);
+      }}
       onShowGuide={() => setShowGuide(true)}
     />;
   }

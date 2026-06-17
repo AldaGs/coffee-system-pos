@@ -17,9 +17,13 @@ export const ThemeProvider = ({ children }) => {
       favicon.href = posSettings.appBootLogo || '/icon-192.png';
     }
 
-    // 3. Inject Brand Color
-    if (posSettings.brandColor) {
-       document.documentElement.style.setProperty('--brand-color', posSettings.brandColor);
+    // 3. Inject Brand Color — only if it's a real color value. A legacy
+    // placeholder like 'var(--brand-color)' would be self-referential and
+    // invalidate the property (wiping the accent entirely), so we ignore
+    // anything that isn't a hex / rgb / hsl / named color.
+    const bc = posSettings.brandColor;
+    if (bc && !/var\s*\(/.test(bc)) {
+       document.documentElement.style.setProperty('--brand-color', bc);
     }
 
     // 4. Toggle Dark Mode

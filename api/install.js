@@ -232,18 +232,16 @@ export default async function handler(req, res) {
     -- ==========================================
     -- SEED INITIAL SETTINGS
     -- ==========================================
+    -- This path is the "Update Schema" repair for EXISTING stores, so the insert
+    -- is a no-op for them (ON CONFLICT DO NOTHING). We intentionally seed NO
+    -- cashiers and NO default PIN — the admin PIN is set by the owner during
+    -- onboarding (SetupScreen), never hardcoded here.
     INSERT INTO public.shop_settings (id, menu_data)
     VALUES (
-      1, 
-      '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "TinyPOS", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "1234", "strictAdminAccess": false, "strictRegisterOverrides": false}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
+      1,
+      '{"categories": {"Café": []}, "cashiers": [], "posSettings": {"name": "TinyPOS", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "", "strictAdminAccess": false, "strictRegisterOverrides": false}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
     )
     ON CONFLICT (id) DO NOTHING;
-
-    -- Seed the default Admin PIN (hashed)
-    INSERT INTO public.cashier_pins (cashier_id, pin_hash)
-    VALUES (0, crypt('1234', gen_salt('bf'))),
-           (1, crypt('1234', gen_salt('bf')))
-    ON CONFLICT (cashier_id) DO NOTHING;
 
     -- ==========================================
     -- ROW LEVEL SECURITY (RLS) & POLICIES

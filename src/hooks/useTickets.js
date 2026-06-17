@@ -2,10 +2,15 @@ import { db } from '../db';
 import { supabase } from '../supabaseClient';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
+import { isLocalMode } from '../utils/appMode';
 
 // Mirror an active_ticket mutation to the cloud. If offline or the write fails,
 // stash the patch on db.updateQueue so attemptBackgroundSync can replay it.
 export const pushActiveTicketUpdate = (ticketId, patch) => {
+  // Local ('guest') mode: the Dexie write by the caller is authoritative and
+  // these are ephemeral — nothing to mirror or queue.
+  if (isLocalMode()) return;
+
   const enqueue = () => db.updateQueue.add({
     type: 'active_ticket_update',
     ticket_id: ticketId,
@@ -53,7 +58,7 @@ export function useTickets({
 
         await db.active_tickets.add(newTicket);
 
-        if (navigator.onLine) {
+        if (!isLocalMode() && navigator.onLine) {
           try {
             await supabase.from('active_tickets').insert([newTicket]);
           } catch (err) {
@@ -86,7 +91,7 @@ export function useTickets({
 
         await db.active_tickets.update(activeTicket.id, { name: newName });
 
-        if (navigator.onLine) {
+        if (!isLocalMode() && navigator.onLine) {
           try {
             await supabase.from('active_tickets').update({ name: newName }).eq('id', activeTicket.id);
           } catch (err) {
@@ -104,7 +109,7 @@ export function useTickets({
     if (!activeTicket) return;
     const ticketIdToDelete = activeTicket.id;
     await db.active_tickets.delete(ticketIdToDelete);
-    if (navigator.onLine) {
+    if (!isLocalMode() && navigator.onLine) {
       try {
         await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
       } catch (err) {

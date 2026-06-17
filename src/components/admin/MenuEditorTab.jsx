@@ -7,6 +7,7 @@ import ImageCropModal from './ImageCropModal';
 import AssetLibraryModal from './AssetLibraryModal';
 import MenuHistoryPanel from './MenuHistoryPanel';
 import { MAX_SOURCE_BYTES } from '../../api/menuImages';
+import { isLocalMode } from '../../utils/appMode';
 
 // Full public URL → storage path ("assets/<hash>.webp"). Lets us match an
 // item's image_url back to the storage object so we know which assets are used.
@@ -52,7 +53,19 @@ function MenuEditorTab({
     return map;
   })();
 
+  // Product photos require Supabase Storage (the menu-assets bucket), which a
+  // local install doesn't have. Rather than store heavy Base64 blobs in
+  // IndexedDB (boot bloat), photos are a cloud-upgrade feature: gate the entry
+  // points with an upsell prompt. Items still render their emoji/initial.
+  const imageUpsell = () => {
+    showAlert?.(
+      t('menu.imageUpsellTitle') || 'Las fotos requieren la nube',
+      t('menu.imageUpsellBody') || 'Las fotos de productos se guardan en la nube. Actualiza gratis a Supabase para habilitarlas. Por ahora se muestra el emoji del producto.'
+    );
+  };
+
   const openLibrary = (next) => {
+    if (isLocalMode()) { imageUpsell(); return; }
     loadAssets?.();
     setLibrary(next);
   };
@@ -73,6 +86,7 @@ function MenuEditorTab({
   };
 
   const openPicker = (itemId) => {
+    if (isLocalMode()) { imageUpsell(); return; }
     setPendingItemId(itemId);
     fileInputRef.current?.click();
   };

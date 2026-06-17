@@ -66,3 +66,36 @@ db.version(10).stores({
   expenses: 'id, timestamp, cashierId',
   shift_state: 'key'
 });
+
+// --- V11: LOCAL-FIRST GUEST MODE ---
+// New stores used only when the install runs in local ('guest') mode. Cloud
+// installs never touch them, so this version is purely additive and existing
+// devices upgrade transparently (see docs/local-first-mode-plan.md).
+//
+// app_local:  key/value for device-local secrets — the hashed owner credential
+//             ('credentials') and hashed cashier/admin PINs ('pins'). Plaintext
+//             is never stored.
+// menu_local: the menu catalog (categories, items, modifier groups/options,
+//             discount rules) when there is no Supabase project. Mirrors the
+//             cloud table shapes so the upgrade migration can push it up.
+//             IDs are client-generated UUIDs to avoid collisions on migration.
+// customers:  local loyalty visit counts, keyed by phone. Migrates to the cloud
+//             `customers` table on upgrade.
+// nag_state:  upgrade-nudge engagement counters + snooze bookkeeping.
+db.version(11).stores({
+  sales: '++id, status, created_at, local_id',
+  menu: 'id',
+  syncQueue: '++id, local_id',
+  active_tickets: 'id',
+  inventory: 'id, name',
+  inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+  updateQueue: '++id, type, local_id',
+  tip_payouts: '++id, created_at, local_id',
+  tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id',
+  expenses: 'id, timestamp, cashierId',
+  shift_state: 'key',
+  app_local: 'key',
+  menu_local: 'id, type',
+  customers: 'phone',
+  nag_state: 'key'
+});

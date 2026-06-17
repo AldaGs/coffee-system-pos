@@ -1,7 +1,12 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { isLocalMode } from '../utils/appMode';
 
 export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => {
+  // Local ('guest') mode has no cloud project to sync to — data lives only in
+  // Dexie. No-op so the interval/online listener never touch a null client.
+  if (isLocalMode() || !supabase) return false;
+
   // Don't try if we are offline
   if (!navigator.onLine) return false;
 
