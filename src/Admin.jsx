@@ -644,10 +644,9 @@ function Admin() {
   };
 
   // --- CASHIER MANAGEMENT (NOW CLOUD SYNCED) ---
-  const cashiers = menuData?.cashiers || [
-    { id: 1, name: 'Admin', pin: '1234', isAdmin: true },
-    { id: 2, name: 'Barista 1', pin: '0000' }
-  ];
+  // Cashiers (and their PINs) are seeded during onboarding — no hardcoded
+  // defaults, so a fresh store never ships with a guessable Admin/1234.
+  const cashiers = menuData?.cashiers || [];
 
   // `role` is the source of truth ('employee' | 'manager' | 'admin').
   // `isAdmin` is kept in sync (role === 'admin') so legacy reads keep working.

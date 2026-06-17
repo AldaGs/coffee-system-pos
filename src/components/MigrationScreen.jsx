@@ -29,10 +29,9 @@ export default function MigrationScreen({ onDone }) {
     try {
       const res = await migrateLocalToCloud(({ phase }) => setPhase(phase));
       setResult(res);
-      if (res.ok) {
-        // Brief beat so the user sees "done" before the reload.
-        setTimeout(() => onDone(res), 800);
-      }
+      // Note: we intentionally do NOT auto-continue on success. The user must
+      // read the post-upgrade warning (create the admin + PIN in the Team tab)
+      // and click through, so it isn't missed behind an instant reload.
     } catch (e) {
       setResult({ ok: false, errors: [e.message], notes: [] });
     } finally {
@@ -68,9 +67,30 @@ export default function MigrationScreen({ onDone }) {
         )}
 
         {!running && result?.ok && (
-          <p style={{ color: '#099b46', fontWeight: 700, marginTop: '16px' }}>
-            <Icon icon="lucide:check-circle-2" /> ¡Listo! Entrando a tu tienda en la nube…
-          </p>
+          <div style={{ marginTop: '12px' }}>
+            <p style={{ color: '#099b46', fontWeight: 800, fontSize: '1.05rem', margin: '0 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <Icon icon="lucide:check-circle-2" /> ¡Respaldo completado!
+            </p>
+
+            {/* Post-upgrade note: the admin PIN set locally was preserved (seeded
+                into the new project at connect time), and team management now
+                lives in the cloud Team tab. */}
+            <div style={{ background: 'rgba(52, 152, 219, 0.08)', border: '1px solid rgba(52, 152, 219, 0.25)', borderRadius: '14px', padding: '16px', textAlign: 'left', display: 'flex', gap: '12px' }}>
+              <Icon icon="lucide:info" style={{ color: '#3498db', fontSize: '1.4rem', flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ fontSize: '0.9rem', color: 'var(--text-main, #0d3a66)', lineHeight: 1.5 }}>
+                Tu <strong>PIN de administrador</strong> se conservó. Para agregar
+                cajeros y gestionar tu equipo, ahora usa <strong>Admin → Equipo</strong>.
+              </div>
+            </div>
+
+            <button
+              onClick={() => onDone(result)}
+              style={{ width: '100%', marginTop: '18px', padding: '16px', background: '#099b46', color: 'white', border: 'none', borderRadius: '14px', cursor: 'pointer', fontWeight: 900, fontSize: '1.05rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+            >
+              <Icon icon="lucide:arrow-right" />
+              Entendido, entrar a mi tienda
+            </button>
+          </div>
         )}
 
         {!running && result && !result.ok && (

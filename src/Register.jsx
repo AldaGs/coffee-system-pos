@@ -315,11 +315,9 @@ function Register() {
   const pinAttempts = useRef(0);                       // monotonic wrong-PIN counter (telemetry hook)
 
   // --- CASHIER PROFILES (CLOUD SYNCED) ---
-  // We read directly from the cloud menuData now!
-  const cashiers = menuData?.cashiers || [
-    { id: 1, name: 'Admin', pin: '1234' },
-    { id: 2, name: 'Barista 1', pin: '0000' }
-  ];
+  // Read directly from menuData. Cashiers are seeded at onboarding — no
+  // hardcoded Admin/1234 fallback.
+  const cashiers = menuData?.cashiers || [];
 
   // Keep refs in sync (moved here to ensure state is initialized)
   useEffect(() => { activeTicketIdRef.current = activeTicketId; }, [activeTicketId]);

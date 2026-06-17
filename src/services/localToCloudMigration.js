@@ -152,7 +152,9 @@ export async function migrateLocalToCloud(onProgress = noop) {
     };
     const { error } = await supabase.from('shop_settings').update({ menu_data: settingsOnly }).eq('id', 1);
     if (error) throw error;
-    notes.push('Vuelve a configurar los PINs del equipo en la pestaña Equipo (no se pueden migrar por seguridad).');
+    // NOTE: the "re-create admin + PINs in the Team tab" warning is shown
+    // unconditionally by MigrationScreen on success, so we don't duplicate it
+    // here in `notes`.
   } catch (e) {
     errors.push(`Configuración: ${e.message}`);
   }

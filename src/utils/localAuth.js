@@ -92,30 +92,32 @@ export async function verifyLocalCredential(email, password) {
 
 // ---- Local PIN store --------------------------------------------------------
 // In cloud mode PINs are verified by the `verify_pin` SECURITY DEFINER RPC. Local
-// mode has no server, so cashier/admin PINs are hashed (same PBKDF2 scheme) and
-// kept in `app_local` under key 'pins': { [cashierId]: { salt, hash } }.
+// mode has no server, so cashier/admin PINs live in `app_local` under key 'pins':
+// { [cashierId]: pin }. The master PIN is cashier id 0.
 //
-// The master PIN is cashier id 0. Until the owner sets their own, local mode
-// falls back to the same default the app ships with ('1234') so a fresh device
-// can reach Admin — mirroring useMenuStore.getPosSettings()'s default pinCode.
+// PINs are stored in cleartext (not hashed) deliberately: they are short
+// device-lock codes, the real account credential (email/password) IS hashed, and
+// the local→cloud upgrade needs the plaintext to re-seed the cloud's hashed
+// secure_pins so the owner keeps the same PIN. There is no default PIN — the
+// owner sets one during onboarding, so a fresh device with no PIN grants nothing.
 
 const PINS_KEY = 'pins';
-const DEFAULT_MASTER_PIN = '1234';
 
 export async function setLocalPin(cashierId, pin) {
   const row = (await db.app_local.get(PINS_KEY)) || { key: PINS_KEY, pins: {} };
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
-  row.pins[String(cashierId)] = { salt: toHex(salt), hash: await deriveHash(pin, salt) };
+  row.pins[String(cashierId)] = String(pin);
   await db.app_local.put(row);
 }
 
 export async function verifyLocalPin(cashierId, pin) {
   const row = await db.app_local.get(PINS_KEY);
-  const entry = row?.pins?.[String(cashierId)];
-  if (!entry) {
-    // No PIN configured yet — only the master id 0 has a usable default.
-    return String(cashierId) === '0' && pin === DEFAULT_MASTER_PIN;
-  }
-  const candidate = await deriveHash(pin, fromHex(entry.salt));
-  return safeEqual(candidate, entry.hash);
+  const stored = row?.pins?.[String(cashierId)];
+  if (stored == null) return false; // no PIN configured → nothing unlocks
+  return String(stored) === String(pin);
+}
+
+// The master (id 0) PIN, used to seed the cloud on upgrade. null if unset.
+export async function getLocalMasterPin() {
+  const row = await db.app_local.get(PINS_KEY);
+  return row?.pins?.['0'] ?? null;
 }

@@ -40,7 +40,7 @@ export const useMenuStore = create((set, get) => ({
       autoLockMinutes: 5,
       enableCorte: true,
       ticketVisibility: "open",
-      pinCode: "1234"
+      pinCode: "" // no hardcoded master PIN; set during onboarding
     };
     if (!menuData?.posSettings) return defaults;
     return { ...defaults, ...menuData.posSettings };

@@ -5,7 +5,9 @@ import {
   getLocalEmail,
   createLocalCredential,
   verifyLocalCredential,
+  setLocalPin,
 } from '../utils/localAuth';
+import { useMenuStore } from '../store/useMenuStore';
 
 // Local ('guest') mode replacement for App.jsx's Supabase device-login gate.
 // Self-detects whether this device already has an owner credential:
@@ -17,6 +19,7 @@ export default function LocalAuthGate({ onAuthed }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [pin, setPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -54,11 +57,30 @@ export default function LocalAuthGate({ onAuthed }) {
       setError('Las contraseñas no coinciden.');
       return;
     }
+    if (intent === 'create' && !/^\d{4}$/.test(pin)) {
+      setError('El PIN de administrador debe ser de 4 dígitos.');
+      return;
+    }
 
     setBusy(true);
     try {
       if (intent === 'create') {
         await createLocalCredential(cleanEmail, password);
+        // Admin PIN: id 0 is the master PIN, id 1 is the "Admin" cashier. Both
+        // are set to the chosen PIN; the owner can add cashiers later in Admin.
+        await setLocalPin(0, pin);
+        await setLocalPin(1, pin);
+        // Seed the Admin cashier so the lock screen + admin gate work (replaces
+        // the old hardcoded default cashiers). PINs are NOT stored in the menu
+        // cache — they live in app_local.
+        const store = useMenuStore.getState();
+        const existing = store.menuData || {};
+        store.setMenuData({
+          ...existing,
+          cashiers: existing.cashiers?.length
+            ? existing.cashiers
+            : [{ id: 1, name: 'Admin', role: 'admin', isAdmin: true }],
+        });
         onAuthed();
       } else {
         const ok = await verifyLocalCredential(cleanEmail, password);
@@ -136,9 +158,30 @@ export default function LocalAuthGate({ onAuthed }) {
           )}
 
           {isCreate && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>PIN de administrador (4 dígitos)</label>
+              <div style={{ position: 'relative' }}>
+                <Icon icon="lucide:shield" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="••••"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  required
+                  disabled={busy}
+                  style={{ width: '100%', padding: '12px 12px 12px 38px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '1.2rem', letterSpacing: '0.4em', boxSizing: 'border-box' }}
+                />
+              </div>
+              <small style={{ color: 'var(--text-muted)' }}>Lo usarás para desbloquear la caja y el panel de administración.</small>
+            </div>
+          )}
+
+          {isCreate && (
             <div style={{ background: 'rgba(241, 196, 15, 0.08)', border: '1px solid rgba(241, 196, 15, 0.25)', color: '#b8860b', padding: '10px 14px', borderRadius: '12px', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <Icon icon="lucide:alert-triangle" style={{ flexShrink: 0, marginTop: 2 }} />
-              <span>Guarda bien tu contraseña: al ser solo local, no se puede recuperar si la olvidas o borras los datos del navegador.</span>
+              <span>Guarda bien tu contraseña y PIN: al ser solo locales, no se pueden recuperar si los olvidas o borras los datos del navegador.</span>
             </div>
           )}
 

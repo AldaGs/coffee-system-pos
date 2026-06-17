@@ -18,6 +18,23 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
   // New Admin Auth credentials
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  // Admin master PIN (4 digits) chosen at setup — seeds the cloud secure_pins
+  // instead of a hardcoded default. On a local→cloud upgrade we pre-fill it with
+  // the PIN the owner already set locally so they keep the same one.
+  const [adminPin, setAdminPin] = useState('');
+
+  useEffect(() => {
+    if (!isUpgradePending()) return;
+    let alive = true;
+    (async () => {
+      try {
+        const { getLocalMasterPin } = await import('../utils/localAuth');
+        const localPin = await getLocalMasterPin();
+        if (alive && localPin) setAdminPin(String(localPin));
+      } catch { /* noop */ }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState('');
@@ -72,6 +89,11 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
     e.preventDefault();
     if (!selectedProject || !adminEmail || !adminPassword) {
       return showAlert("Por favor, llena todos los campos", "error");
+    }
+    // The PIN is interpolated into the seed SQL, so it must be exactly 4 digits
+    // — this both enforces the format and prevents SQL injection.
+    if (!/^\d{4}$/.test(adminPin)) {
+      return showAlert("El PIN de administrador debe ser de 4 dígitos.", "error");
     }
 
     setLoading(true);
@@ -325,14 +347,14 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         INSERT INTO public.shop_settings (id, menu_data)
         VALUES (
           1,
-          '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "1234", "isAdmin": true}], "posSettings": {"name": "tinypos", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "1234", "strictAdminAccess": false, "strictRegisterOverrides": false}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
+          '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "${adminPin}", "isAdmin": true}], "posSettings": {"name": "tinypos", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "${adminPin}", "strictAdminAccess": false, "strictRegisterOverrides": false}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
         )
         ON CONFLICT (id) DO NOTHING;
 
         -- Seed the default Admin PIN (hashed)
         INSERT INTO public.cashier_pins (cashier_id, pin_hash)
-        VALUES (0, crypt('1234', gen_salt('bf'))),
-              (1, crypt('1234', gen_salt('bf')))
+        VALUES (0, crypt('${adminPin}', gen_salt('bf'))),
+              (1, crypt('${adminPin}', gen_salt('bf')))
         ON CONFLICT (cashier_id) DO NOTHING;
 
         -- ==========================================
@@ -1838,7 +1860,24 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                           style={styles.input}
                         />
                       </div>
+                      <div style={styles.inputWrap}>
+                        <Icon icon="lucide:shield" style={styles.inputIcon} />
+                        <input
+                          className="setup-input"
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="off"
+                          placeholder="PIN de administrador (4 dígitos)"
+                          value={adminPin}
+                          onChange={e => setAdminPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          required
+                          style={styles.input}
+                        />
+                      </div>
                     </div>
+                    <p style={styles.helperText}>
+                      El PIN desbloquea la caja y el panel. {isUpgradePending() ? 'Se rellenó con tu PIN local para que conserves el mismo.' : ''}
+                    </p>
                   </div>
                   )}
 
