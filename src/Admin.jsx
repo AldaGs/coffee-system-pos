@@ -5,8 +5,8 @@ import { supabase } from './supabaseClient';
 import {
   loadMenu,
   addCategory, renameCategory, deleteCategory, reorderCategories, setCategoryHidden,
-  addItem, updateItem, deleteItem,
-  addModifierGroup, renameModifierGroup, deleteModifierGroup, setModifierGroupAllowMultiple,
+  addItem, updateItem, deleteItem, setItemHidden,
+  addModifierGroup, renameModifierGroup, deleteModifierGroup, setModifierGroupAllowMultiple, setModifierGroupHidden,
   addModifierOption, updateModifierOption, deleteModifierOption,
   setItemModifiers,
   addDiscountRule, updateDiscountRule, deleteDiscountRule
@@ -782,6 +782,36 @@ function Admin() {
       }
     };
     runMenuWrite(updatedMenu, () => setModifierGroupAllowMultiple(groupKey, next));
+  };
+
+  // Hide/show a whole modifier group everywhere (public menu + Register).
+  const handleToggleModifierGroupHidden = (groupKey) => {
+    const current = !!menuData.modifierGroupSettings?.[groupKey]?.isHidden;
+    const next = !current;
+    const updatedMenu = {
+      ...menuData,
+      modifierGroupSettings: {
+        ...(menuData.modifierGroupSettings || {}),
+        [groupKey]: { ...(menuData.modifierGroupSettings?.[groupKey] || {}), isHidden: next }
+      }
+    };
+    runMenuWrite(updatedMenu, () => setModifierGroupHidden(groupKey, next));
+  };
+
+  // Hide/show a single menu item from the public menu + Register.
+  const handleToggleDrinkVisibility = (categoryName, drinkId) => {
+    const items = menuData.categories?.[categoryName] || [];
+    const target = items.find(d => d.id === drinkId);
+    if (!target) return;
+    const next = !target.isHidden;
+    const updatedMenu = {
+      ...menuData,
+      categories: {
+        ...menuData.categories,
+        [categoryName]: items.map(d => d.id === drinkId ? { ...d, isHidden: next } : d)
+      }
+    };
+    runMenuWrite(updatedMenu, () => setItemHidden(drinkId, next));
   };
 
   const resetItemForm = () => {
@@ -1799,6 +1829,7 @@ function Admin() {
             setEditingItemId={setEditingItemId}
             handleMoveCategory={handleMoveCategory}
             handleToggleCategoryVisibility={handleToggleCategoryVisibility}
+            handleToggleDrinkVisibility={handleToggleDrinkVisibility}
             handleSetItemImage={handleSetItemImage}
             handleClearItemImage={handleClearItemImage}
             assets={assets}
@@ -1831,6 +1862,7 @@ function Admin() {
             handleRenameModifierGroup={handleRenameModifierGroup}
             handleUpdateModifierOption={handleUpdateModifierOption}
             handleToggleModifierGroupMulti={handleToggleModifierGroupMulti}
+            handleToggleModifierGroupHidden={handleToggleModifierGroupHidden}
           />
         )}
 

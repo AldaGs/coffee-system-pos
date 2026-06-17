@@ -391,12 +391,14 @@ export default async function handler(req, res) {
       id             text PRIMARY KEY,
       name           text NOT NULL,
       allow_multiple bool NOT NULL DEFAULT false,
+      is_hidden      bool NOT NULL DEFAULT false,
       sort_order     int  NOT NULL DEFAULT 0,
       data           jsonb NOT NULL DEFAULT '{}'::jsonb,
       created_at     timestamptz NOT NULL DEFAULT now()
     );
     -- Heals installs that ran an earlier draft of this migration.
     ALTER TABLE public.menu_modifier_groups ADD COLUMN IF NOT EXISTS allow_multiple bool NOT NULL DEFAULT false;
+    ALTER TABLE public.menu_modifier_groups ADD COLUMN IF NOT EXISTS is_hidden bool NOT NULL DEFAULT false;
 
     -- ON UPDATE CASCADE: the group id is a slug derived from its display name,
     -- so renaming a group changes the id. Cascading keeps options + item links
@@ -497,6 +499,7 @@ export default async function handler(req, res) {
             SELECT jsonb_agg(jsonb_build_object(
               'id', i.id, 'name', i.name, 'basePrice', i.base_price_cents,
               'priceType', i.price_type, 'emoji', i.emoji, 'imageUrl', i.image_url,
+              'isHidden', i.is_hidden,
               'allowedModifiers', COALESCE((
                 SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                 FROM public.menu_item_modifier_groups l WHERE l.item_id = i.id
@@ -514,7 +517,7 @@ export default async function handler(req, res) {
           ), '[]'::jsonb)) FROM public.menu_modifier_groups g
         ), '{}'::jsonb),
         'modifierGroupSettings', COALESCE((
-          SELECT jsonb_object_agg(g.id, jsonb_build_object('allowMultiple', g.allow_multiple)) FROM public.menu_modifier_groups g
+          SELECT jsonb_object_agg(g.id, jsonb_build_object('allowMultiple', g.allow_multiple, 'isHidden', g.is_hidden)) FROM public.menu_modifier_groups g
         ), '{}'::jsonb),
         'discountRules', COALESCE((SELECT jsonb_agg(r.payload ORDER BY r.sort_order) FROM public.menu_discount_rules r), '[]'::jsonb)
       );
@@ -595,17 +598,18 @@ export default async function handler(req, res) {
         COALESCE(item->>'priceType','fixed'),
         COALESCE(item->>'emoji',''),
         NULLIF(item->>'imageUrl',''),
-        (it.ord - 1)::int, false,
-        (item - 'id' - 'name' - 'basePrice' - 'priceType' - 'emoji' - 'imageUrl' - 'allowedModifiers' - 'category')
+        (it.ord - 1)::int, COALESCE((item->>'isHidden')::bool, false),
+        (item - 'id' - 'name' - 'basePrice' - 'priceType' - 'emoji' - 'imageUrl' - 'isHidden' - 'allowedModifiers' - 'category')
       FROM jsonb_each(COALESCE(v_snap->'categories','{}'::jsonb)) AS cat(key, value)
       JOIN public.menu_categories mc ON mc.name = cat.key
       CROSS JOIN LATERAL jsonb_array_elements(cat.value) WITH ORDINALITY AS it(item, ord)
       WHERE item->>'id' IS NOT NULL;
       GET DIAGNOSTICS v_items = ROW_COUNT;
 
-      INSERT INTO public.menu_modifier_groups (id, name, allow_multiple, sort_order)
+      INSERT INTO public.menu_modifier_groups (id, name, allow_multiple, is_hidden, sort_order)
       SELECT key, key,
              COALESCE((v_snap->'modifierGroupSettings'->key->>'allowMultiple')::bool, false),
+             COALESCE((v_snap->'modifierGroupSettings'->key->>'isHidden')::bool, false),
              ((row_number() OVER (ORDER BY key)) - 1)::int
       FROM jsonb_object_keys(COALESCE(v_snap->'modifierGroups','{}'::jsonb)) AS key;
 
@@ -682,7 +686,7 @@ export default async function handler(req, res) {
       ON CONFLICT (name) DO NOTHING;
 
       -- items
-      INSERT INTO public.menu_items (id, category_id, name, base_price_cents, price_type, emoji, sort_order, data)
+      INSERT INTO public.menu_items (id, category_id, name, base_price_cents, price_type, emoji, sort_order, is_hidden, data)
       SELECT
         item->>'id',
         mc.id,
@@ -691,7 +695,8 @@ export default async function handler(req, res) {
         COALESCE(item->>'priceType', 'fixed'),
         COALESCE(item->>'emoji', ''),
         (it.ord - 1)::int,
-        (item - 'id' - 'name' - 'basePrice' - 'priceType' - 'emoji' - 'allowedModifiers' - 'category')
+        COALESCE((item->>'isHidden')::bool, false),
+        (item - 'id' - 'name' - 'basePrice' - 'priceType' - 'emoji' - 'isHidden' - 'allowedModifiers' - 'category')
       FROM jsonb_each(COALESCE(v_menu->'categories','{}'::jsonb)) AS cat(key, value)
       JOIN public.menu_categories mc ON mc.name = cat.key
       CROSS JOIN LATERAL jsonb_array_elements(cat.value) WITH ORDINALITY AS it(item, ord)
@@ -699,10 +704,11 @@ export default async function handler(req, res) {
       ON CONFLICT (id) DO NOTHING;
       GET DIAGNOSTICS v_items_in = ROW_COUNT;
 
-      -- modifier groups; allow_multiple lives in menu_data.modifierGroupSettings[key]
-      INSERT INTO public.menu_modifier_groups (id, name, allow_multiple, sort_order)
+      -- modifier groups; allow_multiple/is_hidden live in menu_data.modifierGroupSettings[key]
+      INSERT INTO public.menu_modifier_groups (id, name, allow_multiple, is_hidden, sort_order)
       SELECT key, key,
              COALESCE((v_menu->'modifierGroupSettings'->key->>'allowMultiple')::bool, false),
+             COALESCE((v_menu->'modifierGroupSettings'->key->>'isHidden')::bool, false),
              ((row_number() OVER (ORDER BY key)) - 1)::int
       FROM jsonb_object_keys(COALESCE(v_menu->'modifierGroups','{}'::jsonb)) AS key
       ON CONFLICT (id) DO NOTHING;
@@ -988,7 +994,9 @@ export default async function handler(req, res) {
                   'available', public.menu_item_available(i.id),
                   'modifier_group_ids', COALESCE((
                     SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
-                    FROM public.menu_item_modifier_groups l WHERE l.item_id = i.id
+                    FROM public.menu_item_modifier_groups l
+                    JOIN public.menu_modifier_groups g ON g.id = l.group_id
+                    WHERE l.item_id = i.id AND g.is_hidden = false
                   ), '[]'::jsonb)
                 ) ORDER BY i.sort_order)
                 FROM public.menu_items i WHERE i.category_id = c.id AND i.is_hidden = false
@@ -1006,7 +1014,7 @@ export default async function handler(req, res) {
                 FROM public.menu_modifier_options o WHERE o.group_id = g.id
               ), '[]'::jsonb)
             ) ORDER BY g.sort_order)
-            FROM public.menu_modifier_groups g
+            FROM public.menu_modifier_groups g WHERE g.is_hidden = false
           ), '[]'::jsonb)
         );
       ELSE
@@ -1065,7 +1073,9 @@ export default async function handler(req, res) {
                   'available', public.menu_item_available(i.id),
                   'modifier_group_ids', COALESCE((
                     SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
-                    FROM public.menu_item_modifier_groups l WHERE l.item_id = i.id
+                    FROM public.menu_item_modifier_groups l
+                    JOIN public.menu_modifier_groups g ON g.id = l.group_id
+                    WHERE l.item_id = i.id AND g.is_hidden = false
                   ), '[]'::jsonb)
                 ) ORDER BY i.sort_order)
                 FROM public.menu_items i WHERE i.category_id = c.id AND i.is_hidden = false
@@ -1083,7 +1093,7 @@ export default async function handler(req, res) {
                 FROM public.menu_modifier_options o WHERE o.group_id = g.id
               ), '[]'::jsonb)
             ) ORDER BY g.sort_order)
-            FROM public.menu_modifier_groups g
+            FROM public.menu_modifier_groups g WHERE g.is_hidden = false
           ), '[]'::jsonb)
         );
       ELSE

@@ -16,7 +16,8 @@ function ModifierLibraryTab({
   handleDeleteModifierOption,
   handleRenameModifierGroup,
   handleUpdateModifierOption,
-  handleToggleModifierGroupMulti
+  handleToggleModifierGroupMulti,
+  handleToggleModifierGroupHidden
 }) {
   const { t } = useTranslation();
 
@@ -199,8 +200,10 @@ function ModifierLibraryTab({
           </h3>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {Object.keys(menuData.modifierGroups).map(groupKey => (
-              <div key={groupKey} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden' }}>
+            {Object.keys(menuData.modifierGroups).map(groupKey => {
+              const groupHidden = !!menuData.modifierGroupSettings?.[groupKey]?.isHidden;
+              return (
+              <div key={groupKey} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden', opacity: groupHidden ? 0.55 : 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.02)', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
                   {editingModGroup === groupKey ? (
                     <div style={{ display: 'flex', gap: '8px', flex: 1, marginRight: '16px' }}>
@@ -219,7 +222,14 @@ function ModifierLibraryTab({
                       </button>
                     </div>
                   ) : (
-                    <span style={{ fontWeight: '900', textTransform: 'capitalize', color: 'var(--text-main)', fontSize: '1.1rem' }}>{groupKey.replace('_', ' ')}</span>
+                    <span style={{ fontWeight: '900', textTransform: 'capitalize', color: 'var(--text-main)', fontSize: '1.1rem' }}>
+                      {groupKey.replace('_', ' ')}
+                      {groupHidden && (
+                        <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          {t('mods.groupHiddenBadge') || 'hidden'}
+                        </span>
+                      )}
+                    </span>
                   )}
 
                   {!editingModGroup || editingModGroup !== groupKey ? (
@@ -233,6 +243,13 @@ function ModifierLibraryTab({
                         />
                         {t('mods.allowMultiple') || 'Allow multiple'}
                       </label>
+                      <button
+                        onClick={() => handleToggleModifierGroupHidden && handleToggleModifierGroupHidden(groupKey)}
+                        style={{ background: 'rgba(52, 152, 219, 0.1)', border: 'none', color: '#3498db', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title={groupHidden ? (t('mods.titleShowGroup') || 'Show on menu & register') : (t('mods.titleHideGroup') || 'Hide from menu & register')}
+                      >
+                        <Icon icon={groupHidden ? 'lucide:eye-off' : 'lucide:eye'} style={{ fontSize: '1.1rem' }} />
+                      </button>
                       <button onClick={() => { setEditingModGroup(groupKey); setModGroupEditValue(groupKey.replace('_', ' ')); }} style={{ background: 'rgba(52, 152, 219, 0.1)', border: 'none', color: '#3498db', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Rename Group">
                         <Icon icon="lucide:edit-3" style={{ fontSize: '1.1rem' }} />
                       </button>
@@ -289,7 +306,8 @@ function ModifierLibraryTab({
                   )}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

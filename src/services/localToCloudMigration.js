@@ -107,6 +107,9 @@ export async function migrateLocalToCloud(onProgress = noop) {
       if (menu.modifierGroupSettings[groupId]?.allowMultiple) {
         await cloud.setModifierGroupAllowMultiple(groupId, true);
       }
+      if (menu.modifierGroupSettings[groupId]?.isHidden) {
+        await cloud.setModifierGroupHidden(groupId, true);
+      }
       for (const opt of options) {
         await cloud.addModifierOption(groupId, {
           ...opt,
@@ -126,6 +129,9 @@ export async function migrateLocalToCloud(onProgress = noop) {
         await cloud.addItem(categoryName, migrated);
         if (item.allowedModifiers?.length) {
           await cloud.setItemModifiers(item.id, item.allowedModifiers);
+        }
+        if (item.isHidden) {
+          await cloud.setItemHidden(item.id, true);
         }
       }
     }

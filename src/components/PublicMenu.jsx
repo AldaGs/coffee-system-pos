@@ -155,6 +155,9 @@ function PublicMenu() {
   const categories = (data.categories || [])
     .map(c => ({ ...c, items: c.items.filter(it => it.available !== false) }));
   const activeCategory = categories.find(c => c.id === activeCategoryId) || categories[0];
+  // Modifier groups show under each item by default; owners can hide them per
+  // menu via menu.data.show_modifiers (set in the menu editor).
+  const showModifiers = data.menu?.data?.show_modifiers !== false;
 
   if (isTvMode) {
     return <TvMode data={data} brand={brand} lang={lang} />;
@@ -250,6 +253,7 @@ function PublicMenu() {
                 groupsById={groupsById}
                 lang={lang}
                 brand={brand}
+                showModifiers={showModifiers}
               />
             )}
           </main>
@@ -259,7 +263,7 @@ function PublicMenu() {
   );
 }
 
-function ItemList({ items, groupsById, lang, brand }) {
+function ItemList({ items, groupsById, lang, brand, showModifiers = true }) {
   if (!items || items.length === 0) {
     return <p style={{ textAlign: 'center', color: '#888', padding: '40px 16px' }}>—</p>;
   }
@@ -280,7 +284,7 @@ function ItemList({ items, groupsById, lang, brand }) {
             )}
             <div>
               <div style={itemNameStyle}>{item.name}</div>
-              {item.modifier_group_ids?.length > 0 && (
+              {showModifiers && item.modifier_group_ids?.length > 0 && (
                 <ItemModifiers groupIds={item.modifier_group_ids} groupsById={groupsById} lang={lang} brand={brand} />
               )}
             </div>
@@ -461,6 +465,7 @@ function TemplatedMenu({ data, brand, lang }) {
     ? new Set(opts.category_names)
     : null;
   const hideOos = opts.hide_out_of_stock !== false; // default ON for templates
+  const showModifiers = opts.show_modifiers !== false; // default ON
   const categories = (data.categories || [])
     .filter(c => !wanted || wanted.has(c.name))
     .map(c => hideOos ? { ...c, items: c.items.filter(it => it.available !== false) } : c);
@@ -490,11 +495,12 @@ function TemplatedMenu({ data, brand, lang }) {
       groupsById={groupsById}
       theme={theme}
       lang={lang}
+      showModifiers={showModifiers}
     />
   );
 }
 
-function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang }) {
+function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang, showModifiers = true }) {
   const { fontFamily, background, text, accent, density } = theme;
   return (
     <div style={{ minHeight: '100vh', background, fontFamily, color: text, paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -511,7 +517,7 @@ function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang 
                 <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: `${density.gap}px 4px`, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>{it.emoji ? `${it.emoji} ` : ''}{it.name}</div>
-                    {it.modifier_group_ids?.length > 0 && (
+                    {showModifiers && it.modifier_group_ids?.length > 0 && (
                       <div style={{ fontSize: '0.8rem', opacity: 0.6, marginTop: 2 }}>
                         {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
                       </div>
@@ -530,7 +536,7 @@ function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang 
   );
 }
 
-function CardsTemplate({ shopName, menuName, categories, groupsById, theme, lang }) {
+function CardsTemplate({ shopName, menuName, categories, groupsById, theme, lang, showModifiers = true }) {
   const { fontFamily, background, text, accent, density } = theme;
   return (
     <div style={{ minHeight: '100vh', background, fontFamily, color: text, paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -559,7 +565,7 @@ function CardsTemplate({ shopName, menuName, categories, groupsById, theme, lang
                         {it.price_type === 'open' ? '—' : formatForDisplay(it.price_cents, lang)}
                       </span>
                     </div>
-                    {it.modifier_group_ids?.length > 0 && (
+                    {showModifiers && it.modifier_group_ids?.length > 0 && (
                       <div style={{ fontSize: '0.78rem', opacity: 0.55 }}>
                         {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
                       </div>
@@ -575,7 +581,7 @@ function CardsTemplate({ shopName, menuName, categories, groupsById, theme, lang
   );
 }
 
-function ChalkboardTemplate({ shopName, menuName, categories, groupsById, theme, lang }) {
+function ChalkboardTemplate({ shopName, menuName, categories, groupsById, theme, lang, showModifiers = true }) {
   // Defaults give the original chalkboard look without a theme; user
   // overrides flow in via applyTheme — pick a lighter background + serif
   // font and you've got a wedding-menu vibe instead.
@@ -595,7 +601,7 @@ function ChalkboardTemplate({ shopName, menuName, categories, groupsById, theme,
                 <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, padding: '8px 0', borderBottom: `1px dotted ${text}33` }}>
                   <div style={{ minWidth: 0, fontSize: '1.15rem' }}>
                     {it.emoji ? `${it.emoji} ` : ''}{it.name}
-                    {it.modifier_group_ids?.length > 0 && (
+                    {showModifiers && it.modifier_group_ids?.length > 0 && (
                       <div style={{ fontSize: '0.85rem', opacity: 0.6, marginTop: 2 }}>
                         {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
                       </div>
@@ -628,6 +634,7 @@ function TvMode({ data, brand, lang }) {
   const menu = data.menu || {};
   const kind = menu.kind || 'live';
   const rotationMs = Math.max(3000, menu.data?.rotation_ms || 12000);
+  const showModifiers = menu.data?.show_modifiers !== false;
 
   const slides = useMemo(() => {
     // Canvas-mode designed menus → one slide per document page. Beats the
@@ -735,7 +742,7 @@ function TvMode({ data, brand, lang }) {
         )}
       </div>
       <div style={{ ...tvSlideStyle, opacity: visible ? 1 : 0 }}>
-        {slide?.kind === 'category' && <TvCategorySlide category={slide.payload} groupsById={mapGroups(data.modifier_groups)} lang={lang} brand={brand} />}
+        {slide?.kind === 'category' && <TvCategorySlide category={slide.payload} groupsById={mapGroups(data.modifier_groups)} lang={lang} brand={brand} showModifiers={showModifiers} />}
         {slide?.kind === 'page' && <TvPageSlide url={slide.payload.url} />}
         {slide?.kind === 'canvas-page' && (
           <CanvasRenderer
@@ -762,7 +769,7 @@ function mapGroups(groups) {
   return m;
 }
 
-function TvCategorySlide({ category, groupsById, lang, brand }) {
+function TvCategorySlide({ category, groupsById, lang, brand, showModifiers = true }) {
   const items = category?.items || [];
   return (
     <div style={{ width: '100%', height: '100%', padding: '40px 80px 60px', display: 'flex', flexDirection: 'column', gap: 40, color: 'white' }}>
@@ -783,7 +790,7 @@ function TvCategorySlide({ category, groupsById, lang, brand }) {
               <div style={{ fontSize: 'clamp(1.4rem, 2.2vw, 2rem)', fontWeight: 800, lineHeight: 1.2 }}>
                 {item.emoji ? `${item.emoji} ` : ''}{item.name}
               </div>
-              {item.modifier_group_ids?.length > 0 && (
+              {showModifiers && item.modifier_group_ids?.length > 0 && (
                 <div style={{ fontSize: 'clamp(0.9rem, 1.2vw, 1.1rem)', color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
                   {item.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
                 </div>

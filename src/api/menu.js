@@ -27,11 +27,13 @@ export const setCategoryHidden = (...a) => impl().setCategoryHidden(...a);
 export const addItem = (...a) => impl().addItem(...a);
 export const updateItem = (...a) => impl().updateItem(...a);
 export const deleteItem = (...a) => impl().deleteItem(...a);
+export const setItemHidden = (...a) => impl().setItemHidden(...a);
 
 export const addModifierGroup = (...a) => impl().addModifierGroup(...a);
 export const renameModifierGroup = (...a) => impl().renameModifierGroup(...a);
 export const deleteModifierGroup = (...a) => impl().deleteModifierGroup(...a);
 export const setModifierGroupAllowMultiple = (...a) => impl().setModifierGroupAllowMultiple(...a);
+export const setModifierGroupHidden = (...a) => impl().setModifierGroupHidden(...a);
 
 export const addModifierOption = (...a) => impl().addModifierOption(...a);
 export const updateModifierOption = (...a) => impl().updateModifierOption(...a);

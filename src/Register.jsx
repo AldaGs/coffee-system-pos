@@ -628,6 +628,11 @@ function Register() {
 
 
   const handleItemClick = (item) => {
+    // Hidden modifier groups don't prompt the cashier, so an item whose only
+    // groups are hidden skips the modal and adds straight to the ticket.
+    const hasVisibleModifiers = (item.allowedModifiers || []).some(
+      k => menuData?.modifierGroups?.[k] && !menuData?.modifierGroupSettings?.[k]?.isHidden
+    );
     if (item.priceType === 'variable') {
       showPrompt(
         `${t('menu.promptVariablePrice') || 'Enter Price for'} ${item.name}`,
@@ -638,7 +643,7 @@ function Register() {
             return showAlert(t('common.error'), t('check.alertInvalid'));
           }
 
-          if (item.allowedModifiers.length > 0) {
+          if (hasVisibleModifiers) {
             setPendingItem({ ...item, basePrice: customPrice, selectedModifiers: [] });
             setIsModalOpen(true);
           } else {
@@ -653,7 +658,7 @@ function Register() {
       return;
     }
 
-    if (item.allowedModifiers.length > 0) {
+    if (hasVisibleModifiers) {
       setPendingItem({ ...item, selectedModifiers: [] });
       setIsModalOpen(true);
     } else {

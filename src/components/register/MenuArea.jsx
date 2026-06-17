@@ -42,7 +42,8 @@ function MenuArea({
         {(() => {
           // 1. Safe access with fallbacks
           const safeCategories = menuData?.categories || {};
-          const currentProducts = safeCategories[activeCategory] || [];
+          // Hidden items are dropped from the register too (mirrors the public menu).
+          const currentProducts = (safeCategories[activeCategory] || []).filter(item => !item.isHidden);
 
           // 2. Check if there are actually any categories at all
           if (Object.keys(safeCategories).length === 0) {

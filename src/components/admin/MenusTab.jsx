@@ -404,6 +404,20 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
         </span>
       </label>
 
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={data.show_modifiers !== false}
+          onChange={e => patch({ show_modifiers: e.target.checked })}
+        />
+        <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+          Mostrar modificadores
+          <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
+            (opciones bajo cada producto)
+          </span>
+        </span>
+      </label>
+
       <ThemeEditor menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
 
       <CanvasBetaToggle

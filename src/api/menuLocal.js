@@ -43,6 +43,7 @@ function rowToItem(row, allowedModifiers) {
     priceType: row.price_type,
     emoji: row.emoji,
     imageUrl: row.image_url || '',
+    isHidden: !!row.is_hidden,
     allowedModifiers,
     inventoryMode: data.inventoryMode || 'none',
     linkedWarehouseId: data.linkedWarehouseId || '',
@@ -66,7 +67,7 @@ function rowToOption(row) {
 }
 
 function itemDataResidual(item) {
-  const { id, name, basePrice, priceType, emoji, imageUrl, allowedModifiers, ...rest } = item;
+  const { id, name, basePrice, priceType, emoji, imageUrl, isHidden, allowedModifiers, ...rest } = item;
   return rest;
 }
 
@@ -110,7 +111,7 @@ export async function loadMenu() {
   const modifierGroupSettings = {};
   for (const g of groups) {
     modifierGroups[g.id] = [];
-    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple };
+    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple, isHidden: !!g.is_hidden };
   }
   for (const o of opts) {
     if (!modifierGroups[o.group_id]) continue;
@@ -216,11 +217,15 @@ export async function deleteItem(id) {
   await db.menu_local.delete(id);
 }
 
+export async function setItemHidden(id, isHidden) {
+  await db.menu_local.update(id, { is_hidden: isHidden });
+}
+
 // ---------- MODIFIER GROUP WRITERS ------------------------------------------
 
 export async function addModifierGroup(id, name) {
   const sort_order = await nextSortOrder(TYPE.MOD_GROUP);
-  await db.menu_local.put({ id, type: TYPE.MOD_GROUP, name, allow_multiple: false, sort_order });
+  await db.menu_local.put({ id, type: TYPE.MOD_GROUP, name, allow_multiple: false, is_hidden: false, sort_order });
 }
 
 export async function renameModifierGroup(oldId, newId, newName) {
@@ -249,6 +254,10 @@ export async function deleteModifierGroup(id) {
 
 export async function setModifierGroupAllowMultiple(id, allowMultiple) {
   await db.menu_local.update(id, { allow_multiple: allowMultiple });
+}
+
+export async function setModifierGroupHidden(id, isHidden) {
+  await db.menu_local.update(id, { is_hidden: isHidden });
 }
 
 // ---------- MODIFIER OPTION WRITERS -----------------------------------------

@@ -19,7 +19,9 @@ function ModifierModal({
       <div className="modal-content">
         <h2>{t('modModal.customize')} {pendingItem.name}</h2>
         
-        {pendingItem.allowedModifiers.map(modKey => (
+        {pendingItem.allowedModifiers
+          .filter(modKey => menuData.modifierGroups[modKey] && !menuData.modifierGroupSettings?.[modKey]?.isHidden)
+          .map(modKey => (
           <div key={modKey} className="modifier-group">
             <h4 style={{ textTransform: 'capitalize' }}>{modKey.replace('_', ' ')}</h4>
             {menuData.modifierGroups[modKey].map(option => {

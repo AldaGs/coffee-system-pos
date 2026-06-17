@@ -25,7 +25,7 @@ function MenuEditorTab({
   handleDeleteDrink, setEditingDrink,
   recipes, inventoryItems,
   handleRenameCategory, editingItemId, setEditingItemId,
-  handleMoveCategory, handleToggleCategoryVisibility,
+  handleMoveCategory, handleToggleCategoryVisibility, handleToggleDrinkVisibility,
   handleSetItemImage, handleClearItemImage,
   assets = [], assetsLoading = false, assetsBusy = false,
   loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset
@@ -406,7 +406,7 @@ function MenuEditorTab({
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {menuData.categories[category].map(item => (
-                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', flexWrap: 'wrap', gap: '12px' }}>
+                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', flexWrap: 'wrap', gap: '12px', opacity: item.isHidden ? 0.55 : 1 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: '1', minWidth: '200px' }}>
                             <div
                               onClick={() => openPicker(item.id)}
@@ -436,7 +436,14 @@ function MenuEditorTab({
                               </button>
                             )}
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{item.name}</span>
+                              <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>
+                                {item.name}
+                                {item.isHidden && (
+                                  <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                    {t('menu.itemHiddenBadge') || 'hidden'}
+                                  </span>
+                                )}
+                              </span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
                                 <span style={{ color: '#27ae60', fontWeight: '900', fontSize: '0.85rem' }}>{formatForDisplay(item.basePrice)}</span>
                                 <span style={{ height: '3px', width: '3px', background: 'var(--border)', borderRadius: '50%' }} />
@@ -482,6 +489,13 @@ function MenuEditorTab({
                             <button onClick={() => setEditingDrink({ categoryName: category, drink: item })} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Icon icon="lucide:settings-2" />
                               {t('menu.btnEditMods')}
+                            </button>
+                            <button
+                              onClick={() => handleToggleDrinkVisibility && handleToggleDrinkVisibility(category, item.id)}
+                              style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              title={item.isHidden ? (t('menu.titleShowItem') || 'Show on menu & register') : (t('menu.titleHideItem') || 'Hide from menu & register')}
+                            >
+                              <Icon icon={item.isHidden ? 'lucide:eye-off' : 'lucide:eye'} />
                             </button>
                             <button onClick={() => handleDeleteDrink(category, item.id, item.name)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.1)', color: '#e74c3c', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Icon icon="lucide:trash-2" />

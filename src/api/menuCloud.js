@@ -78,7 +78,7 @@ export async function loadMenu() {
   const modifierGroupSettings = {};
   for (const g of groups) {
     modifierGroups[g.id] = [];
-    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple };
+    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple, isHidden: !!g.is_hidden };
   }
   for (const o of opts) {
     if (!modifierGroups[o.group_id]) continue;
@@ -107,6 +107,7 @@ function rowToItem(row, allowedModifiers) {
     priceType: row.price_type,
     emoji: row.emoji,
     imageUrl: row.image_url || '',
+    isHidden: !!row.is_hidden,
     allowedModifiers,
     inventoryMode: data.inventoryMode || 'none',
     linkedWarehouseId: data.linkedWarehouseId || '',
@@ -133,7 +134,7 @@ function rowToOption(row) {
 // belongs in the items.data jsonb.
 function itemDataResidual(item) {
   const {
-    id, name, basePrice, priceType, emoji, imageUrl, allowedModifiers,
+    id, name, basePrice, priceType, emoji, imageUrl, isHidden, allowedModifiers,
     ...rest
   } = item;
   return rest;
@@ -246,6 +247,14 @@ export async function deleteItem(id) {
   if (error) throw error;
 }
 
+// Show/hide a single item from the public menu AND the Register (mirrors
+// setCategoryHidden). The RPCs filter is_hidden = false server-side.
+export async function setItemHidden(id, isHidden) {
+  const { error } = await supabase
+    .from('menu_items').update({ is_hidden: isHidden }).eq('id', id);
+  if (error) throw error;
+}
+
 // ---------- MODIFIER GROUP WRITERS ------------------------------------------
 
 export async function addModifierGroup(id, name) {
@@ -256,7 +265,7 @@ export async function addModifierGroup(id, name) {
   const nextOrder = (maxRow?.sort_order ?? -1) + 1;
 
   const { error } = await supabase.from('menu_modifier_groups').insert({
-    id, name, allow_multiple: false, sort_order: nextOrder
+    id, name, allow_multiple: false, is_hidden: false, sort_order: nextOrder
   });
   if (error) throw error;
 }
@@ -277,6 +286,13 @@ export async function deleteModifierGroup(id) {
 export async function setModifierGroupAllowMultiple(id, allowMultiple) {
   const { error } = await supabase
     .from('menu_modifier_groups').update({ allow_multiple: allowMultiple }).eq('id', id);
+  if (error) throw error;
+}
+
+// Show/hide a whole modifier group everywhere (public menu + Register).
+export async function setModifierGroupHidden(id, isHidden) {
+  const { error } = await supabase
+    .from('menu_modifier_groups').update({ is_hidden: isHidden }).eq('id', id);
   if (error) throw error;
 }
 
