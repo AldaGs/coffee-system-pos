@@ -125,9 +125,9 @@ function MenuEditorTab({
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('menu.subtitle')}</p>
       </div>
 
-      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(350px, 100%), 1fr))', gap: '32px', alignItems: 'flex-start' }}>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', minWidth: 0 }}>
           
           {/* CATEGORY SECTION */}
           <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
@@ -319,7 +319,7 @@ function MenuEditorTab({
         </div>
 
         {/* PREVIEW SECTION */}
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '12px', flexWrap: 'wrap' }}>
             <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
               <Icon icon="lucide:layout-panel-left" style={{ color: 'var(--brand-color)' }} />
@@ -496,15 +496,15 @@ function MenuEditorTab({
                                 });
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}
-                              style={{ flex: 1, background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                              style={{ flex: 1, minWidth: 0, background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                               title={t('menu.titleEditDetails')}
                             >
-                              <Icon icon="lucide:edit-3" />
-                              {t('menu.btnEditDetails')}
+                              <Icon icon="lucide:edit-3" style={{ flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('menu.btnEditDetails')}</span>
                             </button>
-                            <button onClick={() => setEditingDrink({ categoryName: category, drink: item })} style={{ flex: 1, background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                              <Icon icon="lucide:settings-2" />
-                              {t('menu.btnEditMods')}
+                            <button onClick={() => setEditingDrink({ categoryName: category, drink: item })} style={{ flex: 1, minWidth: 0, background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                              <Icon icon="lucide:settings-2" style={{ flexShrink: 0 }} />
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t('menu.btnEditMods')}</span>
                             </button>
                           </div>
                         </div>
