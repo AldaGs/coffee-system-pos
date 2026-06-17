@@ -22,6 +22,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
   // instead of a hardcoded default. On a local→cloud upgrade we pre-fill it with
   // the PIN the owner already set locally so they keep the same one.
   const [adminPin, setAdminPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
 
   useEffect(() => {
     if (!isUpgradePending()) return;
@@ -1864,15 +1865,23 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                         <Icon icon="lucide:shield" style={styles.inputIcon} />
                         <input
                           className="setup-input"
-                          type="text"
+                          type={showPin ? 'text' : 'password'}
                           inputMode="numeric"
                           autoComplete="off"
                           placeholder="PIN de administrador (4-6 dígitos)"
                           value={adminPin}
                           onChange={e => setAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
                           required
-                          style={styles.input}
+                          style={{ ...styles.input, paddingRight: '44px' }}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowPin(v => !v)}
+                          aria-label={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
+                          style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '6px', display: 'flex' }}
+                        >
+                          <Icon icon={showPin ? 'lucide:eye-off' : 'lucide:eye'} />
+                        </button>
                       </div>
                     </div>
                     <p style={styles.helperText}>
