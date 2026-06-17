@@ -24,6 +24,28 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
   const [adminPin, setAdminPin] = useState('');
   const [showPin, setShowPin] = useState(false);
 
+  // --- Guided "create the project for me" flow ---
+  const [orgs, setOrgs] = useState([]);
+  const [selectedOrg, setSelectedOrg] = useState('');
+  const [region, setRegion] = useState('us-east-1'); // East US (N. Virginia)
+  const [projectName, setProjectName] = useState('tinypos');
+  const [createMode, setCreateMode] = useState(false); // show the create-project UI
+  const [creating, setCreating] = useState(false);
+  const [provisionStatus, setProvisionStatus] = useState(''); // '', 'provisioning', 'ready'
+  const [createdProject, setCreatedProject] = useState(null); // { ref, dbPass }
+  const [dbPassCopied, setDbPassCopied] = useState(false);
+
+  const REGIONS = [
+    { value: 'us-east-1', label: 'Este de EE.UU. (Norte de Virginia)' },
+    { value: 'us-west-1', label: 'Oeste de EE.UU. (Oregón)' },
+  ];
+
+  // Projects already in the chosen org (free tier allows 2 active).
+  const orgProjectCount = orgs.length
+    ? projects.filter(p => p.organization_id === selectedOrg).length
+    : projects.length;
+  const atFreeLimit = orgProjectCount >= 2;
+
   useEffect(() => {
     if (!isUpgradePending()) return;
     let alive = true;
@@ -77,11 +99,74 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       setProjects(data);
       if (data.length > 0) setSelectedProject(data[0].id);
 
+      // Fetch orgs so the guided create-project flow can target one. Best-effort:
+      // if it fails (scope/permião), we fall back to project-count heuristics.
+      let orgList = [];
+      try {
+        const orgRes = await fetch('/api/get-orgs', { headers: { Authorization: `Bearer ${token}` } });
+        if (orgRes.ok) {
+          orgList = await orgRes.json();
+          setOrgs(orgList);
+          if (orgList.length > 0) setSelectedOrg(orgList[0].id);
+        }
+      } catch { /* noop — create flow still usable if exactly one org context */ }
+
+      // No projects yet → default the install flow straight into "create one".
+      if (data.length === 0) setCreateMode(true);
+
     } catch (err) {
       showAlert(err.message, 'error');
     } finally {
       setLoading(false);
       setLoadingStep('');
+    }
+  };
+
+  // Create a project on the user's behalf, then poll until it's healthy.
+  const handleCreateProject = async () => {
+    if (!selectedOrg && orgs.length > 0) {
+      return showAlert('Selecciona una organización.', 'error');
+    }
+    setCreating(true);
+    setProvisionStatus('provisioning');
+    try {
+      const res = await fetch('/api/create-project', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${setupToken}` },
+        body: JSON.stringify({ organizationId: selectedOrg, name: projectName, region }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Supabase rejected (commonly the free-tier 2-project limit).
+        throw new Error(data?.message || data?.error || 'No se pudo crear el proyecto.');
+      }
+      const ref = data.project?.id || data.project?.ref;
+      setCreatedProject({ ref, dbPass: data.dbPass });
+      setSelectedProject(ref);
+
+      // Poll status until ACTIVE_HEALTHY (or time out ~5 min).
+      const deadline = Date.now() + 5 * 60 * 1000;
+      for (;;) {
+        await new Promise(r => setTimeout(r, 6000));
+        let status = '';
+        try {
+          const sRes = await fetch(`/api/get-project-status?ref=${encodeURIComponent(ref)}`, {
+            headers: { Authorization: `Bearer ${setupToken}` },
+          });
+          const sData = await sRes.json().catch(() => ({}));
+          status = sData?.status || '';
+        } catch { /* transient — keep polling */ }
+        if (status === 'ACTIVE_HEALTHY') { setProvisionStatus('ready'); break; }
+        if (Date.now() > deadline) {
+          throw new Error('La base de datos está tardando más de lo normal. Revisa el estado en Supabase y vuelve a intentar.');
+        }
+      }
+    } catch (err) {
+      setProvisionStatus('');
+      setCreatedProject(null);
+      showAlert(err.message, 'error');
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -1509,6 +1594,18 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       boxShadow: '0 8px 24px rgba(242, 139, 5, 0.35)',
       transition: 'box-shadow 0.2s ease, transform 0.05s ease, opacity 0.2s ease',
     },
+    warnBox: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      padding: '12px 14px',
+      background: 'rgba(231, 76, 60, 0.08)',
+      border: '1px solid rgba(231, 76, 60, 0.25)',
+      borderRadius: '10px',
+      color: 'var(--color-danger)',
+      fontSize: '0.85rem',
+      lineHeight: 1.4,
+    },
     successBtn: {
       padding: '16px',
       background: 'var(--brand-color)',
@@ -1785,44 +1882,121 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       <label style={{ ...styles.label, marginBottom: 0 }}>Selecciona tu Proyecto</label>
                     </div>
 
-                    {projects.length === 0 ? (
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '12px 14px',
-                        background: 'rgba(231, 76, 60, 0.08)',
-                        border: '1px solid rgba(231, 76, 60, 0.25)',
-                        borderRadius: '10px',
-                        color: 'var(--color-danger)',
-                        fontSize: '0.85rem',
-                      }}>
-                        <Icon icon="lucide:alert-circle" width="18" />
-                        <span>No se encontraron proyectos. Crea uno vacío en Supabase primero.</span>
-                      </div>
-                    ) : (
-                      <div style={styles.inputWrap}>
-                        <Icon icon="lucide:database" style={styles.inputIcon} />
-                        <select
-                          className="setup-select"
-                          value={selectedProject}
-                          onChange={e => setSelectedProject(e.target.value)}
-                          required
-                          style={{
-                            ...styles.select,
-                            backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3e%3cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e")`,
-                            backgroundRepeat: 'no-repeat',
-                            backgroundPosition: 'right 16px center',
-                            paddingRight: '42px',
-                          }}
-                        >
-                          <option value="" disabled>Selecciona un proyecto...</option>
-                          {projects.map(p => (
-                            <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                    {(() => {
+                      const selectDropdown = (
+                        <div style={styles.inputWrap}>
+                          <Icon icon="lucide:database" style={styles.inputIcon} />
+                          <select
+                            className="setup-select"
+                            value={selectedProject}
+                            onChange={e => setSelectedProject(e.target.value)}
+                            required
+                            style={{
+                              ...styles.select,
+                              backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none'%3e%3cpath d='M1 1.5L6 6.5L11 1.5' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3e%3c/svg%3e")`,
+                              backgroundRepeat: 'no-repeat',
+                              backgroundPosition: 'right 16px center',
+                              paddingRight: '42px',
+                            }}
+                          >
+                            <option value="" disabled>Selecciona un proyecto...</option>
+                            {projects.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+
+                      // Connecting an existing device: always pick a project (no create).
+                      if (isConnectingExisting) {
+                        return projects.length === 0 ? (
+                          <div style={styles.warnBox}>
+                            <Icon icon="lucide:alert-circle" width="18" />
+                            <span>No se encontraron proyectos en esta cuenta.</span>
+                          </div>
+                        ) : selectDropdown;
+                      }
+
+                      // After creation: show the generated DB password + provisioning state.
+                      if (createdProject) {
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div style={{ background: 'rgba(241, 196, 15, 0.1)', border: '1px solid rgba(241, 196, 15, 0.35)', borderRadius: '12px', padding: '14px' }}>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b8860b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Contraseña de la base de datos</div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <code style={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: '0.95rem', color: 'var(--text-main)', wordBreak: 'break-all' }}>{createdProject.dbPass}</code>
+                                <button type="button" onClick={() => { navigator.clipboard?.writeText(createdProject.dbPass); setDbPassCopied(true); setTimeout(() => setDbPassCopied(false), 1500); }} style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                                  <Icon icon={dbPassCopied ? 'lucide:check' : 'lucide:copy'} /> {dbPassCopied ? 'Copiado' : 'Copiar'}
+                                </button>
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: '#b8860b', marginTop: '8px' }}>Guárdala en un lugar seguro. No la mostraremos de nuevo y la necesitarías para acceso directo a la base de datos.</div>
+                            </div>
+                            {provisionStatus === 'ready' ? (
+                              <div style={{ ...styles.warnBox, background: 'rgba(39, 174, 96, 0.08)', border: '1px solid rgba(39, 174, 96, 0.3)', color: 'var(--color-success)' }}>
+                                <Icon icon="lucide:check-circle-2" width="18" />
+                                <span>Tu base de datos está lista. Continúa con tu cuenta de administrador.</span>
+                              </div>
+                            ) : (
+                              <div style={{ ...styles.warnBox, background: 'rgba(52, 152, 219, 0.08)', border: '1px solid rgba(52, 152, 219, 0.25)', color: 'var(--text-main)' }}>
+                                <Icon icon="lucide:loader-2" width="18" style={{ animation: 'spin 1s linear infinite' }} />
+                                <span>Supabase está creando tu base de datos (~2 min). Deja esta pantalla abierta.</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Create-project form (no projects yet, or user chose to create).
+                      if (createMode) {
+                        return (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {orgs.length > 1 && (
+                              <div style={styles.inputWrap}>
+                                <Icon icon="lucide:building" style={styles.inputIcon} />
+                                <select className="setup-select" value={selectedOrg} onChange={e => setSelectedOrg(e.target.value)} style={{ ...styles.select, paddingRight: '42px' }}>
+                                  {orgs.map(o => (<option key={o.id} value={o.id}>{o.name}</option>))}
+                                </select>
+                              </div>
+                            )}
+                            <div style={styles.inputWrap}>
+                              <Icon icon="lucide:tag" style={styles.inputIcon} />
+                              <input className="setup-input" type="text" placeholder="Nombre del proyecto" value={projectName} onChange={e => setProjectName(e.target.value.slice(0, 40))} style={styles.input} />
+                            </div>
+                            <div style={styles.inputWrap}>
+                              <Icon icon="lucide:globe" style={styles.inputIcon} />
+                              <select className="setup-select" value={region} onChange={e => setRegion(e.target.value)} style={{ ...styles.select, paddingRight: '42px' }}>
+                                {REGIONS.map(r => (<option key={r.value} value={r.value}>{r.label}</option>))}
+                              </select>
+                            </div>
+                            {atFreeLimit && (
+                              <div style={{ ...styles.warnBox, background: 'rgba(241, 196, 15, 0.1)', border: '1px solid rgba(241, 196, 15, 0.35)', color: '#b8860b' }}>
+                                <Icon icon="lucide:alert-triangle" width="18" style={{ flexShrink: 0 }} />
+                                <span>Ya tienes 2 proyectos activos (límite del plan gratuito). Supabase no creará otro hasta que pauses uno en tu panel o subas a Pro.</span>
+                              </div>
+                            )}
+                            <button type="button" onClick={handleCreateProject} disabled={creating} className="setup-primary-cta" style={{ ...styles.primaryBtn, opacity: creating ? 0.7 : 1 }}>
+                              <Icon icon={creating ? 'lucide:loader-2' : 'lucide:plus'} style={{ animation: creating ? 'spin 1s linear infinite' : 'none' }} width="18" />
+                              <span>{creating ? 'Creando…' : 'Crear proyecto'}</span>
+                            </button>
+                            {projects.length > 0 && (
+                              <button type="button" onClick={() => setCreateMode(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', padding: '4px' }}>
+                                Usar un proyecto existente
+                              </button>
+                            )}
+                          </div>
+                        );
+                      }
+
+                      // Default: select an existing project, with a create fallback.
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {selectDropdown}
+                          <button type="button" onClick={() => setCreateMode(true)} style={{ background: 'transparent', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, textDecoration: 'underline', padding: '4px', alignSelf: 'flex-start' }}>
+                            + Crear un nuevo proyecto
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Step 2 — Admin (only when installing from scratch) */}
@@ -1892,7 +2066,14 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
                   <button
                     type="submit"
-                    disabled={loading || projects.length === 0}
+                    disabled={
+                      loading
+                      || !selectedProject
+                      // a just-created project must finish provisioning first
+                      || (createdProject && provisionStatus !== 'ready')
+                      // mid-create form with nothing selected yet
+                      || (createMode && !createdProject)
+                    }
                     className="setup-success-cta"
                     style={{ ...styles.successBtn, marginTop: '4px' }}
                   >
