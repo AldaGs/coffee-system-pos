@@ -186,6 +186,22 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         return next;
       });
 
+      // Record the operational (roasting) cost as the cash that left, the same
+      // way buying stock logs an "Inventory Purchase" expense. Category
+      // "Inventario" so the books (tinybooks) capture it as inventory value
+      // added, not a plain expense. Assumes the operation was paid from petty
+      // cash (Caja Chica); pay big roasts via Compras instead and leave this 0.
+      if (opCost > 0) {
+        const transformExpense = {
+          amount: toCents(opCost),
+          reason: `Transform: ${targetItemPayload.name} (${finalYieldQty}${sourceItem.unit})`,
+          category: 'Inventario',
+          cashier_name: 'Inventory System'
+        };
+        try { await persistInventoryExpense(transformExpense); }
+        catch (e) { console.error('Failed to log transform cost expense:', e); }
+      }
+
       setActiveView('list');
       setTransformForm({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '' });
 
