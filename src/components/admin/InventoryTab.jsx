@@ -57,7 +57,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   const [activeView, setActiveView] = useState('list'); // 'list', 'add', 'transform'
 
   const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '' });
-  const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '' });
+  const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja' });
   const [editingItem, setEditingItem] = useState(null);
 
   // --- NEW: AUDIT STATE ---
@@ -186,15 +186,18 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         return next;
       });
 
-      // Record the operational (roasting) cost as the cash that left, the same
+      // Record the operational (roasting) cost as the money that left, the same
       // way buying stock logs an "Inventory Purchase" expense. Category
       // "Inventario" so the books (tinybooks) capture it as inventory value
-      // added, not a plain expense. Assumes the operation was paid from petty
-      // cash (Caja Chica); pay big roasts via Compras instead and leave this 0.
+      // added, not a plain expense. The payment source is encoded in the reason:
+      // "[Banco]" → tinybooks credits Banco (bank/owner money); otherwise Caja
+      // (petty cash). This lets a bank-paid roast not drain the cash drawer.
       if (opCost > 0) {
+        const paidFromBank = transformForm.paymentSource === 'banco';
+        const tag = paidFromBank ? ' [Banco]' : '';
         const transformExpense = {
           amount: toCents(opCost),
-          reason: `Transform: ${targetItemPayload.name} (${finalYieldQty}${sourceItem.unit})`,
+          reason: `Transform${tag}: ${targetItemPayload.name} (${finalYieldQty}${sourceItem.unit})`,
           category: 'Inventario',
           cashier_name: 'Inventory System'
         };
@@ -203,7 +206,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       }
 
       setActiveView('list');
-      setTransformForm({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '' });
+      setTransformForm({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja' });
 
       const successMsg = existingTarget
         ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} ${formatMillicentsForDisplay(finalUnitCost)}/g.`
@@ -458,7 +461,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             <Icon icon="lucide:flame" />
             {t('inv.roastTitle')}
           </h3>
-          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 2fr auto', gap: '16px', alignItems: 'flex-end' }}>
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.3fr 2fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div style={{ minWidth: '150px' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.rawMaterial')}</label>
               <select value={transformForm.sourceItemId} onChange={e => setTransformForm({ ...transformForm, sourceItemId: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
@@ -477,6 +480,13 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.opCost')}</label>
               <input type="number" placeholder="e.g. 275" value={transformForm.operationalCost} onChange={e => setTransformForm({ ...transformForm, operationalCost: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.paidWith') || '¿Cómo se pagó?'}</label>
+              <select value={transformForm.paymentSource} onChange={e => setTransformForm({ ...transformForm, paymentSource: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }} title="Solo aplica si hay costo de operación">
+                <option value="caja">{t('inv.paidCaja') || 'Caja Chica'}</option>
+                <option value="banco">{t('inv.paidBanco') || 'Banco / Dueño'}</option>
+              </select>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.targetItem')}</label>
