@@ -311,6 +311,9 @@ export const translations = {
     "inv.logAuditLoss": "Audit Loss",
     "inv.logAuditGain": "Audit Gain",
     "inv.noHistory": "No inventory logs found.",
+    "inv.paidWith": "Paid With",
+    "inv.paidCaja": "Paid from Petty Cash",
+    "inv.paidBanco": "Paid from Bank",
 
     // --- Analytics Tab ---
     "analytics.title": "Financial Dashboard",
@@ -1471,6 +1474,9 @@ export const translations = {
     "inv.logAuditLoss": "Auditoría (Pérdida)",
     "inv.logAuditGain": "Auditoría (Ajuste Positivo)",
     "inv.noHistory": "No se encontraron registros de inventario.",
+    "inv.paidWith": "Pagado con",
+    "inv.paidCaja": "Pagado con dinero de la caja",
+    "inv.paidBanco": "Pagado con dinero del Banco",
 
     // --- Analytics Tab ---
     "analytics.title": "Panel Financiero",
