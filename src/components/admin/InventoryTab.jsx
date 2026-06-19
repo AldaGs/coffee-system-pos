@@ -68,6 +68,28 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
+  // --- NEW: HISTORY STATE ---
+  const [historyLogs, setHistoryLogs] = useState([]);
+  const [historyFilterItem, setHistoryFilterItem] = useState('');
+  const [historyModalItem, setHistoryModalItem] = useState(null);
+
+  const fetchHistoryLogs = async () => {
+    try {
+      if (isLocalMode()) {
+        const logs = await db.inventory_logs.reverse().sortBy('created_at');
+        setHistoryLogs(logs || []);
+      } else {
+        const { data, error } = await supabase.from('inventory_logs').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        setHistoryLogs(data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch history logs:', err);
+      showAlert(t('inv.alertError'), 'Could not load history logs.');
+    }
+  };
+
+
   const handleAddItem = async () => {
     // 1. Removed total_cost from the strict validation
     if (!newItem.name || newItem.current_stock === '') {
@@ -87,6 +109,16 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
     try {
       const saved = await persistInventory(itemToSave);
+
+      await persistInventoryLog({
+        item_name: itemToSave.name,
+        qty_deducted: -stockVal,
+        deduction_type: 'added',
+        created_at: new Date().toISOString(),
+        ticket_id: `ADD-${Date.now()}`,
+        unit_cost: unitCostInMillicents,
+        local_id: crypto.randomUUID()
+      });
 
       // 3. ONLY create an expense if they actually entered a cost > 0
       if (costInCents > 0) {
@@ -175,6 +207,27 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         await db.inventory.put(upsertData[0]);
         targetRow = upsertData[0];
       }
+
+      const timestamp = new Date().toISOString();
+      const ticketId = `XFR-${Date.now()}`;
+      await persistInventoryLog({
+        item_name: sourceItem.name,
+        qty_deducted: usedQty,
+        deduction_type: 'transform_out',
+        created_at: timestamp,
+        ticket_id: ticketId,
+        unit_cost: sourceItem.unit_cost,
+        local_id: crypto.randomUUID()
+      });
+      await persistInventoryLog({
+        item_name: targetItemPayload.name,
+        qty_deducted: -finalYieldQty,
+        deduction_type: 'transform_in',
+        created_at: timestamp,
+        ticket_id: ticketId,
+        unit_cost: finalUnitCost,
+        local_id: crypto.randomUUID()
+      });
 
       setInventoryItems(prev => {
         let next = prev.map(i => i.id === updatedSource.id ? updatedSource : i);
@@ -265,7 +318,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       const auditLog = {
         item_name: auditingItem.name,
-        qty_deducted: Math.abs(variance),
+        qty_deducted: -variance,
         deduction_type: deductionType,
         created_at: new Date().toISOString(),
         ticket_id: `AUDIT-${Date.now()}`,
@@ -364,6 +417,17 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       const item = inventoryItems.find(i => i.id === id);
       if (!isLocalMode()) await supabase.from('inventory').delete().eq('id', id);
       await db.inventory.delete(id);
+
+      await persistInventoryLog({
+        item_name: name,
+        qty_deducted: item?.current_stock ?? 0,
+        deduction_type: 'removed',
+        created_at: new Date().toISOString(),
+        ticket_id: `DEL-${Date.now()}`,
+        unit_cost: item?.unit_cost ?? 0,
+        local_id: crypto.randomUUID()
+      });
+
       logActivity('inventory_deleted', null, {
         name,
         stock_at_delete: item?.current_stock ?? null,
@@ -419,6 +483,19 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           >
             <Icon icon={activeView === 'add' ? 'lucide:x' : 'lucide:plus'} />
             {activeView === 'add' ? t('inv.btnCancel') : t('inv.btnReceive')}
+          </button>
+          <button
+            onClick={() => {
+              const newView = activeView === 'deleted' ? 'list' : 'deleted';
+              setActiveView(newView);
+              setEditingItem(null);
+              setAuditingItem(null);
+              if (newView === 'deleted') fetchHistoryLogs();
+            }}
+            style={{ padding: '12px 20px', background: activeView === 'deleted' ? '#95a5a6' : '#8e44ad', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(142, 68, 173, 0.2)' }}
+          >
+            <Icon icon={activeView === 'deleted' ? 'lucide:x' : 'lucide:trash-2'} />
+            {activeView === 'deleted' ? t('inv.btnCancel') : t('inv.btnDeleted')}
           </button>
         </div>
       </div>
@@ -503,6 +580,155 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               </datalist>
             </div>
             <button onClick={handleTransformStock} style={{ padding: '12px 24px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(230, 126, 34, 0.2)' }}>{t('inv.btnProcess')}</button>
+          </div>
+        </div>
+      )}
+
+      {activeView === 'deleted' && (() => {
+        const deletedItemNames = [...new Set(historyLogs.map(l => l.item_name))].filter(name => !inventoryItems.find(i => i.name === name));
+        return (
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--border)', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#e74c3c' }}>
+              <Icon icon="lucide:trash-2" />
+              {t('inv.deletedTitle')}
+            </h3>
+            <div style={{ width: '250px' }}>
+              <select value={historyFilterItem} onChange={e => setHistoryFilterItem(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+                <option value="">{t('inv.filterAll')}</option>
+                {deletedItemNames.sort().map(name => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thDate')}</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.itemName')}</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thType')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thQty')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thImpact')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thTicket')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyLogs.filter(l => deletedItemNames.includes(l.item_name)).filter(l => !historyFilterItem || l.item_name === historyFilterItem).map((log, idx) => {
+                  const qty = -log.qty_deducted;
+                  const isPositive = qty > 0;
+                  const color = isPositive ? '#2ecc71' : (qty < 0 ? '#e74c3c' : 'var(--text-main)');
+                  const dateStr = new Date(log.created_at).toLocaleString();
+                  const impactInCents = millicentsToCents(Math.abs(qty) * (log.unit_cost || 0));
+                  
+                  let actionLabel = log.deduction_type;
+                  if (log.deduction_type === 'added') actionLabel = t('inv.logAdded');
+                  if (log.deduction_type === 'restock') actionLabel = t('inv.logRestocked');
+                  if (log.deduction_type === 'sale') actionLabel = t('inv.logSale');
+                  if (log.deduction_type === 'transform_out') actionLabel = t('inv.logTransformOut');
+                  if (log.deduction_type === 'transform_in') actionLabel = t('inv.logTransformIn');
+                  if (log.deduction_type === 'removed') actionLabel = t('inv.logRemoved');
+                  if (log.deduction_type === 'waste' || log.deduction_type === 'audit_correction') {
+                    actionLabel = isPositive ? t('inv.logAuditGain') : t('inv.logAuditLoss');
+                  }
+
+                  return (
+                    <tr key={log.id || log.local_id || idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '12px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>{dateStr}</td>
+                      <td style={{ padding: '12px', fontWeight: 'bold' }}>{log.item_name}</td>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{ background: 'var(--bg-main)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem' }}>{actionLabel}</span>
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color }}>
+                        {isPositive ? '+' : ''}{qty}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                        {impactInCents > 0 ? formatForDisplay(impactInCents) : '-'}
+                      </td>
+                      <td style={{ padding: '12px', textAlign: 'right', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{log.ticket_id}</td>
+                    </tr>
+                  );
+                })}
+                {historyLogs.length === 0 && (
+                  <tr>
+                    <td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('inv.noHistory')}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        );
+      })}
+
+      {/* --- NEW: PER-ITEM HISTORY MODAL --- */}
+      {historyModalItem && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+          <div style={{ background: 'var(--bg-surface)', padding: '24px', borderRadius: '16px', width: '100%', maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, color: '#8e44ad', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Icon icon="lucide:history" />
+                {t('inv.historyTitle')} - {historyModalItem}
+              </h3>
+              <button onClick={() => setHistoryModalItem(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.2rem', display: 'flex' }}>
+                <Icon icon="lucide:x" />
+              </button>
+            </div>
+            
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '600px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thDate')}</th>
+                    <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thType')}</th>
+                    <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thQty')}</th>
+                    <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thImpact')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyLogs.filter(l => l.item_name === historyModalItem).map((log, idx) => {
+                    const qty = -log.qty_deducted;
+                    const isPositive = qty > 0;
+                    const color = isPositive ? '#2ecc71' : (qty < 0 ? '#e74c3c' : 'var(--text-main)');
+                    const dateStr = new Date(log.created_at).toLocaleString();
+                    const impactInCents = millicentsToCents(Math.abs(qty) * (log.unit_cost || 0));
+                    
+                    let actionLabel = log.deduction_type;
+                    if (log.deduction_type === 'added') actionLabel = t('inv.logAdded');
+                    if (log.deduction_type === 'restock') actionLabel = t('inv.logRestocked');
+                    if (log.deduction_type === 'sale') actionLabel = t('inv.logSale');
+                    if (log.deduction_type === 'transform_out') actionLabel = t('inv.logTransformOut');
+                    if (log.deduction_type === 'transform_in') actionLabel = t('inv.logTransformIn');
+                    if (log.deduction_type === 'removed') actionLabel = t('inv.logRemoved');
+                    if (log.deduction_type === 'waste' || log.deduction_type === 'audit_correction') {
+                      actionLabel = isPositive ? t('inv.logAuditGain') : t('inv.logAuditLoss');
+                    }
+
+                    return (
+                      <tr key={log.id || log.local_id || idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '12px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>{dateStr}</td>
+                        <td style={{ padding: '12px' }}>
+                          <span style={{ background: 'var(--bg-main)', padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem' }}>{actionLabel}</span>
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color }}>
+                          {isPositive ? '+' : ''}{qty}
+                        </td>
+                        <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                          {impactInCents > 0 ? formatForDisplay(impactInCents) : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {historyLogs.filter(l => l.item_name === historyModalItem).length === 0 && (
+                    <tr>
+                      <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('inv.noHistory')}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -731,6 +957,17 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 </td>
                 <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => {
+                        setHistoryModalItem(item.name);
+                        fetchHistoryLogs();
+                      }}
+                      title={t('inv.btnHistory')}
+                      style={{ padding: '10px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid rgba(142, 68, 173, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
+                    >
+                      <Icon icon="lucide:history" style={{ fontSize: '1.2rem' }} />
+                    </button>
+
                     <button
                       onClick={() => {
                         setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false });

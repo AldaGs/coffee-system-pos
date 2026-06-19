@@ -47,7 +47,14 @@ export function computeCogsAndWastage({
   const now = new Date();
 
   (inventoryLogs || []).forEach(log => {
-    if (log.deduction_type === 'restock' || log.deduction_type === 'audit_correction') return;
+    if (
+      log.deduction_type === 'restock' ||
+      log.deduction_type === 'audit_correction' ||
+      log.deduction_type === 'added' ||
+      log.deduction_type === 'removed' ||
+      log.deduction_type === 'transform_in' ||
+      log.deduction_type === 'transform_out'
+    ) return;
 
     const matchedItem = (inventoryItems || []).find(i => i.name === log.item_name);
     const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
