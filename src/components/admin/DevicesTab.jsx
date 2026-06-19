@@ -449,14 +449,14 @@ function DevicesTab({ showAlert, showConfirm }) {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <CredentialRow
-                label={t('devices.fieldEmail')}
+                label={t('devices.successFieldEmail')}
                 value={created.email}
                 icon="lucide:at-sign"
                 copied={copied === 'email'}
                 onCopy={() => copyToClipboard(created.email, 'email')}
                 copyLabel={t('devices.copy')}
                 copiedLabel={t('devices.copied')}
-                ariaLabel={t('devices.copyAria').replace('{label}', t('devices.fieldEmail'))}
+                ariaLabel={t('devices.copyAria').replace('{label}', t('devices.successFieldEmail'))}
               />
               <CredentialRow
                 label={t('devices.fieldPassword')}
