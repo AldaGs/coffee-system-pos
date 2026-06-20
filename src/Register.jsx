@@ -781,15 +781,22 @@ function Register() {
 
       // 2. Update Supabase
       if (!isLocalMode()) {
-        await supabase.from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id);
-
-        await supabase.from('order_fulfillment').insert({
+        // Critical path: the durable KDS record. If this fails, the send failed.
+        const { error: insertErr } = await supabase.from('order_fulfillment').insert({
           active_ticket_id: ticket.id,
           customer_name: ticket.name,
           items: ticket.items,
           payment_status: 'unpaid',
           status: 'received'
         });
+        if (insertErr) throw insertErr;
+
+        // Best-effort: flag the cloud ticket too. The KDS never reads this
+        // column, and it may be absent on older installs — a failure here must
+        // not abort the send or roll back the insert above.
+        const { error: flagErr } = await supabase
+          .from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id);
+        if (flagErr) console.warn('Cloud kds_sent flag update failed (non-fatal):', flagErr.message);
       }
       if (!silent) showToast("Pedido enviado a cocina");
     } catch (err) {
