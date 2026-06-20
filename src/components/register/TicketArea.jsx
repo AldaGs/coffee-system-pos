@@ -26,7 +26,7 @@ function TicketArea({
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
     handleRemoveItem, handleOpenCheckout, handleCancelTicket,
     requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket,
-    posSettings, activeCashier,
+    posSettings, activeCashier, handleSendToKds,
   } = usePos();
 
   const lockHint = showOverrideLock(posSettings, activeCashier);

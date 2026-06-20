@@ -767,9 +767,14 @@ function Register() {
     }
   };
 
-  // --- KDS MANUAL SEND ---
-  const handleSendToKds = async (ticket) => {
-    if (!ticket) return;
+  // --- KDS SEND (shared by the manual button and immediate mode) ---
+  // Guards against concurrent double-sends: the local kds_sent flag only flips
+  // after the awaited db write, so a re-render in that window could otherwise
+  // insert a second order_fulfillment row for the same ticket.
+  const kdsSendingRef = useRef(new Set());
+  const handleSendToKds = async (ticket, { silent = false } = {}) => {
+    if (!ticket || ticket.kds_sent || kdsSendingRef.current.has(ticket.id)) return;
+    kdsSendingRef.current.add(ticket.id);
     try {
       // 1. Locally mark as sent
       await db.active_tickets.update(ticket.id, { kds_sent: true });
@@ -777,20 +782,37 @@ function Register() {
       // 2. Update Supabase
       if (!isLocalMode()) {
         await supabase.from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id);
-        
+
         await supabase.from('order_fulfillment').insert({
           active_ticket_id: ticket.id,
           customer_name: ticket.name,
+          items: ticket.items,
           payment_status: 'unpaid',
           status: 'received'
         });
       }
-      showToast("Pedido enviado a cocina");
+      if (!silent) showToast("Pedido enviado a cocina");
     } catch (err) {
       console.error('Failed to send to KDS:', err);
-      showAlert(t('common.error'), "No se pudo enviar a la cocina");
+      // Roll back the local flag so the ticket can be retried.
+      await db.active_tickets.update(ticket.id, { kds_sent: false }).catch(() => {});
+      if (!silent) showAlert(t('common.error'), "No se pudo enviar a la cocina");
+    } finally {
+      kdsSendingRef.current.delete(ticket.id);
     }
   };
+
+  // --- KDS IMMEDIATE MODE ---
+  // When enabled, any ticket that has items and hasn't been sent yet is pushed
+  // to the kitchen automatically (no "Enviar a Cocina" button press needed).
+  // Dedup is via kds_sent, so each ticket inserts exactly one order_fulfillment row.
+  useEffect(() => {
+    if (!posSettings?.kdsEnabled || posSettings?.kdsMode !== 'immediate') return;
+    tickets
+      .filter(tk => !tk.kds_sent && Array.isArray(tk.items) && tk.items.length > 0)
+      .forEach(tk => handleSendToKds(tk, { silent: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickets, posSettings?.kdsEnabled, posSettings?.kdsMode]);
 
   // Bundle global state for the context wormhole. Memoized so that unrelated
   // re-renders (e.g. a PIN keystroke) don't cascade through every context consumer.
