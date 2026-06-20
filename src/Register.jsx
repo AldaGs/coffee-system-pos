@@ -767,6 +767,31 @@ function Register() {
     }
   };
 
+  // --- KDS MANUAL SEND ---
+  const handleSendToKds = async (ticket) => {
+    if (!ticket) return;
+    try {
+      // 1. Locally mark as sent
+      await db.active_tickets.update(ticket.id, { kds_sent: true });
+
+      // 2. Update Supabase
+      if (!isLocalMode()) {
+        await supabase.from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id);
+        
+        await supabase.from('order_fulfillment').insert({
+          active_ticket_id: ticket.id,
+          customer_name: ticket.name,
+          payment_status: 'unpaid',
+          status: 'received'
+        });
+      }
+      showToast("Pedido enviado a cocina");
+    } catch (err) {
+      console.error('Failed to send to KDS:', err);
+      showAlert(t('common.error'), "No se pudo enviar a la cocina");
+    }
+  };
+
   // Bundle global state for the context wormhole. Memoized so that unrelated
   // re-renders (e.g. a PIN keystroke) don't cascade through every context consumer.
   const posState = useMemo(() => ({
@@ -778,7 +803,8 @@ function Register() {
     handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
     handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
     handleRedeemReward, handleDetachLoyalty, setLoyaltyModal, loyaltyModal,
-    pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket
+    pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket,
+    handleSendToKds
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
     cartTotal, enrichedActiveTicket, menuData, posSettings, activeCashier,

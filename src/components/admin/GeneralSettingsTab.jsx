@@ -730,6 +730,43 @@ function GeneralSettingsTab({
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Icon icon="lucide:monitor-play" style={{ color: 'var(--brand-color)' }} />
+                Kitchen Display System (KDS)
+              </h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  Habilitar KDS
+                </label>
+                <select
+                  value={generalSettings.kdsEnabled === true}
+                  onChange={(e) => setGeneralSettings({ ...generalSettings, kdsEnabled: e.target.value === 'true' })}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                >
+                  <option value={false}>No (Desactivado)</option>
+                  <option value={true}>Sí (Activado)</option>
+                </select>
+                <small style={{ color: 'var(--text-muted)' }}>Muestra opciones para interactuar con la pantalla de cocina.</small>
+
+                {generalSettings.kdsEnabled && (
+                  <>
+                    <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem', marginTop: '12px' }}>Modo de Envío a KDS</label>
+                    <select
+                      value={generalSettings.kdsMode || 'immediate'}
+                      onChange={(e) => setGeneralSettings({ ...generalSettings, kdsMode: e.target.value })}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+                    >
+                      <option value="immediate">Inmediato (Al abrir ticket)</option>
+                      <option value="manual">Manual (Botón "Enviar a Cocina")</option>
+                    </select>
+                    <small style={{ color: 'var(--text-muted)' }}>Define cuándo aparecen los pedidos en la pantalla de cocina.</small>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
+              <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Icon icon="lucide:hash" style={{ color: 'var(--brand-color)' }} />
                 {t('settings.orderNums')}
               </h3>

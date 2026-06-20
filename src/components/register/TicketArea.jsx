@@ -163,6 +163,17 @@ function TicketArea({
                 <button className="options-btn" onClick={() => setIsActionSheetOpen(true)} disabled={activeTicket.items.length === 0} style={{ flex: '0 0 auto', width: '60px', padding: '16px 0', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: activeTicket.items.length === 0 ? 0.5 : 1, cursor: activeTicket.items.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon icon="lucide:more-vertical" />
                 </button>
+                {posSettings?.kdsEnabled && posSettings?.kdsMode === 'manual' && (
+                  <button 
+                    className="kds-btn" 
+                    onClick={() => handleSendToKds(activeTicket)} 
+                    disabled={activeTicket.items.length === 0 || activeTicket.kds_sent} 
+                    style={{ flex: '0 0 auto', padding: '16px', background: activeTicket.kds_sent ? 'var(--bg-main)' : '#e67e22', color: activeTicket.kds_sent ? 'var(--text-muted)' : 'white', border: activeTicket.kds_sent ? '1px solid var(--border)' : 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: (activeTicket.items.length === 0 || activeTicket.kds_sent) ? 0.5 : 1, cursor: (activeTicket.items.length === 0 || activeTicket.kds_sent) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title={activeTicket.kds_sent ? "Ya enviado a cocina" : "Enviar a Cocina"}
+                  >
+                    <Icon icon="lucide:flame" />
+                  </button>
+                )}
                 <button className="charge-btn" onClick={handleOpenCheckout} disabled={activeTicket.items.length === 0} style={{ flex: 1 }}>
                   {t('ticket.btnPay')}
                 </button>
