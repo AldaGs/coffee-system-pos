@@ -314,6 +314,7 @@ export const translations = {
     "inv.paidWith": "Paid With",
     "inv.paidCaja": "Paid from Petty Cash",
     "inv.paidBanco": "Paid from Bank",
+    "inv.paidOwner": "Paid by Owner (my money)",
 
     // --- Analytics Tab ---
     "analytics.title": "Financial Dashboard",
@@ -1477,6 +1478,7 @@ export const translations = {
     "inv.paidWith": "Pagado con",
     "inv.paidCaja": "Pagado con dinero de la caja",
     "inv.paidBanco": "Pagado con dinero del Banco",
+    "inv.paidOwner": "Pagado con dinero del dueño",
 
     // --- Analytics Tab ---
     "analytics.title": "Panel Financiero",

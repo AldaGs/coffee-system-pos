@@ -243,11 +243,12 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       // way buying stock logs an "Inventory Purchase" expense. Category
       // "Inventario" so the books (tinybooks) capture it as inventory value
       // added, not a plain expense. The payment source is encoded in the reason:
-      // "[Banco]" → tinybooks credits Banco (bank/owner money); otherwise Caja
-      // (petty cash). This lets a bank-paid roast not drain the cash drawer.
+      // "[Banco]" → business bank account; "[Dueño]" → the owner's own money (an
+      // equity contribution, kept separate from the bank); otherwise Caja (petty
+      // cash). This lets each pocket reflect what's actually in it.
       if (opCost > 0) {
-        const paidFromBank = transformForm.paymentSource === 'banco';
-        const tag = paidFromBank ? ' [Banco]' : '';
+        const tag = transformForm.paymentSource === 'banco' ? ' [Banco]'
+          : transformForm.paymentSource === 'dueno' ? ' [Dueño]' : '';
         const transformExpense = {
           amount: toCents(opCost),
           reason: `Transform${tag}: ${targetItemPayload.name} (${finalYieldQty}${sourceItem.unit})`,
@@ -562,7 +563,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.paidWith') || '¿Cómo se pagó?'}</label>
               <select value={transformForm.paymentSource} onChange={e => setTransformForm({ ...transformForm, paymentSource: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }} title="Solo aplica si hay costo de operación">
                 <option value="caja">{t('inv.paidCaja') || 'Caja Chica'}</option>
-                <option value="banco">{t('inv.paidBanco') || 'Banco / Dueño'}</option>
+                <option value="banco">{t('inv.paidBanco') || 'Banco'}</option>
+                <option value="dueno">{t('inv.paidOwner') || 'Dueño (mi dinero)'}</option>
               </select>
             </div>
             <div>
