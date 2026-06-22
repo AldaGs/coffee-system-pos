@@ -1,5 +1,5 @@
 import { useTranslation } from '../../hooks/useTranslation';
-import { calculateTaxBreakdown } from '../../utils/posMath';
+import { calculateItemizedTaxBreakdown } from '../../utils/posMath';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { numeroALetras } from '../../utils/numeroALetras';
 
@@ -18,8 +18,10 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
     rawSubtotal += itemTotal * qty;
   });
 
+  // Per-item IVA: only items tagged 'iva16' in the menu editor are taxed; the
+  // carve-out mirrors the books-side math so the ticket and recorded sale agree.
   const taxInfo = receiptSettings?.enableTaxBreakdown
-    ? calculateTaxBreakdown(total, receiptSettings.taxRate || 16)
+    ? calculateItemizedTaxBreakdown(ticket.items, total, receiptSettings.taxRate || 16)
     : null;
 
   return (

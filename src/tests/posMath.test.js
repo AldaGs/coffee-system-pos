@@ -1,6 +1,6 @@
 // src/tests/posMath.test.js
 import { describe, it, expect } from 'vitest';
-import { calculateTaxBreakdown, calculateTransformationCost, calculateExpectedCash } from '../utils/posMath';
+import { calculateTaxBreakdown, calculateItemizedTaxBreakdown, calculateTransformationCost, calculateExpectedCash } from '../utils/posMath';
 
 describe('TinyPOS Core Mathematical Engines (Integer/Centavos Pattern)', () => {
 
@@ -19,6 +19,50 @@ describe('TinyPOS Core Mathematical Engines (Integer/Centavos Pattern)', () => {
       // 4550 - 3922 = 628
       expect(result.subtotal).toBe(3922); 
       expect(result.tax).toBe(628); 
+    });
+  });
+
+  describe('Itemized IVA Engine (per-item ivaTreatment)', () => {
+    it('only carves IVA out of items tagged iva16', () => {
+      const items = [
+        { basePrice: 11600, qty: 1, ivaTreatment: 'iva16' },   // taxable
+        { basePrice: 5000, qty: 1, ivaTreatment: 'tasa0' },    // zero-rated
+        { basePrice: 3000, qty: 1, ivaTreatment: 'exento' },   // exempt
+      ];
+      const total = 11600 + 5000 + 3000; // 19600, no discount
+      const r = calculateItemizedTaxBreakdown(items, total, 16);
+      expect(r.taxable).toBe(11600);
+      expect(r.tax).toBe(1600);          // 11600 - 11600/1.16
+      expect(r.subtotal).toBe(18000);    // total - tax
+    });
+
+    it('returns zero IVA when no item is taxable', () => {
+      const items = [{ basePrice: 5000, qty: 2, ivaTreatment: 'tasa0' }];
+      const r = calculateItemizedTaxBreakdown(items, 10000, 16);
+      expect(r.tax).toBe(0);
+      expect(r.taxable).toBe(0);
+      expect(r.subtotal).toBe(10000);
+    });
+
+    it('scales the taxable base by a ticket-level discount', () => {
+      const items = [{ basePrice: 11600, qty: 1, ivaTreatment: 'iva16' }];
+      // 10% off -> charged 10440; taxable scales with it.
+      const r = calculateItemizedTaxBreakdown(items, 10440, 16);
+      expect(r.taxable).toBe(10440);
+      expect(r.tax).toBe(1440); // 10440 - 10440/1.16
+    });
+
+    it('includes modifier prices in the taxable line gross', () => {
+      const items = [{ basePrice: 10000, qty: 1, ivaTreatment: 'iva16', selectedModifiers: [{ price: 1600 }] }];
+      const r = calculateItemizedTaxBreakdown(items, 11600, 16);
+      expect(r.taxable).toBe(11600);
+      expect(r.tax).toBe(1600);
+    });
+
+    it('treats untagged items as non-taxable (defaults to tasa0)', () => {
+      const items = [{ basePrice: 5000, qty: 1 }];
+      const r = calculateItemizedTaxBreakdown(items, 5000, 16);
+      expect(r.tax).toBe(0);
     });
   });
 

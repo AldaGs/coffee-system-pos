@@ -4,6 +4,7 @@ import { computeStarsForTicket } from '../hooks/useLoyalty';
 import { recordTipAccrual } from './tipsService';
 import { isLocalMode } from '../utils/appMode';
 import { useUpgradeNagStore } from '../store/useUpgradeNagStore';
+import { calculateItemizedTaxBreakdown } from '../utils/posMath';
 
 // Pre-flight stock check against local Dexie inventory. Mirrors the deduction
 // logic in processCheckout but only reads — used to surface "insufficient
@@ -114,17 +115,8 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   // MX prices are tax-INCLUSIVE, so the IVA is carved out of the line, not added.
   // We compute on raw line totals then scale by any ticket-level discount so the
   // taxable base tracks what was actually charged (centsTotal excludes the tip).
-  const lineGross = (it) => {
-    const mods = (it.selectedModifiers || []).reduce((s, m) => s + (Number(m.price) || 0), 0);
-    return ((Number(it.basePrice) || 0) + mods) * (it.qty || 1);
-  };
-  const rawSubtotal = (activeTicket.items || []).reduce((s, it) => s + lineGross(it), 0);
-  const taxableRaw = (activeTicket.items || [])
-    .filter((it) => (it.ivaTreatment || 'tasa0') === 'iva16')
-    .reduce((s, it) => s + lineGross(it), 0);
-  const discountScale = rawSubtotal > 0 ? centsTotal / rawSubtotal : 1;
-  const centsTaxable = Math.round(taxableRaw * discountScale);
-  const centsTax = Math.round(centsTaxable - centsTaxable / 1.16); // IVA carved out of gross
+  const { tax: centsTax, taxable: centsTaxable } =
+    calculateItemizedTaxBreakdown(activeTicket.items, centsTotal, 16);
 
   // 1. Build the CLOUD Data specifically matching your Supabase columns
   const currentSale = {
