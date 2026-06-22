@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
@@ -33,6 +33,13 @@ function MenuEditorTab({
   const { t } = useTranslation();
   const { showPrompt, showAlert, showConfirm } = useDialog();
   const fileInputRef = useRef(null);
+  // Refs to drive auto-scroll between the editor form and the item in the list.
+  // The scroll container is `.admin-main` (not the window), so scrollIntoView —
+  // which walks up to the real scroll parent — is what actually works here.
+  const editorRef = useRef(null);
+  const itemRefs = useRef(new Map());
+  // Item id to scroll back to once editing finishes (save/cancel).
+  const returnToItemId = useRef(null);
   const [pendingItemId, setPendingItemId] = useState(null);
   const [cropSrc, setCropSrc] = useState(null);
   // null = closed. { mode: 'manage' } or { mode: 'pick', itemId } when open.
@@ -63,6 +70,17 @@ function MenuEditorTab({
       t('menu.imageUpsellBody') || 'Las fotos de productos se guardan en la nube. Actualiza gratis a Supabase para habilitarlas. Por ahora se muestra el emoji del producto.'
     );
   };
+
+  // When editing ends (editingItemId cleared by save or cancel), bring the
+  // edited row back into view so the user doesn't lose their place in a long list.
+  useEffect(() => {
+    if (editingItemId) return;
+    const id = returnToItemId.current;
+    if (!id) return;
+    returnToItemId.current = null;
+    const el = itemRefs.current.get(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [editingItemId]);
 
   const openLibrary = (next) => {
     if (isLocalMode()) { imageUpsell(); return; }
@@ -151,7 +169,7 @@ function MenuEditorTab({
           </div>
 
           {/* ITEM SECTION */}
-          <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <div ref={editorRef} style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', scrollMarginTop: '16px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
               <Icon icon="lucide:plus-square" style={{ color: 'var(--brand-color)' }} />
               {t('menu.addItem')}
@@ -423,7 +441,14 @@ function MenuEditorTab({
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {menuData.categories[category].map(item => (
-                        <div key={item.id} style={{ display: 'flex', flexDirection: 'column', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', gap: '10px', opacity: item.isHidden ? 0.55 : 1 }}>
+                        <div
+                          key={item.id}
+                          ref={(el) => {
+                            if (el) itemRefs.current.set(item.id, el);
+                            else itemRefs.current.delete(item.id);
+                          }}
+                          style={{ display: 'flex', flexDirection: 'column', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', gap: '10px', opacity: item.isHidden ? 0.55 : 1, scrollMarginTop: '16px', scrollMarginBottom: '16px' }}
+                        >
                           {/* Top row: item image/info + visibility & delete icons */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1', minWidth: 0 }}>
@@ -512,7 +537,11 @@ function MenuEditorTab({
                                   linkedWarehouseId: item.linkedWarehouseId || '',
                                   linkedRecipeId: item.linkedRecipeId || ''
                                 });
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                // Remember where to return after save/cancel, then
+                                // scroll the editor form into view (scrollIntoView
+                                // targets the real scroll parent, .admin-main).
+                                returnToItemId.current = item.id;
+                                editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                               }}
                               style={{ flex: 1, minWidth: 0, background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                               title={t('menu.titleEditDetails')}

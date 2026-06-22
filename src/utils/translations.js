@@ -493,6 +493,10 @@ export const translations = {
     "menu.labelPriceType": "Price Type",
     "menu.priceFixed": "Fixed Price",
     "menu.priceVariable": "Variable / Open Price",
+    "menu.labelIva": "VAT Treatment",
+    "menu.ivaRate16": "VAT 16% (prepared)",
+    "menu.ivaRate0": "Zero-rated (unprepared food)",
+    "menu.ivaExento": "Exempt",
     "menu.promptVariablePrice": "Enter Price for",
     "menu.badgeVariable": "Open Price",
 
@@ -1657,6 +1661,10 @@ export const translations = {
     "menu.labelPriceType": "Tipo de Precio",
     "menu.priceFixed": "Precio Fijo",
     "menu.priceVariable": "Precio Variable / Abierto",
+    "menu.labelIva": "Tratamiento de IVA",
+    "menu.ivaRate16": "Grava IVA 16% (preparado)",
+    "menu.ivaRate0": "Tasa 0% (alimento no preparado)",
+    "menu.ivaExento": "Exento",
     "menu.promptVariablePrice": "Ingresa el Precio para",
     "menu.badgeVariable": "Precio Abierto",
 
