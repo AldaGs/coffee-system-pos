@@ -1,23 +1,26 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
-import { calculateTaxBreakdown } from '../../utils/posMath';
+import { calculateItemizedTaxBreakdown } from '../../utils/posMath';
 import { numeroALetras } from '../../utils/numeroALetras';
 
 function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, handleSaveReceipt }) {
   const { t } = useTranslation();
 
+  // Sample carries ivaTreatment so the preview demonstrates the same per-item
+  // carve-out the real ticket uses: prepared drinks are taxed, the to-go pastry
+  // (unprepared food) is zero-rated — so the IVA line reflects only the taxable mix.
   const previewItems = [
-    { emoji: '☕', name: 'Americano', qty: 1, basePrice: 4500, selectedModifiers: [] },
-    { emoji: '🥛', name: 'Flat White', qty: 1, basePrice: 5500, selectedModifiers: [{ name: 'Oat milk', price: 500 }] },
-    { emoji: '🥐', name: 'Croissant', qty: 1, basePrice: 3500, selectedModifiers: [] },
+    { emoji: '☕', name: 'Americano', qty: 1, basePrice: 4500, selectedModifiers: [], ivaTreatment: 'iva16' },
+    { emoji: '🥛', name: 'Flat White', qty: 1, basePrice: 5500, selectedModifiers: [{ name: 'Oat milk', price: 500 }], ivaTreatment: 'iva16' },
+    { emoji: '🥐', name: 'Croissant', qty: 1, basePrice: 3500, selectedModifiers: [], ivaTreatment: 'tasa0' },
   ];
   const previewTotal = previewItems.reduce((sum, it) => {
     const modSum = (it.selectedModifiers || []).reduce((s, m) => s + (m.price || 0), 0);
     return sum + (it.basePrice + modSum) * (it.qty || 1);
   }, 0);
   const previewTaxInfo = receiptForm.enableTaxBreakdown
-    ? calculateTaxBreakdown(previewTotal, receiptForm.taxRate || 16)
+    ? calculateItemizedTaxBreakdown(previewItems, previewTotal, receiptForm.taxRate || 16)
     : null;
   const previewNow = new Date();
 
