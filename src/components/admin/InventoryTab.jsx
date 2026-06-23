@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -67,6 +67,29 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   const [restockingItem, setRestockingItem] = useState(null);
 
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+  // Auto-scroll between the row-triggered editor panels (edit/restock/audit),
+  // which render above the list, and the list row itself. The scroll container
+  // is `.admin-main`, so scrollIntoView — which targets the real scroll parent —
+  // is what works here. Only one panel is open at a time, so a single ref set on
+  // all three panel roots points at whichever is currently mounted.
+  const panelRef = useRef(null);
+  const rowRefs = useRef(new Map());
+  const returnToItemId = useRef(null);
+
+  useEffect(() => {
+    const panelOpen = editingItem || restockingItem || auditingItem;
+    if (panelOpen) {
+      panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    // Panel closed (save/cancel): bring the originating row back into view.
+    const id = returnToItemId.current;
+    if (!id) return;
+    returnToItemId.current = null;
+    const el = rowRefs.current.get(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [editingItem, restockingItem, auditingItem]);
 
   // --- NEW: HISTORY STATE ---
   const [historyLogs, setHistoryLogs] = useState([]);
@@ -737,7 +760,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       {/* --- EDIT ITEM UI --- */}
       {editingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--brand-color)', boxShadow: '0 10px 30px rgba(52, 152, 219, 0.1)' }}>
+        <div ref={panelRef} style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--brand-color)', boxShadow: '0 10px 30px rgba(52, 152, 219, 0.1)', scrollMarginTop: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ margin: 0, color: 'var(--brand-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:edit-3" />
@@ -786,7 +809,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       {/* --- NEW: RESTOCK UI --- */}
       {restockingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #27ae60', boxShadow: '0 10px 30px rgba(39, 174, 96, 0.1)' }}>
+        <div ref={panelRef} style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #27ae60', boxShadow: '0 10px 30px rgba(39, 174, 96, 0.1)', scrollMarginTop: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ margin: 0, color: '#27ae60', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:package-plus" />
@@ -853,7 +876,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       {/* --- NEW: AUDIT / WASTAGE UI --- */}
       {auditingItem && (
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 10px 30px rgba(231, 76, 60, 0.1)' }}>
+        <div ref={panelRef} style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '2px solid #e74c3c', boxShadow: '0 10px 30px rgba(231, 76, 60, 0.1)', scrollMarginTop: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ margin: 0, color: '#e74c3c', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:clipboard-check" />
@@ -946,7 +969,15 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           </thead>
           <tbody>
             {sortedItems.map(item => (
-              <tr key={item.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }} className="hover-row">
+              <tr
+                key={item.id}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(item.id, el);
+                  else rowRefs.current.delete(item.id);
+                }}
+                style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s', scrollMarginTop: '16px', scrollMarginBottom: '16px' }}
+                className="hover-row"
+              >
                 <td data-label={t('inv.thName')} style={{ padding: '20px 24px', fontWeight: '700', fontSize: '1rem' }}>{item.name}</td>
                 <td data-label={t('inv.thStock')} style={{ padding: '20px 24px' }}>
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)', borderRadius: '20px', color: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? '#e74c3c' : '#27ae60', fontWeight: 'bold', fontSize: '0.95rem' }}>
@@ -972,6 +1003,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
                     <button
                       onClick={() => {
+                        returnToItemId.current = item.id;
                         setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false });
                         setEditingItem(null);
                         setAuditingItem(null);
@@ -985,6 +1017,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
                     <button
                       onClick={() => {
+                        returnToItemId.current = item.id;
                         setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' });
                         setEditingItem(null);
                         setRestockingItem(null);
@@ -998,6 +1031,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
                     <button
                       onClick={() => {
+                        returnToItemId.current = item.id;
                         setEditingItem({
                           ...item,
                           unit_cost: fromMillicents(item.unit_cost || 0),
