@@ -11,6 +11,7 @@ import {
   setItemModifiers,
   addDiscountRule, updateDiscountRule, deleteDiscountRule
 } from './api/menu';
+import { loadVendors, addVendor, updateVendor, deleteVendor } from './api/vendors';
 import { uploadAsset, clearItemImage, setItemImageUrl, listAssets, deleteAsset } from './api/menuImages';
 import { debouncedSnapshot, snapshotIfStale } from './api/menuVersions';
 import * as XLSX from 'xlsx';
@@ -35,6 +36,7 @@ import ReceiptSettingsTab from './components/admin/ReceiptSettingsTab';
 import LoyaltyTab from './components/admin/LoyaltyTab';
 import DiscountsTab from './components/admin/DiscountsTab';
 import TeamTab from './components/admin/TeamTab';
+import VendorsTab from './components/admin/VendorsTab';
 import GeneralSettingsTab from './components/admin/GeneralSettingsTab';
 import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
@@ -119,6 +121,7 @@ function Admin() {
   }, []);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [inventoryLogs, setInventoryLogs] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -292,6 +295,14 @@ function Admin() {
               return settingsRes.data?.menu_data || {};
             })();
         setMenuData({ ...settings, ...menu });
+
+        // Vendor registry (works in both modes via the dispatcher). Tolerate a
+        // missing table on pre-0.4 installs that haven't run Update Schema yet.
+        try {
+          setVendors(await loadVendors());
+        } catch (e) {
+          console.warn('Vendors unavailable (run Update Schema?):', e.message);
+        }
 
         const firstCategory = menu.categoryOrder[0];
         if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
@@ -825,8 +836,28 @@ function Admin() {
       ivaTreatment: 'tasa0',
       inventoryMode: 'none',
       linkedWarehouseId: '',
-      linkedRecipeId: ''
+      linkedRecipeId: '',
+      vendorId: ''
     }));
+  };
+
+  // --- VENDOR REGISTRY HANDLERS ---
+  const refreshVendors = async () => {
+    try { setVendors(await loadVendors()); } catch (e) { console.warn('refreshVendors failed', e.message); }
+  };
+  const handleAddVendor = async (vendor) => { await addVendor(vendor); await refreshVendors(); };
+  const handleUpdateVendor = async (id, patch) => { await updateVendor(id, patch); await refreshVendors(); };
+  const handleDeleteVendor = async (id) => { await deleteVendor(id); await refreshVendors(); };
+
+  // Resolve the { vendorId, vendorName } pair to stamp on a menu item from the
+  // form's selected vendor. Denormalizing the name keeps the sale-line snapshot
+  // (and historic settlement reports) readable even if the vendor is later renamed.
+  const vendorFieldsForForm = () => {
+    const vendorId = newItemForm.vendorId || '';
+    const vendorName = vendorId
+      ? (vendors.find(v => String(v.id) === String(vendorId))?.name || '')
+      : '';
+    return { vendorId, vendorName };
   };
 
   const handleAddDrink = () => {
@@ -854,7 +885,8 @@ function Admin() {
         ivaTreatment: newItemForm.ivaTreatment || 'tasa0',
         inventoryMode: newItemForm.inventoryMode || 'none',
         linkedWarehouseId: newItemForm.linkedWarehouseId || '',
-        linkedRecipeId: newItemForm.linkedRecipeId || ''
+        linkedRecipeId: newItemForm.linkedRecipeId || '',
+        ...vendorFieldsForForm()
       };
 
       const newCategories = { ...menuData.categories };
@@ -891,7 +923,8 @@ function Admin() {
       allowedModifiers: [],
       inventoryMode: newItemForm.inventoryMode || 'none',
       linkedWarehouseId: newItemForm.linkedWarehouseId || '',
-      linkedRecipeId: newItemForm.linkedRecipeId || ''
+      linkedRecipeId: newItemForm.linkedRecipeId || '',
+      ...vendorFieldsForForm()
     };
     const updatedMenu = {
       ...menuData,
@@ -1674,6 +1707,7 @@ function Admin() {
             { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
             { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
             { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
+            { id: 'vendors', icon: 'lucide:store', label: t('admin.vendors'), advancedOnly: true },
             // Public menus (TinyMenu) need a Supabase project to publish — cloud only.
             { id: 'menus', icon: 'lucide:layout-list', label: t('admin.publicMenus'), cloudOnly: true },
             { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
@@ -1843,6 +1877,17 @@ function Admin() {
             handleSelectAssetForItem={handleSelectAssetForItem}
             handleDeleteAsset={handleDeleteAsset}
             handleUploadAsset={handleUploadAsset}
+            vendors={vendors}
+          />
+        )}
+
+        {activeTab === 'vendors' && (
+          <VendorsTab
+            vendors={vendors}
+            sales={dexieSales}
+            onAddVendor={handleAddVendor}
+            onUpdateVendor={handleUpdateVendor}
+            onDeleteVendor={handleDeleteVendor}
           />
         )}
 

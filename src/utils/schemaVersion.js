@@ -13,6 +13,10 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 0.4 — multi-vendor sales: the `vendors` registry table (migration 023). Lets a
+//       shop tag products with the vendor that owns them and run a per-vendor
+//       settlement report with commission payouts. The item -> vendor link rides
+//       on menu_items.data jsonb, so no menu_items column change is needed.
 // 0.3 — public menus stack: menus + menu_schedules tables, the
 //       get_active_menu / get_public_menu / get_menu_by_id resolver RPCs,
 //       the designed-canvas payload (menu.data jsonb, kind='designed'), the
@@ -27,4 +31,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '0.3';
+export const APP_SCHEMA_VERSION = '0.4';

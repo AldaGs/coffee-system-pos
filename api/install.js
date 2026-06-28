@@ -456,12 +456,27 @@ export default async function handler(req, res) {
       created_at  timestamptz NOT NULL DEFAULT now()
     );
 
+    -- Multi-vendor sales registry (migration 023). Catalog/reference data, so it
+    -- mirrors menu_categories: client-generated text id, RLS TO authenticated.
+    -- The item -> vendor link lives on menu_items.data jsonb ({ vendorId, vendorName }).
+    CREATE TABLE IF NOT EXISTS public.vendors (
+      id                 text PRIMARY KEY,
+      name               text NOT NULL,
+      contact            text NOT NULL DEFAULT '',
+      commission_percent numeric NOT NULL DEFAULT 0,
+      is_active          bool NOT NULL DEFAULT true,
+      sort_order         int  NOT NULL DEFAULT 0,
+      data               jsonb NOT NULL DEFAULT '{}'::jsonb,
+      created_at         timestamptz NOT NULL DEFAULT now()
+    );
+
     ALTER TABLE public.menu_categories           ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.menu_items                ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.menu_modifier_groups      ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.menu_modifier_options     ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.menu_item_modifier_groups ENABLE ROW LEVEL SECURITY;
     ALTER TABLE public.menu_discount_rules       ENABLE ROW LEVEL SECURITY;
+    ALTER TABLE public.vendors                   ENABLE ROW LEVEL SECURITY;
 
     DROP POLICY IF EXISTS "Hardware can access menu_categories"           ON public.menu_categories;
     DROP POLICY IF EXISTS "Hardware can access menu_items"                ON public.menu_items;
@@ -469,6 +484,7 @@ export default async function handler(req, res) {
     DROP POLICY IF EXISTS "Hardware can access menu_modifier_options"     ON public.menu_modifier_options;
     DROP POLICY IF EXISTS "Hardware can access menu_item_modifier_groups" ON public.menu_item_modifier_groups;
     DROP POLICY IF EXISTS "Hardware can access menu_discount_rules"       ON public.menu_discount_rules;
+    DROP POLICY IF EXISTS "Hardware can access vendors"                   ON public.vendors;
 
     CREATE POLICY "Hardware can access menu_categories"           ON public.menu_categories           FOR ALL TO authenticated USING (true) WITH CHECK (true);
     CREATE POLICY "Hardware can access menu_items"                ON public.menu_items                FOR ALL TO authenticated USING (true) WITH CHECK (true);
@@ -476,6 +492,7 @@ export default async function handler(req, res) {
     CREATE POLICY "Hardware can access menu_modifier_options"     ON public.menu_modifier_options     FOR ALL TO authenticated USING (true) WITH CHECK (true);
     CREATE POLICY "Hardware can access menu_item_modifier_groups" ON public.menu_item_modifier_groups FOR ALL TO authenticated USING (true) WITH CHECK (true);
     CREATE POLICY "Hardware can access menu_discount_rules"       ON public.menu_discount_rules       FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    CREATE POLICY "Hardware can access vendors"                   ON public.vendors                   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
     -- ==========================================
     -- MENU VERSIONS (migration 014): point-in-time snapshots + restore.
@@ -1328,7 +1345,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (true);
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '0.3', now())
+    VALUES ('schema_version', '0.4', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

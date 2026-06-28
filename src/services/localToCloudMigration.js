@@ -28,6 +28,8 @@ import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import * as menuLocal from '../api/menuLocal';
 import * as cloud from '../api/menuCloud';
+import * as vendorLocal from '../api/vendorLocal';
+import * as vendorCloud from '../api/vendorCloud';
 import { useMenuStore } from '../store/useMenuStore';
 
 const noop = () => {};
@@ -85,6 +87,26 @@ export async function migrateLocalToCloud(onProgress = noop) {
     }
   } catch (e) {
     errors.push(`Clientes: ${e.message}`);
+  }
+
+  // ---- 2b. VENDORS --------------------------------------------------------
+  // Push the consignment registry up first so item.data.vendorId references
+  // (preserved verbatim — vendor ids are client UUIDs) resolve against real
+  // cloud rows. Re-running is safe: ids are reused, so duplicate inserts fail
+  // only on the PK, which we swallow per-vendor.
+  onProgress({ phase: 'vendors' });
+  try {
+    const vendors = await vendorLocal.loadVendors();
+    for (const vendor of vendors) {
+      try {
+        await vendorCloud.addVendor(vendor);
+      } catch (e) {
+        // Likely a re-run (PK conflict) — leave the existing row as-is.
+        if (!String(e.message || '').includes('duplicate')) throw e;
+      }
+    }
+  } catch (e) {
+    errors.push(`Vendedores: ${e.message}`);
   }
 
   // ---- 3. MENU ------------------------------------------------------------

@@ -28,7 +28,8 @@ function MenuEditorTab({
   handleMoveCategory, handleToggleCategoryVisibility, handleToggleDrinkVisibility,
   handleSetItemImage, handleClearItemImage,
   assets = [], assetsLoading = false, assetsBusy = false,
-  loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset
+  loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset,
+  vendors = []
 }) {
   const { t } = useTranslation();
   const { showPrompt, showAlert, showConfirm } = useDialog();
@@ -252,6 +253,25 @@ function MenuEditorTab({
                 </select>
               </div>
 
+              {/* VENDOR / CONSIGNMENT OWNER — who this product belongs to. Snapshots
+                  onto every sale line (via the cart spread) so the per-vendor
+                  settlement report can total each vendor's sales. */}
+              {vendors.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelVendor') || 'Vendedor'}</label>
+                  <select
+                    value={newItemForm.vendorId || ''}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, vendorId: e.target.value })}
+                    style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    <option value="">{t('menu.vendorHouse') || 'Casa (sin vendedor)'}</option>
+                    {vendors.map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* INVENTORY TRACKING */}
               <div style={{ marginTop: '8px', background: 'var(--bg-main)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '12px', color: 'var(--text-main)' }}>
@@ -339,7 +359,8 @@ function MenuEditorTab({
                         ivaTreatment: 'tasa0',
                         inventoryMode: 'none',
                         linkedWarehouseId: '',
-                        linkedRecipeId: ''
+                        linkedRecipeId: '',
+                        vendorId: ''
                       });
                     }}
                     style={{ padding: '16px 20px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
@@ -535,7 +556,8 @@ function MenuEditorTab({
                                   ivaTreatment: item.ivaTreatment || 'tasa0',
                                   inventoryMode: item.inventoryMode || 'none',
                                   linkedWarehouseId: item.linkedWarehouseId || '',
-                                  linkedRecipeId: item.linkedRecipeId || ''
+                                  linkedRecipeId: item.linkedRecipeId || '',
+                                  vendorId: item.vendorId || ''
                                 });
                                 // Remember where to return after save/cancel, then
                                 // scroll the editor form into view (scrollIntoView
