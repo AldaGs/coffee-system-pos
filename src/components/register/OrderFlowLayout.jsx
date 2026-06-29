@@ -117,17 +117,22 @@ function OrderFlowLayout({
       {/* --- LEFT: ACTIVE TICKETS (30%) --- */}
       <section className={`order-flow-pane order-flow-tickets ${ticketsHidden}`}>
         <div className="order-flow-tickets-header">
-          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             {tableScope && (
-              <button type="button" className="order-flow-back-btn" onClick={onBackToFloor}
-                aria-label={t('reg.backToFloor')} title={t('reg.backToFloor')}>
-                <Icon icon="lucide:chevron-left" />
+              <button type="button" onClick={onBackToFloor}
+                aria-label={t('reg.backToFloor')} title={t('reg.backToFloor')}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 9999,
+                  border: 'none', background: 'var(--brand-color, #3498db)', color: '#fff', fontWeight: 700,
+                  fontSize: '0.85rem', cursor: 'pointer', flexShrink: 0 }}>
+                <Icon icon="lucide:arrow-left" /> {t('reg.backToFloor')}
               </button>
             )}
-            {tableScope
-              ? `${t('admin.tables')} ${tableScope.number}${tableScope.name ? ` · ${tableScope.name}` : ''}`
-              : t('register.activeTicketsTitle')}
-          </h2>
+            <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {tableScope
+                ? `${t('admin.tables')} ${tableScope.number}${tableScope.name ? ` · ${tableScope.name}` : ''}`
+                : t('register.activeTicketsTitle')}
+            </h2>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button type="button" className="order-flow-new-btn" onClick={startNewTicket}>
               <Icon icon="lucide:plus" />

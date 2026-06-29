@@ -949,6 +949,11 @@ function Register() {
             floors={floors}
             tickets={tickets}
             onSelectTable={handleSelectTable}
+            isMobileMenuOpen={isMobileMenuOpen}
+            setIsMobileMenuOpen={setIsMobileMenuOpen}
+            setIsSyncModalOpen={setIsSyncModalOpen}
+            setIsExpenseModalOpen={setIsExpenseModalOpen}
+            setIsCorteModalOpen={setIsCorteModalOpen}
           />
         ) : orderFlowMode ? (
           <OrderFlowLayout
