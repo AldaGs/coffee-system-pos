@@ -8,8 +8,15 @@ import { formatForDisplay } from '../../utils/moneyUtils';
 const INK = '#1f2937';
 const MUTED = '#6b7280';
 const HAIR = '#e5e7eb';
-const ACCENT = '#b45309';   // amber-700, used sparingly
+const DEFAULT_ACCENT = '#b45309';   // amber-700 fallback when no brand color
 const PANEL = '#faf8f5';
+
+// Brand color → translucent tint (for the split-type pill background).
+const tint = (hex, alpha = 0.12) => {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+  if (!m) return '#fdf3e7';
+  return `rgba(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}, ${alpha})`;
+};
 
 const HEAD = { fontSize: '11px', color: MUTED, textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 0 10px', borderBottom: `2px solid ${HAIR}` };
 const CELL = { padding: '10px 0', borderBottom: `1px solid ${HAIR}`, fontSize: '14px', fontVariantNumeric: 'tabular-nums' };
@@ -24,8 +31,9 @@ function Row({ label, value, strong, color, big }) {
   );
 }
 
-export default function VendorStatement({ id, row, paidCents = 0, range = {}, branding = {}, t }) {
+export default function VendorStatement({ id, row, paidCents = 0, range = {}, branding = {}, accent, t }) {
   if (!row) return null;
+  const ACCENT = accent || DEFAULT_ACCENT;
   const balance = row.payoutCents - paidCents;
   const hasTax = row.taxCents > 0;
   const isCost = row.splitType === 'cost';
@@ -67,7 +75,7 @@ export default function VendorStatement({ id, row, paidCents = 0, range = {}, br
           <div>
             <div style={{ fontSize: '12px', color: MUTED, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('vendors.statementFor')}</div>
             <div style={{ fontSize: '26px', fontWeight: 800, marginTop: '4px' }}>{row.vendorName}</div>
-            <div style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', fontWeight: 700, color: ACCENT, background: '#fdf3e7', borderRadius: '999px', padding: '4px 12px' }}>{splitLabel}</div>
+            <div style={{ display: 'inline-block', marginTop: '8px', fontSize: '12px', fontWeight: 700, color: ACCENT, background: tint(ACCENT), borderRadius: '999px', padding: '4px 12px' }}>{splitLabel}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '12px', color: MUTED, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>{t('vendors.statementPeriod')}</div>
@@ -119,7 +127,7 @@ export default function VendorStatement({ id, row, paidCents = 0, range = {}, br
           {hasTax ? <Row label={t('vendors.colTax')} value={formatForDisplay(row.taxCents)} /> : null}
           <Row label={splitLabel} value={`- ${formatForDisplay(row.commissionCents)}`} color="#dc2626" />
           <div style={{ borderTop: `2px solid ${HAIR}`, margin: '8px 0 2px' }} />
-          <Row label={t('vendors.colPayout')} value={formatForDisplay(row.payoutCents)} strong big color={INK} />
+          <Row label={t('vendors.colPayout')} value={formatForDisplay(row.payoutCents)} strong big color={ACCENT} />
           {paidCents ? <Row label={t('vendors.colPaid')} value={`- ${formatForDisplay(paidCents)}`} color={MUTED} /> : null}
           <div style={{ marginTop: '12px', background: balance > 0 ? '#fef3c7' : '#dcfce7', borderRadius: '12px', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '14px', fontWeight: 800, color: INK }}>{t('vendors.colBalance')}</span>

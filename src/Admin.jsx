@@ -1897,6 +1897,7 @@ function Admin() {
             payouts={vendorPayouts}
             taxRate={menuData?.receiptSettings?.taxRate || 16}
             branding={menuData?.receiptSettings || {}}
+            brandColor={menuData?.posSettings?.brandColor || '#f28b05'}
             onAddVendor={handleAddVendor}
             onUpdateVendor={handleUpdateVendor}
             onDeleteVendor={handleDeleteVendor}

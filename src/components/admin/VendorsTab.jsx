@@ -45,7 +45,7 @@ const td = { textAlign: 'right', padding: '12px', fontWeight: 'bold', color: 'va
 
 const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', splitType: 'percentage', commissionBase: 'gross', isActive: true };
 
-function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], taxRate = 16, branding = {}, onAddVendor, onUpdateVendor, onDeleteVendor }) {
+function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], taxRate = 16, branding = {}, brandColor = '#f28b05', onAddVendor, onUpdateVendor, onDeleteVendor }) {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useDialog();
 
@@ -211,7 +211,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
       const meta = { title: t('vendors.statementTitle'), text: `${row.vendorName} · ${range.from || ''} → ${range.to || ''}` };
       if (format === 'pdf') {
         // Vector PDF (selectable text) — built directly, no off-screen capture.
-        const blob = await buildVendorStatementPdf(row, { paidCents: paidFor(row), range, branding, t });
+        const blob = await buildVendorStatementPdf(row, { paidCents: paidFor(row), range, branding, brandColor, t });
         await shareBlob(blob, `${base}.pdf`, meta);
       } else {
         // PNG snapshot of the premium card — render off-screen, then capture.
@@ -594,6 +594,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             paidCents={paidFor(statementRow)}
             range={range}
             branding={branding}
+            accent={brandColor}
             t={t}
           />
         </div>

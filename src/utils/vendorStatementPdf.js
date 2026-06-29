@@ -10,8 +10,20 @@ import { formatForDisplay } from './moneyUtils';
 const INK = [31, 41, 55];
 const MUTED = [107, 114, 128];
 const HAIR = [229, 231, 235];
-const ACCENT = [180, 83, 9];
+const DEFAULT_ACCENT = [180, 83, 9];
 const PANEL = [250, 248, 245];
+
+// "#rrggbb" → [r,g,b], falling back to the amber default for invalid input.
+const hexToRgb = (hex) => {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : DEFAULT_ACCENT;
+};
+// Lighten toward white for a soft pill background.
+const tintRgb = ([r, g, b], k = 0.86) => [
+  Math.round(r + (255 - r) * k),
+  Math.round(g + (255 - g) * k),
+  Math.round(b + (255 - b) * k),
+];
 const GREEN = [21, 128, 61];
 const RED = [220, 38, 38];
 const AMBER = [146, 64, 14];
@@ -25,8 +37,10 @@ function logoFormat(dataUrl) {
   return null;
 }
 
-export async function buildVendorStatementPdf(row, { paidCents = 0, range = {}, branding = {}, t }) {
+export async function buildVendorStatementPdf(row, { paidCents = 0, range = {}, branding = {}, brandColor, t }) {
   const { jsPDF } = await import('jspdf');
+  const ACCENT = hexToRgb(brandColor);
+  const ACCENT_TINT = tintRgb(ACCENT);
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();   // ~595.28
   const M = 40;
@@ -77,7 +91,7 @@ export async function buildVendorStatementPdf(row, { paidCents = 0, range = {}, 
   const pillText = splitLabel;
   doc.setFontSize(9); doc.setFont('helvetica', 'bold');
   const pillW = doc.getTextWidth(pillText) + 18;
-  doc.setFillColor(253, 243, 231);
+  doc.setFillColor(ACCENT_TINT[0], ACCENT_TINT[1], ACCENT_TINT[2]);
   doc.roundedRect(M, y + 30, pillW, 18, 9, 9, 'F');
   text(pillText, M + 9, y + 42, { size: 9, bold: true, color: ACCENT });
 
@@ -151,7 +165,7 @@ export async function buildVendorStatementPdf(row, { paidCents = 0, range = {}, 
   doc.line(px, py, pr, py);
   py += 22;
   text(t('vendors.colPayout'), px, py, { size: 13, bold: true });
-  text(money(row.payoutCents), pr, py, { size: 18, bold: true });
+  text(money(row.payoutCents), pr, py, { size: 18, bold: true, color: ACCENT });
   py += 18;
   if (paidLine) {
     text(paidLine[0], px, py, { size: 11, color: MUTED });
