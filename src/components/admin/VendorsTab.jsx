@@ -35,7 +35,7 @@ function defaultRange() {
   return { from: iso(first), to: iso(now) };
 }
 
-const card = { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '20px', padding: '24px', marginBottom: '24px' };
+const card = { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '20px', padding: '24px', marginBottom: '24px' };
 const inputStyle = { padding: '12px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' };
 const th = { textAlign: 'right', padding: '10px 12px', fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' };
 const td = { textAlign: 'right', padding: '12px', fontWeight: 'bold', color: 'var(--text-main)' };
@@ -323,10 +323,10 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                       : `${t('vendors.commission')}: ${v.commissionPercent}%`}
                   </div>
                 </div>
-                <button onClick={() => startEdit(v)} title={t('vendors.edit')} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
+                <button onClick={() => startEdit(v)} title={t('vendors.edit')} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
                   <Icon icon="lucide:edit-3" />
                 </button>
-                <button onClick={() => removeVendor(v)} title={t('vendors.delete')} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
+                <button onClick={() => removeVendor(v)} title={t('vendors.delete')} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
                   <Icon icon="lucide:trash-2" />
                 </button>
               </div>
@@ -508,7 +508,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                   </div>
                 </div>
                 {p.amount >= 0 && (
-                  <button onClick={() => undoPayout(p)} title={t('vendors.reverse')} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
+                  <button onClick={() => undoPayout(p)} title={t('vendors.reverse')} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
                     <Icon icon="lucide:undo-2" />
                   </button>
                 )}
@@ -521,7 +521,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
       {/* --- RECORD PAYMENT MODAL --- */}
       {payFor && (
         <div onClick={() => setPayFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ ...card, marginBottom: 0, width: '100%', maxWidth: '420px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...card, marginBottom: 0, width: '100%', maxWidth: '420px', boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
             <h3 style={{ color: 'var(--text-main)', marginTop: 0 }}>{t('vendors.payTitle')}</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0 }}>
               {payFor.vendorName} · {t('vendors.colPayout')}: <strong>{formatForDisplay(payFor.payoutCents)}</strong>
