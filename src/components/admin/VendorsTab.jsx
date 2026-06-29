@@ -6,7 +6,7 @@ import { formatForDisplay, fromCents, toCents } from '../../utils/moneyUtils';
 import { computeSettlement } from '../../utils/vendorUtils';
 import { recordVendorPayout, reverseVendorPayout } from '../../services/vendorPayoutsService';
 import { writeExpense } from '../../services/expenseLedger';
-import { shareElementAsPNG } from '../../utils/sharingUtils';
+import { shareElementAsPNG, shareElementAsPDF } from '../../utils/sharingUtils';
 import VendorStatement from './VendorStatement';
 
 // The active cashier (for stamping who recorded a payout), best-effort.
@@ -57,6 +57,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
   const [payFor, setPayFor] = useState(null);   // settlement row being paid
   const [payForm, setPayForm] = useState({ amount: '', method: 'cash', note: '', postExpense: true });
   const [statementRow, setStatementRow] = useState(null); // row being rendered for share
+  const [shareRow, setShareRow] = useState(null);         // row whose format chooser is open
   const [sharing, setSharing] = useState(false);
 
   // Map current menu item id -> its vendor assignment, for retroactively
@@ -196,19 +197,24 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
     }
   };
 
-  // Render a premium per-vendor statement off-screen, snapshot it to PNG, and
-  // open the share sheet (falls back to download). Two RAFs let the node paint.
-  const shareStatement = async (row) => {
+  // Render a premium per-vendor statement off-screen, snapshot it, and open the
+  // share sheet (falls back to download). format: 'png' (quick, for friends) or
+  // 'pdf' (professional). Two RAFs let the off-screen node paint first.
+  const shareStatement = async (row, format) => {
     if (sharing) return;
+    setShareRow(null);
     setSharing(true);
     setStatementRow(row);
     try {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const safe = (row.vendorName || 'vendor').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
-      await shareElementAsPNG('vendor-statement-capture', `estado-${safe}_${range.from || ''}_${range.to || ''}.png`, {
-        title: t('vendors.statementTitle'),
-        text: `${row.vendorName} · ${range.from || ''} → ${range.to || ''}`,
-      });
+      const base = `estado-${safe}_${range.from || ''}_${range.to || ''}`;
+      const meta = { title: t('vendors.statementTitle'), text: `${row.vendorName} · ${range.from || ''} → ${range.to || ''}` };
+      if (format === 'pdf') {
+        await shareElementAsPDF('vendor-statement-capture', `${base}.pdf`, meta);
+      } else {
+        await shareElementAsPNG('vendor-statement-capture', `${base}.png`, meta);
+      }
     } catch (e) {
       showAlert(t('vendors.statementTitle'), e.message);
     } finally {
@@ -434,7 +440,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                             <td style={{ ...td, color: paid ? 'var(--text-main)' : 'var(--text-muted)' }}>{paid ? formatForDisplay(paid) : '—'}</td>
                             <td style={{ ...td, color: balance > 0 ? '#e67e22' : (balance < 0 ? '#e74c3c' : '#27ae60') }}>{formatForDisplay(balance)}</td>
                             <td style={{ ...td, whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-                              <button onClick={() => shareStatement(r)} disabled={sharing} title={t('vendors.shareStatement')} style={{ background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', cursor: 'pointer', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '6px' }}>
+                              <button onClick={() => setShareRow(r)} disabled={sharing} title={t('vendors.shareStatement')} style={{ background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', cursor: 'pointer', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '6px' }}>
                                 <Icon icon="lucide:share-2" />
                               </button>
                               <button onClick={() => openPay(r)} title={t('vendors.recordPayment')} style={{ background: '#27ae60', color: 'white', border: 'none', borderRadius: '10px', padding: '6px 10px', cursor: 'pointer', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
@@ -545,6 +551,35 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
           </div>
         )}
       </div>
+
+      {/* --- SHARE FORMAT CHOOSER --- */}
+      {shareRow && (
+        <div onClick={() => setShareRow(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...card, marginBottom: 0, width: '100%', maxWidth: '420px', boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
+            <h3 style={{ color: 'var(--text-main)', marginTop: 0 }}>{t('vendors.shareStatement')}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0 }}>{shareRow.vendorName} · {range.from || ''} → {range.to || ''}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'pdf')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '14px', cursor: 'pointer', textAlign: 'left' }}>
+                <Icon icon="lucide:file-text" width="24" />
+                <span>
+                  <span style={{ display: 'block', fontWeight: 800, fontSize: '1rem' }}>{t('vendors.sharePdf')}</span>
+                  <span style={{ display: 'block', fontSize: '0.78rem', opacity: 0.85 }}>{t('vendors.sharePdfHint')}</span>
+                </span>
+              </button>
+              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'png')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '14px', cursor: 'pointer', textAlign: 'left' }}>
+                <Icon icon="lucide:image" width="24" style={{ color: 'var(--brand-color)' }} />
+                <span>
+                  <span style={{ display: 'block', fontWeight: 800, fontSize: '1rem' }}>{t('vendors.sharePng')}</span>
+                  <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('vendors.sharePngHint')}</span>
+                </span>
+              </button>
+              <button disabled={sharing} onClick={() => setShareRow(null)} style={{ padding: '12px', background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
+                {t('vendors.payCancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- OFF-SCREEN STATEMENT (rendered only while sharing) --- */}
       {statementRow && (

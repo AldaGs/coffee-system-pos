@@ -356,6 +356,105 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
   }
 };
 
+// --- PDF helpers (dependency-free) -----------------------------------------
+// We build a minimal single-page PDF that embeds a JPEG capture of the node via
+// a DCTDecode image XObject. JPEG is directly embeddable in PDF, so no encoder
+// library is needed. Used for the "professional" PDF export of shareables.
+const dataUrlToBytes = (dataUrl) => {
+  const b64 = dataUrl.split(',')[1] || '';
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+};
+
+const imageSize = (dataUrl) => new Promise((resolve, reject) => {
+  const img = new Image();
+  img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+  img.onerror = reject;
+  img.src = dataUrl;
+});
+
+const buildImagePdf = (jpegBytes, pxW, pxH) => {
+  const enc = new TextEncoder();
+  const pageW = 595.28; // A4 width in points; height follows the image aspect.
+  const pageH = Math.round((pageW * pxH) / pxW * 100) / 100;
+
+  const chunks = [];
+  let offset = 0;
+  const offsets = [];
+  const push = (bytes) => { chunks.push(bytes); offset += bytes.length; };
+  const pushStr = (s) => push(enc.encode(s));
+  const writeObj = (num, body) => {
+    offsets[num] = offset;
+    pushStr(`${num} 0 obj\n${body}\nendobj\n`);
+  };
+
+  pushStr('%PDF-1.3\n');
+  writeObj(1, '<</Type /Catalog /Pages 2 0 R>>');
+  writeObj(2, '<</Type /Pages /Kids [3 0 R] /Count 1>>');
+  writeObj(3, `<</Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] /Resources <</XObject <</Im0 4 0 R>> /ProcSet [/PDF /ImageC]>> /Contents 5 0 R>>`);
+
+  // Object 4: the JPEG image (binary stream).
+  offsets[4] = offset;
+  pushStr(`4 0 obj\n<</Type /XObject /Subtype /Image /Width ${pxW} /Height ${pxH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpegBytes.length}>>\nstream\n`);
+  push(jpegBytes);
+  pushStr('\nendstream\nendobj\n');
+
+  // Object 5: content stream that paints the image to fill the page.
+  const content = enc.encode(`q ${pageW} 0 0 ${pageH} 0 0 cm /Im0 Do Q`);
+  offsets[5] = offset;
+  pushStr(`5 0 obj\n<</Length ${content.length}>>\nstream\n`);
+  push(content);
+  pushStr('\nendstream\nendobj\n');
+
+  const xrefOffset = offset;
+  let xref = 'xref\n0 6\n0000000000 65535 f \n';
+  for (let i = 1; i <= 5; i++) xref += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  pushStr(xref);
+  pushStr(`trailer\n<</Size 6 /Root 1 0 R>>\nstartxref\n${xrefOffset}\n%%EOF`);
+
+  const total = chunks.reduce((s, c) => s + c.length, 0);
+  const out = new Uint8Array(total);
+  let p = 0;
+  for (const c of chunks) { out.set(c, p); p += c.length; }
+  return new Blob([out], { type: 'application/pdf' });
+};
+
+const shareOrDownload = async (blob, fileName, meta) => {
+  const type = blob.type || 'application/octet-stream';
+  const file = new File([blob], fileName, { type });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: meta.title || 'Document', text: meta.text || '' });
+      return;
+    } catch (err) {
+      if (err?.name === 'AbortError') return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = fileName;
+  link.href = url;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
+// Render a DOM node to a one-page PDF (JPEG-backed) and share/download it.
+export const shareElementAsPDF = async (elementId, fileName = 'statement.pdf', meta = {}) => {
+  const node = document.getElementById(elementId);
+  if (!node) return;
+  const opts = { quality: 0.92, backgroundColor: '#ffffff', pixelRatio: 2 };
+  await htmlToImage.toJpeg(node, opts); // warmup pass (Safari/iOS image decode)
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const dataUrl = await htmlToImage.toJpeg(node, opts);
+  const { width, height } = await imageSize(dataUrl);
+  const blob = buildImagePdf(dataUrlToBytes(dataUrl), width, height);
+  await shareOrDownload(blob, fileName, meta);
+};
+
 // Generic "render a DOM node to a PNG and share it" — same warmup/share/download
 // path as saveTicketAsPNG, but with caller-supplied filename and share metadata.
 // Used for premium shareables like the per-vendor settlement statement.

@@ -165,6 +165,10 @@ export const translations = {
     "vendors.colProfit": "Your profit",
     "vendors.termsCost": "Cost-recovery: the house keeps each item's production cost; you keep the rest.",
     "vendors.termsCommission": "Commission split: the house keeps {pct}% of net sales; you receive the rest.",
+    "vendors.sharePdf": "PDF document",
+    "vendors.sharePdfHint": "Professional — best for records and formal vendors.",
+    "vendors.sharePng": "PNG image",
+    "vendors.sharePngHint": "Quick to view — great for trusted partners over chat.",
 
     // --- Settings Tab ---
     "settings.title": "General Settings",
@@ -1443,6 +1447,10 @@ export const translations = {
     "vendors.colProfit": "Tu ganancia",
     "vendors.termsCost": "Recuperación de costo: la casa retiene el costo de producción de cada artículo; tú te quedas con el resto.",
     "vendors.termsCommission": "Reparto por comisión: la casa retiene el {pct}% de las ventas netas; tú recibes el resto.",
+    "vendors.sharePdf": "Documento PDF",
+    "vendors.sharePdfHint": "Profesional — ideal para registros y vendedores formales.",
+    "vendors.sharePng": "Imagen PNG",
+    "vendors.sharePngHint": "Rápida de ver — ideal para socios de confianza por chat.",
 
     // --- Settings Tab ---
     "settings.title": "Ajustes Generales",
