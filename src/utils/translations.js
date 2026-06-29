@@ -154,6 +154,11 @@ export const translations = {
     "vendors.commissionBaseBase": "Pre-IVA base (vendor remits IVA)",
     "vendors.booksIvaCollected": "IVA collected",
     "vendors.booksIvaHint": "IVA carved from sales (16% items). Owed to SAT, not income.",
+    "vendors.shareStatement": "Share statement",
+    "vendors.statementTitle": "Settlement statement",
+    "vendors.statementFor": "Statement for",
+    "vendors.statementPeriod": "Period",
+    "vendors.statementThanks": "Thank you for partnering with us.",
 
     // --- Settings Tab ---
     "settings.title": "General Settings",
@@ -1410,6 +1415,11 @@ export const translations = {
     "vendors.commissionBaseBase": "Base sin IVA (el vendedor entera el IVA)",
     "vendors.booksIvaCollected": "IVA cobrado",
     "vendors.booksIvaHint": "IVA desglosado de las ventas (artículos al 16%). Se debe al SAT, no es ingreso.",
+    "vendors.shareStatement": "Compartir estado",
+    "vendors.statementTitle": "Estado de cuenta",
+    "vendors.statementFor": "Estado para",
+    "vendors.statementPeriod": "Periodo",
+    "vendors.statementThanks": "Gracias por colaborar con nosotros.",
 
     // --- Settings Tab ---
     "settings.title": "Ajustes Generales",
