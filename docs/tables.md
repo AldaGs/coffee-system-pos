@@ -2,7 +2,8 @@
 
 Status: **in progress** on branch `feat/tables-system` (started June 2026).
 Phases 1 (data) ✅, 2 (builder) ✅, 3 (layout plumbing) ✅, 4 (runtime floor
-view) ✅ complete; Phase 5 (realtime concurrency) next.
+view) ✅, 5 (realtime concurrency) ✅ complete. v1 feature-complete; remaining
+items are the post-v1 list in §7.
 
 ## 1. Goal
 
@@ -95,7 +96,13 @@ view is color-coded by status. Surface time-seated and open total per table.
    mid-shift); status is derived live from the `active_tickets` Dexie query, so
    closing the last ticket frees the table automatically. Multiple open tickets
    per table are supported (the rail lists them all).
-5. **Concurrency** — Supabase realtime on `active_tickets`; soft occupied lock.
+5. **Concurrency** ✅ — Register subscribes to `postgres_changes` on
+   `active_tickets` via `createRealtimeChannel` (cloud mode only), mirroring each
+   INSERT/UPDATE/DELETE into the Dexie cache so the floor map (status derived
+   from the live query) and ticket rails update live across devices. Migration
+   025 adds `active_tickets` to the `supabase_realtime` publication and sets
+   REPLICA IDENTITY FULL (also seeded in SetupScreen). A presence-based soft
+   "occupied by" lock is deferred to post-v1.
 
 ## 7. Deferred (post-v1)
 

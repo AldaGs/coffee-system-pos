@@ -51,3 +51,21 @@ ALTER TABLE public.active_tickets
 -- Floor view queries open tickets per table.
 CREATE INDEX IF NOT EXISTS active_tickets_table_id_idx
   ON public.active_tickets (table_id);
+
+-- Realtime (Phase 5). The floor map and ticket rails update live across devices
+-- by subscribing to postgres_changes on active_tickets, so the table must be in
+-- the supabase_realtime publication. REPLICA IDENTITY FULL ensures the deleted
+-- row's id is delivered on DELETE events. Both guarded so re-running is safe.
+ALTER TABLE public.active_tickets REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'active_tickets'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.active_tickets;
+  END IF;
+END $$;

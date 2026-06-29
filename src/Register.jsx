@@ -56,6 +56,7 @@ import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMe
 import { fetchAndMergeSales } from './services/salesSync';
 import { fetchAndMergeExpenses } from './services/expenseSync';
 import { fetchActiveTickets } from './services/ticketSync';
+import { createRealtimeChannel } from './utils/realtime';
 import { fromCents } from './utils/moneyUtils';
 
 
@@ -147,6 +148,31 @@ function Register() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
   };
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
+
+  // --- REALTIME ACTIVE TICKETS (multi-device live sync) ---------------------
+  // Boot does a one-shot fetchActiveTickets(); this keeps the local Dexie cache
+  // live afterwards so every station sees opens/edits/closes as they happen —
+  // essential for the tables floor map (its per-table status is derived from
+  // this query) and a correctness win for the orders layout too. Cloud mode
+  // only; local ('guest') installs have no Supabase to subscribe to.
+  useEffect(() => {
+    if (isLocalMode()) return;
+    const { cleanup } = createRealtimeChannel(
+      'register-active-tickets',
+      { event: '*', schema: 'public', table: 'active_tickets' },
+      async (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === 'DELETE') {
+          if (oldRow?.id != null) await db.active_tickets.delete(oldRow.id);
+        } else if (newRow?.id != null) {
+          // INSERT/UPDATE → mirror the cloud row (the source of truth for
+          // active tickets, same philosophy as the boot overwrite).
+          await db.active_tickets.put(newRow);
+        }
+      }
+    );
+    return cleanup;
+  }, []);
 
   // --- MENU FETCH & OFFLINE CACHE ENGINE ---
   useEffect(() => {

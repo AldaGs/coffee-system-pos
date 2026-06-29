@@ -713,6 +713,18 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "Hardware can access floor_plan" ON public.floor_plan FOR ALL TO authenticated USING (true) WITH CHECK (true);
         CREATE INDEX IF NOT EXISTS active_tickets_table_id_idx ON public.active_tickets (table_id);
 
+        -- Realtime for live floor/ticket sync across devices (migration 025).
+        ALTER TABLE public.active_tickets REPLICA IDENTITY FULL;
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_publication_tables
+            WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'active_tickets'
+          ) THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.active_tickets;
+          END IF;
+        END $$;
+
         -- Menu versions (migration 014): snapshots + restore.
         CREATE TABLE IF NOT EXISTS public.menu_versions (
           id bigserial PRIMARY KEY,
