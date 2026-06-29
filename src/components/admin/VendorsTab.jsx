@@ -5,6 +5,7 @@ import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, fromCents, toCents } from '../../utils/moneyUtils';
 import { computeSettlement } from '../../utils/vendorUtils';
 import { recordVendorPayout, reverseVendorPayout } from '../../services/vendorPayoutsService';
+import { writeExpense } from '../../services/expenseLedger';
 
 // The active cashier (for stamping who recorded a payout), best-effort.
 function activeCashierName() {
@@ -52,7 +53,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
   const [expanded, setExpanded] = useState(null);
   const [useMenuFallback, setUseMenuFallback] = useState(false);
   const [payFor, setPayFor] = useState(null);   // settlement row being paid
-  const [payForm, setPayForm] = useState({ amount: '', method: 'cash', note: '' });
+  const [payForm, setPayForm] = useState({ amount: '', method: 'cash', note: '', postExpense: true });
 
   // Map current menu item id -> its vendor assignment, for retroactively
   // attributing pre-tagging sale lines (those with no vendor snapshot).
@@ -134,13 +135,14 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
   const openPay = (row) => {
     const balance = row.payoutCents - paidFor(row);
     setPayFor(row);
-    setPayForm({ amount: fromCents(Math.max(0, balance)).toFixed(2), method: 'cash', note: '' });
+    setPayForm({ amount: fromCents(Math.max(0, balance)).toFixed(2), method: 'cash', note: '', postExpense: true });
   };
 
   const submitPay = async () => {
     if (!payFor) return;
     const amountCents = toCents(payForm.amount || 0);
     if (!amountCents) return showAlert(t('vendors.payTitle'), t('vendors.payAmountRequired'));
+    const cashier = activeCashierName();
     setBusy(true);
     try {
       await recordVendorPayout({
@@ -152,13 +154,14 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
         amountCents,
         method: payForm.method,
         note: payForm.note?.trim() || null,
-        cashierName: activeCashierName(),
+        cashierName: cashier,
         // Freeze the statement so this payment is anchored to a locked number.
         statement: {
           range: { from: range.from, to: range.to },
           menuFallback: useMenuFallback,
           splitType: payFor.splitType,
           commissionPercent: payFor.commissionPercent,
+          postedToExpenses: !!payForm.postExpense,
           totals: {
             units: payFor.units, grossCents: payFor.grossCents, refundCents: payFor.refundCents,
             costCents: payFor.costCents, netCents: payFor.netCents,
@@ -167,6 +170,19 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
           items: payFor.items,
         },
       });
+      // Post the disbursement to the expense/cash-out ledger so it reconciles
+      // against revenue in Analytics. This is a cash-flow entry (settling the
+      // vendor-payable liability), not a second P&L expense — see books summary.
+      if (payForm.postExpense) {
+        try {
+          await writeExpense({
+            amountCents,
+            reason: `${t('vendors.expenseReason')}: ${payFor.vendorName}`,
+            category: t('vendors.expenseCategory'),
+            cashierName: cashier,
+          });
+        } catch (e) { console.warn('vendor payout expense post failed', e); }
+      }
       setPayFor(null);
     } catch (e) {
       showAlert(t('vendors.payTitle'), e.message);
@@ -178,7 +194,20 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
   const undoPayout = (p) => {
     showConfirm(t('vendors.reverseTitle'), t('vendors.reverseBody'), async () => {
       setBusy(true);
-      try { await reverseVendorPayout(p); }
+      try {
+        await reverseVendorPayout(p);
+        // Offset the linked cash-out entry so the drawer/books net back.
+        if (p.data?.postedToExpenses) {
+          try {
+            await writeExpense({
+              amountCents: -Math.round(Number(p.amount) || 0),
+              reason: `${t('vendors.expenseReversalReason')}: ${p.vendor_name}`,
+              category: t('vendors.expenseCategory'),
+              cashierName: activeCashierName(),
+            });
+          } catch (e) { console.warn('vendor payout expense reversal failed', e); }
+        }
+      }
       catch (e) { showAlert(t('vendors.payTitle'), e.message); }
       finally { setBusy(false); }
     });
@@ -411,6 +440,40 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
         )}
       </div>
 
+      {/* --- BOOKS SUMMARY (agent-accounting view) --- */}
+      {rows.length > 0 && (() => {
+        const houseRow = rows.find((r) => r.isHouse);
+        const houseNet = houseRow?.netCents || 0;
+        const commissionIncome = totals.commissionCents;       // house contributes 0
+        const yourIncome = houseNet + commissionIncome;        // what's actually yours
+        const tiles = [
+          { label: t('vendors.booksHouseSales'), value: houseNet, color: 'var(--text-main)', hint: t('vendors.booksHouseSalesHint') },
+          { label: t('vendors.booksCommissionIncome'), value: commissionIncome, color: '#27ae60', hint: t('vendors.booksCommissionHint') },
+          { label: t('vendors.booksYourIncome'), value: yourIncome, color: '#27ae60', strong: true, hint: t('vendors.booksYourIncomeHint') },
+          { label: t('vendors.booksVendorPayable'), value: totalVendorOwed, color: 'var(--text-main)', hint: t('vendors.booksVendorPayableHint') },
+          { label: t('vendors.booksPaid'), value: totalPaid, color: 'var(--text-muted)', hint: t('vendors.booksPaidHint') },
+          { label: t('vendors.booksOutstanding'), value: totalBalance, color: totalBalance > 0 ? '#e67e22' : '#27ae60', strong: true, hint: t('vendors.booksOutstandingHint') },
+        ];
+        return (
+          <div style={card}>
+            <h3 style={{ color: 'var(--text-main)', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:book-open-check" style={{ color: 'var(--brand-color)' }} />
+              {t('vendors.booksTitle')}
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+              {tiles.map((tile) => (
+                <div key={tile.label} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '14px', padding: '14px 16px' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{tile.label}</div>
+                  <div style={{ fontSize: tile.strong ? '1.35rem' : '1.15rem', fontWeight: '800', color: tile.color, marginTop: '4px' }}>{formatForDisplay(tile.value)}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.3 }}>{tile.hint}</div>
+                </div>
+              ))}
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.76rem', margin: '14px 0 0', lineHeight: 1.4 }}>{t('vendors.booksNote')}</p>
+          </div>
+        );
+      })()}
+
       {/* --- PAYOUT HISTORY --- */}
       <div style={card}>
         <h3 style={{ color: 'var(--text-main)', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -469,6 +532,13 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
               <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
                 {t('vendors.payNote')}
                 <input style={inputStyle} value={payForm.note} onChange={(e) => setPayForm({ ...payForm, note: e.target.value })} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.8rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={payForm.postExpense} onChange={(e) => setPayForm({ ...payForm, postExpense: e.target.checked })} style={{ marginTop: '2px' }} />
+                <span>
+                  <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('vendors.payPostExpense')}</span>
+                  <span style={{ display: 'block', fontSize: '0.74rem' }}>{t('vendors.payPostExpenseHint')}</span>
+                </span>
               </label>
               <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
                 <button disabled={busy} onClick={() => setPayFor(null)} style={{ padding: '12px 16px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>
