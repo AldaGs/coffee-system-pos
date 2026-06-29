@@ -15,6 +15,7 @@ function rowToVendor(row) {
     contact: row.contact || '',
     commissionPercent: Number(row.commission_percent) || 0,
     splitType: row.data?.splitType === 'cost' ? 'cost' : 'percentage',
+    commissionBase: row.data?.commissionBase === 'base' ? 'base' : 'gross',
     isActive: row.is_active !== false,
     sortOrder: row.sort_order ?? 0,
   };
@@ -37,7 +38,10 @@ export async function addVendor(vendor) {
     commission_percent: Number(vendor.commissionPercent) || 0,
     is_active: vendor.isActive !== false,
     sort_order: vendor.sortOrder ?? nextOrder,
-    data: { splitType: vendor.splitType === 'cost' ? 'cost' : 'percentage' },
+    data: {
+      splitType: vendor.splitType === 'cost' ? 'cost' : 'percentage',
+      commissionBase: vendor.commissionBase === 'base' ? 'base' : 'gross',
+    },
   });
   return id;
 }
@@ -49,7 +53,13 @@ export async function updateVendor(id, patch) {
   if (patch.commissionPercent !== undefined) row.commission_percent = Number(patch.commissionPercent) || 0;
   if (patch.isActive !== undefined) row.is_active = patch.isActive !== false;
   if (patch.sortOrder !== undefined) row.sort_order = patch.sortOrder;
-  if (patch.splitType !== undefined) row.data = { splitType: patch.splitType === 'cost' ? 'cost' : 'percentage' };
+  if (patch.splitType !== undefined || patch.commissionBase !== undefined) {
+    const cur = await db.vendors.get(id);
+    const data = { ...(cur?.data || {}) };
+    if (patch.splitType !== undefined) data.splitType = patch.splitType === 'cost' ? 'cost' : 'percentage';
+    if (patch.commissionBase !== undefined) data.commissionBase = patch.commissionBase === 'base' ? 'base' : 'gross';
+    row.data = data;
+  }
   await db.vendors.update(id, row);
 }
 

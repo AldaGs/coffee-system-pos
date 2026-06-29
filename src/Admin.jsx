@@ -1893,6 +1893,7 @@ function Admin() {
             sales={dexieSales}
             menuData={menuData}
             payouts={vendorPayouts}
+            taxRate={menuData?.receiptSettings?.taxRate || 16}
             onAddVendor={handleAddVendor}
             onUpdateVendor={handleUpdateVendor}
             onDeleteVendor={handleDeleteVendor}

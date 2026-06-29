@@ -147,6 +147,13 @@ export const translations = {
     "vendors.booksOutstanding": "Outstanding",
     "vendors.booksOutstandingHint": "Vendor payable minus paid — still owed.",
     "vendors.booksNote": "Consignment treatment: only commission income (plus your own house sales) is your revenue; the vendor's share is a liability you collect on their behalf and pay out. Use these figures to journal commission as income and the payable separately.",
+    "vendors.colBase": "Base (pre-IVA)",
+    "vendors.colTax": "IVA",
+    "vendors.commissionBaseLabel": "Commission charged on",
+    "vendors.commissionBaseGross": "Gross collected (incl. IVA)",
+    "vendors.commissionBaseBase": "Pre-IVA base (vendor remits IVA)",
+    "vendors.booksIvaCollected": "IVA collected",
+    "vendors.booksIvaHint": "IVA carved from sales (16% items). Owed to SAT, not income.",
 
     // --- Settings Tab ---
     "settings.title": "General Settings",
@@ -1396,6 +1403,13 @@ export const translations = {
     "vendors.booksOutstanding": "Pendiente",
     "vendors.booksOutstandingHint": "Por pagar menos pagado — aún se debe.",
     "vendors.booksNote": "Tratamiento de consignación: solo el ingreso por comisión (más tus ventas propias) es tu ingreso; la parte del vendedor es un pasivo que cobras a su nombre y pagas. Usa estas cifras para asentar la comisión como ingreso y el pasivo por separado.",
+    "vendors.colBase": "Base (sin IVA)",
+    "vendors.colTax": "IVA",
+    "vendors.commissionBaseLabel": "Comisión calculada sobre",
+    "vendors.commissionBaseGross": "Bruto cobrado (con IVA)",
+    "vendors.commissionBaseBase": "Base sin IVA (el vendedor entera el IVA)",
+    "vendors.booksIvaCollected": "IVA cobrado",
+    "vendors.booksIvaHint": "IVA desglosado de las ventas (artículos al 16%). Se debe al SAT, no es ingreso.",
 
     // --- Settings Tab ---
     "settings.title": "Ajustes Generales",

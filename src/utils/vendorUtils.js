@@ -75,7 +75,14 @@ function saleTimeMs(sale) {
 //     items: [{ name, units, grossCents }] }
 // Rows are sorted by gross descending with House last.
 export function computeSettlement(sales, vendors = [], range = {}) {
-  const { fromMs = null, toMs = null, itemVendorMap = null } = range;
+  const { fromMs = null, toMs = null, itemVendorMap = null, taxRate = 16 } = range;
+  const taxDecimal = (Number(taxRate) || 16) / 100;
+  // IVA carved out of a tax-inclusive amount, only for 'iva16' lines (mirrors
+  // calculateItemizedTaxBreakdown in posMath.js). 'tasa0'/'exento'/untagged = 0.
+  const lineTaxCents = (line, amountCents) => {
+    if ((line.ivaTreatment || 'tasa0') !== 'iva16' || amountCents <= 0) return 0;
+    return Math.round(amountCents - amountCents / (1 + taxDecimal));
+  };
   const byId = new Map(vendors.map((v) => [String(v.id), v]));
   const byName = new Map(vendors.map((v) => [v.name, v]));
 
@@ -109,11 +116,13 @@ export function computeSettlement(sales, vendors = [], range = {}) {
         vendorName: isHouse ? HOUSE_NAME : (vendor?.name || line.vendorName || HOUSE_NAME),
         isHouse,
         splitType: vendor?.splitType === 'cost' ? 'cost' : 'percentage',
+        commissionBase: vendor?.commissionBase === 'base' ? 'base' : 'gross',
         commissionPercent: isHouse ? 0 : (Number(vendor?.commissionPercent) || 0),
         units: 0,
         grossCents: 0,
         refundCents: 0,
         costCents: 0,
+        taxCents: 0,
         items: new Map(),
       });
     }
@@ -149,10 +158,12 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       const g = ensureGroup(line);
       const qty = Number(line.qty) || 1;
       const gross = grossPerLine[idx];
+      const netLine = gross - refundPerLine[idx];
       g.units += qty;
       g.grossCents += gross;
       g.refundCents += refundPerLine[idx];
       g.costCents += (Number(line.vendorUnitCostCents) || 0) * qty;
+      g.taxCents += lineTaxCents(line, netLine); // IVA carved from the net (post-refund) line
 
       const name = line.name || 'Unknown';
       const entry = g.items.get(name) || { name, units: 0, grossCents: 0 };
@@ -164,14 +175,21 @@ export function computeSettlement(sales, vendors = [], range = {}) {
 
   const rows = [...groups.values()].map((g) => {
     const netCents = g.grossCents - g.refundCents;
+    const taxCents = g.taxCents;
+    const baseCents = netCents - taxCents;   // pre-IVA base of the net amount
     // The "commission" column is the house cut, computed per splitType. For a
     // cost-recovery vendor the house keeps the production cost; the vendor takes
     // the rest (which can go negative if the item was discounted below cost or
-    // largely refunded — that means the vendor owes the house).
+    // largely refunded — that means the vendor owes the house). For a percentage
+    // vendor the cut is taken on the gross net by default, or on the pre-IVA base
+    // when commissionBase === 'base' (vendor keeps & remits the IVA themselves).
     let commissionCents;
     if (g.isHouse) commissionCents = 0;
     else if (g.splitType === 'cost') commissionCents = g.costCents;
-    else commissionCents = Math.round((netCents * g.commissionPercent) / 100);
+    else {
+      const commissionable = g.commissionBase === 'base' ? baseCents : netCents;
+      commissionCents = Math.round((commissionable * g.commissionPercent) / 100);
+    }
     const payoutCents = netCents - commissionCents;
     return {
       key: g.key,
@@ -179,12 +197,15 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       vendorName: g.vendorName,
       isHouse: g.isHouse,
       splitType: g.splitType,
+      commissionBase: g.commissionBase,
       commissionPercent: g.commissionPercent,
       units: g.units,
       grossCents: g.grossCents,
       refundCents: g.refundCents,
       costCents: g.costCents,
       netCents,
+      taxCents,
+      baseCents,
       commissionCents,
       payoutCents,
       items: [...g.items.values()].sort((a, b) => b.grossCents - a.grossCents),
@@ -202,11 +223,13 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       acc.grossCents += r.grossCents;
       acc.refundCents += r.refundCents;
       acc.netCents += r.netCents;
+      acc.taxCents += r.taxCents;
+      acc.baseCents += r.baseCents;
       acc.commissionCents += r.commissionCents;
       acc.payoutCents += r.payoutCents;
       return acc;
     },
-    { units: 0, grossCents: 0, refundCents: 0, netCents: 0, commissionCents: 0, payoutCents: 0 }
+    { units: 0, grossCents: 0, refundCents: 0, netCents: 0, taxCents: 0, baseCents: 0, commissionCents: 0, payoutCents: 0 }
   );
 
   return { rows, totals };

@@ -183,4 +183,33 @@ describe('vendorUtils — settlement math (centavos)', () => {
       expect(rows[0].vendorId).toBe('v2'); // snapshot wins over current menu
     });
   });
+
+  describe('IVA itemization + commission base', () => {
+    it('carves IVA only from iva16 lines and exposes base/tax', () => {
+      // 11600 incl. 16% IVA => base 10000, tax 1600. The tasa0 line adds no tax.
+      const items = [
+        { name: 'Bag', basePrice: 11600, qty: 1, vendorId: 'v1', vendorName: 'AldaGs', ivaTreatment: 'iva16' },
+        { name: 'Latte', basePrice: 5000, qty: 1, vendorId: 'v1', vendorName: 'AldaGs', ivaTreatment: 'tasa0' },
+      ];
+      const r = computeSettlement([sale('i1', items)], vendors, { taxRate: 16 }).rows.find((x) => x.vendorId === 'v1');
+      expect(r.taxCents).toBe(1600);
+      expect(r.baseCents).toBe(r.netCents - 1600);
+      expect(r.netCents).toBe(16600);
+    });
+
+    it('default commission base is the gross net', () => {
+      const items = [{ name: 'Bag', basePrice: 11600, qty: 1, vendorId: 'v1', vendorName: 'AldaGs', ivaTreatment: 'iva16' }];
+      const r = computeSettlement([sale('i2', items)], vendors, { taxRate: 16 }).rows.find((x) => x.vendorId === 'v1');
+      expect(r.commissionCents).toBe(Math.round(11600 * 0.20)); // 2320, on gross
+    });
+
+    it('commissionBase "base" charges commission on the pre-IVA base', () => {
+      const baseVendors = [{ id: 'v1', name: 'AldaGs', commissionPercent: 20, commissionBase: 'base' }];
+      const items = [{ name: 'Bag', basePrice: 11600, qty: 1, vendorId: 'v1', vendorName: 'AldaGs', ivaTreatment: 'iva16' }];
+      const r = computeSettlement([sale('i3', items)], baseVendors, { taxRate: 16 }).rows.find((x) => x.vendorId === 'v1');
+      expect(r.baseCents).toBe(10000);
+      expect(r.commissionCents).toBe(2000);          // 20% of 10000, not 11600
+      expect(r.payoutCents).toBe(11600 - 2000);      // vendor keeps the IVA to remit
+    });
+  });
 });

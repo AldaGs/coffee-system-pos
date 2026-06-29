@@ -40,9 +40,9 @@ const inputStyle = { padding: '12px', borderRadius: '12px', border: '1px solid v
 const th = { textAlign: 'right', padding: '10px 12px', fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' };
 const td = { textAlign: 'right', padding: '12px', fontWeight: 'bold', color: 'var(--text-main)' };
 
-const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', splitType: 'percentage', isActive: true };
+const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', splitType: 'percentage', commissionBase: 'gross', isActive: true };
 
-function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], onAddVendor, onUpdateVendor, onDeleteVendor }) {
+function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], taxRate = 16, onAddVendor, onUpdateVendor, onDeleteVendor }) {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useDialog();
 
@@ -74,7 +74,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
 
   const startEdit = (v) => {
     setEditingId(v.id);
-    setForm({ name: v.name, contact: v.contact || '', commissionPercent: String(v.commissionPercent ?? 0), splitType: v.splitType === 'cost' ? 'cost' : 'percentage', isActive: v.isActive !== false });
+    setForm({ name: v.name, contact: v.contact || '', commissionPercent: String(v.commissionPercent ?? 0), splitType: v.splitType === 'cost' ? 'cost' : 'percentage', commissionBase: v.commissionBase === 'base' ? 'base' : 'gross', isActive: v.isActive !== false });
   };
 
   const saveVendor = async () => {
@@ -86,6 +86,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
         contact: form.contact.trim(),
         commissionPercent: Math.max(0, Math.min(100, Number(form.commissionPercent) || 0)),
         splitType: form.splitType === 'cost' ? 'cost' : 'percentage',
+        commissionBase: form.commissionBase === 'base' ? 'base' : 'gross',
         isActive: form.isActive,
       };
       if (editingId) await onUpdateVendor(editingId, payload);
@@ -111,8 +112,8 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
   const settlement = useMemo(() => {
     const fromMs = range.from ? Date.parse(`${range.from}T00:00:00`) : null;
     const toMs = range.to ? Date.parse(`${range.to}T23:59:59.999`) : null;
-    return computeSettlement(sales, vendors, { fromMs, toMs, itemVendorMap: useMenuFallback ? itemVendorMap : null });
-  }, [sales, vendors, range, useMenuFallback, itemVendorMap]);
+    return computeSettlement(sales, vendors, { fromMs, toMs, taxRate, itemVendorMap: useMenuFallback ? itemVendorMap : null });
+  }, [sales, vendors, range, taxRate, useMenuFallback, itemVendorMap]);
 
   // Payouts already recorded that overlap the report range, summed per vendor.
   // Keyed by vendor_id when present, else by name (so deleted vendors still match).
@@ -214,18 +215,18 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
   };
 
   const exportCSV = () => {
-    const head = [t('vendors.colVendor'), t('vendors.colUnits'), t('vendors.colGross'), t('vendors.colRefunds'), t('vendors.colNet'), t('vendors.colCommission'), t('vendors.colPayout')];
+    const head = [t('vendors.colVendor'), t('vendors.colUnits'), t('vendors.colGross'), t('vendors.colRefunds'), t('vendors.colNet'), t('vendors.colBase'), t('vendors.colTax'), t('vendors.colCommission'), t('vendors.colPayout')];
     const lines = [head.join(',')];
     const money = (c) => fromCents(c).toFixed(2);
     const esc = (s) => `"${String(s).replace(/"/g, '""')}"`;
     settlement.rows.forEach((r) => {
-      lines.push([esc(r.vendorName), r.units, money(r.grossCents), money(r.refundCents), money(r.netCents), money(r.commissionCents), money(r.payoutCents)].join(','));
+      lines.push([esc(r.vendorName), r.units, money(r.grossCents), money(r.refundCents), money(r.netCents), money(r.baseCents), money(r.taxCents), money(r.commissionCents), money(r.payoutCents)].join(','));
       r.items.forEach((it) => {
-        lines.push([esc(`   ${it.name}`), it.units, money(it.grossCents), '', '', '', ''].join(','));
+        lines.push([esc(`   ${it.name}`), it.units, money(it.grossCents), '', '', '', '', '', ''].join(','));
       });
     });
     const { totals } = settlement;
-    lines.push([esc(t('vendors.totals')), totals.units, money(totals.grossCents), money(totals.refundCents), money(totals.netCents), money(totals.commissionCents), money(totals.payoutCents)].join(','));
+    lines.push([esc(t('vendors.totals')), totals.units, money(totals.grossCents), money(totals.refundCents), money(totals.netCents), money(totals.baseCents), money(totals.taxCents), money(totals.commissionCents), money(totals.payoutCents)].join(','));
 
     const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -294,6 +295,15 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
             )}
           </div>
         </div>
+        {form.splitType === 'percentage' && (
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold', maxWidth: '320px', marginBottom: '12px' }}>
+            {t('vendors.commissionBaseLabel')}
+            <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.commissionBase} onChange={(e) => setForm({ ...form, commissionBase: e.target.value })}>
+              <option value="gross">{t('vendors.commissionBaseGross')}</option>
+              <option value="base">{t('vendors.commissionBaseBase')}</option>
+            </select>
+          </label>
+        )}
         <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: '0 0 16px' }}>{t('vendors.commissionHint')}</p>
 
         {vendors.length === 0 ? (
@@ -449,6 +459,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], o
         const tiles = [
           { label: t('vendors.booksHouseSales'), value: houseNet, color: 'var(--text-main)', hint: t('vendors.booksHouseSalesHint') },
           { label: t('vendors.booksCommissionIncome'), value: commissionIncome, color: '#27ae60', hint: t('vendors.booksCommissionHint') },
+          { label: t('vendors.booksIvaCollected'), value: totals.taxCents, color: 'var(--text-main)', hint: t('vendors.booksIvaHint') },
           { label: t('vendors.booksYourIncome'), value: yourIncome, color: '#27ae60', strong: true, hint: t('vendors.booksYourIncomeHint') },
           { label: t('vendors.booksVendorPayable'), value: totalVendorOwed, color: 'var(--text-main)', hint: t('vendors.booksVendorPayableHint') },
           { label: t('vendors.booksPaid'), value: totalPaid, color: 'var(--text-muted)', hint: t('vendors.booksPaidHint') },
