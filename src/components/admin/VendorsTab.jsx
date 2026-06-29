@@ -18,7 +18,7 @@ const inputStyle = { padding: '12px', borderRadius: '12px', border: '1px solid v
 const th = { textAlign: 'right', padding: '10px 12px', fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' };
 const td = { textAlign: 'right', padding: '12px', fontWeight: 'bold', color: 'var(--text-main)' };
 
-const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', isActive: true };
+const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', splitType: 'percentage', isActive: true };
 
 function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onDeleteVendor }) {
   const { t } = useTranslation();
@@ -34,7 +34,7 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
 
   const startEdit = (v) => {
     setEditingId(v.id);
-    setForm({ name: v.name, contact: v.contact || '', commissionPercent: String(v.commissionPercent ?? 0), isActive: v.isActive !== false });
+    setForm({ name: v.name, contact: v.contact || '', commissionPercent: String(v.commissionPercent ?? 0), splitType: v.splitType === 'cost' ? 'cost' : 'percentage', isActive: v.isActive !== false });
   };
 
   const saveVendor = async () => {
@@ -45,6 +45,7 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
         name: form.name.trim(),
         contact: form.contact.trim(),
         commissionPercent: Math.max(0, Math.min(100, Number(form.commissionPercent) || 0)),
+        splitType: form.splitType === 'cost' ? 'cost' : 'percentage',
         isActive: form.isActive,
       };
       if (editingId) await onUpdateVendor(editingId, payload);
@@ -110,7 +111,7 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
           {t('vendors.registry')}
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr auto', gap: '12px', alignItems: 'end', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.4fr 1fr auto auto', gap: '12px', alignItems: 'end', marginBottom: '16px' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
             {t('vendors.name')}
             <input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="AldaGs" />
@@ -120,8 +121,25 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
             <input style={inputStyle} value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="55…" />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
-            {t('vendors.commission')}
-            <input style={inputStyle} type="number" min="0" max="100" step="0.5" value={form.commissionPercent} onChange={(e) => setForm({ ...form, commissionPercent: e.target.value })} />
+            {t('vendors.splitType')}
+            <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.splitType} onChange={(e) => setForm({ ...form, splitType: e.target.value })}>
+              <option value="percentage">{t('vendors.splitPercentage')}</option>
+              <option value="cost">{t('vendors.splitCost')}</option>
+            </select>
+          </label>
+          {form.splitType === 'cost' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', paddingBottom: '14px' }}>
+              {t('vendors.costPerItemNote')}
+            </div>
+          ) : (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+              {t('vendors.commission')}
+              <input style={inputStyle} type="number" min="0" max="100" step="0.5" value={form.commissionPercent} onChange={(e) => setForm({ ...form, commissionPercent: e.target.value })} />
+            </label>
+          )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold', paddingBottom: '12px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+            <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
+            {t('vendors.active')}
           </label>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button disabled={busy} onClick={saveVendor} style={{ padding: '12px 18px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -147,7 +165,10 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
                     {v.name}{v.isActive === false ? ' · ✕' : ''}
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    {v.contact ? `${v.contact} · ` : ''}{t('vendors.commission')}: {v.commissionPercent}%
+                    {v.contact ? `${v.contact} · ` : ''}
+                    {v.splitType === 'cost'
+                      ? t('vendors.splitCost')
+                      : `${t('vendors.commission')}: ${v.commissionPercent}%`}
                   </div>
                 </div>
                 <button onClick={() => startEdit(v)} title={t('vendors.edit')} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
@@ -206,7 +227,7 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
                     <tr style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setExpanded(expanded === r.key ? null : r.key)}>
                       <td style={{ ...td, textAlign: 'left' }}>
                         <Icon icon={expanded === r.key ? 'lucide:chevron-down' : 'lucide:chevron-right'} style={{ verticalAlign: 'middle', marginRight: '6px', color: 'var(--text-muted)' }} />
-                        {r.vendorName}{r.isHouse ? ` · ${t('vendors.house')}` : ` · ${r.commissionPercent}%`}
+                        {r.vendorName}{r.isHouse ? ` · ${t('vendors.house')}` : (r.splitType === 'cost' ? ` · ${t('vendors.splitCost')}` : ` · ${r.commissionPercent}%`)}
                       </td>
                       <td style={td}>{r.units}</td>
                       <td style={td}>{formatForDisplay(r.grossCents)}</td>

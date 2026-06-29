@@ -14,6 +14,7 @@ function rowToVendor(row) {
     name: row.name,
     contact: row.contact || '',
     commissionPercent: Number(row.commission_percent) || 0,
+    splitType: row.data?.splitType === 'cost' ? 'cost' : 'percentage',
     isActive: row.is_active !== false,
     sortOrder: row.sort_order ?? 0,
   };
@@ -36,6 +37,7 @@ export async function addVendor(vendor) {
     commission_percent: Number(vendor.commissionPercent) || 0,
     is_active: vendor.isActive !== false,
     sort_order: vendor.sortOrder ?? nextOrder,
+    data: { splitType: vendor.splitType === 'cost' ? 'cost' : 'percentage' },
   });
   return id;
 }
@@ -47,6 +49,7 @@ export async function updateVendor(id, patch) {
   if (patch.commissionPercent !== undefined) row.commission_percent = Number(patch.commissionPercent) || 0;
   if (patch.isActive !== undefined) row.is_active = patch.isActive !== false;
   if (patch.sortOrder !== undefined) row.sort_order = patch.sortOrder;
+  if (patch.splitType !== undefined) row.data = { splitType: patch.splitType === 'cost' ? 'cost' : 'percentage' };
   await db.vendors.update(id, row);
 }
 

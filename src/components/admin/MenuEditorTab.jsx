@@ -265,10 +265,29 @@ function MenuEditorTab({
                     style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
                   >
                     <option value="">{t('menu.vendorHouse') || 'Casa (sin vendedor)'}</option>
-                    {vendors.map(v => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
+                    {/* Hide deactivated vendors, but keep the one already assigned
+                        to this item selectable so editing doesn't silently drop it. */}
+                    {vendors
+                      .filter(v => v.isActive !== false || String(v.id) === String(newItemForm.vendorId))
+                      .map(v => (
+                        <option key={v.id} value={v.id}>{v.name}{v.isActive === false ? ` · ${t('vendors.inactive') || 'inactivo'}` : ''}</option>
+                      ))}
                   </select>
+
+                  {/* Production cost — only for cost-recovery vendors. The house
+                      recovers this per unit; the vendor keeps the rest. */}
+                  {vendors.find(v => String(v.id) === String(newItemForm.vendorId))?.splitType === 'cost' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelVendorCost') || 'Costo de producción (unitario)'}</label>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={newItemForm.vendorUnitCost || ''}
+                        onChange={(e) => setNewItemForm({ ...newItemForm, vendorUnitCost: e.target.value })}
+                        placeholder="35.00"
+                        style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -360,7 +379,8 @@ function MenuEditorTab({
                         inventoryMode: 'none',
                         linkedWarehouseId: '',
                         linkedRecipeId: '',
-                        vendorId: ''
+                        vendorId: '',
+                        vendorUnitCost: ''
                       });
                     }}
                     style={{ padding: '16px 20px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
@@ -557,7 +577,8 @@ function MenuEditorTab({
                                   inventoryMode: item.inventoryMode || 'none',
                                   linkedWarehouseId: item.linkedWarehouseId || '',
                                   linkedRecipeId: item.linkedRecipeId || '',
-                                  vendorId: item.vendorId || ''
+                                  vendorId: item.vendorId || '',
+                                  vendorUnitCost: item.vendorUnitCostCents ? String(fromCents(item.vendorUnitCostCents)) : ''
                                 });
                                 // Remember where to return after save/cancel, then
                                 // scroll the editor form into view (scrollIntoView

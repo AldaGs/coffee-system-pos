@@ -5,8 +5,14 @@
 // A "settlement" groups the line items of completed sales by the vendor that
 // owns each product (snapshotted onto sale.items as { vendorId, vendorName } at
 // checkout), totals each vendor's sales over a date range, subtracts an
-// allocated share of refunds, and applies the vendor's commission — the cut the
-// HOUSE keeps — to produce the amount owed to each vendor.
+// allocated share of refunds, and applies the vendor's HOUSE CUT to produce the
+// amount owed to each vendor. The house cut is computed one of two ways, per the
+// vendor's splitType:
+//   'percentage'  — house keeps commissionPercent of net revenue.
+//   'cost'        — house keeps the per-item production cost (cost-recovery deal:
+//                   the vendor takes all profit). The cost rides on each sale line
+//                   as vendorUnitCostCents (snapshotted from the menu item), so a
+//                   later price/cost change never rewrites historic settlements.
 
 const HOUSE_KEY = '__house__';
 const HOUSE_NAME = 'Casa';
@@ -74,15 +80,20 @@ export function computeSettlement(sales, vendors = [], range = {}) {
     if (!groups.has(key)) {
       const isHouse = key === HOUSE_KEY;
       const vendor = byId.get(String(line.vendorId)) || byName.get(line.vendorName) || null;
+      // Prefer the live registry name so a renamed vendor reads correctly across
+      // ALL their history; fall back to the snapshot only when the vendor has
+      // since been deleted (so historic settlements still show a name).
       groups.set(key, {
         key,
         vendorId: line.vendorId || null,
-        vendorName: isHouse ? HOUSE_NAME : (line.vendorName || vendor?.name || HOUSE_NAME),
+        vendorName: isHouse ? HOUSE_NAME : (vendor?.name || line.vendorName || HOUSE_NAME),
         isHouse,
+        splitType: vendor?.splitType === 'cost' ? 'cost' : 'percentage',
         commissionPercent: isHouse ? 0 : (Number(vendor?.commissionPercent) || 0),
         units: 0,
         grossCents: 0,
         refundCents: 0,
+        costCents: 0,
         items: new Map(),
       });
     }
@@ -105,6 +116,11 @@ export function computeSettlement(sales, vendors = [], range = {}) {
     const grossPerLine = allocateProportional(charged, rawLines);
 
     // Allocate the sale's refund across the same lines, proportional to charged.
+    // NOTE: refund_amount is a sale-level scalar with no line attribution, so a
+    // refund of a single vendor's product is spread across EVERY vendor on the
+    // ticket by gross share. This can under-pay vendors whose items weren't the
+    // ones returned. It's an intentional approximation until refunds are tracked
+    // per line; revisit if/when sales store which line was refunded.
     const refund = Number(sale.refund_amount) || 0;
     const refundPerLine = allocateProportional(refund, grossPerLine);
 
@@ -115,6 +131,7 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       g.units += qty;
       g.grossCents += gross;
       g.refundCents += refundPerLine[idx];
+      g.costCents += (Number(line.vendorUnitCostCents) || 0) * qty;
 
       const name = line.name || 'Unknown';
       const entry = g.items.get(name) || { name, units: 0, grossCents: 0 };
@@ -126,17 +143,26 @@ export function computeSettlement(sales, vendors = [], range = {}) {
 
   const rows = [...groups.values()].map((g) => {
     const netCents = g.grossCents - g.refundCents;
-    const commissionCents = g.isHouse ? 0 : Math.round((netCents * g.commissionPercent) / 100);
+    // The "commission" column is the house cut, computed per splitType. For a
+    // cost-recovery vendor the house keeps the production cost; the vendor takes
+    // the rest (which can go negative if the item was discounted below cost or
+    // largely refunded — that means the vendor owes the house).
+    let commissionCents;
+    if (g.isHouse) commissionCents = 0;
+    else if (g.splitType === 'cost') commissionCents = g.costCents;
+    else commissionCents = Math.round((netCents * g.commissionPercent) / 100);
     const payoutCents = netCents - commissionCents;
     return {
       key: g.key,
       vendorId: g.vendorId,
       vendorName: g.vendorName,
       isHouse: g.isHouse,
+      splitType: g.splitType,
       commissionPercent: g.commissionPercent,
       units: g.units,
       grossCents: g.grossCents,
       refundCents: g.refundCents,
+      costCents: g.costCents,
       netCents,
       commissionCents,
       payoutCents,

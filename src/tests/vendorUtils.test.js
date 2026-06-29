@@ -121,4 +121,37 @@ describe('vendorUtils — settlement math (centavos)', () => {
       expect(ghost.payoutCents).toBe(5000);
     });
   });
+
+  describe('cost-recovery split (house keeps the production cost)', () => {
+    const costVendors = [{ id: 'ill', name: 'Illustrator', splitType: 'cost', commissionPercent: 0 }];
+
+    it('house recovers unit cost; vendor takes the profit (notebook 115 / cost 35)', () => {
+      const items = [{ name: 'Notebook', basePrice: 11500, qty: 1, vendorId: 'ill', vendorName: 'Illustrator', vendorUnitCostCents: 3500 }];
+      const { rows } = computeSettlement([sale('n1', items)], costVendors);
+      const r = rows.find((x) => x.vendorId === 'ill');
+      expect(r.splitType).toBe('cost');
+      expect(r.grossCents).toBe(11500);
+      expect(r.costCents).toBe(3500);
+      expect(r.commissionCents).toBe(3500); // house cut == cost
+      expect(r.payoutCents).toBe(8000);     // profit to vendor
+    });
+
+    it('multiplies cost by units', () => {
+      const items = [{ name: 'Notebook', basePrice: 11500, qty: 3, vendorId: 'ill', vendorName: 'Illustrator', vendorUnitCostCents: 3500 }];
+      const { rows } = computeSettlement([sale('n2', items)], costVendors);
+      const r = rows.find((x) => x.vendorId === 'ill');
+      expect(r.costCents).toBe(10500);
+      expect(r.payoutCents).toBe(24000); // 34500 gross − 10500 cost
+    });
+
+    it('keeps cost fixed under a ticket discount (the whole point of the mode)', () => {
+      const items = [{ name: 'Notebook', basePrice: 11500, qty: 1, vendorId: 'ill', vendorName: 'Illustrator', vendorUnitCostCents: 3500 }];
+      // Sold for 100 instead of 115 (discounted). Cost is still 35.
+      const sales = [{ id: 'd', created_at: '2026-06-28T10:00:00Z', total_amount: 10000, refund_amount: 0, items }];
+      const r = computeSettlement(sales, costVendors).rows.find((x) => x.vendorId === 'ill');
+      expect(r.netCents).toBe(10000);
+      expect(r.commissionCents).toBe(3500); // unchanged
+      expect(r.payoutCents).toBe(6500);     // profit shrinks, cost protected
+    });
+  });
 });

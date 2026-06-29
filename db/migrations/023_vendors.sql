@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS public.vendors (
   commission_percent numeric NOT NULL DEFAULT 0,       -- % the house keeps
   is_active          bool NOT NULL DEFAULT true,
   sort_order         int  NOT NULL DEFAULT 0,
-  data               jsonb NOT NULL DEFAULT '{}'::jsonb,
+  data               jsonb NOT NULL DEFAULT '{}'::jsonb,  -- per-vendor settings: { splitType: 'percentage' | 'cost' }
   created_at         timestamptz NOT NULL DEFAULT now()
 );
 

@@ -4,8 +4,14 @@
 // in vendors.js picks this module when NOT isLocalMode().
 //
 // In-memory vendor shape:
-//   { id, name, contact, commissionPercent, isActive, sortOrder }
-// where commissionPercent is the percentage the house keeps (0–100).
+//   { id, name, contact, commissionPercent, splitType, isActive, sortOrder }
+// commissionPercent is the percentage the house keeps (0–100). splitType selects
+// how the house cut is computed at settlement:
+//   'percentage'    — house keeps commissionPercent of net revenue (default)
+//   'cost'          — house keeps the per-item production cost (cost-recovery deal:
+//                     the vendor gets all profit). The per-item cost lives on the
+//                     menu item (vendorUnitCostCents), not here.
+// splitType rides on the reserved `data` jsonb column so no schema change is needed.
 
 import { supabase } from '../supabaseClient';
 
@@ -15,6 +21,7 @@ function rowToVendor(row) {
     name: row.name,
     contact: row.contact || '',
     commissionPercent: Number(row.commission_percent) || 0,
+    splitType: row.data?.splitType === 'cost' ? 'cost' : 'percentage',
     isActive: row.is_active !== false,
     sortOrder: row.sort_order ?? 0,
   };
@@ -28,6 +35,7 @@ function vendorToRow(vendor) {
     commission_percent: Number(vendor.commissionPercent) || 0,
     is_active: vendor.isActive !== false,
     sort_order: vendor.sortOrder ?? 0,
+    data: { splitType: vendor.splitType === 'cost' ? 'cost' : 'percentage' },
   };
 }
 
@@ -59,6 +67,7 @@ export async function updateVendor(id, patch) {
   if (patch.commissionPercent !== undefined) row.commission_percent = Number(patch.commissionPercent) || 0;
   if (patch.isActive !== undefined) row.is_active = patch.isActive !== false;
   if (patch.sortOrder !== undefined) row.sort_order = patch.sortOrder;
+  if (patch.splitType !== undefined) row.data = { splitType: patch.splitType === 'cost' ? 'cost' : 'percentage' };
   const { error } = await supabase.from('vendors').update(row).eq('id', id);
   if (error) throw error;
 }

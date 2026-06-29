@@ -837,7 +837,8 @@ function Admin() {
       inventoryMode: 'none',
       linkedWarehouseId: '',
       linkedRecipeId: '',
-      vendorId: ''
+      vendorId: '',
+      vendorUnitCost: ''
     }));
   };
 
@@ -857,7 +858,11 @@ function Admin() {
     const vendorName = vendorId
       ? (vendors.find(v => String(v.id) === String(vendorId))?.name || '')
       : '';
-    return { vendorId, vendorName };
+    // Production cost the house recovers under a cost-recovery split. Snapshotted
+    // onto each sale line (via the cart spread) so settlement stays correct even
+    // if the cost is later edited. Only meaningful when a vendor is assigned.
+    const vendorUnitCostCents = vendorId ? toCents(newItemForm.vendorUnitCost || 0) : 0;
+    return { vendorId, vendorName, vendorUnitCostCents };
   };
 
   const handleAddDrink = () => {

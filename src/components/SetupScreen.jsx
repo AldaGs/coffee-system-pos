@@ -650,7 +650,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           commission_percent numeric NOT NULL DEFAULT 0,
           is_active          bool NOT NULL DEFAULT true,
           sort_order         int  NOT NULL DEFAULT 0,
-          data               jsonb NOT NULL DEFAULT '{}'::jsonb,
+          data               jsonb NOT NULL DEFAULT '{}'::jsonb,  -- per-vendor settings: { splitType: 'percentage' | 'cost' }
           created_at         timestamptz NOT NULL DEFAULT now()
         );
 
