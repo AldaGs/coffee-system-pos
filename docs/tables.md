@@ -1,7 +1,7 @@
 # Tables / Floor-plan system — design & plan
 
 Status: **in progress** on branch `feat/tables-system` (started June 2026).
-Phase 1 (data layer) underway.
+Phase 1 (data layer) ✅ and Phase 2 (builder) ✅ complete; Phase 3 next.
 
 ## 1. Goal
 
@@ -67,7 +67,12 @@ view is color-coded by status. Surface time-seated and open total per table.
 
 1. **Data layer** — Dexie v14 (`floor_plan`, `tables`, `active_tickets.table_id`
    index); `api/tables` module mirroring `api/menus`; Supabase tables. ← current
-2. **Builder** — `TablesTab.jsx` (sibling of `MenusTab`) + konva floor editor.
+2. **Builder** ✅ — `TablesTab.jsx` (sibling of `MenusTab`, registered in Admin
+   nav under `admin.tables`, advancedOnly) lists floors (create/rename/delete);
+   `floor/FloorEditor.jsx` is a dedicated react-konva editor with one node type
+   (table): add round/square/rect, drag/resize/rotate, edit number/name/seats/
+   shape, undo/redo, duplicate-number guard, saves to `floor_plan.data.document`.
+   Floor doc schema in `utils/floorDocument.js` (`{ version, size, tables[] }`).
 3. **Layout plumbing** — `tables` radio in GeneralSettings; `FloorLayout` branch
    in Register.
 4. **Runtime floor** — `FloorLayout.jsx`: live status map; tap table → its

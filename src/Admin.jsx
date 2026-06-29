@@ -37,6 +37,7 @@ import LoyaltyTab from './components/admin/LoyaltyTab';
 import DiscountsTab from './components/admin/DiscountsTab';
 import TeamTab from './components/admin/TeamTab';
 import VendorsTab from './components/admin/VendorsTab';
+import TablesTab from './components/admin/TablesTab';
 import GeneralSettingsTab from './components/admin/GeneralSettingsTab';
 import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
@@ -1714,6 +1715,7 @@ function Admin() {
             { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
             { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
             { id: 'vendors', icon: 'lucide:store', label: t('admin.vendors'), advancedOnly: true },
+            { id: 'tables', icon: 'lucide:armchair', label: t('admin.tables'), advancedOnly: true },
             // Public menus (TinyMenu) need a Supabase project to publish — cloud only.
             { id: 'menus', icon: 'lucide:layout-list', label: t('admin.publicMenus'), cloudOnly: true },
             { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
@@ -1902,6 +1904,10 @@ function Admin() {
 
         {activeTab === 'menus' && (
           <MenusTab showAlert={showAlert} showConfirm={showConfirm} menuData={menuData} />
+        )}
+
+        {activeTab === 'tables' && (
+          <TablesTab showAlert={showAlert} showConfirm={showConfirm} />
         )}
 
         {/* 3. MODIFIER LIBRARY TAB */}
