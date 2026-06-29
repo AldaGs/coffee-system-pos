@@ -5,6 +5,8 @@ import { db } from './db';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import { loadMenu } from './api/menu';
+import { loadFloors } from './api/floors';
+import { tablesOf } from './utils/floorDocument';
 import { isLocalMode } from './utils/appMode';
 import './App.css';
 import { PosContext } from './utils/PosContext';
@@ -26,6 +28,7 @@ import BootScreen from './components/register/BootScreen';
 import LockScreen from './components/register/LockScreen';
 import CafeLayout from './components/register/CafeLayout';
 import OrderFlowLayout from './components/register/OrderFlowLayout';
+import FloorLayout from './components/register/FloorLayout';
 import TicketArea from './components/register/TicketArea';
 import ModifierModal from './components/register/ModifierModal';
 import CheckoutModal from './components/register/CheckoutModal';
@@ -102,6 +105,19 @@ function Register() {
   // 'orders' — it adds a floor map in front (Phase 4). Until that lands, and for
   // all the shared ticket/checkout plumbing, both modes are driven by this flag.
   const orderFlowMode = layoutMode === 'orders' || layoutMode === 'tables';
+
+  // Tables layout: the saved floor plan(s) and which table's ticket flow is open
+  // (null = show the floor map). Floors are config that rarely changes mid-shift,
+  // so they're fetched once (loadFloors dispatches cloud vs. local) rather than
+  // live-queried.
+  const [floors, setFloors] = useState([]);
+  const [selectedTableId, setSelectedTableId] = useState(null);
+  useEffect(() => {
+    if (layoutMode !== 'tables') return;
+    let cancelled = false;
+    loadFloors().then(f => { if (!cancelled) setFloors(f); }).catch(err => console.error('Floor load failed:', err));
+    return () => { cancelled = true; };
+  }, [layoutMode]);
 
   // Drill-down step for the orders ("Mesas/Pedidos") layout: 'tickets' ->
   // 'categories' -> 'items'. Lifted here (rather than inside OrderFlowLayout)
@@ -507,7 +523,7 @@ function Register() {
   const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || null;
 
   const {
-    handleNewTicket, handleRenameTicket, clearCurrentTicket, handleCancelTicket,
+    handleNewTicket, handleNewTableTicket, handleRenameTicket, clearCurrentTicket, handleCancelTicket,
     addToTicket, handleUpdateItemQty, handleRemoveItem
   } = useTickets({
     myDeviceId, activeCashier, posSettings, recipes,
@@ -608,6 +624,35 @@ function Register() {
     setActiveTicketId(null);
     setIsMobileCartOpen(false);
     setOrderFlowStep('tickets');
+  };
+
+  // --- TABLES LAYOUT: floor <-> table-scoped ticket flow --------------------
+  // The selected table node, resolved across every floor's canvas document.
+  const selectedTable = useMemo(() => {
+    if (!selectedTableId) return null;
+    for (const f of floors) {
+      const hit = tablesOf(f.document).find(tb => tb.id === selectedTableId);
+      if (hit) return hit;
+    }
+    return null;
+  }, [selectedTableId, floors]);
+
+  // Tap a table on the floor map → open its scoped ticket rail.
+  const handleSelectTable = (table) => {
+    setSelectedTableId(table.id);
+    setActiveTicketId(null);
+    setOrderFlowStep('tickets');
+  };
+  // Back arrow in the scoped rail → return to the floor map.
+  const handleBackToFloor = () => {
+    setSelectedTableId(null);
+    setActiveTicketId(null);
+    setIsMobileCartOpen(false);
+  };
+  // "New ticket" inside a table → seats prompt then create+select (onCreated
+  // advances to the menu). Seats default to the table's expected count.
+  const handleNewTableTicketBridge = (table, onCreated) => {
+    handleNewTableTicket(table.id, table.seats || 4, onCreated);
   };
 
   // --- HOOK DEPENDENCIES (all computed values now available) ---
@@ -899,7 +944,13 @@ function Register() {
             layouts are just different "buttons" feeding the ONE shared cart;
             the TicketArea below is rendered by this parent in either mode so
             the checkout math/state hooks are never duplicated. */}
-        {orderFlowMode ? (
+        {layoutMode === 'tables' && !selectedTable ? (
+          <FloorLayout
+            floors={floors}
+            tickets={tickets}
+            onSelectTable={handleSelectTable}
+          />
+        ) : orderFlowMode ? (
           <OrderFlowLayout
             step={orderFlowStep}
             setStep={setOrderFlowStep}
@@ -911,6 +962,9 @@ function Register() {
             setIsSyncModalOpen={setIsSyncModalOpen}
             setIsExpenseModalOpen={setIsExpenseModalOpen}
             setIsCorteModalOpen={setIsCorteModalOpen}
+            tableScope={layoutMode === 'tables' ? selectedTable : null}
+            onBackToFloor={handleBackToFloor}
+            onNewTableTicket={handleNewTableTicketBridge}
           />
         ) : (
           <CafeLayout

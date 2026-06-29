@@ -38,17 +38,28 @@ function OrderFlowLayout({
   setIsSyncModalOpen,
   setIsExpenseModalOpen,
   setIsCorteModalOpen,
+  // Tables layout only: when set, the tickets rail is scoped to one table and
+  // shows a "back to floor" control + a table-bound new-ticket flow. Unset in
+  // the plain "orders" layout, where everything below behaves as before.
+  tableScope = null,
+  onBackToFloor,
+  onNewTableTicket,
 }) {
   const { t } = useTranslation();
   const {
     menuData,
-    visibleTickets,
+    visibleTickets: allVisibleTickets,
     activeTicket,
     activeTicketId,
     setActiveTicketId,
     handleNewTicket,
     handleItemClick,
   } = usePos();
+
+  // Scope the rail to the selected table when in tables mode.
+  const visibleTickets = tableScope
+    ? allVisibleTickets.filter(tk => tk.table_id === tableScope.id)
+    : allVisibleTickets;
 
   // Tap a ticket → make it active and open its content (the cart). On mobile
   // that's the slide-up drawer; on desktop the sidebar already shows it, so the
@@ -61,6 +72,11 @@ function OrderFlowLayout({
   // Create a ticket and jump straight to the menu so the first product can be
   // added without an extra tap. handleNewTicket owns id assignment.
   const startNewTicket = async () => {
+    if (tableScope) {
+      // Prompt seats, create the table-bound ticket, then jump to the menu.
+      onNewTableTicket?.(tableScope, () => setStep('categories'));
+      return;
+    }
     await handleNewTicket();
     setStep('categories');
   };
@@ -101,8 +117,16 @@ function OrderFlowLayout({
       {/* --- LEFT: ACTIVE TICKETS (30%) --- */}
       <section className={`order-flow-pane order-flow-tickets ${ticketsHidden}`}>
         <div className="order-flow-tickets-header">
-          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>
-            {t('register.activeTicketsTitle')}
+          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            {tableScope && (
+              <button type="button" className="order-flow-back-btn" onClick={onBackToFloor}
+                aria-label={t('reg.backToFloor')} title={t('reg.backToFloor')}>
+                <Icon icon="lucide:chevron-left" />
+              </button>
+            )}
+            {tableScope
+              ? `${t('admin.tables')} ${tableScope.number}${tableScope.name ? ` · ${tableScope.name}` : ''}`
+              : t('register.activeTicketsTitle')}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button type="button" className="order-flow-new-btn" onClick={startNewTicket}>

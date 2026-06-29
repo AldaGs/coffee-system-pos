@@ -1,8 +1,8 @@
 # Tables / Floor-plan system — design & plan
 
 Status: **in progress** on branch `feat/tables-system` (started June 2026).
-Phases 1 (data) ✅, 2 (builder) ✅, 3 (layout plumbing) ✅ complete; Phase 4
-(runtime floor view) next.
+Phases 1 (data) ✅, 2 (builder) ✅, 3 (layout plumbing) ✅, 4 (runtime floor
+view) ✅ complete; Phase 5 (realtime concurrency) next.
 
 ## 1. Goal
 
@@ -82,10 +82,19 @@ view is color-coded by status. Surface time-seated and open total per table.
    (`orders || tables`) that drives the shared ticket/checkout plumbing. Until
    Phase 4, `tables` runs the existing OrderFlow ticket flow so the mode is
    fully functional; Phase 4 inserts the floor map in front.
-4. **Runtime floor** — `FloorLayout.jsx`: live status map; tap table → its
-   ticket list → reuse OrderFlow ticket→content→menu flow; `handleNewTicket`
-   accepts `table_id` + seats override; free table on last ticket close
-   (`onAfterCheckout`).
+4. **Runtime floor** ✅ — `register/FloorLayout.jsx` renders the saved floor(s)
+   read-only with DOM percentage positioning (resolution-independent, no JS
+   scaling) and live color-coded status (available / seated / ordered) + ticket
+   & item counts per table, with a zone tab strip for multiple floors. Tapping a
+   table calls `handleSelectTable` (Register), which opens `OrderFlowLayout` in a
+   new `tableScope` mode: the tickets rail is filtered to that table, with a
+   back-to-floor arrow and a table-bound "new ticket" that prompts for seats
+   (`useTickets.handleNewTableTicket` → `createTicket({ tableId, seats })`,
+   defaulting to the table's expected count, overridable for an extra chair).
+   Register fetches floors once via `loadFloors()` (config rarely changes
+   mid-shift); status is derived live from the `active_tickets` Dexie query, so
+   closing the last ticket frees the table automatically. Multiple open tickets
+   per table are supported (the rail lists them all).
 5. **Concurrency** — Supabase realtime on `active_tickets`; soft occupied lock.
 
 ## 7. Deferred (post-v1)
