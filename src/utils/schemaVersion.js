@@ -13,6 +13,10 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 0.5 — vendor payout ledger: the `vendor_payouts` table (migration 024). Records
+//       money actually paid to each vendor and freezes the settlement it was paid
+//       against in `data`, so the settlement report shows owed − paid balances and
+//       payments are made against a locked statement.
 // 0.4 — multi-vendor sales: the `vendors` registry table (migration 023). Lets a
 //       shop tag products with the vendor that owns them and run a per-vendor
 //       settlement report with commission payouts. The item -> vendor link rides
@@ -31,4 +35,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '0.4';
+export const APP_SCHEMA_VERSION = '0.5';

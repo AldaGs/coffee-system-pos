@@ -2,8 +2,29 @@ import { Fragment, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
-import { formatForDisplay, fromCents } from '../../utils/moneyUtils';
+import { formatForDisplay, fromCents, toCents } from '../../utils/moneyUtils';
 import { computeSettlement } from '../../utils/vendorUtils';
+import { recordVendorPayout, reverseVendorPayout } from '../../services/vendorPayoutsService';
+
+// The active cashier (for stamping who recorded a payout), best-effort.
+function activeCashierName() {
+  try {
+    const raw = localStorage.getItem('tinypos_activeCashier');
+    if (raw) return JSON.parse(raw)?.name || null;
+  } catch { /* noop */ }
+  return null;
+}
+
+// A recorded payout "covers" the report range if its settled period overlaps it.
+// Falls back to the created_at date when a payout has no stored period.
+function payoutInRange(p, from, to) {
+  const pf = p.period_from || (p.created_at ? p.created_at.slice(0, 10) : null);
+  const pt = p.period_to || pf;
+  if (!pf || !pt) return true;
+  if (from && pt < from) return false;
+  if (to && pf > to) return false;
+  return true;
+}
 
 // Default the report to the current calendar month (local time).
 function defaultRange() {
@@ -20,7 +41,7 @@ const td = { textAlign: 'right', padding: '12px', fontWeight: 'bold', color: 'va
 
 const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', splitType: 'percentage', isActive: true };
 
-function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, onUpdateVendor, onDeleteVendor }) {
+function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], onAddVendor, onUpdateVendor, onDeleteVendor }) {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useDialog();
 
@@ -30,6 +51,8 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, on
   const [range, setRange] = useState(defaultRange);
   const [expanded, setExpanded] = useState(null);
   const [useMenuFallback, setUseMenuFallback] = useState(false);
+  const [payFor, setPayFor] = useState(null);   // settlement row being paid
+  const [payForm, setPayForm] = useState({ amount: '', method: 'cash', note: '' });
 
   // Map current menu item id -> its vendor assignment, for retroactively
   // attributing pre-tagging sale lines (those with no vendor snapshot).
@@ -90,6 +113,77 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, on
     return computeSettlement(sales, vendors, { fromMs, toMs, itemVendorMap: useMenuFallback ? itemVendorMap : null });
   }, [sales, vendors, range, useMenuFallback, itemVendorMap]);
 
+  // Payouts already recorded that overlap the report range, summed per vendor.
+  // Keyed by vendor_id when present, else by name (so deleted vendors still match).
+  const paidInRange = useMemo(() => {
+    const map = new Map();
+    (payouts || []).forEach((p) => {
+      if (!payoutInRange(p, range.from, range.to)) return;
+      const key = p.vendor_id ? `id:${p.vendor_id}` : `name:${p.vendor_name}`;
+      map.set(key, (map.get(key) || 0) + (Number(p.amount) || 0));
+    });
+    return map;
+  }, [payouts, range]);
+
+  const paidFor = (row) => {
+    const byId = row.vendorId ? paidInRange.get(`id:${row.vendorId}`) : 0;
+    return byId || paidInRange.get(`name:${row.vendorName}`) || 0;
+  };
+
+  // --- Record a payment against a frozen statement ---------------------------
+  const openPay = (row) => {
+    const balance = row.payoutCents - paidFor(row);
+    setPayFor(row);
+    setPayForm({ amount: fromCents(Math.max(0, balance)).toFixed(2), method: 'cash', note: '' });
+  };
+
+  const submitPay = async () => {
+    if (!payFor) return;
+    const amountCents = toCents(payForm.amount || 0);
+    if (!amountCents) return showAlert(t('vendors.payTitle'), t('vendors.payAmountRequired'));
+    setBusy(true);
+    try {
+      await recordVendorPayout({
+        vendorId: payFor.vendorId,
+        vendorName: payFor.vendorName,
+        periodFrom: range.from || null,
+        periodTo: range.to || null,
+        owedCents: payFor.payoutCents,
+        amountCents,
+        method: payForm.method,
+        note: payForm.note?.trim() || null,
+        cashierName: activeCashierName(),
+        // Freeze the statement so this payment is anchored to a locked number.
+        statement: {
+          range: { from: range.from, to: range.to },
+          menuFallback: useMenuFallback,
+          splitType: payFor.splitType,
+          commissionPercent: payFor.commissionPercent,
+          totals: {
+            units: payFor.units, grossCents: payFor.grossCents, refundCents: payFor.refundCents,
+            costCents: payFor.costCents, netCents: payFor.netCents,
+            commissionCents: payFor.commissionCents, payoutCents: payFor.payoutCents,
+          },
+          items: payFor.items,
+        },
+      });
+      setPayFor(null);
+    } catch (e) {
+      showAlert(t('vendors.payTitle'), e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const undoPayout = (p) => {
+    showConfirm(t('vendors.reverseTitle'), t('vendors.reverseBody'), async () => {
+      setBusy(true);
+      try { await reverseVendorPayout(p); }
+      catch (e) { showAlert(t('vendors.payTitle'), e.message); }
+      finally { setBusy(false); }
+    });
+  };
+
   const exportCSV = () => {
     const head = [t('vendors.colVendor'), t('vendors.colUnits'), t('vendors.colGross'), t('vendors.colRefunds'), t('vendors.colNet'), t('vendors.colCommission'), t('vendors.colPayout')];
     const lines = [head.join(',')];
@@ -114,6 +208,9 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, on
   };
 
   const { rows, totals } = settlement;
+  const totalPaid = [...paidInRange.values()].reduce((s, v) => s + v, 0);
+  const totalVendorOwed = rows.filter((r) => !r.isHouse).reduce((s, r) => s + r.payoutCents, 0);
+  const totalBalance = totalVendorOwed - totalPaid;
 
   return (
     <div>
@@ -245,6 +342,9 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, on
                   <th style={th}>{t('vendors.colNet')}</th>
                   <th style={th}>{t('vendors.colCommission')}</th>
                   <th style={th}>{t('vendors.colPayout')}</th>
+                  <th style={th}>{t('vendors.colPaid')}</th>
+                  <th style={th}>{t('vendors.colBalance')}</th>
+                  <th style={th}></th>
                 </tr>
               </thead>
               <tbody>
@@ -261,13 +361,29 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, on
                       <td style={td}>{formatForDisplay(r.netCents)}</td>
                       <td style={td}>{r.isHouse ? '—' : formatForDisplay(r.commissionCents)}</td>
                       <td style={{ ...td, color: 'var(--brand-color)' }}>{formatForDisplay(r.payoutCents)}</td>
+                      {(() => {
+                        if (r.isHouse) return (<><td style={{ ...td, color: 'var(--text-muted)' }}>—</td><td style={{ ...td, color: 'var(--text-muted)' }}>—</td><td style={td}></td></>);
+                        const paid = paidFor(r);
+                        const balance = r.payoutCents - paid;
+                        return (
+                          <>
+                            <td style={{ ...td, color: paid ? 'var(--text-main)' : 'var(--text-muted)' }}>{paid ? formatForDisplay(paid) : '—'}</td>
+                            <td style={{ ...td, color: balance > 0 ? '#e67e22' : (balance < 0 ? '#e74c3c' : '#27ae60') }}>{formatForDisplay(balance)}</td>
+                            <td style={{ ...td }} onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => openPay(r)} title={t('vendors.recordPayment')} style={{ background: '#27ae60', color: 'white', border: 'none', borderRadius: '10px', padding: '6px 10px', cursor: 'pointer', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Icon icon="lucide:hand-coins" />
+                              </button>
+                            </td>
+                          </>
+                        );
+                      })()}
                     </tr>
                     {expanded === r.key && r.items.map((it) => (
                       <tr key={`${r.key}::${it.name}`} style={{ background: 'var(--bg-main)' }}>
                         <td style={{ ...td, textAlign: 'left', fontWeight: 'normal', color: 'var(--text-muted)', paddingLeft: '32px' }}>{it.name}</td>
                         <td style={{ ...td, fontWeight: 'normal', color: 'var(--text-muted)' }}>{it.units}</td>
                         <td style={{ ...td, fontWeight: 'normal', color: 'var(--text-muted)' }}>{formatForDisplay(it.grossCents)}</td>
-                        <td style={td} colSpan={4}></td>
+                        <td style={td} colSpan={7}></td>
                       </tr>
                     ))}
                   </Fragment>
@@ -282,12 +398,90 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, on
                   <td style={td}>{formatForDisplay(totals.netCents)}</td>
                   <td style={td}>{formatForDisplay(totals.commissionCents)}</td>
                   <td style={{ ...td, color: 'var(--brand-color)' }}>{formatForDisplay(totals.payoutCents)}</td>
+                  <td style={td}>{totalPaid ? formatForDisplay(totalPaid) : '—'}</td>
+                  <td style={{ ...td, color: totalBalance > 0 ? '#e67e22' : (totalBalance < 0 ? '#e74c3c' : '#27ae60') }}>{formatForDisplay(totalBalance)}</td>
+                  <td style={td}></td>
                 </tr>
               </tfoot>
             </table>
           </div>
         )}
+        {rows.length > 0 && (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: '12px 0 0' }}>{t('vendors.payHint')}</p>
+        )}
       </div>
+
+      {/* --- PAYOUT HISTORY --- */}
+      <div style={card}>
+        <h3 style={{ color: 'var(--text-main)', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Icon icon="lucide:history" style={{ color: 'var(--brand-color)' }} />
+          {t('vendors.history')}
+        </h3>
+        {(!payouts || payouts.length === 0) ? (
+          <p style={{ color: 'var(--text-muted)' }}>{t('vendors.historyEmpty')}</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {payouts.map((p) => (
+              <div key={p.local_id || p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'var(--bg-main)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>
+                    {p.vendor_name} · <span style={{ color: p.amount < 0 ? '#e74c3c' : 'var(--brand-color)' }}>{formatForDisplay(Math.round(Number(p.amount) || 0))}</span>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                    {new Date(p.created_at).toLocaleDateString()} · {p.method || 'cash'}
+                    {p.period_from ? ` · ${p.period_from} → ${p.period_to || ''}` : ''}
+                    {p.note ? ` · ${p.note}` : ''}
+                  </div>
+                </div>
+                {p.amount >= 0 && (
+                  <button onClick={() => undoPayout(p)} title={t('vendors.reverse')} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
+                    <Icon icon="lucide:undo-2" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* --- RECORD PAYMENT MODAL --- */}
+      {payFor && (
+        <div onClick={() => setPayFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ ...card, marginBottom: 0, width: '100%', maxWidth: '420px' }}>
+            <h3 style={{ color: 'var(--text-main)', marginTop: 0 }}>{t('vendors.payTitle')}</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0 }}>
+              {payFor.vendorName} · {t('vendors.colPayout')}: <strong>{formatForDisplay(payFor.payoutCents)}</strong>
+              {' · '}{t('vendors.colBalance')}: <strong>{formatForDisplay(payFor.payoutCents - paidFor(payFor))}</strong>
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                {t('vendors.payAmount')}
+                <input style={inputStyle} type="number" min="0" step="0.01" autoFocus value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                {t('vendors.payMethod')}
+                <select style={{ ...inputStyle, cursor: 'pointer' }} value={payForm.method} onChange={(e) => setPayForm({ ...payForm, method: e.target.value })}>
+                  <option value="cash">{t('vendors.methodCash')}</option>
+                  <option value="transfer">{t('vendors.methodTransfer')}</option>
+                  <option value="other">{t('vendors.methodOther')}</option>
+                </select>
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                {t('vendors.payNote')}
+                <input style={inputStyle} value={payForm.note} onChange={(e) => setPayForm({ ...payForm, note: e.target.value })} />
+              </label>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <button disabled={busy} onClick={() => setPayFor(null)} style={{ padding: '12px 16px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  {t('vendors.payCancel')}
+                </button>
+                <button disabled={busy} onClick={submitPay} style={{ padding: '12px 18px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Icon icon="lucide:hand-coins" />{t('vendors.payConfirm')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

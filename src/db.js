@@ -125,3 +125,31 @@ db.version(12).stores({
   nag_state: 'key',
   vendors: 'id, sort_order'
 });
+
+// --- V13: VENDOR PAYOUT LEDGER ---
+// vendor_payouts: each disbursement to a vendor. Mirrors the tip_payouts pattern
+//                 (local-first, cloud best-effort, dedup by local_id). Each row
+//                 freezes the settlement it was paid against in `data` (line items
+//                 + totals + range + flags), so paying against a locked number is
+//                 unaffected by later menu retagging. Vendor balance over a range
+//                 = SUM(settlement payout owed) - SUM(vendor_payouts amount).
+db.version(13).stores({
+  sales: '++id, status, created_at, local_id',
+  menu: 'id',
+  syncQueue: '++id, local_id',
+  active_tickets: 'id',
+  inventory: 'id, name',
+  inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+  updateQueue: '++id, type, local_id',
+  tip_payouts: '++id, created_at, local_id',
+  tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id',
+  expenses: 'id, timestamp, cashierId',
+  shift_state: 'key',
+  app_local: 'key',
+  menu_local: 'id, type',
+  customers: 'phone',
+  nag_state: 'key',
+  vendors: 'id, sort_order',
+  vendor_payouts: '++id, vendor_id, created_at, local_id'
+});
+

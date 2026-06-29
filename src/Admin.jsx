@@ -1225,6 +1225,7 @@ function Admin() {
   // 1. Filter the raw data based on the selected timeframe
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const dexieSales = useLiveQuery(() => db.sales.toArray(), []) || [];
+  const vendorPayouts = useLiveQuery(() => db.vendor_payouts.orderBy('created_at').reverse().toArray(), []) || [];
   const tipPayouts = useLiveQuery(() => db.tip_payouts.toArray(), []) || [];
 
   const filteredSales = useMemo(() => {
@@ -1891,6 +1892,7 @@ function Admin() {
             vendors={vendors}
             sales={dexieSales}
             menuData={menuData}
+            payouts={vendorPayouts}
             onAddVendor={handleAddVendor}
             onUpdateVendor={handleUpdateVendor}
             onDeleteVendor={handleDeleteVendor}

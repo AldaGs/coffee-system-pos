@@ -221,6 +221,18 @@ export async function migrateLocalToCloud(onProgress = noop) {
       const { error } = await supabase.from('expenses').upsert(clean, { onConflict: 'local_id' });
       if (error) throw error;
     }
+
+    // Vendor payout ledger recorded locally (financial records — preserve them).
+    const vendorPayouts = await db.vendor_payouts.toArray();
+    if (vendorPayouts.length) {
+      const clean = vendorPayouts.map((p) => {
+        const row = { ...p };
+        delete row.id; // drop Dexie autoincrement id; cloud assigns its own
+        return row;
+      });
+      const { error } = await supabase.from('vendor_payouts').upsert(clean, { onConflict: 'local_id' });
+      if (error) throw error;
+    }
   } catch (e) {
     errors.push(`Ventas/gastos: ${e.message}`);
   }
