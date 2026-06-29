@@ -98,6 +98,11 @@ function Register() {
   // behavior for a physical terminal.
   const [layoutMode] = useState(getLayoutMode);
 
+  // The 'tables' (floor-plan) layout is built on the same ticket flow as
+  // 'orders' — it adds a floor map in front (Phase 4). Until that lands, and for
+  // all the shared ticket/checkout plumbing, both modes are driven by this flag.
+  const orderFlowMode = layoutMode === 'orders' || layoutMode === 'tables';
+
   // Drill-down step for the orders ("Mesas/Pedidos") layout: 'tickets' ->
   // 'categories' -> 'items'. Lifted here (rather than inside OrderFlowLayout)
   // so the sibling TicketArea — which serves as the flow's "ticket content"
@@ -599,7 +604,7 @@ function Register() {
   // clearCurrentTicket auto-selected next — landing on someone else's open
   // ticket right after closing a sale is confusing.
   const onAfterCheckout = () => {
-    if (layoutMode !== 'orders') return;
+    if (!orderFlowMode) return;
     setActiveTicketId(null);
     setIsMobileCartOpen(false);
     setOrderFlowStep('tickets');
@@ -894,7 +899,7 @@ function Register() {
             layouts are just different "buttons" feeding the ONE shared cart;
             the TicketArea below is rendered by this parent in either mode so
             the checkout math/state hooks are never duplicated. */}
-        {layoutMode === 'orders' ? (
+        {orderFlowMode ? (
           <OrderFlowLayout
             step={orderFlowStep}
             setStep={setOrderFlowStep}
@@ -926,7 +931,7 @@ function Register() {
           setLoyaltyModal={setLoyaltyModal}
           isMobileCartOpen={isMobileCartOpen}
           setIsMobileCartOpen={setIsMobileCartOpen}
-          orderFlowMode={layoutMode === 'orders'}
+          orderFlowMode={orderFlowMode}
           onAddProduct={() => { setOrderFlowStep('categories'); setIsMobileCartOpen(false); }}
         />
 
@@ -935,7 +940,7 @@ function Register() {
             so the pill there is redundant/confusing — hide it on that step and
             bring it back on the categories/items steps as the way back to the
             cart. */}
-        {!(layoutMode === 'orders' && orderFlowStep === 'tickets') && (
+        {!(orderFlowMode && orderFlowStep === 'tickets') && (
           <button
             className="mobile-cart-fab desktop-hidden"
             onClick={() => setIsMobileCartOpen(true)}

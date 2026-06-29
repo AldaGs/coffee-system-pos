@@ -1,7 +1,8 @@
 # Tables / Floor-plan system — design & plan
 
 Status: **in progress** on branch `feat/tables-system` (started June 2026).
-Phase 1 (data layer) ✅ and Phase 2 (builder) ✅ complete; Phase 3 next.
+Phases 1 (data) ✅, 2 (builder) ✅, 3 (layout plumbing) ✅ complete; Phase 4
+(runtime floor view) next.
 
 ## 1. Goal
 
@@ -76,8 +77,11 @@ view is color-coded by status. Surface time-seated and open total per table.
    Tables default to the brand color; recolor via preset swatches or a custom
    picker. Floor doc schema in `utils/floorDocument.js`
    (`{ version, size, tables[] }`); each node may carry a `color` (null = brand).
-3. **Layout plumbing** — `tables` radio in GeneralSettings; `FloorLayout` branch
-   in Register.
+3. **Layout plumbing** ✅ — `tables` radio in GeneralSettings (device-local
+   `tinypos_layout_mode`); Register derives an `orderFlowMode` flag
+   (`orders || tables`) that drives the shared ticket/checkout plumbing. Until
+   Phase 4, `tables` runs the existing OrderFlow ticket flow so the mode is
+   fully functional; Phase 4 inserts the floor map in front.
 4. **Runtime floor** — `FloorLayout.jsx`: live status map; tap table → its
    ticket list → reuse OrderFlow ticket→content→menu flow; `handleNewTicket`
    accepts `table_id` + seats override; free table on last ticket close

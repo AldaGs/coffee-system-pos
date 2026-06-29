@@ -904,6 +904,7 @@ function GeneralSettingsTab({
                 {[
                   { value: 'cafe', icon: 'lucide:zap', label: t('settings.layoutCafe'), desc: t('settings.layoutCafeDesc') },
                   { value: 'orders', icon: 'lucide:layout-list', label: t('settings.layoutOrders'), desc: t('settings.layoutOrdersDesc') },
+                  { value: 'tables', icon: 'lucide:armchair', label: t('settings.layoutTables'), desc: t('settings.layoutTablesDesc') },
                 ].map(opt => {
                   const selected = layoutMode === opt.value;
                   return (
