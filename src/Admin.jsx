@@ -1890,6 +1890,7 @@ function Admin() {
           <VendorsTab
             vendors={vendors}
             sales={dexieSales}
+            menuData={menuData}
             onAddVendor={handleAddVendor}
             onUpdateVendor={handleUpdateVendor}
             onDeleteVendor={handleDeleteVendor}

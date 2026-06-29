@@ -20,7 +20,7 @@ const td = { textAlign: 'right', padding: '12px', fontWeight: 'bold', color: 'va
 
 const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', splitType: 'percentage', isActive: true };
 
-function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onDeleteVendor }) {
+function VendorsTab({ vendors = [], sales = [], menuData = null, onAddVendor, onUpdateVendor, onDeleteVendor }) {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useDialog();
 
@@ -29,6 +29,22 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
   const [busy, setBusy] = useState(false);
   const [range, setRange] = useState(defaultRange);
   const [expanded, setExpanded] = useState(null);
+  const [useMenuFallback, setUseMenuFallback] = useState(false);
+
+  // Map current menu item id -> its vendor assignment, for retroactively
+  // attributing pre-tagging sale lines (those with no vendor snapshot).
+  const itemVendorMap = useMemo(() => {
+    const map = new Map();
+    const cats = menuData?.categories || {};
+    Object.values(cats).forEach((items) => {
+      (items || []).forEach((it) => {
+        if (it?.id != null && it.vendorId) {
+          map.set(String(it.id), { vendorId: it.vendorId, vendorName: it.vendorName || '', vendorUnitCostCents: it.vendorUnitCostCents || 0 });
+        }
+      });
+    });
+    return map;
+  }, [menuData]);
 
   const resetForm = () => { setForm(EMPTY_FORM); setEditingId(null); };
 
@@ -71,8 +87,8 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
   const settlement = useMemo(() => {
     const fromMs = range.from ? Date.parse(`${range.from}T00:00:00`) : null;
     const toMs = range.to ? Date.parse(`${range.to}T23:59:59.999`) : null;
-    return computeSettlement(sales, vendors, { fromMs, toMs });
-  }, [sales, vendors, range]);
+    return computeSettlement(sales, vendors, { fromMs, toMs, itemVendorMap: useMenuFallback ? itemVendorMap : null });
+  }, [sales, vendors, range, useMenuFallback, itemVendorMap]);
 
   const exportCSV = () => {
     const head = [t('vendors.colVendor'), t('vendors.colUnits'), t('vendors.colGross'), t('vendors.colRefunds'), t('vendors.colNet'), t('vendors.colCommission'), t('vendors.colPayout')];
@@ -204,6 +220,16 @@ function VendorsTab({ vendors = [], sales = [], onAddVendor, onUpdateVendor, onD
             </button>
           </div>
         </div>
+
+        {itemVendorMap.size > 0 && (
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '16px', padding: '12px 14px', background: 'var(--bg-main)', borderRadius: '12px', border: '1px solid var(--border)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={useMenuFallback} onChange={(e) => setUseMenuFallback(e.target.checked)} style={{ marginTop: '2px' }} />
+            <span>
+              <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('vendors.menuFallback')}</span>
+              <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('vendors.menuFallbackHint')}</span>
+            </span>
+          </label>
+        )}
 
         {rows.length === 0 ? (
           <p style={{ color: 'var(--text-muted)' }}>{t('vendors.noSales')}</p>

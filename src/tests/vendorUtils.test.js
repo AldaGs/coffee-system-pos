@@ -154,4 +154,33 @@ describe('vendorUtils — settlement math (centavos)', () => {
       expect(r.payoutCents).toBe(6500);     // profit shrinks, cost protected
     });
   });
+
+  describe('retroactive attribution via itemVendorMap', () => {
+    // A pre-tagging sale line: has an item id + name but NO vendor snapshot.
+    const oldSale = sale('old', [{ id: 'notebook', name: 'Notebook', basePrice: 11500, qty: 2 }]);
+
+    it('buckets untagged lines into Casa without a map', () => {
+      const { rows } = computeSettlement([oldSale], vendors);
+      expect(rows.find((r) => r.isHouse).grossCents).toBe(23000);
+      expect(rows.some((r) => r.vendorId === 'v1')).toBe(false);
+    });
+
+    it('credits untagged lines to the current menu owner when a map is given', () => {
+      const itemVendorMap = new Map([
+        ['notebook', { vendorId: 'v1', vendorName: 'AldaGs', vendorUnitCostCents: 3500 }],
+      ]);
+      const { rows } = computeSettlement([oldSale], vendors, { itemVendorMap });
+      const alda = rows.find((r) => r.vendorId === 'v1');
+      expect(alda.grossCents).toBe(23000);
+      expect(alda.costCents).toBe(7000); // 3500 cost * 2 units, pulled from the map
+      expect(rows.some((r) => r.isHouse)).toBe(false);
+    });
+
+    it('never overrides a line that already carries a snapshot', () => {
+      const tagged = sale('t', [{ id: 'notebook', name: 'Notebook', basePrice: 11500, qty: 1, vendorId: 'v2', vendorName: 'Roaster Co' }]);
+      const itemVendorMap = new Map([['notebook', { vendorId: 'v1', vendorName: 'AldaGs' }]]);
+      const { rows } = computeSettlement([tagged], vendors, { itemVendorMap });
+      expect(rows[0].vendorId).toBe('v2'); // snapshot wins over current menu
+    });
+  });
 });

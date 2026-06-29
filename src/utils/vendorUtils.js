@@ -58,10 +58,16 @@ function saleTimeMs(sale) {
   return Number.isNaN(t) ? null : t;
 }
 
-// computeSettlement(sales, vendors, { fromMs, toMs })
+// computeSettlement(sales, vendors, { fromMs, toMs, itemVendorMap })
 //   sales   : sale rows; each has items[], total_amount, refund_amount, created_at
 //   vendors : registry rows { id, name, commissionPercent }
 //   range   : optional inclusive [fromMs, toMs] millisecond bounds (either may be null)
+//   itemVendorMap : optional Map keyed by menu-item id ->
+//                   { vendorId, vendorName, vendorUnitCostCents }. Used to
+//                   RETROACTIVELY attribute sale lines that have NO vendor
+//                   snapshot (e.g. tickets sold before vendor tagging existed):
+//                   such lines are resolved against the CURRENT menu assignment.
+//                   Lines that already carry a snapshot are never overridden.
 //
 // Returns { rows, totals } where each row is:
 //   { key, vendorId, vendorName, isHouse, commissionPercent,
@@ -69,9 +75,23 @@ function saleTimeMs(sale) {
 //     items: [{ name, units, grossCents }] }
 // Rows are sorted by gross descending with House last.
 export function computeSettlement(sales, vendors = [], range = {}) {
-  const { fromMs = null, toMs = null } = range;
+  const { fromMs = null, toMs = null, itemVendorMap = null } = range;
   const byId = new Map(vendors.map((v) => [String(v.id), v]));
   const byName = new Map(vendors.map((v) => [v.name, v]));
+
+  // Fill vendor fields from the current menu when a line predates tagging.
+  // A line is "untagged" when it has neither a vendorId nor a vendorName.
+  const resolveLine = (line) => {
+    if (line.vendorId || line.vendorName) return line;
+    const m = itemVendorMap && line.id != null ? itemVendorMap.get(String(line.id)) : null;
+    if (!m || !m.vendorId) return line;
+    return {
+      ...line,
+      vendorId: m.vendorId,
+      vendorName: m.vendorName,
+      vendorUnitCostCents: line.vendorUnitCostCents != null ? line.vendorUnitCostCents : m.vendorUnitCostCents,
+    };
+  };
 
   const groups = new Map();
 
@@ -124,7 +144,8 @@ export function computeSettlement(sales, vendors = [], range = {}) {
     const refund = Number(sale.refund_amount) || 0;
     const refundPerLine = allocateProportional(refund, grossPerLine);
 
-    items.forEach((line, idx) => {
+    items.forEach((rawLine, idx) => {
+      const line = resolveLine(rawLine);
       const g = ensureGroup(line);
       const qty = Number(line.qty) || 1;
       const gross = grossPerLine[idx];
