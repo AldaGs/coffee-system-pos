@@ -160,6 +160,11 @@ export const translations = {
     "vendors.statementFor": "Statement for",
     "vendors.statementPeriod": "Period",
     "vendors.statementThanks": "Thank you for partnering with us.",
+    "vendors.colUnitPrice": "Unit price",
+    "vendors.colUnitCost": "Unit cost",
+    "vendors.colProfit": "Your profit",
+    "vendors.termsCost": "Cost-recovery: the house keeps each item's production cost; you keep the rest.",
+    "vendors.termsCommission": "Commission split: the house keeps {pct}% of net sales; you receive the rest.",
 
     // --- Settings Tab ---
     "settings.title": "General Settings",
@@ -1433,6 +1438,11 @@ export const translations = {
     "vendors.statementFor": "Estado para",
     "vendors.statementPeriod": "Periodo",
     "vendors.statementThanks": "Gracias por colaborar con nosotros.",
+    "vendors.colUnitPrice": "Precio unitario",
+    "vendors.colUnitCost": "Costo unitario",
+    "vendors.colProfit": "Tu ganancia",
+    "vendors.termsCost": "Recuperación de costo: la casa retiene el costo de producción de cada artículo; tú te quedas con el resto.",
+    "vendors.termsCommission": "Reparto por comisión: la casa retiene el {pct}% de las ventas netas; tú recibes el resto.",
 
     // --- Settings Tab ---
     "settings.title": "Ajustes Generales",

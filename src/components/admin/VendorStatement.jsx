@@ -11,6 +11,10 @@ const HAIR = '#e5e7eb';
 const ACCENT = '#b45309';   // amber-700, used sparingly
 const PANEL = '#faf8f5';
 
+const HEAD = { fontSize: '11px', color: MUTED, textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 0 10px', borderBottom: `2px solid ${HAIR}` };
+const CELL = { padding: '10px 0', borderBottom: `1px solid ${HAIR}`, fontSize: '14px', fontVariantNumeric: 'tabular-nums' };
+const perUnit = (totalCents, units) => Math.round((totalCents || 0) / (units || 1));
+
 function Row({ label, value, strong, color, big }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: big ? '10px 0' : '6px 0' }}>
@@ -24,6 +28,7 @@ export default function VendorStatement({ id, row, paidCents = 0, range = {}, br
   if (!row) return null;
   const balance = row.payoutCents - paidCents;
   const hasTax = row.taxCents > 0;
+  const isCost = row.splitType === 'cost';
   const shopName = branding.header || 'TinyPOS';
   const generated = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   const splitLabel = row.splitType === 'cost'
@@ -72,25 +77,39 @@ export default function VendorStatement({ id, row, paidCents = 0, range = {}, br
           </div>
         </div>
 
-        {/* Items */}
+        {/* Items — split-type aware breakdown */}
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '24px' }}>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', fontSize: '11px', color: MUTED, textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 0 10px', borderBottom: `2px solid ${HAIR}` }}>{t('vendors.colVendor')}</th>
-              <th style={{ textAlign: 'right', fontSize: '11px', color: MUTED, textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 0 10px', borderBottom: `2px solid ${HAIR}` }}>{t('vendors.colUnits')}</th>
-              <th style={{ textAlign: 'right', fontSize: '11px', color: MUTED, textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 0 10px', borderBottom: `2px solid ${HAIR}` }}>{t('vendors.colGross')}</th>
+              <th style={{ ...HEAD, textAlign: 'left' }}>{t('vendors.colVendor')}</th>
+              <th style={{ ...HEAD, textAlign: 'right' }}>{t('vendors.colUnits')}</th>
+              <th style={{ ...HEAD, textAlign: 'right' }}>{t('vendors.colUnitPrice')}</th>
+              {isCost ? <th style={{ ...HEAD, textAlign: 'right' }}>{t('vendors.colUnitCost')}</th> : null}
+              {isCost
+                ? <th style={{ ...HEAD, textAlign: 'right' }}>{t('vendors.colProfit')}</th>
+                : <th style={{ ...HEAD, textAlign: 'right' }}>{t('vendors.colGross')}</th>}
             </tr>
           </thead>
           <tbody>
             {row.items.map((it) => (
               <tr key={it.name}>
-                <td style={{ padding: '10px 0', borderBottom: `1px solid ${HAIR}`, fontSize: '14px', fontWeight: 600 }}>{it.name}</td>
-                <td style={{ padding: '10px 0', borderBottom: `1px solid ${HAIR}`, fontSize: '14px', textAlign: 'right', color: MUTED, fontVariantNumeric: 'tabular-nums' }}>{it.units}</td>
-                <td style={{ padding: '10px 0', borderBottom: `1px solid ${HAIR}`, fontSize: '14px', textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{formatForDisplay(it.grossCents)}</td>
+                <td style={{ ...CELL, fontWeight: 600 }}>{it.name}</td>
+                <td style={{ ...CELL, textAlign: 'right', color: MUTED }}>{it.units}</td>
+                <td style={{ ...CELL, textAlign: 'right' }}>{formatForDisplay(perUnit(it.grossCents, it.units))}</td>
+                {isCost ? <td style={{ ...CELL, textAlign: 'right', color: MUTED }}>{formatForDisplay(perUnit(it.costCents, it.units))}</td> : null}
+                {isCost
+                  ? <td style={{ ...CELL, textAlign: 'right', fontWeight: 700, color: '#15803d' }}>{formatForDisplay(it.grossCents - it.costCents)}</td>
+                  : <td style={{ ...CELL, textAlign: 'right', fontWeight: 600 }}>{formatForDisplay(it.grossCents)}</td>}
               </tr>
             ))}
           </tbody>
         </table>
+        {/* Deal terms line — reinforces the split applied to this statement */}
+        <div style={{ fontSize: '12px', color: MUTED, margin: '-12px 0 24px' }}>
+          {isCost
+            ? t('vendors.termsCost')
+            : t('vendors.termsCommission').replace('{pct}', String(row.commissionPercent))}
+        </div>
 
         {/* Summary panel */}
         <div style={{ background: PANEL, borderRadius: '16px', padding: '20px 24px', border: `1px solid ${HAIR}` }}>

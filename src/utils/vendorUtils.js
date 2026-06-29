@@ -72,7 +72,7 @@ function saleTimeMs(sale) {
 // Returns { rows, totals } where each row is:
 //   { key, vendorId, vendorName, isHouse, commissionPercent,
 //     units, grossCents, refundCents, netCents, commissionCents, payoutCents,
-//     items: [{ name, units, grossCents }] }
+//     items: [{ name, units, grossCents, costCents }] }
 // Rows are sorted by gross descending with House last.
 export function computeSettlement(sales, vendors = [], range = {}) {
   const { fromMs = null, toMs = null, itemVendorMap = null, taxRate = 16 } = range;
@@ -166,9 +166,10 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       g.taxCents += lineTaxCents(line, netLine); // IVA carved from the net (post-refund) line
 
       const name = line.name || 'Unknown';
-      const entry = g.items.get(name) || { name, units: 0, grossCents: 0 };
+      const entry = g.items.get(name) || { name, units: 0, grossCents: 0, costCents: 0 };
       entry.units += qty;
       entry.grossCents += gross;
+      entry.costCents += (Number(line.vendorUnitCostCents) || 0) * qty;
       g.items.set(name, entry);
     });
   }
