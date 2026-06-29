@@ -19,6 +19,7 @@
     "dexie-react-hooks": "^4.4.0",
     "html-to-image": "^1.11.13",
     "immer": "^11.1.6",
+    "jspdf": "^4.2.1",
     "konva": "^10.3.0",
     "nanoid": "^5.1.11",
     "pdfjs-dist": "^6.0.227",

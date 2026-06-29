@@ -6,7 +6,8 @@ import { formatForDisplay, fromCents, toCents } from '../../utils/moneyUtils';
 import { computeSettlement } from '../../utils/vendorUtils';
 import { recordVendorPayout, reverseVendorPayout } from '../../services/vendorPayoutsService';
 import { writeExpense } from '../../services/expenseLedger';
-import { shareElementAsPNG, shareElementAsPDF } from '../../utils/sharingUtils';
+import { shareElementAsPNG, shareBlob } from '../../utils/sharingUtils';
+import { buildVendorStatementPdf } from '../../utils/vendorStatementPdf';
 import VendorStatement from './VendorStatement';
 
 // The active cashier (for stamping who recorded a payout), best-effort.
@@ -204,15 +205,18 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
     if (sharing) return;
     setShareRow(null);
     setSharing(true);
-    setStatementRow(row);
     try {
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const safe = (row.vendorName || 'vendor').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
       const base = `estado-${safe}_${range.from || ''}_${range.to || ''}`;
       const meta = { title: t('vendors.statementTitle'), text: `${row.vendorName} · ${range.from || ''} → ${range.to || ''}` };
       if (format === 'pdf') {
-        await shareElementAsPDF('vendor-statement-capture', `${base}.pdf`, meta);
+        // Vector PDF (selectable text) — built directly, no off-screen capture.
+        const blob = await buildVendorStatementPdf(row, { paidCents: paidFor(row), range, branding, t });
+        await shareBlob(blob, `${base}.pdf`, meta);
       } else {
+        // PNG snapshot of the premium card — render off-screen, then capture.
+        setStatementRow(row);
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         await shareElementAsPNG('vendor-statement-capture', `${base}.png`, meta);
       }
     } catch (e) {
