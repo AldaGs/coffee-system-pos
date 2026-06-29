@@ -1894,6 +1894,7 @@ function Admin() {
             menuData={menuData}
             payouts={vendorPayouts}
             taxRate={menuData?.receiptSettings?.taxRate || 16}
+            branding={menuData?.receiptSettings || {}}
             onAddVendor={handleAddVendor}
             onUpdateVendor={handleUpdateVendor}
             onDeleteVendor={handleDeleteVendor}

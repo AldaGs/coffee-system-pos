@@ -6,6 +6,8 @@ import { formatForDisplay, fromCents, toCents } from '../../utils/moneyUtils';
 import { computeSettlement } from '../../utils/vendorUtils';
 import { recordVendorPayout, reverseVendorPayout } from '../../services/vendorPayoutsService';
 import { writeExpense } from '../../services/expenseLedger';
+import { shareElementAsPNG } from '../../utils/sharingUtils';
+import VendorStatement from './VendorStatement';
 
 // The active cashier (for stamping who recorded a payout), best-effort.
 function activeCashierName() {
@@ -42,7 +44,7 @@ const td = { textAlign: 'right', padding: '12px', fontWeight: 'bold', color: 'va
 
 const EMPTY_FORM = { name: '', contact: '', commissionPercent: '0', splitType: 'percentage', commissionBase: 'gross', isActive: true };
 
-function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], taxRate = 16, onAddVendor, onUpdateVendor, onDeleteVendor }) {
+function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], taxRate = 16, branding = {}, onAddVendor, onUpdateVendor, onDeleteVendor }) {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useDialog();
 
@@ -54,6 +56,8 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
   const [useMenuFallback, setUseMenuFallback] = useState(false);
   const [payFor, setPayFor] = useState(null);   // settlement row being paid
   const [payForm, setPayForm] = useState({ amount: '', method: 'cash', note: '', postExpense: true });
+  const [statementRow, setStatementRow] = useState(null); // row being rendered for share
+  const [sharing, setSharing] = useState(false);
 
   // Map current menu item id -> its vendor assignment, for retroactively
   // attributing pre-tagging sale lines (those with no vendor snapshot).
@@ -189,6 +193,27 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
       showAlert(t('vendors.payTitle'), e.message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Render a premium per-vendor statement off-screen, snapshot it to PNG, and
+  // open the share sheet (falls back to download). Two RAFs let the node paint.
+  const shareStatement = async (row) => {
+    if (sharing) return;
+    setSharing(true);
+    setStatementRow(row);
+    try {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const safe = (row.vendorName || 'vendor').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+      await shareElementAsPNG('vendor-statement-capture', `estado-${safe}_${range.from || ''}_${range.to || ''}.png`, {
+        title: t('vendors.statementTitle'),
+        text: `${row.vendorName} · ${range.from || ''} → ${range.to || ''}`,
+      });
+    } catch (e) {
+      showAlert(t('vendors.statementTitle'), e.message);
+    } finally {
+      setStatementRow(null);
+      setSharing(false);
     }
   };
 
@@ -408,7 +433,10 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                           <>
                             <td style={{ ...td, color: paid ? 'var(--text-main)' : 'var(--text-muted)' }}>{paid ? formatForDisplay(paid) : '—'}</td>
                             <td style={{ ...td, color: balance > 0 ? '#e67e22' : (balance < 0 ? '#e74c3c' : '#27ae60') }}>{formatForDisplay(balance)}</td>
-                            <td style={{ ...td }} onClick={(e) => e.stopPropagation()}>
+                            <td style={{ ...td, whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                              <button onClick={() => shareStatement(r)} disabled={sharing} title={t('vendors.shareStatement')} style={{ background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid var(--border)', borderRadius: '10px', padding: '6px 10px', cursor: 'pointer', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px', marginRight: '6px' }}>
+                                <Icon icon="lucide:share-2" />
+                              </button>
                               <button onClick={() => openPay(r)} title={t('vendors.recordPayment')} style={{ background: '#27ae60', color: 'white', border: 'none', borderRadius: '10px', padding: '6px 10px', cursor: 'pointer', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                                 <Icon icon="lucide:hand-coins" />
                               </button>
@@ -517,6 +545,20 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
           </div>
         )}
       </div>
+
+      {/* --- OFF-SCREEN STATEMENT (rendered only while sharing) --- */}
+      {statementRow && (
+        <div style={{ position: 'fixed', left: '-99999px', top: 0, pointerEvents: 'none' }} aria-hidden="true">
+          <VendorStatement
+            id="vendor-statement-capture"
+            row={statementRow}
+            paidCents={paidFor(statementRow)}
+            range={range}
+            branding={branding}
+            t={t}
+          />
+        </div>
+      )}
 
       {/* --- RECORD PAYMENT MODAL --- */}
       {payFor && (

@@ -356,6 +356,40 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
   }
 };
 
+// Generic "render a DOM node to a PNG and share it" — same warmup/share/download
+// path as saveTicketAsPNG, but with caller-supplied filename and share metadata.
+// Used for premium shareables like the per-vendor settlement statement.
+export const shareElementAsPNG = async (elementId, fileName = 'statement.png', meta = {}) => {
+  const node = document.getElementById(elementId);
+  if (!node) return;
+
+  // PASS 1: warm up image decode (Safari/iOS), then capture at 2x.
+  await htmlToImage.toPng(node);
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const blob = await htmlToImage.toBlob(node, { backgroundColor: '#ffffff', pixelRatio: 2 });
+  if (!blob) throw new Error('Failed to generate image');
+
+  const file = new File([blob], fileName, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: meta.title || 'Statement', text: meta.text || '' });
+      return;
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // user dismissed the share sheet
+      // otherwise fall through to download
+    }
+  }
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.download = fileName;
+  link.href = url;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 export const saveTicketAsPNG = async (elementId, fileName = 'ticket.png') => {
   const node = document.getElementById(elementId);
   if (!node) return;
