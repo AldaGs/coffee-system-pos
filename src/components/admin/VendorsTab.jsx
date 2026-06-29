@@ -254,7 +254,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
           {t('vendors.registry')}
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 1.4fr 1fr auto auto', gap: '12px', alignItems: 'end', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '12px', alignItems: 'end', marginBottom: '16px' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
             {t('vendors.name')}
             <input style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="AldaGs" />

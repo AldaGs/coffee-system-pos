@@ -148,7 +148,7 @@ function MenusTab({ showAlert, showConfirm, menuData }) {
       </div>
 
       <div style={{ background: 'var(--bg-surface)', padding: 20, borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'flex', gap: 12 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <input
             type="text"
             placeholder="Nombre del nuevo menú (ej. Brunch, Verano)"
