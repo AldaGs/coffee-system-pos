@@ -153,3 +153,40 @@ db.version(13).stores({
   vendor_payouts: '++id, vendor_id, created_at, local_id'
 });
 
+// --- V14: TABLES / FLOOR PLAN ---
+// floor_plan: device-shared floor layout(s). Each row is a saved floor (one per
+//             zone is allowed) holding a canvas `document` of table nodes plus
+//             metadata. Cloud installs keep Supabase as the source of truth and
+//             mirror here for offline reads; local ('guest') installs use this
+//             store as the source of truth and migrate up on upgrade. Client-
+//             generated UUID ids avoid collisions on migration (same rule as
+//             menu_local / vendors).
+// tables:     normalized per-table rows derived from the floor plan, for fast
+//             runtime status queries (number, name, zone, expectedSeats, shape,
+//             geometry). `floor_id` links back to the parent floor_plan row.
+// NOTE: the table↔ticket link is additive on `active_tickets` (table_id, seats)
+//       and needs no schema change — Dexie stores are schemaless per-row, the
+//       string above only declares indexes. table_id is added as an index so the
+//       floor view can query open tickets per table.
+db.version(14).stores({
+  sales: '++id, status, created_at, local_id',
+  menu: 'id',
+  syncQueue: '++id, local_id',
+  active_tickets: 'id, table_id',
+  inventory: 'id, name',
+  inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+  updateQueue: '++id, type, local_id',
+  tip_payouts: '++id, created_at, local_id',
+  tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id',
+  expenses: 'id, timestamp, cashierId',
+  shift_state: 'key',
+  app_local: 'key',
+  menu_local: 'id, type',
+  customers: 'phone',
+  nag_state: 'key',
+  vendors: 'id, sort_order',
+  vendor_payouts: '++id, vendor_id, created_at, local_id',
+  floor_plan: 'id, zone, sort_order',
+  tables: 'id, floor_id, zone, number'
+});
+

@@ -38,17 +38,28 @@ function OrderFlowLayout({
   setIsSyncModalOpen,
   setIsExpenseModalOpen,
   setIsCorteModalOpen,
+  // Tables layout only: when set, the tickets rail is scoped to one table and
+  // shows a "back to floor" control + a table-bound new-ticket flow. Unset in
+  // the plain "orders" layout, where everything below behaves as before.
+  tableScope = null,
+  onBackToFloor,
+  onNewTableTicket,
 }) {
   const { t } = useTranslation();
   const {
     menuData,
-    visibleTickets,
+    visibleTickets: allVisibleTickets,
     activeTicket,
     activeTicketId,
     setActiveTicketId,
     handleNewTicket,
     handleItemClick,
   } = usePos();
+
+  // Scope the rail to the selected table when in tables mode.
+  const visibleTickets = tableScope
+    ? allVisibleTickets.filter(tk => tk.table_id === tableScope.id)
+    : allVisibleTickets;
 
   // Tap a ticket → make it active and open its content (the cart). On mobile
   // that's the slide-up drawer; on desktop the sidebar already shows it, so the
@@ -61,6 +72,11 @@ function OrderFlowLayout({
   // Create a ticket and jump straight to the menu so the first product can be
   // added without an extra tap. handleNewTicket owns id assignment.
   const startNewTicket = async () => {
+    if (tableScope) {
+      // Prompt seats, create the table-bound ticket, then jump to the menu.
+      onNewTableTicket?.(tableScope, () => setStep('categories'));
+      return;
+    }
     await handleNewTicket();
     setStep('categories');
   };
@@ -96,14 +112,39 @@ function OrderFlowLayout({
     />
   );
 
+  // One-tap return to the floor map from inside the menu (tables mode only), so
+  // the cashier doesn't have to step back through categories → tickets first.
+  const floorBtn = tableScope ? (
+    <button type="button" onClick={onBackToFloor}
+      aria-label={t('reg.backToFloor')} title={t('reg.backToFloor')}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 14px', borderRadius: 9999,
+        border: 'none', background: 'var(--brand-color, #3498db)', color: '#fff', fontWeight: 700,
+        fontSize: '0.85rem', cursor: 'pointer', flexShrink: 0 }}>
+      <Icon icon="lucide:layout-grid" /> {t('reg.backToFloor')}
+    </button>
+  ) : null;
+
   return (
     <main className="order-flow-layout">
       {/* --- LEFT: ACTIVE TICKETS (30%) --- */}
       <section className={`order-flow-pane order-flow-tickets ${ticketsHidden}`}>
         <div className="order-flow-tickets-header">
-          <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>
-            {t('register.activeTicketsTitle')}
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {tableScope && (
+              <button type="button" onClick={onBackToFloor}
+                aria-label={t('reg.backToFloor')} title={t('reg.backToFloor')}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 9999,
+                  border: 'none', background: 'var(--brand-color, #3498db)', color: '#fff', fontWeight: 700,
+                  fontSize: '0.85rem', cursor: 'pointer', flexShrink: 0 }}>
+                <Icon icon="lucide:arrow-left" /> {t('reg.backToFloor')}
+              </button>
+            )}
+            <h2 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {tableScope
+                ? `${t('admin.tables')} ${tableScope.number}${tableScope.name ? ` · ${tableScope.name}` : ''}`
+                : t('register.activeTicketsTitle')}
+            </h2>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <button type="button" className="order-flow-new-btn" onClick={startNewTicket}>
               <Icon icon="lucide:plus" />
@@ -162,6 +203,7 @@ function OrderFlowLayout({
                 <Icon icon="lucide:chevron-left" />
               </button>
               <h2 className="order-flow-pane-title">{activeCategory}</h2>
+              {floorBtn}
               {actionBar}
             </div>
 
@@ -206,6 +248,7 @@ function OrderFlowLayout({
                 <Icon icon="lucide:chevron-left" />
               </button>
               <h2 className="order-flow-pane-title">{t('register.chooseCategory')}</h2>
+              {floorBtn}
               {actionBar}
             </div>
 

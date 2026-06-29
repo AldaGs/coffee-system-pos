@@ -235,7 +235,9 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           last_modified_by text,
           loyalty_phone text,
           loyalty_stars_pending integer DEFAULT 0,
-          kds_sent boolean DEFAULT false
+          kds_sent boolean DEFAULT false,
+          table_id text,
+          seats integer
         );
 
         CREATE TABLE IF NOT EXISTS public.order_fulfillment (
@@ -695,6 +697,33 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         ALTER TABLE public.vendor_payouts ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Hardware can access vendor_payouts" ON public.vendor_payouts;
         CREATE POLICY "Hardware can access vendor_payouts" ON public.vendor_payouts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+        -- Floor-plan registry (migration 025). Mirrors db/migrations/025_tables.sql.
+        CREATE TABLE IF NOT EXISTS public.floor_plan (
+          id          text PRIMARY KEY,
+          name        text NOT NULL,
+          zone        text NOT NULL DEFAULT '',
+          is_active   bool NOT NULL DEFAULT true,
+          sort_order  int  NOT NULL DEFAULT 0,
+          data        jsonb NOT NULL DEFAULT '{}'::jsonb,
+          created_at  timestamptz NOT NULL DEFAULT now()
+        );
+        ALTER TABLE public.floor_plan ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Hardware can access floor_plan" ON public.floor_plan;
+        CREATE POLICY "Hardware can access floor_plan" ON public.floor_plan FOR ALL TO authenticated USING (true) WITH CHECK (true);
+        CREATE INDEX IF NOT EXISTS active_tickets_table_id_idx ON public.active_tickets (table_id);
+
+        -- Realtime for live floor/ticket sync across devices (migration 025).
+        ALTER TABLE public.active_tickets REPLICA IDENTITY FULL;
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_publication_tables
+            WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'active_tickets'
+          ) THEN
+            ALTER PUBLICATION supabase_realtime ADD TABLE public.active_tickets;
+          END IF;
+        END $$;
 
         -- Menu versions (migration 014): snapshots + restore.
         CREATE TABLE IF NOT EXISTS public.menu_versions (

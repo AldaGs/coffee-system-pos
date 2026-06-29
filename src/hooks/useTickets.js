@@ -36,40 +36,71 @@ export function useTickets({
   showAlert, showConfirm, showPrompt, showToast, t,
   setPendingItem, setIsModalOpen
 }) {
+  // Core ticket creation, shared by the name-prompt flow (cafe/orders) and the
+  // table-bound flow (tables layout). When tableId is set the ticket carries
+  // table_id + seats (the per-ticket cover count, defaulted from the table's
+  // expectedSeats but overridable on open — see docs/tables.md). Returns the id.
+  const createTicket = async ({ customName = '', tableId = null, seats = null } = {}) => {
+    const newId = Date.now();
+    const currentNum = nextOrderNum;
+    const prefix = myDeviceId.substring(0, 3).toUpperCase();
+    const trimmed = customName ? customName.trim() : '';
+    const ticketName = trimmed ? `${prefix} - ${trimmed} (#${currentNum})` : `${prefix} - #${currentNum}`;
+
+    const newTicket = {
+      id: newId,
+      name: ticketName,
+      items: [],
+      cashier_id: activeCashier?.id,
+      last_modified_by: myDeviceId,
+      created_at: new Date().toISOString()
+    };
+    if (tableId != null) {
+      newTicket.table_id = tableId;
+      newTicket.seats = seats;
+    }
+
+    await db.active_tickets.add(newTicket);
+
+    if (!isLocalMode() && navigator.onLine) {
+      try {
+        await supabase.from('active_tickets').insert([newTicket]);
+      } catch (err) {
+        console.error('Cloud create failed:', err);
+      }
+    }
+
+    setActiveTicketId(newId);
+    setNextOrderNum(currentNum + 1);
+    return newId;
+  };
+
   const handleNewTicket = () => {
     showPrompt(
       t('reg.promptTicketName'),
       t('reg.promptTicketNameDesc'),
-      async (inputValue) => {
-        const newId = Date.now();
-        const currentNum = nextOrderNum;
-        const prefix = myDeviceId.substring(0, 3).toUpperCase();
-        const customName = inputValue ? inputValue.trim() : '';
-        const ticketName = customName ? `${prefix} - ${customName} (#${currentNum})` : `${prefix} - #${currentNum}`;
-
-        const newTicket = {
-          id: newId,
-          name: ticketName,
-          items: [],
-          cashier_id: activeCashier?.id,
-          last_modified_by: myDeviceId,
-          created_at: new Date().toISOString()
-        };
-
-        await db.active_tickets.add(newTicket);
-
-        if (!isLocalMode() && navigator.onLine) {
-          try {
-            await supabase.from('active_tickets').insert([newTicket]);
-          } catch (err) {
-            console.error('Cloud create failed:', err);
-          }
-        }
-
-        setActiveTicketId(newId);
-        setNextOrderNum(currentNum + 1);
-      },
+      async (inputValue) => { await createTicket({ customName: inputValue }); },
       '',
+      t('reg.btnCreateTicket'),
+      t('reg.btnCancel')
+    );
+  };
+
+  // Tables layout: open a new ticket on a specific table. Prompts for the cover
+  // count (pre-filled with the table's expected seats, overridable for an extra
+  // chair), then creates the table-bound ticket and runs onCreated (used by the
+  // floor view to drop straight into the menu).
+  const handleNewTableTicket = (tableId, expectedSeats = 4, onCreated) => {
+    showPrompt(
+      t('reg.promptSeats'),
+      t('reg.promptSeatsDesc'),
+      async (val) => {
+        const parsed = parseInt(val, 10);
+        const seats = Math.max(1, Number.isFinite(parsed) ? parsed : expectedSeats);
+        await createTicket({ tableId, seats });
+        onCreated?.();
+      },
+      String(expectedSeats),
       t('reg.btnCreateTicket'),
       t('reg.btnCancel')
     );
@@ -206,6 +237,7 @@ export function useTickets({
 
   return {
     handleNewTicket,
+    handleNewTableTicket,
     handleRenameTicket,
     clearCurrentTicket,
     handleCancelTicket,
