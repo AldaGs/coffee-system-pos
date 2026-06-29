@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { tablesOf, DEFAULT_FLOOR_SIZE } from '../../utils/floorDocument';
@@ -67,7 +67,33 @@ export default function FloorLayout({
     />
   );
 
-  if (!floors || floors.length === 0) {
+  const floor = floors && floors.length ? floors[Math.min(zoneIdx, floors.length - 1)] : null;
+  const size = floor?.document?.size || DEFAULT_FLOOR_SIZE;
+  const tables = tablesOf(floor?.document);
+
+  // Measure the available area and compute the board's pixel size so it always
+  // keeps the floor's TRUE aspect ratio (CSS aspect-ratio + max-width/height
+  // fight each other and distort the percentage-positioned tables — stretching
+  // them tall — so we size explicitly, the way the editor's Stage does).
+  // Declared before any early return so hook order stays stable.
+  const boardAreaRef = useRef(null);
+  const [board, setBoard] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = boardAreaRef.current;
+    if (!el) return;
+    const recalc = () => {
+      const availW = el.clientWidth, availH = el.clientHeight;
+      if (!availW || !availH) return;
+      const fit = Math.min(availW / size.w, availH / size.h);
+      setBoard({ w: Math.floor(size.w * fit), h: Math.floor(size.h * fit) });
+    };
+    recalc();
+    const ro = new ResizeObserver(recalc);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [size.w, size.h, zoneIdx]);
+
+  if (!floor) {
     return (
       <main className="floor-layout" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 16px' }}>{actionBar}</div>
@@ -81,12 +107,8 @@ export default function FloorLayout({
     );
   }
 
-  const floor = floors[Math.min(zoneIdx, floors.length - 1)];
-  const size = floor.document?.size || DEFAULT_FLOOR_SIZE;
-  const tables = tablesOf(floor.document);
-
   return (
-    <main className="floor-layout" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+    <main className="floor-layout" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* Header: zone tabs + legend + system toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
         {floors.length > 1 && (
@@ -111,9 +133,10 @@ export default function FloorLayout({
         {actionBar}
       </div>
 
-      {/* Floor canvas — percentage-positioned tables against the authored size */}
-      <div style={{ flex: 1, minHeight: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflow: 'auto' }}>
-        <div style={{ position: 'relative', height: '100%', maxWidth: '100%', aspectRatio: `${size.w} / ${size.h}`,
+      {/* Floor canvas — percentage-positioned tables against the authored size.
+          The board is sized in JS (board.w/h) to preserve the floor's aspect. */}
+      <div ref={boardAreaRef} style={{ flex: 1, minHeight: 360, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, overflow: 'hidden' }}>
+        <div style={{ position: 'relative', width: board.w, height: board.h,
           background: 'var(--bg-card)', borderRadius: 14, boxShadow: 'inset 0 0 0 1px var(--border)' }}>
           {tables.map(tb => {
             const list = ticketsByTable.get(tb.id) || [];

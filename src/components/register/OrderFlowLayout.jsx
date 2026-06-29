@@ -112,6 +112,18 @@ function OrderFlowLayout({
     />
   );
 
+  // One-tap return to the floor map from inside the menu (tables mode only), so
+  // the cashier doesn't have to step back through categories → tickets first.
+  const floorBtn = tableScope ? (
+    <button type="button" onClick={onBackToFloor}
+      aria-label={t('reg.backToFloor')} title={t('reg.backToFloor')}
+      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '8px 14px', borderRadius: 9999,
+        border: 'none', background: 'var(--brand-color, #3498db)', color: '#fff', fontWeight: 700,
+        fontSize: '0.85rem', cursor: 'pointer', flexShrink: 0 }}>
+      <Icon icon="lucide:layout-grid" /> {t('reg.backToFloor')}
+    </button>
+  ) : null;
+
   return (
     <main className="order-flow-layout">
       {/* --- LEFT: ACTIVE TICKETS (30%) --- */}
@@ -191,6 +203,7 @@ function OrderFlowLayout({
                 <Icon icon="lucide:chevron-left" />
               </button>
               <h2 className="order-flow-pane-title">{activeCategory}</h2>
+              {floorBtn}
               {actionBar}
             </div>
 
@@ -235,6 +248,7 @@ function OrderFlowLayout({
                 <Icon icon="lucide:chevron-left" />
               </button>
               <h2 className="order-flow-pane-title">{t('register.chooseCategory')}</h2>
+              {floorBtn}
               {actionBar}
             </div>
 
