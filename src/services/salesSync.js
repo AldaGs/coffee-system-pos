@@ -43,4 +43,15 @@ export const fetchAndMergeSales = async () => {
   } catch (e) {
     console.warn('tip ledger sync skipped', e);
   }
+
+  // Mirror the vendor payout ledger (small, append-only) the same way.
+  try {
+    const { data: vendorPayouts } = await supabase.from('vendor_payouts').select('*');
+    if (vendorPayouts) {
+      await db.vendor_payouts.clear();
+      await db.vendor_payouts.bulkPut(vendorPayouts);
+    }
+  } catch (e) {
+    console.warn('vendor payout ledger sync skipped', e);
+  }
 };
