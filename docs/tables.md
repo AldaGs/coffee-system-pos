@@ -71,8 +71,11 @@ view is color-coded by status. Surface time-seated and open total per table.
    nav under `admin.tables`, advancedOnly) lists floors (create/rename/delete);
    `floor/FloorEditor.jsx` is a dedicated react-konva editor with one node type
    (table): add round/square/rect, drag/resize/rotate, edit number/name/seats/
-   shape, undo/redo, duplicate-number guard, saves to `floor_plan.data.document`.
-   Floor doc schema in `utils/floorDocument.js` (`{ version, size, tables[] }`).
+   shape/color, togglable small/big grid with auto-snap, undo/redo, saves to
+   `floor_plan.data.document`. Duplicate table numbers are allowed by design.
+   Tables default to the brand color; recolor via preset swatches or a custom
+   picker. Floor doc schema in `utils/floorDocument.js`
+   (`{ version, size, tables[] }`); each node may carry a `color` (null = brand).
 3. **Layout plumbing** — `tables` radio in GeneralSettings; `FloorLayout` branch
    in Register.
 4. **Runtime floor** — `FloorLayout.jsx`: live status map; tap table → its
