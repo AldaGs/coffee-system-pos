@@ -95,7 +95,12 @@ function GeneralSettingsTab({
     }
   };
 
-  useEffect(() => { fetchSchemaVersion(); }, []);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchSchemaVersion();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Post-OAuth resume: if we just came back with a PAT in sessionStorage,
   // POST it (plus projectRef) to /api/install which runs the latest SQL.
@@ -108,7 +113,7 @@ function GeneralSettingsTab({
     const supabaseUrl = typeof window !== 'undefined' ? localStorage.getItem('tinypos_supabase_url') : null;
     const projectRef = projectRefFromUrl(supabaseUrl);
     if (!projectRef) {
-      setSchemaUpdateError(t('settings.schemaUpdateMissingProject'));
+      setTimeout(() => setSchemaUpdateError(t('settings.schemaUpdateMissingProject')), 0);
       try { sessionStorage.removeItem(SS_SCHEMA_PAT); } catch { /* noop */ }
       return;
     }

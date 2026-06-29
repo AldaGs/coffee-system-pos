@@ -1,14 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
-import { supabase } from '../supabaseClient'; // Ensure this points to your standard client
 import { createClient } from '@supabase/supabase-js';
 import { isUpgradePending } from '../utils/appMode';
 
 export default function SetupScreen({ initialMode, onBack, onComplete, onShowGuide }) {
   const isConnectingExisting = initialMode === 'connect';
-
-  // State for standard connection
-  const [formData, setFormData] = useState({ supabaseUrl: '', anonKey: '' });
 
   // State for Holy Grail OAuth Flow
   const [setupToken, setSetupToken] = useState(null);
@@ -70,11 +66,12 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
     const token = params.get('setup_token');
 
     if (token) {
-      setSetupToken(token);
+      setTimeout(() => setSetupToken(token), 0);
       // Strip the token from the URL so it doesn't linger
       window.history.replaceState({}, document.title, "/");
       fetchProjects(token);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showAlert = (message, type = 'error') => {
@@ -1062,7 +1059,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                         (SELECT current_stock FROM public.inventory
                           WHERE name = (ing.val->>'name') LIMIT 1),
                         0
-                      ) < (CASE WHEN (ing.val->>'qty') ~ '^-?[0-9]+(\.[0-9]+)?$' THEN (ing.val->>'qty')::numeric ELSE 0 END)
+                      ) < (CASE WHEN (ing.val->>'qty') ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN (ing.val->>'qty')::numeric ELSE 0 END)
               );
             END;
           END IF;
@@ -1893,7 +1890,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                     onClick={() => {
                       // Stash the current mode so the post-OAuth return into App.jsx
                       // can restore 'connect' vs 'new' instead of always defaulting to 'new'.
-                      try { sessionStorage.setItem('tinypos_setup_mode', initialMode); } catch (_) {}
+                      try { sessionStorage.setItem('tinypos_setup_mode', initialMode); } catch { /* noop */ }
 
                       const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
                       const redirectUri = `${window.location.origin}/api/auth/callback`;
