@@ -1380,7 +1380,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (true);
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '0.5', now())
+    VALUES ('schema_version', '0.6', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;
