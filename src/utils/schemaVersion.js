@@ -13,6 +13,10 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 0.6 — expense payment source: the `expenses.payment_source` column (migration
+//       028). Records which pocket an expense was paid from — Caja Chica (petty
+//       cash), Banco, or Dueño. Only 'caja' reduces the cash drawer Corte;
+//       bank/owner costs stay in the books but never touched the register.
 // 0.5 — vendor payout ledger: the `vendor_payouts` table (migration 024). Records
 //       money actually paid to each vendor and freezes the settlement it was paid
 //       against in `data`, so the settlement report shows owed − paid balances and
@@ -35,4 +39,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '0.5';
+export const APP_SCHEMA_VERSION = '0.6';
