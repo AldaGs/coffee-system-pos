@@ -51,6 +51,21 @@ async function persistInventoryExpense(expense) {
   if (error) throw error;
 }
 
+// Stock at or below which an item should be reordered. A per-item
+// `reorder_point` (migration 026) takes precedence; when it's unset (0) we fall
+// back to the legacy heuristic (2000 for grams, 10 otherwise) so existing
+// installs keep their prior low-stock behavior.
+const menuItemStyle = { width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 600, fontSize: '0.92rem', textAlign: 'left' };
+
+function reorderThreshold(item) {
+  const rp = Number(item.reorder_point) || 0;
+  if (rp > 0) return rp;
+  return item.unit === 'g' ? 2000 : 10;
+}
+function isLowStock(item) {
+  return Number(item.current_stock) <= reorderThreshold(item);
+}
+
 function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfirm }) {
   const { t } = useTranslation();
 
@@ -67,6 +82,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   const [restockingItem, setRestockingItem] = useState(null);
 
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+
+  // Which row's actions menu (kebab) is open. Only one at a time.
+  const [menuOpenId, setMenuOpenId] = useState(null);
 
   // Auto-scroll between the row-triggered editor panels (edit/restock/audit),
   // which render above the list, and the list row itself. The scroll container
@@ -309,7 +327,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         name: editingItem.name,
         current_stock: parseFloat(editingItem.current_stock),
         unit: editingItem.unit,
-        unit_cost: toMillicents(editingItem.unit_cost)
+        unit_cost: toMillicents(editingItem.unit_cost),
+        reorder_point: Math.max(0, parseFloat(editingItem.reorder_point) || 0)
       };
 
       const saved = await persistInventory(payload, editingItem.id);
@@ -771,7 +790,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             </button>
           </div>
 
-          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
               <input type="text" value={editingItem.name} onChange={e => setEditingItem({ ...editingItem, name: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
@@ -800,6 +819,11 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   total_cost: newUnit === '' ? '' : formatForDisplay(millicentsToCents(stock * toMillicents(newUnit)))
                 })
               }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--brand-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }} title={t('inv.reorderPointHint')}>{t('inv.reorderPoint')}</label>
+              <input type="number" min="0" step="any" placeholder="0" value={editingItem.reorder_point ?? ''} onChange={e => setEditingItem({ ...editingItem, reorder_point: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
 
             <button onClick={handleSaveEdit} style={{ padding: '12px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(52, 152, 219, 0.2)' }}>{t('inv.btnUpdate')}</button>
@@ -941,6 +965,34 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         </div>
       )}
 
+      {/* --- LOW-STOCK / REORDER ALERT --- */}
+      {(() => {
+        const lowItems = sortedItems.filter(isLowStock);
+        if (lowItems.length === 0) return null;
+        return (
+          <div style={{ background: 'rgba(231, 76, 60, 0.06)', border: '1px solid rgba(231, 76, 60, 0.25)', borderRadius: 'var(--admin-card-radius)', padding: '16px 20px', marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px', color: '#c0392b', fontWeight: 800 }}>
+              <Icon icon="lucide:alert-triangle" style={{ fontSize: '1.3rem' }} />
+              {t('inv.reorderAlertTitle')} · {lowItems.length}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {lowItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => { returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }}
+                  title={t('inv.restock')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'var(--bg-surface)', border: '1px solid rgba(231, 76, 60, 0.3)', borderRadius: '20px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold', fontSize: '0.9rem' }}
+                >
+                  <Icon icon="lucide:package-plus" style={{ color: '#27ae60' }} />
+                  {item.name}
+                  <span style={{ color: '#c0392b' }}>{item.current_stock}{item.unit}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* --- INVENTORY LIST --- */}
       <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
         <table className="card-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -980,8 +1032,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               >
                 <td data-label={t('inv.thName')} style={{ padding: '20px 24px', fontWeight: '700', fontSize: '1rem' }}>{item.name}</td>
                 <td data-label={t('inv.thStock')} style={{ padding: '20px 24px' }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)', borderRadius: '20px', color: item.current_stock < (item.unit === 'g' ? 2000 : 10) ? '#e74c3c' : '#27ae60', fontWeight: 'bold', fontSize: '0.95rem' }}>
-                    <Icon icon={item.current_stock < (item.unit === 'g' ? 2000 : 10) ? 'lucide:alert-circle' : 'lucide:check-circle'} />
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: isLowStock(item) ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)', borderRadius: '20px', color: isLowStock(item) ? '#e74c3c' : '#27ae60', fontWeight: 'bold', fontSize: '0.95rem' }} title={Number(item.reorder_point) > 0 ? `${t('inv.reorderPoint')}: ${item.reorder_point} ${item.unit}` : undefined}>
+                    <Icon icon={isLowStock(item) ? 'lucide:alert-circle' : 'lucide:check-circle'} />
                     {item.current_stock} {item.unit}
                   </div>
                 </td>
@@ -989,71 +1041,40 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   {formatMillicentsForDisplay(item.unit_cost || 0)} / {item.unit}
                 </td>
                 <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <div style={{ position: 'relative', display: 'inline-block' }}>
                     <button
-                      onClick={() => {
-                        setHistoryModalItem(item.name);
-                        fetchHistoryLogs();
-                      }}
-                      title={t('inv.btnHistory')}
-                      style={{ padding: '10px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid rgba(142, 68, 173, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
+                      onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}
+                      title={t('inv.thActions')}
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpenId === item.id}
+                      style={{ padding: '10px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
                     >
-                      <Icon icon="lucide:history" style={{ fontSize: '1.2rem' }} />
+                      <Icon icon="lucide:more-vertical" style={{ fontSize: '1.2rem' }} />
                     </button>
 
-                    <button
-                      onClick={() => {
-                        returnToItemId.current = item.id;
-                        setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false });
-                        setEditingItem(null);
-                        setAuditingItem(null);
-                        setActiveView('list');
-                      }}
-                      title={t('inv.restock')}
-                      style={{ padding: '10px', background: 'var(--bg-main)', color: '#27ae60', border: '1px solid rgba(39, 174, 96, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
-                    >
-                      <Icon icon="lucide:package-plus" style={{ fontSize: '1.2rem' }} />
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        returnToItemId.current = item.id;
-                        setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' });
-                        setEditingItem(null);
-                        setRestockingItem(null);
-                        setActiveView('list');
-                      }}
-                      title={t('inv.btnAudit')}
-                      style={{ padding: '10px', background: 'var(--bg-main)', color: '#e67e22', border: '1px solid rgba(230, 126, 34, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
-                    >
-                      <Icon icon="lucide:clipboard-check" style={{ fontSize: '1.2rem' }} />
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        returnToItemId.current = item.id;
-                        setEditingItem({
-                          ...item,
-                          unit_cost: fromMillicents(item.unit_cost || 0),
-                          total_cost: formatForDisplay(millicentsToCents(item.current_stock * (item.unit_cost || 0)))
-                        });
-                        setAuditingItem(null);
-                        setRestockingItem(null);
-                        setActiveView('list');
-                      }}
-                      title={t('inv.btnEdit')}
-                      style={{ padding: '10px', background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid rgba(52, 152, 219, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
-                    >
-                      <Icon icon="lucide:edit-2" style={{ fontSize: '1.2rem' }} />
-                    </button>
-
-                    <button
-                      onClick={() => handleDelete(item.id, item.name)}
-                      title={t('inv.btnDelete')}
-                      style={{ padding: '10px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', border: '1px solid rgba(231, 76, 60, 0.2)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
-                    >
-                      <Icon icon="lucide:trash-2" style={{ fontSize: '1.2rem' }} />
-                    </button>
+                    {menuOpenId === item.id && (
+                      <>
+                        {/* click-away backdrop */}
+                        <div onClick={() => setMenuOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                        <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 41, minWidth: '180px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 12px 30px rgba(0,0,0,0.18)', overflow: 'hidden', padding: '6px' }}>
+                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); setHistoryModalItem(item.name); fetchHistoryLogs(); }} style={menuItemStyle}>
+                            <Icon icon="lucide:history" style={{ fontSize: '1.15rem', color: '#8e44ad' }} />{t('inv.btnHistory')}
+                          </button>
+                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }} style={menuItemStyle}>
+                            <Icon icon="lucide:package-plus" style={{ fontSize: '1.15rem', color: '#27ae60' }} />{t('inv.restock')}
+                          </button>
+                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' }); setEditingItem(null); setRestockingItem(null); setActiveView('list'); }} style={menuItemStyle}>
+                            <Icon icon="lucide:clipboard-check" style={{ fontSize: '1.15rem', color: '#e67e22' }} />{t('inv.btnAudit')}
+                          </button>
+                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setEditingItem({ ...item, unit_cost: fromMillicents(item.unit_cost || 0), total_cost: formatForDisplay(millicentsToCents(item.current_stock * (item.unit_cost || 0))) }); setAuditingItem(null); setRestockingItem(null); setActiveView('list'); }} style={menuItemStyle}>
+                            <Icon icon="lucide:edit-2" style={{ fontSize: '1.15rem', color: 'var(--brand-color)' }} />{t('inv.btnEdit')}
+                          </button>
+                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); handleDelete(item.id, item.name); }} style={menuItemStyle}>
+                            <Icon icon="lucide:trash-2" style={{ fontSize: '1.15rem', color: '#e74c3c' }} />{t('inv.btnDelete')}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -1065,6 +1086,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       <style>{`
         .hover-row:hover {
           background: rgba(0,0,0,0.01);
+        }
+        .inv-menu-item:hover {
+          background: var(--bg-main) !important;
         }
       `}</style>
     </div>

@@ -33,20 +33,59 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
 
   // --- REFUND MODAL STATE ---
   const [refundModal, setRefundModal] = useState({ isOpen: false, order: null });
-  const [refundMode, setRefundMode] = useState('all'); // 'all' | 'custom'
+  const [refundMode, setRefundMode] = useState('all'); // 'all' | 'custom' | 'items'
   const [refundAmount, setRefundAmount] = useState('');
+  // Per-line refund quantities for mode 'items', keyed by the line's index in
+  // order.items: { [index]: qtyToRefundNow }.
+  const [refundItems, setRefundItems] = useState({});
   // 'none' = staff keeps tip, 'proportional' = tip * (refund/total), 'full' = refund entire remaining tip.
   // Full refunds default to 'full' (no service was rendered); partials default to 'none'.
   const [tipRefundMode, setTipRefundMode] = useState('full');
 
-const handleProcessRefund = async () => {
+  // --- Per-line refund helpers (mode 'items') ---
+  // Charged price for ONE unit of a line: base + each modifier's price delta.
+  // Mirrors lineRevenueCents in vendorUtils so refund amounts reconcile.
+  const lineUnitCents = (line) => {
+    const mods = (line.selectedModifiers || []).reduce((s, m) => s + (Number(m.price) || 0), 0);
+    return (Number(line.basePrice) || 0) + mods;
+  };
+  // Units of a line still eligible to refund (ordered qty minus units already
+  // refunded in prior partial refunds, read from the cumulative map).
+  const lineRefundableQty = (order, idx, line) => {
+    const already = Number(order.refunded_items?.[idx]?.qty) || 0;
+    return Math.max(0, (Number(line.qty) || 1) - already);
+  };
+  // Cents selected to refund right now across all lines (mode 'items').
+  const selectedItemsRefundCents = (order) =>
+    (order?.items || []).reduce((s, line, idx) => s + lineUnitCents(line) * (Number(refundItems[idx]) || 0), 0);
+
+  const handleProcessRefund = async () => {
     const { order } = refundModal;
     if (!order) return;
 
     const isFull = refundMode === 'all';
-    let rAmt = isFull ? (order.total_amount - (order.refund_amount || 0)) : toCents(refundAmount);
+    const isItems = refundMode === 'items';
+    let rAmt = isFull
+      ? (order.total_amount - (order.refund_amount || 0))
+      : isItems ? selectedItemsRefundCents(order) : toCents(refundAmount);
 
-    if (!isFull && (isNaN(rAmt) || rAmt <= 0)) return showAlert(t('common.error'), t('orders.alertInvalidAmt'));
+    if (!isFull && (isNaN(rAmt) || rAmt <= 0)) return showAlert(t('common.error'), isItems ? t('orders.alertNoItems') : t('orders.alertInvalidAmt'));
+
+    // Merge the lines refunded now into the cumulative per-line map, so vendor
+    // settlement can attribute the refund to the exact product/vendor returned.
+    let refundedItemsNext = null;
+    if (isItems) {
+      refundedItemsNext = { ...(order.refunded_items || {}) };
+      (order.items || []).forEach((line, idx) => {
+        const qty = Number(refundItems[idx]) || 0;
+        if (qty <= 0) return;
+        const prev = refundedItemsNext[idx] || { qty: 0, amountCents: 0 };
+        refundedItemsNext[idx] = {
+          qty: prev.qty + qty,
+          amountCents: prev.amountCents + lineUnitCents(line) * qty,
+        };
+      });
+    }
 
     const prevRefund = order.refund_amount || 0;
     const totalAvailable = order.total_amount - prevRefund;
@@ -94,6 +133,7 @@ const handleProcessRefund = async () => {
     try {
       const updateData = { status: newStatus, refund_amount: prevRefund + rAmt };
       if (tipRefundDelta > 0) updateData.tip_refunded = tipAlreadyRefunded + tipRefundDelta;
+      if (refundedItemsNext) updateData.refunded_items = refundedItemsNext;
       await db.sales.update(order.id, updateData);
 
       // Legacy orders (created before local_id existed) won't have a local_id —
@@ -148,7 +188,8 @@ const handleProcessRefund = async () => {
            data: {
              status: newStatus,
              refund_amount: prevRefund + rAmt,
-             ...(tipRefundDelta > 0 ? { tip_refunded: tipAlreadyRefunded + tipRefundDelta } : {})
+             ...(tipRefundDelta > 0 ? { tip_refunded: tipAlreadyRefunded + tipRefundDelta } : {}),
+             ...(refundedItemsNext ? { refunded_items: refundedItemsNext } : {})
            }
          });
          logActivity('refund_issued', null, {
@@ -426,6 +467,7 @@ const handleProcessRefund = async () => {
                     run: () => {
                       setRefundMode('all');
                       setRefundAmount('');
+                      setRefundItems({});
                       // Sensible default: full refund -> return tip; partial -> keep tip with staff.
                       setTipRefundMode('full');
                       setRefundModal({ isOpen: true, order: order });
@@ -512,6 +554,23 @@ const handleProcessRefund = async () => {
                 >
                   {t('orders.refundCustom')}
                 </button>
+                {Array.isArray(refundModal.order.items) && refundModal.order.items.length > 0 && (
+                  <button
+                    onClick={() => setRefundMode('items')}
+                    style={{
+                      flex: 1,
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: `2px solid ${refundMode === 'items' ? 'var(--brand-color)' : 'var(--border)'}`,
+                      background: refundMode === 'items' ? 'rgba(52, 152, 219, 0.05)' : 'transparent',
+                      color: refundMode === 'items' ? 'var(--brand-color)' : 'var(--text-muted)',
+                      fontWeight: 'bold',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {t('orders.refundByItem')}
+                  </button>
+                )}
               </div>
             </div>
 
@@ -520,6 +579,35 @@ const handleProcessRefund = async () => {
               {refundMode === 'all' ? (
                 <div style={{ fontSize: '2.5rem', fontWeight: '900', color: 'var(--text-main)', textAlign: 'center', padding: '10px 0' }}>
                   {formatForDisplay(Number(refundModal.order.total_amount) - Number(refundModal.order.refund_amount || 0))}
+                </div>
+              ) : refundMode === 'items' ? (
+                <div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '280px', overflowY: 'auto' }}>
+                    {(refundModal.order.items || []).map((line, idx) => {
+                      const maxQty = lineRefundableQty(refundModal.order, idx, line);
+                      const sel = Number(refundItems[idx]) || 0;
+                      const disabled = maxQty <= 0;
+                      const setQty = (q) => setRefundItems({ ...refundItems, [idx]: Math.max(0, Math.min(maxQty, q)) });
+                      return (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border)', background: disabled ? 'transparent' : 'var(--bg-main)', opacity: disabled ? 0.5 : 1 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{line.emoji ? `${line.emoji} ` : ''}{line.name}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                              {formatForDisplay(lineUnitCents(line))} · {disabled ? t('orders.refundedAll') : `${maxQty} ${t('orders.refundAvailable')}`}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button disabled={disabled || sel <= 0} onClick={() => setQty(sel - 1)} style={{ width: 32, height: 32, borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: 'bold' }}>−</button>
+                            <span style={{ minWidth: 20, textAlign: 'center', fontWeight: 'bold', color: 'var(--text-main)' }}>{sel}</span>
+                            <button disabled={disabled || sel >= maxQty} onClick={() => setQty(sel + 1)} style={{ width: 32, height: 32, borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: 'bold' }}>+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{ textAlign: 'right', marginTop: '12px', fontSize: '1.3rem', fontWeight: '900', color: 'var(--text-main)' }}>
+                    {formatForDisplay(selectedItemsRefundCents(refundModal.order))}
+                  </div>
                 </div>
               ) : (
                 <div style={{ position: 'relative' }}>

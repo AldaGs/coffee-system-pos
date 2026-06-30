@@ -144,14 +144,24 @@ export function computeSettlement(sales, vendors = [], range = {}) {
     const charged = Number(sale.total_amount) || 0;
     const grossPerLine = allocateProportional(charged, rawLines);
 
-    // Allocate the sale's refund across the same lines, proportional to charged.
-    // NOTE: refund_amount is a sale-level scalar with no line attribution, so a
-    // refund of a single vendor's product is spread across EVERY vendor on the
-    // ticket by gross share. This can under-pay vendors whose items weren't the
-    // ones returned. It's an intentional approximation until refunds are tracked
-    // per line; revisit if/when sales store which line was refunded.
-    const refund = Number(sale.refund_amount) || 0;
-    const refundPerLine = allocateProportional(refund, grossPerLine);
+    // Allocate the sale's refund across the same lines. When the sale carries a
+    // per-line refund map (sales.refunded_items, keyed by line index — written by
+    // the "by product" refund flow), charge each refund to the EXACT line/vendor
+    // returned, capped at that line's gross. Otherwise fall back to the legacy
+    // proportional split: refund_amount is a sale-level scalar with no line
+    // attribution, so it's spread across every vendor on the ticket by gross
+    // share (which can under-pay vendors whose items weren't the ones returned).
+    const refundMap = sale.refunded_items && typeof sale.refunded_items === 'object' ? sale.refunded_items : null;
+    let refundPerLine;
+    if (refundMap) {
+      refundPerLine = items.map((_, idx) => {
+        const cents = Number(refundMap[idx]?.amountCents) || 0;
+        return Math.min(Math.max(0, cents), grossPerLine[idx]);
+      });
+    } else {
+      const refund = Number(sale.refund_amount) || 0;
+      refundPerLine = allocateProportional(refund, grossPerLine);
+    }
 
     items.forEach((rawLine, idx) => {
       const line = resolveLine(rawLine);

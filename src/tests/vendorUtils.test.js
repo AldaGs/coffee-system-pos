@@ -100,6 +100,27 @@ describe('vendorUtils — settlement math (centavos)', () => {
       expect(roaster.payoutCents).toBe(6750);
     });
 
+    it('charges a per-line refund (refunded_items) to the exact vendor returned', () => {
+      const items = [
+        { name: 'Bag', basePrice: 30000, qty: 1, vendorId: 'v1', vendorName: 'AldaGs' },
+        { name: 'Latte', basePrice: 10000, qty: 1, vendorId: 'v2', vendorName: 'Roaster Co' },
+      ];
+      // The Latte (line index 1) was refunded in full via the by-product flow.
+      const sales = [{
+        id: 'r2', created_at: '2026-06-28T10:00:00Z', total_amount: 40000,
+        refund_amount: 10000, refunded_items: { 1: { qty: 1, amountCents: 10000 } }, items,
+      }];
+      const { rows } = computeSettlement(sales, vendors);
+      const roaster = rows.find((r) => r.vendorId === 'v2');
+      const alda = rows.find((r) => r.vendorId === 'v1');
+      // The whole refund lands on the Roaster's line, not spread to AldaGs.
+      expect(roaster.refundCents).toBe(10000);
+      expect(roaster.netCents).toBe(0);
+      expect(roaster.payoutCents).toBe(0);
+      expect(alda.refundCents).toBe(0);
+      expect(alda.netCents).toBe(30000);
+    });
+
     it('filters by date range', () => {
       const inRange = sale('a', [{ name: 'X', basePrice: 1000, qty: 1, vendorId: 'v1', vendorName: 'AldaGs' }],
         { created_at: '2026-06-28T12:00:00Z' });

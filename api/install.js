@@ -62,7 +62,8 @@ export default async function handler(req, res) {
       current_stock numeric DEFAULT 0,
       unit text,
       created_at timestamp with time zone DEFAULT now(),
-      unit_cost numeric DEFAULT 0
+      unit_cost numeric DEFAULT 0,
+      reorder_point numeric NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS public.inventory_logs (
@@ -118,7 +119,8 @@ export default async function handler(req, res) {
       loyalty_phone text,
       loyalty_stars_awarded integer DEFAULT 0,
       loyalty_stars_redeemed integer DEFAULT 0,
-      loyalty_program_type text
+      loyalty_program_type text,
+      refunded_items jsonb
     );
 
     CREATE TABLE IF NOT EXISTS public.shop_settings (
@@ -181,6 +183,12 @@ export default async function handler(req, res) {
     -- TIPS LIABILITY: schema upgrade for existing installs + new ledger tables
     -- ==========================================
     ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS tip_refunded numeric DEFAULT 0;
+
+    -- Per-line refund attribution: { "<lineIndex>": { qty, amountCents } }.
+    -- Lets vendor settlement charge a refund to the exact product (and thus the
+    -- exact vendor) returned, instead of spreading it proportionally. Null/absent
+    -- means a legacy scalar refund — settlement falls back to proportional.
+    ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS refunded_items jsonb;
 
     DO $$
     BEGIN

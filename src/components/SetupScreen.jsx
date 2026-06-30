@@ -279,7 +279,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           current_stock numeric DEFAULT 0,
           unit text,
           created_at timestamp with time zone DEFAULT now(),
-          unit_cost numeric DEFAULT 0
+          unit_cost numeric DEFAULT 0,
+          reorder_point numeric NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS public.inventory_logs (
@@ -335,7 +336,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           loyalty_phone text,
           loyalty_stars_awarded integer DEFAULT 0,
           loyalty_stars_redeemed integer DEFAULT 0,
-          loyalty_program_type text
+          loyalty_program_type text,
+          refunded_items jsonb
         );
 
         CREATE TABLE IF NOT EXISTS public.shop_settings (
@@ -398,6 +400,9 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         -- TIPS LIABILITY: schema upgrade for existing installs + new ledger tables
         -- ==========================================
         ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS tip_refunded numeric DEFAULT 0;
+
+        -- Per-line refund attribution (mirrors api/install.js + migration 027).
+        ALTER TABLE public.sales ADD COLUMN IF NOT EXISTS refunded_items jsonb;
 
         DO $$
         BEGIN
