@@ -1019,7 +1019,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             </tr>
           </thead>
           <tbody>
-            {sortedItems.map(item => (
+            {sortedItems.map((item, idx) => (
               <tr
                 key={item.id}
                 ref={(el) => {
@@ -1055,7 +1055,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                       <>
                         {/* click-away backdrop */}
                         <div onClick={() => setMenuOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-                        <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 41, minWidth: '180px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 12px 30px rgba(0,0,0,0.18)', overflow: 'hidden', padding: '6px' }}>
+                        <div role="menu" style={{ position: 'absolute', ...(sortedItems.length > 3 && idx >= sortedItems.length - 2 ? { bottom: 'calc(100% + 6px)' } : { top: 'calc(100% + 6px)' }), right: 0, zIndex: 41, minWidth: '180px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 12px 30px rgba(0,0,0,0.18)', overflow: 'hidden', padding: '6px' }}>
                           <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); setHistoryModalItem(item.name); fetchHistoryLogs(); }} style={menuItemStyle}>
                             <Icon icon="lucide:history" style={{ fontSize: '1.15rem', color: '#8e44ad' }} />{t('inv.btnHistory')}
                           </button>
