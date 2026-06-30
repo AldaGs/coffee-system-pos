@@ -215,6 +215,7 @@ export async function migrateLocalToCloud(onProgress = noop) {
         amount: e.amount,
         reason: e.reason,
         category: e.category || 'General',
+        payment_source: e.payment_source || 'caja',
         cashier_name: e.cashierName || 'Unknown',
         local_id: e.id,
       }));

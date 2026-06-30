@@ -72,6 +72,8 @@ export function useExpenses({ activeCashier, t, showAlert }) {
       amount: expenseAmount,
       reason: expenseForm.reason,
       timestamp: new Date().toISOString(),
+      // Manual register expenses are cash out of the drawer.
+      payment_source: 'caja',
       cashierId: activeCashier?.id || 'unknown',
       cashierName: activeCashier?.name || t('expense.unknownCashier')
     };
@@ -80,6 +82,7 @@ export function useExpenses({ activeCashier, t, showAlert }) {
       amount: expenseAmount,
       reason: expenseForm.reason,
       category: expenseForm.category || 'General',
+      payment_source: 'caja',
       cashier_name: activeCashier?.name || t('expense.unknownCashierFallback'),
       local_id: newExpense.id
     };

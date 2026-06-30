@@ -51,11 +51,13 @@ async function persistInventoryExpense(expense) {
   if (error) throw error;
 }
 
-// How an inventory cost was paid is encoded as a tag in the expense reason so
-// each pocket reflects what's actually in it: "[Banco]" → business bank
-// account; "[Dueño]" → the owner's own money (an equity contribution, kept
-// separate from the bank); otherwise Caja (petty cash, no tag). Shared by the
-// receive, restock and transform flows so they all read the same in the books.
+// Human-readable tag for how an inventory cost was paid, appended to the
+// expense reason so each pocket is legible in the raw ledger: "[Banco]" →
+// business bank account; "[Dueño]" → the owner's own money (an equity
+// contribution, kept separate from the bank); otherwise Caja (petty cash, no
+// tag). This is cosmetic only — the authoritative signal is the
+// `payment_source` column on the expense (see migration 028), which the cash
+// drawer Corte keys off. Shared by the receive, restock and transform flows.
 function paymentTag(paymentSource) {
   if (paymentSource === 'banco') return ' [Banco]';
   if (paymentSource === 'dueno') return ' [Dueño]';
@@ -178,6 +180,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           amount: costInCents,
           reason: `Inventory Purchase${paymentTag(newItem.paymentSource)}: ${newItem.name} (${stockVal}${newItem.unit})`,
           category: 'Inventario',
+          payment_source: newItem.paymentSource,
           cashier_name: 'Inventory System'
         };
         try { await persistInventoryExpense(purchaseExpense); }
@@ -301,6 +304,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           amount: toCents(opCost),
           reason: `Transform${paymentTag(transformForm.paymentSource)}: ${targetItemPayload.name} (${finalYieldQty}${sourceItem.unit})`,
           category: 'Inventario',
+          payment_source: transformForm.paymentSource,
           cashier_name: 'Inventory System'
         };
         try { await persistInventoryExpense(transformExpense); }
@@ -441,6 +445,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           amount: totalPaidInCents,
           reason: `RESTOCK${paymentTag(restockingItem.paymentSource)}: ${restockingItem.name} (${qtyBought}${restockingItem.unit})`,
           category: 'Inventario',
+          payment_source: restockingItem.paymentSource,
           cashier_name: 'Inventory System'
         };
         await persistInventoryExpense(expense);
