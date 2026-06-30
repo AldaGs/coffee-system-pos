@@ -2,7 +2,7 @@ import { supabase } from '../supabaseClient';
 import { db } from '../db';
 
 // Normalize a cloud expense row into the shape Dexie + Register use locally.
-// Cloud columns: id (bigint), amount, reason, category, cashier_name, created_at, local_id.
+// Cloud columns: id (bigint), amount, reason, category, payment_source, cashier_name, created_at, local_id.
 // Local Dexie keys rows by `local_id` (UUID), so cross-device expenses
 // recorded elsewhere dedupe on merge.
 const normalize = (cloud) => ({
@@ -13,6 +13,7 @@ const normalize = (cloud) => ({
   amount: cloud.amount,
   reason: cloud.reason,
   category: cloud.category || 'General',
+  payment_source: cloud.payment_source || 'caja',
   timestamp: cloud.created_at,
   cashierId: cloud.cashier_id || null,
   cashierName: cloud.cashier_name || null,

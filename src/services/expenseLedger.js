@@ -9,7 +9,7 @@ import { isLocalMode } from '../utils/appMode';
 //
 // amountCents may be negative — used to post an offsetting entry when a linked
 // action (like a vendor payout) is reversed, so the books net back to zero.
-export async function writeExpense({ amountCents, reason, category = 'General', cashierName = null, cashierId = 'system', localId = null }) {
+export async function writeExpense({ amountCents, reason, category = 'General', paymentSource = 'caja', cashierName = null, cashierId = 'system', localId = null }) {
   if (typeof amountCents !== 'number' || Number.isNaN(amountCents) || amountCents === 0) {
     throw new Error('Expense amount must be a non-zero number');
   }
@@ -20,6 +20,10 @@ export async function writeExpense({ amountCents, reason, category = 'General', 
     amount: Math.round(amountCents),
     reason,
     timestamp: new Date().toISOString(),
+    // Which pocket the money left (caja/banco/dueno). Only 'caja' counts
+    // against the cash drawer Corte. Defaults to cash — vendor payouts and
+    // other programmatic cash-outs come from the drawer.
+    payment_source: paymentSource,
     cashierId,
     cashierName: cashierName || 'system',
   };
@@ -28,7 +32,7 @@ export async function writeExpense({ amountCents, reason, category = 'General', 
   if (!isLocalMode() && navigator.onLine) {
     try {
       await supabase.from('expenses').upsert(
-        { amount: Math.round(amountCents), reason, category, cashier_name: cashierName || 'system', local_id },
+        { amount: Math.round(amountCents), reason, category, payment_source: paymentSource, cashier_name: cashierName || 'system', local_id },
         { onConflict: 'local_id' }
       );
     } catch (e) {

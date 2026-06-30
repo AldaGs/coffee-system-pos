@@ -51,6 +51,19 @@ async function persistInventoryExpense(expense) {
   if (error) throw error;
 }
 
+// Human-readable tag for how an inventory cost was paid, appended to the
+// expense reason so each pocket is legible in the raw ledger: "[Banco]" →
+// business bank account; "[Dueño]" → the owner's own money (an equity
+// contribution, kept separate from the bank); otherwise Caja (petty cash, no
+// tag). This is cosmetic only — the authoritative signal is the
+// `payment_source` column on the expense (see migration 028), which the cash
+// drawer Corte keys off. Shared by the receive, restock and transform flows.
+function paymentTag(paymentSource) {
+  if (paymentSource === 'banco') return ' [Banco]';
+  if (paymentSource === 'dueno') return ' [Dueño]';
+  return '';
+}
+
 // Stock at or below which an item should be reordered. A per-item
 // `reorder_point` (migration 026) takes precedence; when it's unset (0) we fall
 // back to the legacy heuristic (2000 for grams, 10 otherwise) so existing
@@ -71,7 +84,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   const [activeView, setActiveView] = useState('list'); // 'list', 'add', 'transform'
 
-  const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '' });
+  const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '', paymentSource: 'caja' });
   const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja' });
   const [editingItem, setEditingItem] = useState(null);
 
@@ -165,8 +178,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       if (costInCents > 0) {
         const purchaseExpense = {
           amount: costInCents,
-          reason: `Inventory Purchase: ${newItem.name} (${stockVal}${newItem.unit})`,
+          reason: `Inventory Purchase${paymentTag(newItem.paymentSource)}: ${newItem.name} (${stockVal}${newItem.unit})`,
           category: 'Inventario',
+          payment_source: newItem.paymentSource,
           cashier_name: 'Inventory System'
         };
         try { await persistInventoryExpense(purchaseExpense); }
@@ -177,7 +191,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       logActivity('inventory_created', null, { name: itemToSave.name, stock: stockVal, unit: itemToSave.unit });
 
       setInventoryItems([...inventoryItems, saved]);
-      setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '' });
+      setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '', paymentSource: 'caja' });
       setActiveView('list');
       useUpgradeNagStore.getState().trigger('inventory_logged');
 
@@ -283,17 +297,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       // Record the operational (roasting) cost as the money that left, the same
       // way buying stock logs an "Inventory Purchase" expense. Category
       // "Inventario" so the books (tinybooks) capture it as inventory value
-      // added, not a plain expense. The payment source is encoded in the reason:
-      // "[Banco]" → business bank account; "[Dueño]" → the owner's own money (an
-      // equity contribution, kept separate from the bank); otherwise Caja (petty
-      // cash). This lets each pocket reflect what's actually in it.
+      // added, not a plain expense. The payment source is encoded in the reason
+      // via paymentTag() so each pocket reflects what's actually in it.
       if (opCost > 0) {
-        const tag = transformForm.paymentSource === 'banco' ? ' [Banco]'
-          : transformForm.paymentSource === 'dueno' ? ' [Dueño]' : '';
         const transformExpense = {
           amount: toCents(opCost),
-          reason: `Transform${tag}: ${targetItemPayload.name} (${finalYieldQty}${sourceItem.unit})`,
+          reason: `Transform${paymentTag(transformForm.paymentSource)}: ${targetItemPayload.name} (${finalYieldQty}${sourceItem.unit})`,
           category: 'Inventario',
+          payment_source: transformForm.paymentSource,
           cashier_name: 'Inventory System'
         };
         try { await persistInventoryExpense(transformExpense); }
@@ -427,11 +438,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       };
       await persistInventoryLog(restockLog);
 
-      if (restockingItem.paidFromRegister && totalPaidInCents > 0) {
+      // Like transform, record the money that left tagged by pocket so each
+      // pocket (Caja / Banco / Dueño) reflects what's actually in it.
+      if (totalPaidInCents > 0) {
         const expense = {
           amount: totalPaidInCents,
-          reason: `RESTOCK: ${restockingItem.name} (${qtyBought}${restockingItem.unit})`,
+          reason: `RESTOCK${paymentTag(restockingItem.paymentSource)}: ${restockingItem.name} (${qtyBought}${restockingItem.unit})`,
           category: 'Inventario',
+          payment_source: restockingItem.paymentSource,
           cashier_name: 'Inventory System'
         };
         await persistInventoryExpense(expense);
@@ -549,7 +563,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             <Icon icon="lucide:package-plus" style={{ color: 'var(--brand-color)' }} />
             {t('inv.receiveTitle')}
           </h3>
-          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr auto', gap: '16px', alignItems: 'flex-end' }}>
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.3fr auto', gap: '16px', alignItems: 'flex-end' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
               <input type="text" value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
@@ -569,6 +583,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.totalCost')}</label>
               <input type="number" placeholder={t('inv.invoiceTotal')} value={newItem.total_cost} onChange={e => setNewItem({ ...newItem, total_cost: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.paidWith') || '¿Cómo se pagó?'}</label>
+              <select value={newItem.paymentSource} onChange={e => setNewItem({ ...newItem, paymentSource: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }} title="Solo aplica si hay costo">
+                <option value="caja">{t('inv.paidCaja') || 'Caja Chica'}</option>
+                <option value="banco">{t('inv.paidBanco') || 'Banco'}</option>
+                <option value="dueno">{t('inv.paidOwner') || 'Dueño (mi dinero)'}</option>
+              </select>
             </div>
             <button onClick={handleAddItem} style={{ padding: '12px 24px', background: '#2ecc71', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(46, 204, 113, 0.2)' }}>{t('inv.btnSave')}</button>
           </div>
@@ -856,37 +878,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.totalPaid')} ($)</label>
               <input type="number" placeholder="0.00" value={restockingItem.totalPaid || ''} onChange={e => setRestockingItem({ ...restockingItem, totalPaid: e.target.value })} style={{ width: '100%', padding: '16px', fontSize: '1.2rem', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
 
-              {(() => {
-                const isOn = !!restockingItem.paidFromRegister;
-                return (
-                  <label
-                    htmlFor="paid-from-register-toggle"
-                    style={{
-                      display: 'flex', alignItems: 'flex-start', gap: '12px', marginTop: '14px',
-                      padding: '14px', borderRadius: '12px', cursor: 'pointer',
-                      background: isOn ? 'rgba(39, 174, 96, 0.10)' : 'rgba(231, 76, 60, 0.08)',
-                      border: `2px solid ${isOn ? '#27ae60' : '#e74c3c'}`,
-                      transition: 'all 0.2s ease'
-                    }}
-                  >
-                    <input
-                      id="paid-from-register-toggle"
-                      type="checkbox"
-                      checked={isOn}
-                      onChange={e => setRestockingItem({ ...restockingItem, paidFromRegister: e.target.checked })}
-                      style={{ width: '22px', height: '22px', accentColor: '#27ae60', marginTop: '2px', flexShrink: 0 }}
-                    />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <span style={{ fontWeight: 800, color: isOn ? '#27ae60' : '#c0392b', fontSize: '0.95rem' }}>
-                        {t('inv.paidFromRegister')}
-                      </span>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                        {isOn ? t('inv.paidFromRegisterOn') : t('inv.paidFromRegisterOff')}
-                      </span>
-                    </div>
-                  </label>
-                );
-              })()}
+              <div style={{ marginTop: '14px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.paidWith') || '¿Cómo se pagó?'}</label>
+                <select value={restockingItem.paymentSource || 'caja'} onChange={e => setRestockingItem({ ...restockingItem, paymentSource: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+                  <option value="caja">{t('inv.paidCaja') || 'Caja Chica'}</option>
+                  <option value="banco">{t('inv.paidBanco') || 'Banco'}</option>
+                  <option value="dueno">{t('inv.paidOwner') || 'Dueño (mi dinero)'}</option>
+                </select>
+              </div>
             </div>
 
             <div style={{ alignSelf: 'stretch', display: 'flex', alignItems: 'flex-start' }}>
@@ -979,7 +978,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               {lowItems.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => { returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }}
+                  onClick={() => { returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paymentSource: 'caja' }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }}
                   title={t('inv.restock')}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'var(--bg-surface)', border: '1px solid rgba(231, 76, 60, 0.3)', borderRadius: '20px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold', fontSize: '0.9rem' }}
                 >
@@ -1060,7 +1059,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                           <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); setHistoryModalItem(item.name); fetchHistoryLogs(); }} style={menuItemStyle}>
                             <Icon icon="lucide:history" style={{ fontSize: '1.15rem', color: '#8e44ad' }} />{t('inv.btnHistory')}
                           </button>
-                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paidFromRegister: false }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }} style={menuItemStyle}>
+                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paymentSource: 'caja' }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }} style={menuItemStyle}>
                             <Icon icon="lucide:package-plus" style={{ fontSize: '1.15rem', color: '#27ae60' }} />{t('inv.restock')}
                           </button>
                           <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' }); setEditingItem(null); setRestockingItem(null); setActiveView('list'); }} style={menuItemStyle}>

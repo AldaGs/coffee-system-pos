@@ -510,8 +510,16 @@ function Register() {
   const shiftCardSales = calcTotalByMethod('Card');
   const shiftTransferSales = calcTotalByMethod('Transfer');
 
-  // 3. Sum up the expenses
-  const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + e.amount, 0);
+  // 3. Sum up the CASH expenses that actually left the drawer. Inventory costs
+  // paid from the bank or the owner's own pocket are still recorded as expenses
+  // for the books (COGS/P&L), but no physical cash left the register for those,
+  // so they must not move the drawer Corte — otherwise the count never
+  // reconciles. The pocket lives in the expense's `payment_source` column
+  // (see migration 028); only 'caja' (petty cash) counts against the drawer.
+  // Rows with no payment_source (legacy / manual register expenses) default to
+  // drawer cash, preserving prior behavior.
+  const leftTheDrawer = (e) => e.payment_source !== 'banco' && e.payment_source !== 'dueno';
+  const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + (leftTheDrawer(e) ? e.amount : 0), 0);
 
   // 4. Calculate Expected Cash in Drawer (Cash In - Cash Out)
   const shiftCashRefunds = shiftOrders.reduce((sum, o) => {
