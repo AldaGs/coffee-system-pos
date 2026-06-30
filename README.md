@@ -16,7 +16,7 @@
 
 [![Vitest](https://img.shields.io/badge/Tested-Vitest-yellow.svg)](https://vitest.dev/)
 
-[![Schema](https://img.shields.io/badge/Schema-v0.3-blue.svg)](db/install.sql)
+[![Schema](https://img.shields.io/badge/Schema-v0.5-blue.svg)](db/MIGRATIONS.md)
 
 
 
@@ -54,7 +54,11 @@ Covered by a dedicated Vitest suite in [`src/tests/`](src/tests).
 
 ### 🪄 "Holy Grail" Onboarding
 
-New tenants connect their own Supabase project via **OAuth** ([`api/auth/callback.js`](api/auth/callback.js), [`api/install.js`](api/install.js)) and TinyPOS provisions the entire database — schema, RPCs, triggers, RLS policies, and seed data — in seconds. No SQL editor, no copy-pasted keys.
+New tenants connect their own Supabase project via **OAuth** ([`api/auth/callback.js`](api/auth/callback.js), [`api/install.js`](api/install.js)) and TinyPOS provisions the entire database — schema, RPCs, triggers, RLS policies, and seed data — in seconds. No SQL editor, no copy-pasted keys. A **guided "create project for me"** flow goes one step further: it lists the user's orgs ([`api/get-orgs.js`](api/get-orgs.js)), provisions a brand-new project for them ([`api/create-project.js`](api/create-project.js)), and polls until it's healthy ([`api/get-project-status.js`](api/get-project-status.js)) before running the install.
+
+### 💻 Local Mode (zero-infrastructure)
+
+A second sign-up path (design in [`docs/local-first-mode-plan.md`](docs/local-first-mode-plan.md)) runs the entire POS on-device against IndexedDB with locally-hashed credentials — no Supabase account, org, or project required, so a café owner can start in seconds. The cloud-only admin tabs (Team, Devices, Public Menus, Activity) are hidden in this mode via `isLocalMode()`. Upgrading to a Supabase project later is **additive**: local data migrates up and the install becomes an ordinary cloud tenant.
 
 
 
@@ -88,9 +92,13 @@ New tenants connect their own Supabase project via **OAuth** ([`api/auth/callbac
 
 | **Local Print Bridge** | Node.js daemon bridging the browser to USB/Network thermal printers (80mm/58mm) | Node.js |
 
+| **TinyBooks** *(not in this repo)* | Planned accounting app that consumes the per-sale IVA (schema `022`) and owns purchase orders / reorder fulfillment | Supabase-shared |
 
 
-All three share a single Supabase project per tenant.
+
+All of these share a single Supabase project per tenant.
+
+> **On TinyBooks:** it lives in a separate codebase that is **not in this repo and not public yet**. TinyPOS only *produces* the data it will consume (the IVA columns from migration `022`, the reorder signal from `026`) — none of the TinyPOS register or admin workflows depend on TinyBooks, so the POS runs fully standalone whether or not TinyBooks is ever connected.
 
 
 
@@ -118,13 +126,21 @@ All three share a single Supabase project per tenant.
 
 - **Dual-layout / OrderFlow mode** — per-device toggle switches between the classic grid layout and a drill-down order flow (ticket → categories → items). OrderFlow hides the tab strip and renders a full-screen cart on mobile; the action bar is shared between both layouts. Enabled from General Settings per device.
 
+- **Per-item IVA treatment** — each menu item carries an `ivaTreatment` (`iva16` / `tasa0` / `exento`) set in the menu editor, so MX food rules (prepared/served vs. unprepared retail) are honored. Checkout carves the real IVA out of the tax-inclusive total and writes `tax_amount` + `taxable_amount` per sale (migration `022`) instead of assuming a flat 16% on every ticket.
+
+- **Line-aware refunds** — a refund records exactly which lines were returned (`sales.refunded_items`, keyed by line index, migration `027`), so multi-vendor settlement charges each refund to the precise line/vendor instead of spreading it across the whole ticket by gross share. Custom-amount and legacy refunds fall back to the proportional split.
+
 
 
 ### 📈 Admin Dashboard ([`src/Admin.jsx`](src/Admin.jsx))
 
 - Revenue / refunds / **payment-method reconciliation** (card / cash / transfer split).
 
-- **Inventory + The Roaster:** raw stock, multi-warehouse linking, BOM recipes, green-to-finished transformation. The roaster now takes a **final yield weight** instead of a shrinkage percentage — enter what you actually got out of the drum, not a loss estimate.
+- **Inventory + The Roaster:** raw stock, multi-warehouse linking, BOM recipes, green-to-finished transformation. The roaster now takes a **final yield weight** instead of a shrinkage percentage — enter what you actually got out of the drum, not a loss estimate. **Per-item reorder points** (migration `026`) surface "needs reordering" alerts when stock hits the operator-set threshold; unset items fall back to the legacy heuristic (2000 for grams, 10 otherwise). It's an operational signal only — the purchase order itself lives in TinyBooks.
+
+- **Tables / floor-plan system** ([`src/components/admin/TablesTab.jsx`](src/components/admin/TablesTab.jsx), design in [`docs/tables.md`](docs/tables.md)): a `floor_plan` registry (migration `025`) lets a full-service venue lay tables out on a visual canvas (number, name, seats, shape, geometry stored as a canvas document on `data` jsonb, like designed menus). Tickets link to a table via additive nullable `active_tickets.table_id` + `seats` — `table_id` is a client-generated table-node id resolved by scanning, intentionally **not** a foreign key. An Advanced-Mode admin tab; the third register layout tracks tickets on the map.
+
+- **Modifier-group hide/show** (migration `021`): an `is_hidden` flag on modifier groups, mirroring category hiding — hidden groups drop out of the public menu RPCs and are filtered client-side in the Register, while item↔group links are preserved so un-hiding restores them without re-attaching per item.
 
 - **COGS / Profit Engine:** target margin → recommended price, computed from live ingredient cost.
 
@@ -211,7 +227,7 @@ A full multi-menu platform layered on top of TinyPOS, served from the same deplo
 
 
 
-## 🔐 Role-Based Access & Maintenance (schema `0.3`)
+## 🔐 Role-Based Access & Maintenance (schema `0.5`)
 
 Opt-in privilege gating for shops that need it; transparent for shops that don't.
 
@@ -320,13 +336,13 @@ The serverless functions in `api/` run under `vercel dev` for the OAuth + provis
 
 
 
-The full canonical schema lives in [`db/install.sql`](db/install.sql) and is what `/api/install` executes during the OAuth onboarding flow. It creates:
+The canonical DDL is **not** a single `install.sql` — it is kept in **three synced places** (see [`db/MIGRATIONS.md`](db/MIGRATIONS.md)): the `schemaQuery` in [`src/components/SetupScreen.jsx`](src/components/SetupScreen.jsx) (fresh installs), the `schemaQuery` in [`api/install.js`](api/install.js) (the "Update Schema" path), and the per-diff files in [`db/migrations/`](db/migrations) (contributor reference / manual apply). A schema change must edit all three. Between them the schema creates:
 
 
 
 **Tables**
 
-`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`, `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options`, `menus`, `menu_schedules`, `menu_versions`.
+`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`, `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options`, `menus`, `menu_schedules`, `menu_versions`, `vendors`, `vendor_payouts`, `floor_plan`.
 
 
 
@@ -342,7 +358,15 @@ The full canonical schema lives in [`db/install.sql`](db/install.sql) and is wha
 
 - `is_app_admin(user_id)` — `SECURITY DEFINER` helper used by `app_users` RLS to avoid policy recursion.
 
-- `bootstrap_app_user()` — `AFTER INSERT ON auth.users` trigger that auto-creates the `app_users` row for device emails (`role='device'`) and elevates the very first human user to `admin`.
+- `claim_or_bootstrap_app_user()` — `SECURITY DEFINER`, **called by the client on every successful sign-in** (it replaces the prior `AFTER INSERT ON auth.users` trigger — no trigger on `auth.users` anymore). Links a pending `app_users` row to the caller's JWT, seeds `role='device'` for `@device.tinypos.com` emails, and promotes the first user to `admin` when no admin exists. Returns the caller's effective row.
+
+- `award_loyalty_visits()` — body of the `trg_award_loyalty` `AFTER INSERT ON sales` trigger; applies the net of `loyalty_stars_awarded − loyalty_stars_redeemed`, with one-time-program freeze semantics.
+
+**Menu RPCs**
+
+- `get_public_menu()` / `get_active_menu(p_now)` / `get_menu_by_id(id)` — anon-accessible, sanitized menu payloads for the customer-facing page. `get_active_menu` resolves the scheduled menu via `shop_timezone()` + `schedule_matches(...)` and emits per-item availability via `menu_item_available(item_id)`; all three exclude hidden categories/items and hidden modifier groups (migration `021`).
+
+- `snapshot_menu()` / `build_menu_snapshot()` / `restore_menu_version()` / `prune_menu_versions()` — write a point-in-time `menu_versions` row on every meaningful save, restore any prior version, and enforce the retention cap.
 
 
 
@@ -395,6 +419,13 @@ If you installed before the latest schema version, apply these **in order**:
 | `018_menu_item_availability.sql` | Exposes per-item availability in the public menu RPCs so renderers can hide or strike through out-of-stock items |
 | `019_menu_item_available_safe_cast.sql` | Fixes `018`'s numeric cast on recipe ingredient `qty` — an empty-string qty from older catalog saves would crash `get_active_menu` with a 400 |
 | `020_menu_redirect_bucket.sql` | Creates the `menu` Storage bucket for short-URL redirect HTML files (meta-refresh to the long `?u=…&k=…` URL) |
+| `021_modifier_group_hidden.sql` | `is_hidden` flag on modifier groups; public-menu RPCs (`get_active_menu` / `get_menu_by_id`) re-emitted to exclude hidden groups |
+| `022_sales_iva.sql` | Adds `sales.tax_amount` + `sales.taxable_amount` (centavos) so books post real per-item IVA (`iva16`/`tasa0`/`exento`) instead of a flat 16% |
+| `023_vendors.sql` | `vendors` registry for multi-vendor / consignment; item→vendor link rides on `menu_items.data` jsonb (`{ vendorId, vendorName }`), snapshotted onto sale lines |
+| `024_vendor_payouts.sql` | Vendor payout ledger (money-movement half of `023`); `local_id` idempotent upsert, freezes the settlement statement it paid against in `data` jsonb |
+| `025_tables.sql` | `floor_plan` registry + additive `active_tickets.table_id` / `seats`; visual floor-plan / table-service support |
+| `026_inventory_reorder_point.sql` | Per-item `inventory.reorder_point`; powers reorder alerts, falls back to the legacy hardcoded threshold when 0 |
+| `027_sales_refunded_items.sql` | `sales.refunded_items` jsonb (per-line refund attribution) so settlement charges refunds to the exact line/vendor |
 
 
 
@@ -425,6 +456,12 @@ If you installed before the latest schema version, apply these **in order**:
 | `POST /api/run-sql` | Authenticated arbitrary SQL runner used by migrations |
 
 | `POST /api/add-device` | Creates a new hardware Auth user for an additional terminal |
+
+| `GET  /api/get-orgs` | Lists the user's Supabase organizations for the guided "create project for me" onboarding |
+
+| `POST /api/create-project` | Provisions a brand-new Supabase project via the Management API (strong DB password generated + returned once, never persisted); returns immediately in a `COMING_UP` state |
+
+| `GET  /api/get-project-status` | Polls a single project's provisioning status until `ACTIVE_HEALTHY`, then onboarding fetches keys + runs the install SQL |
 
 
 
