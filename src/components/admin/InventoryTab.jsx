@@ -38,17 +38,38 @@ async function persistInventoryLog(log) {
 }
 
 async function persistInventoryExpense(expense) {
+  // Every expense needs a stable local_id. The offline sync flushes the expense
+  // queue with upsert(onConflict: 'local_id'); rows without one collide on a
+  // shared null key and Postgres rejects the whole batch (21000). It's also the
+  // dedup key between this local write and any later cloud retry. The other
+  // expense paths (useExpenses, expenseLedger) already set it — this one didn't.
+  const withId = { ...expense, local_id: expense.local_id || crypto.randomUUID() };
   if (isLocalMode()) {
     await db.expenses.put({
-      ...expense,
+      ...withId,
       id: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       cashierId: 'inventory',
     });
     return;
   }
-  const { error } = await supabase.from('expenses').insert([expense]);
-  if (error) throw error;
+  try {
+    if (!navigator.onLine) throw new Error('Device is offline');
+    const { error } = await supabase.from('expenses').insert([withId]);
+    if (error) throw error;
+  } catch (err) {
+    // Don't silently drop the cost: queue it for the background sync to retry,
+    // the same way a failed register expense does. Under degraded auth the
+    // direct insert can fail, and without this the roast/restock cost is lost
+    // from the cloud entirely (tinybooks never sees it). carries its local_id
+    // so the retry upsert is idempotent.
+    console.warn('Cloud inventory expense failed. Moving to offline queue.', {
+      code: err?.code, status: err?.status, message: err?.message,
+    });
+    const q = JSON.parse(localStorage.getItem('tinypos_expense_queue') || '[]');
+    q.push(withId);
+    localStorage.setItem('tinypos_expense_queue', JSON.stringify(q));
+  }
 }
 
 // Human-readable tag for how an inventory cost was paid, appended to the

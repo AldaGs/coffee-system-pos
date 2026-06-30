@@ -39,13 +39,26 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     // 2. Sync Expenses (From LocalStorage)
     const localExpenseQueue = JSON.parse(localStorage.getItem('tinypos_expense_queue') || '[]');
     const combinedExpenseQueue = [...(expenseQueue || []), ...localExpenseQueue];
-    
-    if (combinedExpenseQueue.length > 0) {
-      const { error: expErr } = await supabase.from('expenses').upsert(combinedExpenseQueue, { onConflict: 'local_id' });
+
+    // De-dup before upserting: this batch is an `onConflict: 'local_id'` upsert,
+    // so two rows sharing a local_id (a re-queued retry, or several rows with a
+    // missing/null local_id) make Postgres reject the WHOLE batch with 21000
+    // ("ON CONFLICT DO UPDATE command cannot affect row a second time"), which
+    // then never clears and blocks every queued expense forever. Backfill a
+    // local_id for any row missing one, then keep the last row per local_id.
+    const dedupedExpenseQueue = [...new Map(
+      combinedExpenseQueue.map(e => {
+        const withId = e.local_id ? e : { ...e, local_id: crypto.randomUUID() };
+        return [withId.local_id, withId];
+      })
+    ).values()];
+
+    if (dedupedExpenseQueue.length > 0) {
+      const { error: expErr } = await supabase.from('expenses').upsert(dedupedExpenseQueue, { onConflict: 'local_id' });
       if (!expErr) {
         if (clearExpenseQueue) clearExpenseQueue();
         localStorage.setItem('tinypos_expense_queue', '[]');
-        console.log(`☁️ Synced ${combinedExpenseQueue.length} offline expenses.`);
+        console.log(`☁️ Synced ${dedupedExpenseQueue.length} offline expenses.`);
       } else {
         console.error("Expense sync failed:", expErr);
         if (expErr.status === 400 || expErr.status === 401) hasAuthError = true;
