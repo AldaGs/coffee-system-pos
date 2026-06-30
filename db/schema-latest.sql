@@ -1,24 +1,4 @@
-// The 0.x → latest migration runs the full schema script against a live DB
-// (all migrations + backfills). On Vercel's default ~10s budget this can time
-// out, and the platform returns a non-JSON 500 the client can't parse. Bump the
-// budget so the function can finish and return its own JSON. >10s needs Vercel Pro.
-export const config = { maxDuration: 60 };
 
-export default async function handler(req, res) {
-  // 1. Only allow POST
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
-  // 2. We now expect a PAT (Personal Access Token) and the Project Ref
-  const { accessToken, projectRef } = req.body;
-
-  if (!accessToken || !projectRef) {
-    return res.status(400).json({ error: 'Missing accessToken or projectRef. Please provide both.' });
-  }
-
-  // 3. YOUR EXACT SQL REMAINS UNTOUCHED
-  const schemaQuery = `
     -- ==========================================
     -- EXTENSIONS
     -- ==========================================
@@ -1389,38 +1369,4 @@ export default async function handler(req, res) {
     VALUES ('schema_version', '0.6', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
-  `;
-
-try {
-    // 4. Send the SQL directly to Supabase's Management API
-    const response = await fetch(
-      `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query: schemaQuery }),
-      }
-    );
-
-    // 5. Handle the API Response
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      console.error("Supabase API Error:", data);
-      return res.status(response.status).json({ 
-        success: false, 
-        error: data.message || 'Failed to execute query on Supabase.' 
-      });
-    }
-
-    // 6. Success!
-    return res.status(200).json({ success: true, message: 'Database installed successfully!' });
-
-  } catch (error) {
-    console.error("Installation network/server failed:", error);
-    return res.status(500).json({ success: false, error: 'Internal Server Error' });
-  }
-}
+  
