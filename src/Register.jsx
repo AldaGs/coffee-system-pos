@@ -510,8 +510,14 @@ function Register() {
   const shiftCardSales = calcTotalByMethod('Card');
   const shiftTransferSales = calcTotalByMethod('Transfer');
 
-  // 3. Sum up the expenses
-  const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + e.amount, 0);
+  // 3. Sum up the CASH expenses that actually left the drawer. Inventory costs
+  // paid from the bank or the owner's own pocket are still recorded as expenses
+  // for the books (COGS/P&L), but the pocket is tagged in the reason
+  // ("[Banco]" / "[Dueño]", see paymentTag in InventoryTab). No physical cash
+  // left the register for those, so they must not move the drawer Corte —
+  // otherwise the count never reconciles. Only Caja Chica (untagged) counts.
+  const leftTheDrawer = (e) => !/\[Banco\]|\[Dueño\]/.test(e.reason || '');
+  const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + (leftTheDrawer(e) ? e.amount : 0), 0);
 
   // 4. Calculate Expected Cash in Drawer (Cash In - Cash Out)
   const shiftCashRefunds = shiftOrders.reduce((sum, o) => {
