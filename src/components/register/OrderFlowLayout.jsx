@@ -192,11 +192,12 @@ function OrderFlowLayout({
         {step === 'items' ? (
           <>
             <div className="order-flow-menu-header">
-              {/* Back to the category grid (shown on mobile; on desktop both the
-                  grid and items live in this pane so it doubles as a label). */}
+              {/* Back to the category grid. The items grid replaces the
+                  category grid in this pane on every viewport, so this control
+                  must stay visible on desktop too (not just mobile). */}
               <button
                 type="button"
-                className="order-flow-back-btn"
+                className="order-flow-back-btn order-flow-back-btn--always"
                 onClick={() => setStep('categories')}
                 aria-label={t('register.backToCategories')}
               >

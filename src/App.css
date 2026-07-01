@@ -1525,6 +1525,13 @@ body.dark-mode {
   flex-shrink: 0;
 }
 
+/* The "back to categories" control from the items view. The items grid
+   replaces the category grid in the same pane on every viewport, so unlike the
+   mobile-only back-to-tickets button this one must always be reachable. */
+.order-flow-back-btn--always {
+  display: inline-flex;
+}
+
 /* --- Mobile: single-pane state machine (<=767px) --- */
 @media (max-width: 767px) {
   .order-flow-layout {
