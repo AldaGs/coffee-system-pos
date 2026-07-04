@@ -579,6 +579,7 @@ export default async function handler(req, res) {
         ), '{}'::jsonb),
         'categoryOrder', COALESCE((SELECT jsonb_agg(c.name ORDER BY c.sort_order) FROM public.menu_categories c), '[]'::jsonb),
         'hiddenCategories', COALESCE((SELECT jsonb_agg(c.name) FROM public.menu_categories c WHERE c.is_hidden), '[]'::jsonb),
+        'publicHiddenCategories', COALESCE((SELECT jsonb_agg(c.name) FROM public.menu_categories c WHERE c.public_hidden), '[]'::jsonb),
         'modifierGroups', COALESCE((
           SELECT jsonb_object_agg(g.id, COALESCE((
             SELECT jsonb_agg(jsonb_build_object('id', o.id, 'name', o.name, 'price', o.price_delta_cents) || COALESCE(o.data, '{}'::jsonb) ORDER BY o.sort_order)
@@ -652,9 +653,10 @@ export default async function handler(req, res) {
         SELECT key, ord FROM jsonb_array_elements_text(COALESCE(v_snap->'categoryOrder','[]'::jsonb))
           WITH ORDINALITY AS o(key, ord)
       )
-      INSERT INTO public.menu_categories (name, sort_order, is_hidden)
+      INSERT INTO public.menu_categories (name, sort_order, is_hidden, public_hidden)
       SELECT k, COALESCE((SELECT ord FROM ordered WHERE key=k)::int, 1000),
-             (COALESCE(v_snap->'hiddenCategories','[]'::jsonb) ? k)
+             (COALESCE(v_snap->'hiddenCategories','[]'::jsonb) ? k),
+             (COALESCE(v_snap->'publicHiddenCategories','[]'::jsonb) ? k)
       FROM jsonb_object_keys(COALESCE(v_snap->'categories','{}'::jsonb)) AS k;
       GET DIAGNOSTICS v_cats = ROW_COUNT;
 
@@ -973,6 +975,30 @@ export default async function handler(req, res) {
         );
     $$;
 
+    -- Public-menu hide split (migration 030): the public-menu RPCs below key
+    -- off a dedicated public flag, separate from is_hidden (which stays the
+    -- Register/POS flag). Add the category column + backfill the public flag
+    -- from is_hidden ONCE (guarded on first creation) so anything currently
+    -- hidden stays hidden in both places until an owner changes it. Items use
+    -- data->>'publicHidden' (no column) and round-trip via the residual spread.
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'menu_categories'
+          AND column_name = 'public_hidden'
+      ) THEN
+        ALTER TABLE public.menu_categories
+          ADD COLUMN public_hidden bool NOT NULL DEFAULT false;
+        UPDATE public.menu_categories SET public_hidden = true WHERE is_hidden = true;
+        UPDATE public.menu_items
+          SET data = jsonb_set(COALESCE(data, '{}'::jsonb), '{publicHidden}', 'true'::jsonb, true)
+          WHERE is_hidden = true
+            AND NOT (COALESCE(data, '{}'::jsonb) ? 'publicHidden');
+      END IF;
+    END $$;
+
     -- Per-item availability (migration 018). Pure read of inventory state.
     -- Tolerates malformed refs by returning true — better to show than to
     -- hide on bad data.
@@ -1069,10 +1095,11 @@ export default async function handler(req, res) {
                     WHERE l.item_id = i.id AND g.is_hidden = false
                   ), '[]'::jsonb)
                 ) ORDER BY i.sort_order)
-                FROM public.menu_items i WHERE i.category_id = c.id AND i.is_hidden = false
+                FROM public.menu_items i WHERE i.category_id = c.id
+                  AND COALESCE((i.data->>'publicHidden')::boolean, false) = false
               ), '[]'::jsonb)
             ) ORDER BY c.sort_order)
-            FROM public.menu_categories c WHERE c.is_hidden = false
+            FROM public.menu_categories c WHERE c.public_hidden = false
           ), '[]'::jsonb),
           'modifier_groups', COALESCE((
             SELECT jsonb_agg(jsonb_build_object(
@@ -1149,10 +1176,11 @@ export default async function handler(req, res) {
                     WHERE l.item_id = i.id AND g.is_hidden = false
                   ), '[]'::jsonb)
                 ) ORDER BY i.sort_order)
-                FROM public.menu_items i WHERE i.category_id = c.id AND i.is_hidden = false
+                FROM public.menu_items i WHERE i.category_id = c.id
+                  AND COALESCE((i.data->>'publicHidden')::boolean, false) = false
               ), '[]'::jsonb)
             ) ORDER BY c.sort_order)
-            FROM public.menu_categories c WHERE c.is_hidden = false
+            FROM public.menu_categories c WHERE c.public_hidden = false
           ), '[]'::jsonb),
           'modifier_groups', COALESCE((
             SELECT jsonb_agg(jsonb_build_object(

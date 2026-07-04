@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import {
   loadMenu,
-  addCategory, renameCategory, deleteCategory, reorderCategories, setCategoryHidden,
+  addCategory, renameCategory, deleteCategory, reorderCategories, setCategoryHidden, setCategoryPublicHidden,
   addItem, updateItem, deleteItem, setItemHidden,
   addModifierGroup, renameModifierGroup, deleteModifierGroup, setModifierGroupAllowMultiple, setModifierGroupHidden,
   addModifierOption, updateModifierOption, deleteModifierOption,
@@ -801,6 +801,17 @@ function Admin() {
     runMenuWrite(updatedMenu, () => setCategoryHidden(categoryName, willBeHidden));
   };
 
+  // Public-menu-only category hide — independent of the Register hide above.
+  // Filtered server-side by the public-menu RPCs via menu_categories.public_hidden.
+  const handleToggleCategoryPublicVisibility = (categoryName) => {
+    const hidden = new Set(menuData.publicHiddenCategories || []);
+    const willBeHidden = !hidden.has(categoryName);
+    if (willBeHidden) hidden.add(categoryName);
+    else hidden.delete(categoryName);
+    const updatedMenu = { ...menuData, publicHiddenCategories: [...hidden] };
+    runMenuWrite(updatedMenu, () => setCategoryPublicHidden(categoryName, willBeHidden));
+  };
+
   const handleToggleModifierGroupMulti = (groupKey) => {
     const current = !!menuData.modifierGroupSettings?.[groupKey]?.allowMultiple;
     const next = !current;
@@ -828,7 +839,7 @@ function Admin() {
     runMenuWrite(updatedMenu, () => setModifierGroupHidden(groupKey, next));
   };
 
-  // Hide/show a single menu item from the public menu + Register.
+  // Hide/show a single menu item from the Register (POS) grid only.
   const handleToggleDrinkVisibility = (categoryName, drinkId) => {
     const items = menuData.categories?.[categoryName] || [];
     const target = items.find(d => d.id === drinkId);
@@ -842,6 +853,26 @@ function Admin() {
       }
     };
     runMenuWrite(updatedMenu, () => setItemHidden(drinkId, next));
+  };
+
+  // Hide/show a single item from the PUBLIC menu only — independent of the
+  // Register hide above. `publicHidden` lives in the item's data jsonb, so it
+  // round-trips through updateItem's residual spread (same path as the roast
+  // date / WhatsApp public fields); the public-menu RPCs filter on it.
+  const handleToggleDrinkPublicVisibility = (categoryName, drinkId) => {
+    const items = menuData.categories?.[categoryName] || [];
+    const target = items.find(d => d.id === drinkId);
+    if (!target) return;
+    const next = !target.publicHidden;
+    const updatedItem = { ...target, publicHidden: next };
+    const updatedMenu = {
+      ...menuData,
+      categories: {
+        ...menuData.categories,
+        [categoryName]: items.map(d => d.id === drinkId ? updatedItem : d)
+      }
+    };
+    runMenuWrite(updatedMenu, () => updateItem(drinkId, updatedItem), 'menu-item-public-visibility');
   };
 
   const resetItemForm = () => {
@@ -1892,7 +1923,9 @@ function Admin() {
             setEditingItemId={setEditingItemId}
             handleMoveCategory={handleMoveCategory}
             handleToggleCategoryVisibility={handleToggleCategoryVisibility}
+            handleToggleCategoryPublicVisibility={handleToggleCategoryPublicVisibility}
             handleToggleDrinkVisibility={handleToggleDrinkVisibility}
+            handleToggleDrinkPublicVisibility={handleToggleDrinkPublicVisibility}
             handleSetItemImage={handleSetItemImage}
             handleClearItemImage={handleClearItemImage}
             assets={assets}

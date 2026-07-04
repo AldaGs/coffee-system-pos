@@ -106,6 +106,9 @@ export async function loadMenu() {
 
   const categoryOrder = cats.map((c) => c.name);
   const hiddenCategories = cats.filter((c) => c.is_hidden).map((c) => c.name);
+  // Public-menu hide is independent of the Register hide (is_hidden); item
+  // publicHidden round-trips through the data residual spread in rowToItem.
+  const publicHiddenCategories = cats.filter((c) => c.public_hidden).map((c) => c.name);
 
   const modifierGroups = {};
   const modifierGroupSettings = {};
@@ -124,6 +127,7 @@ export async function loadMenu() {
     categories,
     categoryOrder,
     hiddenCategories,
+    publicHiddenCategories,
     modifierGroups,
     modifierGroupSettings,
     discountRules,
@@ -166,6 +170,13 @@ export async function setCategoryHidden(name, isHidden) {
   const cats = await rowsOf(TYPE.CATEGORY);
   const row = cats.find((c) => c.name === name);
   if (row) await db.menu_local.update(row.id, { is_hidden: isHidden });
+}
+
+// Public-menu-only category hide (independent of the Register hide above).
+export async function setCategoryPublicHidden(name, publicHidden) {
+  const cats = await rowsOf(TYPE.CATEGORY);
+  const row = cats.find((c) => c.name === name);
+  if (row) await db.menu_local.update(row.id, { public_hidden: publicHidden });
 }
 
 // ---------- ITEM WRITERS -----------------------------------------------------

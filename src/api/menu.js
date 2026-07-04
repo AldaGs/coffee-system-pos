@@ -23,6 +23,7 @@ export const renameCategory = (...a) => impl().renameCategory(...a);
 export const deleteCategory = (...a) => impl().deleteCategory(...a);
 export const reorderCategories = (...a) => impl().reorderCategories(...a);
 export const setCategoryHidden = (...a) => impl().setCategoryHidden(...a);
+export const setCategoryPublicHidden = (...a) => impl().setCategoryPublicHidden(...a);
 
 export const addItem = (...a) => impl().addItem(...a);
 export const updateItem = (...a) => impl().updateItem(...a);

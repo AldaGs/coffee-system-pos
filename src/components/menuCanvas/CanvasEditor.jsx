@@ -51,10 +51,18 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 
   // Editor aids (4c.6 polish): rulers, grid overlay, and snap-to-guide while
   // dragging. `guides` holds the live alignment lines drawn during a drag.
-  const [showRulers, setShowRulers] = useState(true);
+  // Rulers default off on phones/tablets — the gutters eat scarce width, and
+  // touch guide-dragging is finicky. The layout also stacks vertically below.
+  const [isNarrow, setIsNarrow] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches
+  );
+  const [showRulers, setShowRulers] = useState(() => !(typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches));
   const [showGrid, setShowGrid] = useState(false);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [guides, setGuides] = useState([]);
+  // On narrow layouts the properties panel is a collapsible bottom sheet so it
+  // doesn't steal the stage's width. Auto-opens when a node is selected.
+  const [panelOpen, setPanelOpen] = useState(false);
   // "Simulate sold-out" preview: treats every stock-linked / bound item as out
   // of stock so the owner can see which elements auto-hide (ghosted) or dim
   // without touching real inventory.
@@ -419,6 +427,22 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     onClose(false);
   }
 
+  // ---------- Responsive layout --------------------------------------------
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 820px)');
+    const on = e => setIsNarrow(e.matches);
+    mq.addEventListener?.('change', on);
+    return () => mq.removeEventListener?.('change', on);
+  }, []);
+
+  // On narrow layouts, surface the bottom sheet automatically when a selection
+  // appears so the just-tapped node's controls are reachable without hunting.
+  useEffect(() => {
+    if (isNarrow && selectedIds.length > 0) setPanelOpen(true);
+  }, [isNarrow, selectedIds.length]);
+
   // ---------- Stage scaling -------------------------------------------------
 
   const pageW = doc.page_size?.w || 1920;
@@ -438,7 +462,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     recalc();
     window.addEventListener('resize', recalc);
     return () => window.removeEventListener('resize', recalc);
-  }, [pageW, pageH, showRulers]);
+  }, [pageW, pageH, showRulers, isNarrow, panelOpen]);
 
   // Pointer position in page coordinates (undo the stage scale).
   function pagePointer(e) {
@@ -967,8 +991,9 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         </div>
       )}
 
-      <div style={mainRow}>
+      <div style={isNarrow ? mainRowNarrow : mainRow}>
         <Toolbar
+          isNarrow={isNarrow}
           onAddText={() => addNode({
             type: 'text', autoWidth: true, x: pageW / 2 - 200, y: pageH / 2 - 40, w: 240, h: 64, rotation: 0,
             text: 'Texto', style: { fontFamily: 'Georgia, serif', fontSize: 48, fontWeight: 700, color: '#111', align: 'left' }
@@ -1034,14 +1059,16 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           })}
         />
 
-        <div ref={stageWrapRef} style={stageArea}>
+        <div ref={stageWrapRef} style={isNarrow ? stageAreaNarrow : stageArea}>
           <div style={showRulers
             ? { display: 'grid', gridTemplateColumns: `${RULER}px auto`, gridTemplateRows: `${RULER}px auto` }
             : undefined}>
             {showRulers && <div style={{ background: '#161b22', borderRight: '1px solid #30363d', borderBottom: '1px solid #30363d' }} />}
             {showRulers && <Ruler axis="x" pageSize={pageW} scale={stageScale} onStart={e => startGuideFromRuler('h', e)} />}
             {showRulers && <Ruler axis="y" pageSize={pageH} scale={stageScale} onStart={e => startGuideFromRuler('v', e)} />}
-            <div ref={stageBoxRef} style={{ position: 'relative', width: pageW * stageScale, height: pageH * stageScale, boxShadow: '0 12px 40px rgba(0,0,0,0.35)' }}>
+            {/* touchAction:none keeps the browser from scrolling/zooming the
+                page out from under a drag/marquee gesture on the canvas. */}
+            <div ref={stageBoxRef} style={{ position: 'relative', width: pageW * stageScale, height: pageH * stageScale, boxShadow: '0 12px 40px rgba(0,0,0,0.35)', touchAction: 'none' }}>
               <Stage
                 ref={stageRef}
                 width={pageW * stageScale}
@@ -1052,7 +1079,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                 onMouseMove={onStageMouseMove}
                 onMouseUp={onStageMouseUp}
                 onDblClick={() => { if (penMode) finishPath(penDraft, false); }}
+                onDblTap={() => { if (penMode) finishPath(penDraft, false); }}
                 onTouchStart={onStageMouseDown}
+                onTouchMove={onStageMouseMove}
+                onTouchEnd={onStageMouseUp}
                 style={{ background: page.background, cursor: penMode ? 'crosshair' : 'default' }}
               >
                 {showGrid && !exporting && (
@@ -1161,24 +1191,35 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           </div>
         </div>
 
-        <PropertiesPanel
-          doc={doc}
-          page={page}
-          changePageBg={changePageBg}
-          changePageSize={changePageSize}
-          selected={selected}
-          multiCount={selectedIds.length}
-          onAlign={(dir, target) => alignSelected(dir, target)}
-          onDistribute={axis => distributeSelected(axis)}
-          onUpdate={patch => selected && updateNode(selected.id, patch)}
-          onSetFont={(stack, url) => selected && setNodeFont(selected.id, stack, url)}
-          onDelete={() => selected && removeNode(selected.id)}
-          onForward={() => selected && bringForward(selected.id)}
-          onBack={() => selected && sendBack(selected.id)}
-          openAssetPicker={(cb) => setAssetPickerCb(() => (url) => { cb(url); setAssetPickerCb(null); })}
-          openItemPicker={(cb) => setItemPickerCb(() => (ids) => { cb(ids); setItemPickerCb(null); })}
-          menuData={menuData}
-        />
+        {isNarrow && (
+          <div style={sheetHandle} onClick={() => setPanelOpen(o => !o)}>
+            <span style={{ fontWeight: 800, fontSize: '0.78rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              {selectedIds.length > 1 ? `${selectedIds.length} seleccionados` : 'Propiedades'}
+            </span>
+            <Icon icon={panelOpen ? 'lucide:chevron-down' : 'lucide:chevron-up'} />
+          </div>
+        )}
+        {(!isNarrow || panelOpen) && (
+          <PropertiesPanel
+            doc={doc}
+            page={page}
+            changePageBg={changePageBg}
+            changePageSize={changePageSize}
+            selected={selected}
+            multiCount={selectedIds.length}
+            onAlign={(dir, target) => alignSelected(dir, target)}
+            onDistribute={axis => distributeSelected(axis)}
+            onUpdate={patch => selected && updateNode(selected.id, patch)}
+            onSetFont={(stack, url) => selected && setNodeFont(selected.id, stack, url)}
+            onDelete={() => selected && removeNode(selected.id)}
+            onForward={() => selected && bringForward(selected.id)}
+            onBack={() => selected && sendBack(selected.id)}
+            openAssetPicker={(cb) => setAssetPickerCb(() => (url) => { cb(url); setAssetPickerCb(null); })}
+            openItemPicker={(cb) => setItemPickerCb(() => (ids) => { cb(ids); setItemPickerCb(null); })}
+            menuData={menuData}
+            style={isNarrow ? propsPanelNarrow : undefined}
+          />
+        )}
       </div>
 
       {assetPickerCb && (
@@ -2023,34 +2064,42 @@ function PageTabs({ doc, pageIndex, onSelect, onAdd, onDelete }) {
   );
 }
 
-function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, onAddWhatsApp, onAddDate, onTogglePen, penActive }) {
+function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, onAddWhatsApp, onAddDate, onTogglePen, penActive, isNarrow }) {
+  // Narrow: horizontal, horizontally-scrollable strip above the stage instead
+  // of the 80px left rail (which would leave a phone almost no canvas width).
+  const sep = isNarrow
+    ? <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
+    : <div style={{ height: 1, background: 'rgba(255,255,255,0.15)', margin: '4px 0' }} />;
   return (
-    <div style={toolbar}>
-      <ToolBtn icon="lucide:type" label="Texto" onClick={onAddText} />
-      <ToolBtn icon="lucide:square" label="Rect" onClick={onAddRect} />
-      <ToolBtn icon="lucide:circle" label="Círculo" onClick={onAddCircle} />
-      <ToolBtn icon="lucide:pen-tool" label="Pluma" onClick={onTogglePen} active={penActive} />
-      <ToolBtn icon="lucide:image" label="Imagen" onClick={onAddImage} />
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.15)', margin: '4px 0' }} />
-      <ToolBtn icon="lucide:link" label="Producto" onClick={onAddBinding} />
-      <ToolBtn icon="mdi:whatsapp" label="WhatsApp" onClick={onAddWhatsApp} />
-      <ToolBtn icon="lucide:calendar-days" label="Fecha" onClick={onAddDate} />
+    <div style={isNarrow ? toolbarNarrow : toolbar}>
+      <ToolBtn icon="lucide:type" label="Texto" onClick={onAddText} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:square" label="Rect" onClick={onAddRect} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:circle" label="Círculo" onClick={onAddCircle} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:pen-tool" label="Pluma" onClick={onTogglePen} active={penActive} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:image" label="Imagen" onClick={onAddImage} isNarrow={isNarrow} />
+      {sep}
+      <ToolBtn icon="lucide:link" label="Producto" onClick={onAddBinding} isNarrow={isNarrow} />
+      <ToolBtn icon="mdi:whatsapp" label="WhatsApp" onClick={onAddWhatsApp} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:calendar-days" label="Fecha" onClick={onAddDate} isNarrow={isNarrow} />
     </div>
   );
 }
 
-function ToolBtn({ icon, label, onClick, active }) {
+function ToolBtn({ icon, label, onClick, active, isNarrow }) {
   return (
-    <button onClick={onClick} style={{ ...toolBtnStyle, ...(active ? { background: '#1f6feb', borderColor: '#1f6feb' } : null) }}>
+    <button
+      onClick={onClick}
+      style={{ ...toolBtnStyle, ...(isNarrow ? { minWidth: 58, flexShrink: 0 } : null), ...(active ? { background: '#1f6feb', borderColor: '#1f6feb' } : null) }}
+    >
       <Icon icon={icon} style={{ fontSize: '1.3rem' }} />
       <span style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.02em' }}>{label}</span>
     </button>
   );
 }
 
-function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, onAlign, onDistribute, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, onAlign, onDistribute, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
   return (
-    <aside style={propsPanel}>
+    <aside style={style || propsPanel}>
       {multiCount > 1 ? (
         <MultiSelectProps count={multiCount} onAlign={onAlign} onDistribute={onDistribute} />
       ) : !selected ? (
@@ -2679,12 +2728,19 @@ function NumInput({ value, onChange, suffix, step }) {
 // ============================================================================
 
 const overlay = { position: 'fixed', inset: 0, zIndex: 2000, background: '#0d1117', display: 'flex', flexDirection: 'column', color: 'white' };
-const topbar  = { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#161b22', borderBottom: '1px solid #30363d' };
+const topbar  = { display: 'flex', alignItems: 'center', gap: 8, rowGap: 6, padding: '10px 16px', background: '#161b22', borderBottom: '1px solid #30363d', flexWrap: 'wrap' };
 const pageTabs = { display: 'flex', gap: 8, alignItems: 'center', padding: '6px 16px', background: '#0d1117', borderBottom: '1px solid #30363d', overflowX: 'auto' };
 const mainRow  = { display: 'flex', flex: 1, minHeight: 0 };
+// Narrow (phone/tablet): stack toolbar → stage → bottom sheet vertically.
+const mainRowNarrow = { ...mainRow, flexDirection: 'column' };
 const toolbar  = { width: 80, padding: 12, background: '#161b22', borderRight: '1px solid #30363d', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' };
+const toolbarNarrow = { display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'stretch', padding: '8px 12px', background: '#161b22', borderBottom: '1px solid #30363d', overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexShrink: 0 };
 const stageArea = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: '#0d1117', overflow: 'auto' };
+const stageAreaNarrow = { ...stageArea, padding: 8, minHeight: 0 };
 const propsPanel = { width: 300, padding: 16, background: '#161b22', borderLeft: '1px solid #30363d', overflowY: 'auto' };
+// Bottom sheet on narrow: full width, capped height, its own scroll.
+const propsPanelNarrow = { width: '100%', padding: 16, background: '#161b22', borderTop: '1px solid #30363d', overflowY: 'auto', maxHeight: '46vh', flexShrink: 0 };
+const sheetHandle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', background: '#161b22', borderTop: '1px solid #30363d', flexShrink: 0, cursor: 'pointer', userSelect: 'none' };
 
 const ghostBtn   = { background: 'transparent', border: '1px solid transparent', color: 'white', padding: '6px 10px', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 };
 const primaryBtn = { background: '#238636', border: 'none', color: 'white', padding: '8px 14px', borderRadius: 8, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 800 };

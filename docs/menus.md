@@ -416,6 +416,15 @@ These rules are load-bearing. Comments in the code reference them.
    fixed at design time. Renames and new catalog items don't auto-appear
    in canvas docs; the owner re-syncs manually. The data each existing
    node displays stays live.
+8. **Register hide and public-menu hide are independent** (migration 030).
+   `is_hidden` (items + categories) is the **Register/POS** visibility flag
+   and is what `MenuArea` / `getOrderedVisibleCategories` honor. The
+   **public menu** keys off a separate flag — `menu_categories.public_hidden`
+   for categories and `menu_items.data.publicHidden` for items — and the
+   public RPCs filter on *that*, never on `is_hidden`. The Menú editor shows
+   two toggles per row (eye = register, globe = public). At the split we
+   backfilled the public flag from `is_hidden` once so nothing that was
+   hidden suddenly reappeared; the two have been free to diverge since.
 
 ---
 
