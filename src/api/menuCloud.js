@@ -72,6 +72,10 @@ export async function loadMenu() {
 
   const categoryOrder = cats.map(c => c.name);
   const hiddenCategories = cats.filter(c => c.is_hidden).map(c => c.name);
+  // Public-menu hide is independent of the Register hide (is_hidden). Stored in
+  // the menu_categories.public_hidden column; items carry it in data.publicHidden
+  // (round-trips via the residual spread in rowToItem).
+  const publicHiddenCategories = cats.filter(c => c.public_hidden).map(c => c.name);
 
   // modifierGroups + modifierGroupSettings
   const modifierGroups = {};
@@ -92,6 +96,7 @@ export async function loadMenu() {
     categories,
     categoryOrder,
     hiddenCategories,
+    publicHiddenCategories,
     modifierGroups,
     modifierGroupSettings,
     discountRules
@@ -183,6 +188,14 @@ export async function reorderCategories(orderedNames) {
 export async function setCategoryHidden(name, isHidden) {
   const { error } = await supabase
     .from('menu_categories').update({ is_hidden: isHidden }).eq('name', name);
+  if (error) throw error;
+}
+
+// Show/hide a category from the PUBLIC menu only (independent of the Register
+// hide above). Filtered by the public-menu RPCs via menu_categories.public_hidden.
+export async function setCategoryPublicHidden(name, publicHidden) {
+  const { error } = await supabase
+    .from('menu_categories').update({ public_hidden: publicHidden }).eq('name', name);
   if (error) throw error;
 }
 

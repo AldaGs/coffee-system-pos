@@ -26,6 +26,7 @@ function MenuEditorTab({
   recipes, inventoryItems,
   handleRenameCategory, editingItemId, setEditingItemId,
   handleMoveCategory, handleToggleCategoryVisibility, handleToggleDrinkVisibility,
+  handleToggleCategoryPublicVisibility, handleToggleDrinkPublicVisibility,
   handleSetItemImage, handleClearItemImage,
   assets = [], assetsLoading = false, assetsBusy = false,
   loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset,
@@ -419,18 +420,17 @@ function MenuEditorTab({
                 ...allCats.filter(c => !order.includes(c)),
               ];
               const hiddenSet = new Set(menuData.hiddenCategories || []);
+              const publicHiddenSet = new Set(menuData.publicHiddenCategories || []);
               return ordered.map((category, idx) => {
                 const isHidden = hiddenSet.has(category);
+                const isPublicHidden = publicHiddenSet.has(category);
                 return (
-              <div key={category} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden', opacity: isHidden ? 0.55 : 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)' }}>
-                  <h4 style={{ color: 'var(--text-main)', margin: 0, fontWeight: '900', fontSize: '1.1rem' }}>
+              <div key={category} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden', opacity: (isHidden || isPublicHidden) ? 0.6 : 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(0,0,0,0.02)', borderBottom: '1px solid var(--border)', gap: '8px', flexWrap: 'wrap' }}>
+                  <h4 style={{ color: 'var(--text-main)', margin: 0, fontWeight: '900', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                     {category}
-                    {isHidden && (
-                      <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                        {t('menu.categoryHiddenBadge') || 'hidden'}
-                      </span>
-                    )}
+                    {isHidden && <HideBadge kind="register" t={t} />}
+                    {isPublicHidden && <HideBadge kind="public" t={t} />}
                   </h4>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button
@@ -455,6 +455,13 @@ function MenuEditorTab({
                       title={isHidden ? (t('menu.titleShowCategory') || 'Show in register') : (t('menu.titleHideCategory') || 'Hide from register')}
                     >
                       <Icon icon={isHidden ? 'lucide:eye-off' : 'lucide:eye'} style={{ fontSize: '1.1rem' }} />
+                    </button>
+                    <button
+                      onClick={() => handleToggleCategoryPublicVisibility && handleToggleCategoryPublicVisibility(category)}
+                      style={{ background: 'rgba(52, 152, 219, 0.05)', border: 'none', color: isPublicHidden ? 'var(--text-muted)' : 'var(--brand-color)', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      title={isPublicHidden ? (t('menu.titleShowCategoryPublic') || 'Show in public menu') : (t('menu.titleHideCategoryPublic') || 'Hide from public menu')}
+                    >
+                      <Icon icon={isPublicHidden ? 'lucide:globe-lock' : 'lucide:globe'} style={{ fontSize: '1.1rem' }} />
                     </button>
                     <button
                       onClick={() => {
@@ -488,7 +495,7 @@ function MenuEditorTab({
                             if (el) itemRefs.current.set(item.id, el);
                             else itemRefs.current.delete(item.id);
                           }}
-                          style={{ display: 'flex', flexDirection: 'column', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', gap: '10px', opacity: item.isHidden ? 0.55 : 1, scrollMarginTop: '16px', scrollMarginBottom: '16px' }}
+                          style={{ display: 'flex', flexDirection: 'column', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', gap: '10px', opacity: (item.isHidden || item.publicHidden) ? 0.6 : 1, scrollMarginTop: '16px', scrollMarginBottom: '16px' }}
                         >
                           {/* Top row: item image/info + visibility & delete icons */}
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
@@ -521,13 +528,10 @@ function MenuEditorTab({
                                 </button>
                               )}
                               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                                <span style={{ color: 'var(--text-main)', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {item.name}
-                                  {item.isHidden && (
-                                    <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                      {t('menu.itemHiddenBadge') || 'hidden'}
-                                    </span>
-                                  )}
+                                <span style={{ color: 'var(--text-main)', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '100%' }}>
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                                  {item.isHidden && <HideBadge kind="register" t={t} />}
+                                  {item.publicHidden && <HideBadge kind="public" t={t} />}
                                 </span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
                                   <span style={{ color: '#27ae60', fontWeight: '900', fontSize: '0.85rem' }}>{formatForDisplay(item.basePrice)}</span>
@@ -551,10 +555,17 @@ function MenuEditorTab({
                             <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                               <button
                                 onClick={() => handleToggleDrinkVisibility && handleToggleDrinkVisibility(category, item.id)}
-                                style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                                title={item.isHidden ? (t('menu.titleShowItem') || 'Show on menu & register') : (t('menu.titleHideItem') || 'Hide from menu & register')}
+                                style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: item.isHidden ? 'var(--text-muted)' : 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                title={item.isHidden ? (t('menu.titleShowItem') || 'Show in register') : (t('menu.titleHideItem') || 'Hide from register')}
                               >
                                 <Icon icon={item.isHidden ? 'lucide:eye-off' : 'lucide:eye'} />
+                              </button>
+                              <button
+                                onClick={() => handleToggleDrinkPublicVisibility && handleToggleDrinkPublicVisibility(category, item.id)}
+                                style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: item.publicHidden ? 'var(--text-muted)' : 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                title={item.publicHidden ? (t('menu.titleShowItemPublic') || 'Show in public menu') : (t('menu.titleHideItemPublic') || 'Hide from public menu')}
+                              >
+                                <Icon icon={item.publicHidden ? 'lucide:globe-lock' : 'lucide:globe'} />
                               </button>
                               <button onClick={() => handleDeleteDrink(category, item.id, item.name)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.2)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                                 <Icon icon="lucide:trash-2" />
@@ -639,6 +650,22 @@ function MenuEditorTab({
         />
       )}
     </div>
+  );
+}
+
+// Small pill marking whether a category/item is hidden from the Register
+// (POS) or from the public menu — the two are now independent toggles.
+function HideBadge({ kind, t }) {
+  const isPublic = kind === 'public';
+  const label = isPublic
+    ? (t('menu.publicHiddenBadge') || 'public menu')
+    : (t('menu.registerHiddenBadge') || 'register');
+  const color = isPublic ? '#8e44ad' : 'var(--text-muted)';
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.62rem', fontWeight: 'bold', color, textTransform: 'uppercase', letterSpacing: '0.03em', background: isPublic ? 'rgba(142,68,173,0.1)' : 'rgba(0,0,0,0.05)', padding: '2px 7px', borderRadius: '999px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+      <Icon icon={isPublic ? 'lucide:globe-lock' : 'lucide:eye-off'} style={{ fontSize: '0.75rem' }} />
+      {label}
+    </span>
   );
 }
 

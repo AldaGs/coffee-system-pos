@@ -120,6 +120,9 @@ export async function migrateLocalToCloud(onProgress = noop) {
       if (menu.hiddenCategories.includes(name)) {
         await cloud.setCategoryHidden(name, true);
       }
+      if (menu.publicHiddenCategories?.includes(name)) {
+        await cloud.setCategoryPublicHidden(name, true);
+      }
     }
 
     // Modifier groups + options. menuLocal keys groups by their slug id, which

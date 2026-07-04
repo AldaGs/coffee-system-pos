@@ -325,46 +325,51 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
 
   return (
     <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', overflow: 'hidden', opacity: menu.is_active ? 1 : 0.55 }}>
-      <div style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Icon icon={kindIcon(menu.kind)} style={{ fontSize: '1.4rem', color: 'var(--brand-color)' }} />
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          onBlur={() => { if (name !== menu.name && name.trim()) onRename(name.trim()); }}
-          style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: 'var(--text-main)', fontWeight: 800, fontSize: '1.05rem', outline: 'none' }}
-        />
-
-        <span style={kindBadge}>{kindLabel(menu.kind)}</span>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 8, background: 'var(--bg-main)' }}>
-          <button onClick={() => onPriority(-1)} disabled={isLive || menu.priority <= 0} style={priBtn} title="Bajar prioridad">
-            <Icon icon="lucide:chevron-down" />
-          </button>
-          <span style={{ fontWeight: 800, minWidth: 18, textAlign: 'center', color: 'var(--text-main)' }}>{menu.priority}</span>
-          <button onClick={() => onPriority(+1)} disabled={isLive} style={priBtn} title="Subir prioridad">
-            <Icon icon="lucide:chevron-up" />
-          </button>
+      {/* Header reflows on narrow screens: the name group keeps a full row and
+          the control cluster wraps beneath it instead of overflowing. */}
+      <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: '1 1 200px', minWidth: 0 }}>
+          <Icon icon={kindIcon(menu.kind)} style={{ fontSize: '1.4rem', color: 'var(--brand-color)', flexShrink: 0 }} />
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            onBlur={() => { if (name !== menu.name && name.trim()) onRename(name.trim()); }}
+            style={{ flex: 1, minWidth: 0, padding: '8px 12px', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: 'var(--text-main)', fontWeight: 800, fontSize: '1.05rem', outline: 'none' }}
+          />
+          <span style={{ ...kindBadge, flexShrink: 0 }}>{kindLabel(menu.kind)}</span>
         </div>
 
-        <button onClick={onToggleActive} style={menu.is_active ? activeBtn : inactiveBtn}>
-          <Icon icon={menu.is_active ? 'lucide:eye' : 'lucide:eye-off'} />
-          {menu.is_active ? 'Activo' : 'Pausado'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 8, background: 'var(--bg-main)' }}>
+            <button onClick={() => onPriority(-1)} disabled={isLive || menu.priority <= 0} style={priBtn} title="Bajar prioridad">
+              <Icon icon="lucide:chevron-down" />
+            </button>
+            <span style={{ fontWeight: 800, minWidth: 18, textAlign: 'center', color: 'var(--text-main)' }}>{menu.priority}</span>
+            <button onClick={() => onPriority(+1)} disabled={isLive} style={priBtn} title="Subir prioridad">
+              <Icon icon="lucide:chevron-up" />
+            </button>
+          </div>
 
-        <button onClick={onExpand} style={iconBtn} title="Horarios">
-          <Icon icon="lucide:calendar-clock" />
-          <span style={{ fontWeight: 700 }}>{menu.schedules.length} horario{menu.schedules.length === 1 ? '' : 's'}</span>
-        </button>
-
-        <button onClick={onExpand} style={iconBtn} title={expanded ? 'Cerrar' : (menu.kind === 'designed' ? 'Diseño + horarios' : 'Horarios')}>
-          <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} />
-        </button>
-
-        {!isLive && (
-          <button onClick={onDelete} style={dangerBtn} title="Eliminar menú">
-            <Icon icon="lucide:trash-2" />
+          <button onClick={onToggleActive} style={menu.is_active ? activeBtn : inactiveBtn}>
+            <Icon icon={menu.is_active ? 'lucide:eye' : 'lucide:eye-off'} />
+            {menu.is_active ? 'Activo' : 'Pausado'}
           </button>
-        )}
+
+          <button onClick={onExpand} style={iconBtn} title="Horarios">
+            <Icon icon="lucide:calendar-clock" />
+            <span style={{ fontWeight: 700 }}>{menu.schedules.length} horario{menu.schedules.length === 1 ? '' : 's'}</span>
+          </button>
+
+          <button onClick={onExpand} style={iconBtn} title={expanded ? 'Cerrar' : (menu.kind === 'designed' ? 'Diseño + horarios' : 'Horarios')}>
+            <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} />
+          </button>
+
+          {!isLive && (
+            <button onClick={onDelete} style={dangerBtn} title="Eliminar menú">
+              <Icon icon="lucide:trash-2" />
+            </button>
+          )}
+        </div>
       </div>
 
       {expanded && (
@@ -668,7 +673,7 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
     <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estilo</p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
         <Field label="Tipografía">
           <select value={theme.font_preset || 'system'} onChange={e => patchTheme({ font_preset: e.target.value })} style={inputStyle}>
             {Object.entries(FONT_PRESETS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -696,7 +701,7 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
         </Field>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 12 }}>
         <ColorField label="Fondo"  value={theme.background} onClear={() => patchTheme({ background: '' })} onChange={v => patchTheme({ background: v })} />
         <ColorField label="Texto"  value={theme.text}       onClear={() => patchTheme({ text: '' })}       onChange={v => patchTheme({ text: v })} />
         <ColorField label="Acento" value={theme.accent}     onClear={() => patchTheme({ accent: '' })}     onChange={v => patchTheme({ accent: v })} />
