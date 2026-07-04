@@ -528,6 +528,7 @@ function TemplatedMenu({ data, brand, lang }) {
     : null;
   const hideOos = opts.hide_out_of_stock !== false; // default ON for templates
   const showModifiers = opts.show_modifiers !== false; // default ON
+  const listShowImages = opts.list_show_images === true; // list template only, default OFF (emoji)
   const categories = (data.categories || [])
     .filter(c => !wanted || wanted.has(c.name))
     .map(c => hideOos ? { ...c, items: c.items.filter(it => it.available !== false) } : c);
@@ -562,6 +563,7 @@ function TemplatedMenu({ data, brand, lang }) {
         theme={theme}
         lang={lang}
         showModifiers={showModifiers}
+        showImages={listShowImages}
       />
     </div>
   );
@@ -574,8 +576,12 @@ const templateScrollStyle = {
   WebkitOverflowScrolling: 'touch'
 };
 
-function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang, showModifiers = true }) {
+function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang, showModifiers = true, showImages = false }) {
   const { fontFamily, background, text, accent, density } = theme;
+  // When images are on, size the thumbnail off the row density so denser
+  // menus stay compact. Falls back to the emoji in a tinted box when an item
+  // has no image, keeping every row aligned.
+  const thumb = Math.max(44, density.gap * 5);
   return (
     <div style={{ minHeight: '100vh', background, fontFamily, color: text, paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <header style={{ padding: `${density.pad + 12}px 20px ${density.pad}px`, textAlign: 'center', background: accent, color: 'white' }}>
@@ -588,9 +594,16 @@ function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang,
             <h2 style={{ margin: `0 0 ${density.gap}px`, fontSize: '1.4rem', color: accent, fontWeight: 800, borderBottom: `2px solid ${accent}`, paddingBottom: 6 }}>{c.name}</h2>
             <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
               {c.items.map(it => (
-                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: `${density.gap}px 4px`, borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 700 }}>{it.emoji ? `${it.emoji} ` : ''}{it.name}</div>
+                <li key={it.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: `${density.gap}px 4px`, borderBottom: '1px solid rgba(0,0,0,0.08)', alignItems: 'center' }}>
+                  {showImages && (
+                    it.image_url ? (
+                      <img src={it.image_url} alt="" loading="lazy" style={{ width: thumb, height: thumb, flexShrink: 0, borderRadius: 10, objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <div style={{ width: thumb, height: thumb, flexShrink: 0, borderRadius: 10, background: `${accent}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: thumb * 0.5 }}>{it.emoji || '•'}</div>
+                    )
+                  )}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 700 }}>{!showImages && it.emoji ? `${it.emoji} ` : ''}{it.name}</div>
                     {showModifiers && it.modifier_group_ids?.length > 0 && (
                       <div style={{ fontSize: '0.8rem', opacity: 0.6, marginTop: 2 }}>
                         {it.modifier_group_ids.map(id => groupsById.get(id)?.name).filter(Boolean).join(' · ')}
