@@ -36,6 +36,20 @@ body {
   /* Prevents the whole app from bouncing on tablets */
 }
 
+/* Public menu (/menu) scroll containers: the global `body { overflow: hidden }`
+   above traps any page taller than the viewport, so each /menu surface owns its
+   own scroll. This class lets it scroll while hiding the visible scrollbar for
+   a clean customer-facing look. */
+.tinymenu-scroll {
+  -ms-overflow-style: none;   /* IE / old Edge */
+  scrollbar-width: none;      /* Firefox */
+}
+.tinymenu-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;              /* Chrome / Safari / WebKit */
+}
+
 /* --- GLOBAL BUTTON UPGRADES --- */
 button {
   /* 1. Fix the Dark Mode text issue by forcing buttons to inherit the theme's text color */

@@ -180,7 +180,7 @@ function PublicMenu() {
       // would otherwise trap the page stack, so the canvas renderer needs its
       // own scroll container for multi-page / tall (9:16) documents.
       return (
-        <div style={{ height: '100dvh', overflowY: 'auto', overflowX: 'hidden', background: '#0a0a0a', WebkitOverflowScrolling: 'touch' }}>
+        <div className="tinymenu-scroll" style={{ height: '100dvh', overflowY: 'auto', overflowX: 'hidden', background: '#0a0a0a', WebkitOverflowScrolling: 'touch' }}>
           <CanvasRenderer document={data.menu.data.document} data={data} lang={lang} />
         </div>
       );
@@ -191,7 +191,7 @@ function PublicMenu() {
   // Uploaded PDF/image kinds render as a page carousel from menu.data.pages.
   if (menuKind === 'pdf' || menuKind === 'image') {
     return (
-      <div style={pageStyle}>
+      <div className="tinymenu-scroll" style={pageStyle}>
         <header style={{ ...headerStyle, background: brand }}>
           <h1 style={headerTitleStyle}>{shop.name || 'Menu'}</h1>
         </header>
@@ -203,7 +203,7 @@ function PublicMenu() {
   // kind='designed' renderer ships in Phase 4. Placeholder for now.
   if (menuKind !== 'live') {
     return (
-      <div style={pageStyle}>
+      <div className="tinymenu-scroll" style={pageStyle}>
         <header style={{ ...headerStyle, background: brand }}>
           <h1 style={headerTitleStyle}>{shop.name || 'Menu'}</h1>
         </header>
@@ -220,7 +220,7 @@ function PublicMenu() {
   }
 
   return (
-    <div style={pageStyle}>
+    <div className="tinymenu-scroll" style={pageStyle}>
       <header style={{ ...headerStyle, background: brand }}>
         <h1 style={headerTitleStyle}>{shop.name || 'Menu'}</h1>
       </header>
@@ -549,18 +549,30 @@ function TemplatedMenu({ data, brand, lang }) {
     template === 'chalkboard' ? ChalkboardTemplate :
                                 ListTemplate;
 
+  // Own scroll container: the global `body { overflow: hidden }` (POS
+  // anti-bounce in index.css) would otherwise clip a template taller than the
+  // viewport. The template paints its own full-height background inside.
   return (
-    <TemplateCmp
-      shopName={data.shop?.name || 'Menu'}
-      menuName={menu.name || ''}
-      categories={categories}
-      groupsById={groupsById}
-      theme={theme}
-      lang={lang}
-      showModifiers={showModifiers}
-    />
+    <div className="tinymenu-scroll" style={templateScrollStyle}>
+      <TemplateCmp
+        shopName={data.shop?.name || 'Menu'}
+        menuName={menu.name || ''}
+        categories={categories}
+        groupsById={groupsById}
+        theme={theme}
+        lang={lang}
+        showModifiers={showModifiers}
+      />
+    </div>
   );
 }
+
+const templateScrollStyle = {
+  height: '100dvh',
+  overflowY: 'auto',
+  overflowX: 'hidden',
+  WebkitOverflowScrolling: 'touch'
+};
 
 function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang, showModifiers = true }) {
   const { fontFamily, background, text, accent, density } = theme;
