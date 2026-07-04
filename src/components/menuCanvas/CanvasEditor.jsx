@@ -1041,6 +1041,17 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                     if (!n || n.type !== 'path') return null; // paths skip the transformer; show a bbox
                     return <Rect key={'psel' + id} x={n.x} y={n.y} width={n.w} height={n.h} stroke="#1f6feb" strokeWidth={1 / stageScale} dash={[5 / stageScale, 3 / stageScale]} listening={false} />;
                   })}
+                  {/* Discreet chip on stock-linked nodes so the owner can see at
+                      a glance which elements auto-hide with a product. */}
+                  {!exporting && (page?.nodes || []).filter(n => n.link?.itemId).map(n => {
+                    const sz = 24 / stageScale;
+                    return (
+                      <Group key={'lk' + n.id} x={n.x} y={n.y} listening={false}>
+                        <Rect width={sz} height={sz} cornerRadius={6 / stageScale} fill="#0d1117" opacity={0.82} stroke="#3fb950" strokeWidth={1 / stageScale} />
+                        <Text text="🔗" x={sz * 0.16} y={sz * 0.12} fontSize={sz * 0.62} listening={false} />
+                      </Group>
+                    );
+                  })}
                 </Layer>
                 {editingPathId && (() => {
                   const pn = (page?.nodes || []).find(x => x.id === editingPathId && x.type === 'path');
@@ -2106,6 +2117,12 @@ function NodeProperties({ node, onUpdate, onSetFont, onDelete, onForward, onBack
       {node.type === 'whatsapp-button' && <WhatsAppProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} />}
       {node.type === 'date-field' && <DateFieldProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} openItemPicker={openItemPicker} menuData={menuData} />}
 
+      {/* Item-bindings own their availability behavior; every other node type
+          can borrow a product's stock to auto-hide. */}
+      {node.type !== 'item-binding' && (
+        <VisibilityLink node={node} onUpdate={onUpdate} openItemPicker={openItemPicker} menuData={menuData} />
+      )}
+
       <button onClick={onDelete} style={{ ...smallBtn, color: '#ff7e7e', borderColor: '#ff7e7e' }}>
         <Icon icon="lucide:trash-2" /> Eliminar
       </button>
@@ -2486,6 +2503,54 @@ function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData })
         </select>
       </Row>
     </>
+  );
+}
+
+// Ties any node's visibility to a catalog item's stock: when the item sells
+// out, the node hides on the public menu. Lets an owner wrap a badge, photo, or
+// callout around a product and have the whole thing vanish together — the
+// generic version of the item-binding's own hide-when-out-of-stock option.
+function VisibilityLink({ node, onUpdate, openItemPicker, menuData }) {
+  const itemIndex = useMemo(() => {
+    const m = new Map();
+    Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
+    return m;
+  }, [menuData]);
+  const link = node.link || null;
+  const item = link?.itemId ? itemIndex.get(link.itemId) : null;
+  return (
+    <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <p style={{ ...panelTitle, margin: 0, fontSize: '0.75rem' }}>Visibilidad</p>
+      <Row label="Vincular a producto">
+        <button
+          onClick={() => openItemPicker?.(ids => { if (ids[0]) onUpdate({ link: { itemId: ids[0], hideWhenOOS: link?.hideWhenOOS ?? true } }); })}
+          style={{ ...smallBtn, flex: 1, justifyContent: 'flex-start', background: '#0d1117' }}
+          title="Ocultar este elemento según el inventario de un producto"
+        >
+          <Icon icon={item ? 'lucide:link' : 'lucide:link-2-off'} style={{ color: item ? '#3fb950' : '#8b949e' }} />
+          <span style={{ flex: 1, textAlign: 'left' }}>
+            {link?.itemId ? (item ? `${item.emoji ? item.emoji + ' ' : ''}${item.name}` : `(producto eliminado)`) : 'Sin vínculo'}
+          </span>
+        </button>
+        {link?.itemId && (
+          <button onClick={() => onUpdate({ link: null })} style={smallBtn} title="Quitar vínculo"><Icon icon="lucide:x" /></button>
+        )}
+      </Row>
+      {link?.itemId ? (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={link.hideWhenOOS !== false}
+            onChange={e => onUpdate({ link: { ...link, hideWhenOOS: e.target.checked } })}
+          />
+          Ocultar cuando se agote
+        </label>
+      ) : (
+        <p style={{ margin: 0, fontSize: '0.72rem', color: '#8b949e' }}>
+          Vincula este elemento a un producto para que desaparezca del menú cuando se agote.
+        </p>
+      )}
+    </div>
   );
 }
 

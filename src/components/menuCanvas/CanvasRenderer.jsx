@@ -179,6 +179,15 @@ function ScaledPage({ page, pageW, pageH, itemIndex, lang, fit }) {
 }
 
 function NodeView({ node, itemIndex, lang }) {
+  // Visibility link: any node can be tied to a catalog item's stock so
+  // decorative elements (badges, callouts, background photos) disappear
+  // alongside a product that sells out — not just its bound price line. The
+  // link is optional and defaults to hiding when the item is unavailable.
+  if (node.link?.itemId && node.link.hideWhenOOS !== false) {
+    const linked = itemIndex.get(node.link.itemId);
+    if (linked && linked.available === false) return null;
+  }
+
   const baseStyle = {
     position: 'absolute',
     left: node.x || 0,
