@@ -6,6 +6,10 @@
 //   1. This constant
 //   2. The literal in api/install.js schemaQuery (INSERT INTO schema_meta)
 //   3. The literal in SetupScreen.jsx schemaQuery (mirror)
+//   4. api/_schemaDeltas.js — append the version to VERSION_ORDER AND add a
+//      { version, sql } delta. The "Update Schema" button applies only the
+//      delta, not the full script, so a missing delta makes it report
+//      "up to date" without actually upgrading.
 //
 // The Update Schema button in General Settings reads `value` from
 // public.schema_meta WHERE key='schema_version' and compares to this
