@@ -19,6 +19,11 @@ import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
 // callback and install-POST, then it's wiped.
 const SS_SCHEMA_OAUTH_FLAG = 'tinypos_schema_oauth_pending';
 const SS_SCHEMA_PAT = 'tinypos_schema_pat';
+// The DB version at click time, stashed before the OAuth redirect so the
+// post-callback install POST can request just the delta (the async
+// fetchSchemaVersion may not have re-resolved by the time the resume effect
+// runs). Empty/absent → server runs the full script.
+const SS_SCHEMA_FROM = 'tinypos_schema_from_version';
 
 function projectRefFromUrl(url) {
   try { return new URL(url).hostname.split('.')[0] || null; }
@@ -115,6 +120,7 @@ function GeneralSettingsTab({
     if (!projectRef) {
       setTimeout(() => setSchemaUpdateError(t('settings.schemaUpdateMissingProject')), 0);
       try { sessionStorage.removeItem(SS_SCHEMA_PAT); } catch { /* noop */ }
+      try { sessionStorage.removeItem(SS_SCHEMA_FROM); } catch { /* noop */ }
       return;
     }
 
@@ -122,10 +128,13 @@ function GeneralSettingsTab({
       setSchemaUpdateError('');
       setSchemaUpdating(true);
       try {
+        const fromVersion = (() => {
+          try { return sessionStorage.getItem(SS_SCHEMA_FROM) || undefined; } catch { return undefined; }
+        })();
         const res = await fetch('/api/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessToken: pat, projectRef }),
+          body: JSON.stringify({ accessToken: pat, projectRef, fromVersion }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || data?.success === false) {
@@ -137,6 +146,7 @@ function GeneralSettingsTab({
         setSchemaUpdateError(err.message);
       } finally {
         try { sessionStorage.removeItem(SS_SCHEMA_PAT); } catch { /* noop */ }
+        try { sessionStorage.removeItem(SS_SCHEMA_FROM); } catch { /* noop */ }
         setSchemaUpdating(false);
       }
     })();
@@ -154,6 +164,9 @@ function GeneralSettingsTab({
       t('settings.schemaUpdateConfirmDesc'),
       () => {
         try { sessionStorage.setItem(SS_SCHEMA_OAUTH_FLAG, '1'); } catch { /* noop */ }
+        // Stash the installed version so the resume POST can request just the
+        // delta. '' when unknown → server falls back to the full script.
+        try { sessionStorage.setItem(SS_SCHEMA_FROM, (dbVersion && dbVersion !== 'unknown') ? dbVersion : ''); } catch { /* noop */ }
         const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
         const redirectUri = `${window.location.origin}/api/auth/callback`;
         const scopes = 'database_read database_write';
