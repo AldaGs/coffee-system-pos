@@ -133,8 +133,6 @@ function Admin() {
     priceType: 'fixed',
     emoji: '☕',
     ivaTreatment: 'tasa0',
-    roastDate: '',
-    whatsappUrl: '',
     allowedModifiers: [],
     item_type: "none",
 
@@ -407,6 +405,23 @@ function Admin() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Sets public-menu-only per-item fields (roast date, WhatsApp link) from the
+  // Menús Públicos tab. Merges into the existing catalog item and writes through
+  // the same path as the item editor, so the fields round-trip via
+  // menu_items.data and the in-memory store / Register stay in sync.
+  const handleSetItemPublicFields = (itemId, patch) => {
+    let category = null; let existing = null;
+    Object.keys(menuData.categories || {}).forEach(cat => {
+      const found = menuData.categories[cat].find(d => d.id === itemId);
+      if (found) { category = cat; existing = found; }
+    });
+    if (!existing) return;
+    const updatedItem = { ...existing, ...patch };
+    const newCategories = { ...menuData.categories };
+    newCategories[category] = newCategories[category].map(d => (d.id === itemId ? updatedItem : d));
+    runMenuWrite({ ...menuData, categories: newCategories }, () => updateItem(itemId, updatedItem), 'menu-item-public-fields');
   };
 
   // Persists ONLY the settings keys (cashiers, posSettings, receiptSettings,
@@ -837,8 +852,6 @@ function Admin() {
       priceType: 'fixed',
       emoji: '☕',
       ivaTreatment: 'tasa0',
-      roastDate: '',
-      whatsappUrl: '',
       inventoryMode: 'none',
       linkedWarehouseId: '',
       linkedRecipeId: '',
@@ -893,8 +906,6 @@ function Admin() {
         priceType: newItemForm.priceType || 'fixed',
         emoji: newItemForm.emoji || '',
         ivaTreatment: newItemForm.ivaTreatment || 'tasa0',
-        roastDate: newItemForm.roastDate || '',
-        whatsappUrl: (newItemForm.whatsappUrl || '').trim(),
         inventoryMode: newItemForm.inventoryMode || 'none',
         linkedWarehouseId: newItemForm.linkedWarehouseId || '',
         linkedRecipeId: newItemForm.linkedRecipeId || '',
@@ -932,8 +943,6 @@ function Admin() {
       priceType: newItemForm.priceType || 'fixed',
       emoji: newItemForm.emoji || '',
       ivaTreatment: newItemForm.ivaTreatment || 'tasa0',
-      roastDate: newItemForm.roastDate || '',
-      whatsappUrl: (newItemForm.whatsappUrl || '').trim(),
       allowedModifiers: [],
       inventoryMode: newItemForm.inventoryMode || 'none',
       linkedWarehouseId: newItemForm.linkedWarehouseId || '',
@@ -1913,7 +1922,7 @@ function Admin() {
         )}
 
         {activeTab === 'menus' && (
-          <MenusTab showAlert={showAlert} showConfirm={showConfirm} menuData={menuData} />
+          <MenusTab showAlert={showAlert} showConfirm={showConfirm} menuData={menuData} onSetItemPublicFields={handleSetItemPublicFields} />
         )}
 
         {activeTab === 'tables' && (

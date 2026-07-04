@@ -361,45 +361,6 @@ function MenuEditorTab({
                 )}
               </div>
 
-              {/* PUBLIC-MENU EXTRAS — surfaced on the shareable customer menu
-                  (roast date badge + "order on WhatsApp" button). Both live in
-                  the item's free-form data jsonb; empty = not shown. */}
-              <div style={{ marginTop: '8px', background: 'var(--bg-main)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: 'var(--text-main)' }}>
-                  <Icon icon="lucide:share-2" style={{ color: 'var(--brand-color)' }} />
-                  {t('menu.publicExtras') || 'Menú público'}
-                </label>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>
-                    {t('menu.labelRoastDate') || 'Fecha de tueste'}
-                  </label>
-                  <input
-                    type="date"
-                    value={newItemForm.roastDate || ''}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, roastDate: e.target.value })}
-                    style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>
-                    {t('menu.labelWhatsapp') || 'Enlace de WhatsApp / catálogo'}
-                  </label>
-                  <input
-                    type="url"
-                    inputMode="url"
-                    value={newItemForm.whatsappUrl || ''}
-                    onChange={(e) => setNewItemForm({ ...newItemForm, whatsappUrl: e.target.value })}
-                    placeholder="https://wa.me/52..."
-                    style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
-                  />
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    {t('menu.hintWhatsapp') || 'Pega el enlace del producto en tu catálogo de WhatsApp o un enlace wa.me. Aparece como botón en el menú público.'}
-                  </span>
-                </div>
-              </div>
-
               <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                 <button onClick={handleAddDrink} style={{ flex: 1, padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)' }}>
                   <Icon icon="lucide:save" />
@@ -613,8 +574,6 @@ function MenuEditorTab({
                                   priceType: item.priceType || 'fixed',
                                   emoji: item.emoji || '☕',
                                   ivaTreatment: item.ivaTreatment || 'tasa0',
-                                  roastDate: item.roastDate || '',
-                                  whatsappUrl: item.whatsappUrl || '',
                                   inventoryMode: item.inventoryMode || 'none',
                                   linkedWarehouseId: item.linkedWarehouseId || '',
                                   linkedRecipeId: item.linkedRecipeId || '',
