@@ -19,10 +19,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Path, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
-import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontFamilies, pathToSvgD, pathBBox, translatePath } from '../../utils/canvasDocument';
+import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontLoadSpecs, pathToSvgD, pathBBox, translatePath, cloneNodeGeometry, formatDateField } from '../../utils/canvasDocument';
 import { CANVAS_FONTS, googleUrlForToken, fontIdForStack, parseGoogleFontUrl } from '../../utils/canvasFonts';
 import { PaletteContext } from './paletteContext';
 import { updateMenu } from '../../api/menus';
+import { openInBrowser } from '../../utils/openInBrowser';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
 import ItemPicker from './ItemPicker';
@@ -72,6 +73,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   // PNG export hides editor chrome (selection/guides/grid) for one frame.
   const [exporting, setExporting] = useState(false);
 
+  // Copy/paste/duplicate. The clipboard is an in-memory ring of node clones
+  // (no ids) — scoped to the editor session, so it never touches the OS
+  // clipboard. contextMenu holds the right-click menu's screen position.
+  const clipboardRef = useRef([]);
+  const [contextMenu, setContextMenu] = useState(null); // { x, y } screen coords
+
   // Pen tool (Bézier). penDraft holds the in-progress path; penCursor drives
   // the rubber-band preview; penDownRef tracks whether the mouse is held so a
   // click-drag can pull smooth handles out of the anchor being placed.
@@ -96,10 +103,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   const fontsKey = JSON.stringify(doc.fonts || []);
   useEffect(() => {
     syncDocFonts(doc);
-    const fams = docFontFamilies(doc);
-    if (typeof document === 'undefined' || !document.fonts || fams.length === 0) return;
+    const specs = docFontLoadSpecs(doc);
+    if (typeof document === 'undefined' || !document.fonts || specs.length === 0) return;
     let active = true;
-    Promise.all(fams.map(f => document.fonts.load(`16px ${f}`).catch(() => {})))
+    Promise.all(specs.map(s => document.fonts.load(s).catch(() => {})))
       .then(() => { if (active) setFontEpoch(e => e + 1); });
     return () => { active = false; };
   }, [fontsKey]);
@@ -155,6 +162,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       if (meta && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
+      } else if (meta && e.key.toLowerCase() === 'c') {
+        if (selectedIds.length) { e.preventDefault(); copySelection(); }
+      } else if (meta && e.key.toLowerCase() === 'v') {
+        if (clipboardRef.current.length) { e.preventDefault(); pasteClipboard(); }
+      } else if (meta && e.key.toLowerCase() === 'd') {
+        if (selectedIds.length) { e.preventDefault(); duplicateSelection(); }
       } else if (e.key === 'Enter' && penMode) {
         e.preventDefault();
         finishPath(penDraft, false);
@@ -209,6 +222,39 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     const set = new Set(ids);
     mutatePage(p => ({ ...p, nodes: (p.nodes || []).filter(n => !set.has(n.id)) }));
     setSelectedIds([]);
+  }
+
+  // ---------- Copy / paste / duplicate --------------------------------------
+  // Stash id-less clones of the current selection (in document order so paste
+  // preserves stacking). Returns how many were copied.
+  function copySelection(ids = selectedIds) {
+    const set = new Set(ids);
+    const clones = (page?.nodes || []).filter(n => set.has(n.id)).map(n => cloneNodeGeometry(n, 0, 0));
+    clipboardRef.current = clones;
+    return clones.length;
+  }
+
+  // Add clones from a source list to the current page, offset so copies are
+  // visible, in ONE commit (single undo step). Selects the new nodes.
+  function addClones(clones, dx = 24, dy = 24) {
+    if (!clones || clones.length === 0) return;
+    const z0 = nextZ(page);
+    const withIds = clones.map((c, i) => {
+      const g = cloneNodeGeometry(c, dx, dy); // re-offset from the stored clone
+      return { ...g, id: nanoid(8), z: z0 + i };
+    });
+    mutatePage(p => ({ ...p, nodes: [...(p.nodes || []), ...withIds] }));
+    setSelectedIds(withIds.map(n => n.id));
+  }
+
+  function pasteClipboard() { addClones(clipboardRef.current, 24, 24); }
+
+  // Duplicate = copy the selection and immediately drop offset copies, without
+  // disturbing the paste clipboard.
+  function duplicateSelection() {
+    const set = new Set(selectedIds);
+    const src = (page?.nodes || []).filter(n => set.has(n.id));
+    addClones(src, 24, 24);
   }
 
   // Set a node's font family and, if it's a web font, register its URL on the
@@ -297,7 +343,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     if (dirty && !window.confirm('Hay cambios sin guardar. Imprime guardará primero.')) return;
     const go = () => {
       const printUrl = `${window.location.origin}/menu?u=${btoa(url)}&k=${btoa(key)}&m=${menu.id}&print=1`;
-      window.open(printUrl, '_blank', 'noopener,noreferrer');
+      openInBrowser(printUrl);
     };
     if (dirty) save().then(go).catch(() => {}); else go();
   }
@@ -691,6 +737,33 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     }));
   }
 
+  // ---------- Context menu --------------------------------------------------
+  // Right-click a node: select it (unless it's already part of a multi-select)
+  // and open the menu at the cursor. Right-click empty canvas: a Paste-only
+  // menu. Konva's onContextMenu passes the DOM event on e.evt.
+  const nodeMenuHandledRef = useRef(false);
+  function handleNodeContextMenu(e, node) {
+    e.evt?.preventDefault();
+    nodeMenuHandledRef.current = true;
+    if (!selectedIds.includes(node.id)) selectOne(node.id);
+    setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, empty: false });
+  }
+  // Fires after the node handler (native event keeps bubbling to the overlay).
+  // If a node already claimed this contextmenu, let it stand; otherwise show a
+  // Paste-only menu for the empty canvas.
+  function handleOverlayContextMenu(e) {
+    e.preventDefault();
+    if (nodeMenuHandledRef.current) { nodeMenuHandledRef.current = false; return; }
+    setContextMenu({ x: e.clientX, y: e.clientY, empty: true });
+  }
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); };
+  }, [contextMenu]);
+
   // ---------- Document palette (shared with every ColorPicker) ---------------
   const palette = doc.palette || [];
   function addSwatch(hex) {
@@ -808,7 +881,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 
   return (
    <PaletteContext.Provider value={paletteCtx}>
-    <div style={overlay} onContextMenu={e => e.preventDefault()}>
+    <div style={overlay} onContextMenu={handleOverlayContextMenu}>
       <Topbar
         menuName={menu.name}
         dirty={dirty}
@@ -885,6 +958,20 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
               setItemPickerCb(null);
             });
           }}
+          onAddWhatsApp={() => addNode({
+            type: 'whatsapp-button',
+            x: Math.round(pageW / 2 - 260), y: Math.round(pageH / 2 - 40),
+            w: 520, h: 88, rotation: 0,
+            label: 'Pedir por WhatsApp', url: '',
+            style: { fill: '#25D366', color: '#ffffff', fontFamily: 'system-ui, sans-serif', fontSize: 34, fontWeight: 800, borderRadius: 999, align: 'center', padding: 16 }
+          })}
+          onAddDate={() => addNode({
+            type: 'date-field',
+            x: Math.round(pageW / 2 - 200), y: Math.round(pageH / 2 - 30),
+            w: 400, h: 60, rotation: 0,
+            emoji: '🔥', label: 'Tostado:', value: '', relative: true, item_id: null,
+            style: { fontFamily: 'system-ui, sans-serif', fontSize: 32, fontWeight: 600, color: '#8a6d3b', align: 'left' }
+          })}
         />
 
         <div ref={stageWrapRef} style={stageArea}>
@@ -931,6 +1018,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                       onDragMove={e => handleDragMove(e, node)}
                       onNodeDragEnd={handleNodeDragEnd}
                       onNodeTransformEnd={handleNodeTransformEnd}
+                      onContextMenu={handleNodeContextMenu}
                     />
                   ))}
                   {!exporting && <SelectionTransformer selectedIds={selectedIds} />}
@@ -1029,8 +1117,75 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           onClose={() => setItemPickerCb(null)}
         />
       )}
+
+      {contextMenu && (
+        <ContextMenu
+          pos={contextMenu}
+          hasSelection={selectedIds.length > 0}
+          selectionCount={selectedIds.length}
+          canPaste={clipboardRef.current.length > 0}
+          onDuplicate={() => { duplicateSelection(); setContextMenu(null); }}
+          onCopy={() => { copySelection(); setContextMenu(null); }}
+          onPaste={() => { pasteClipboard(); setContextMenu(null); }}
+          onForward={() => { selectedIds.forEach(bringForward); setContextMenu(null); }}
+          onBack={() => { selectedIds.forEach(sendBack); setContextMenu(null); }}
+          onDelete={() => { removeNodes(selectedIds); setContextMenu(null); }}
+        />
+      )}
     </div>
    </PaletteContext.Provider>
+  );
+}
+
+// Right-click menu. Positioned at the cursor in screen space; the parent closes
+// it on any outside click (window listener). Items collapse to just Paste when
+// nothing is selected.
+function ContextMenu({ pos, hasSelection, selectionCount, canPaste, onDuplicate, onCopy, onPaste, onForward, onBack, onDelete }) {
+  const item = (icon, label, onClick, opts = {}) => (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      disabled={opts.disabled}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+        background: 'transparent', border: 'none', color: opts.danger ? '#ff7e7e' : '#e6edf3',
+        padding: '8px 12px', cursor: opts.disabled ? 'default' : 'pointer', fontSize: '0.85rem',
+        opacity: opts.disabled ? 0.4 : 1, borderRadius: 6
+      }}
+      onMouseEnter={e => { if (!opts.disabled) e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+    >
+      <Icon icon={icon} style={{ fontSize: '1rem', flexShrink: 0 }} />
+      <span style={{ flex: 1 }}>{label}</span>
+      {opts.hint && <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>{opts.hint}</span>}
+    </button>
+  );
+  // Keep the menu on-screen near the right/bottom edges.
+  const x = Math.min(pos.x, (typeof window !== 'undefined' ? window.innerWidth : 9999) - 210);
+  const y = Math.min(pos.y, (typeof window !== 'undefined' ? window.innerHeight : 9999) - 240);
+  return (
+    <div
+      onContextMenu={e => e.preventDefault()}
+      style={{
+        position: 'fixed', left: x, top: y, zIndex: 3000, minWidth: 190,
+        background: '#161b22', border: '1px solid #30363d', borderRadius: 10,
+        boxShadow: '0 12px 40px rgba(0,0,0,0.5)', padding: 6
+      }}
+    >
+      {hasSelection ? (
+        <>
+          {item('lucide:copy-plus', 'Duplicar', onDuplicate, { hint: 'Ctrl+D' })}
+          {item('lucide:copy', 'Copiar', onCopy, { hint: 'Ctrl+C' })}
+          {item('lucide:clipboard-paste', 'Pegar', onPaste, { hint: 'Ctrl+V', disabled: !canPaste })}
+          <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
+          {item('lucide:chevron-up', 'Traer adelante', onForward)}
+          {item('lucide:chevron-down', 'Enviar atrás', onBack)}
+          <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
+          {item('lucide:trash-2', selectionCount > 1 ? `Eliminar (${selectionCount})` : 'Eliminar', onDelete, { danger: true })}
+        </>
+      ) : (
+        item('lucide:clipboard-paste', 'Pegar', onPaste, { hint: 'Ctrl+V', disabled: !canPaste })
+      )}
+    </div>
   );
 }
 
@@ -1148,7 +1303,7 @@ function GuidesOverlay({ guides, scale, activeGuide, onStartDragGuide }) {
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblClick, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd }) {
+function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblClick, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd, onContextMenu }) {
   const shapeRef = useRef(null);
 
   // Auto-width text: after each render, read the konva-measured size and
@@ -1176,7 +1331,8 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblC
     onDragStart,
     onDragMove,
     onDragEnd: () => onNodeDragEnd?.(node),
-    onTransformEnd: () => onNodeTransformEnd?.(node)
+    onTransformEnd: () => onNodeTransformEnd?.(node),
+    onContextMenu: (e) => onContextMenu?.(e, node)
   };
 
   if (node.type === 'text') {
@@ -1189,7 +1345,7 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblC
     const auto = !!node.autoWidth;
     return (
       <Text
-        key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}-${fontEpoch}-${auto}`}
+        key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}-${s.fontStyle}-${s.letterSpacing}-${s.lineHeight}-${fontEpoch}-${auto}`}
         {...common}
         text={node.text || ''}
         width={auto ? undefined : node.w}
@@ -1198,6 +1354,8 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblC
         fontFamily={s.fontFamily || 'Georgia, serif'}
         fontSize={s.fontSize || 24}
         fontStyle={`${s.fontStyle || 'normal'} ${s.fontWeight || 400}`.trim()}
+        letterSpacing={s.letterSpacing || 0}
+        lineHeight={s.lineHeight || 1.15}
         fill={s.color || '#111'}
         align={s.align || 'left'}
         verticalAlign={auto ? 'top' : 'middle'}
@@ -1271,7 +1429,15 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblC
   }
 
   if (node.type === 'item-binding') {
-    return <BindingPlaceholder node={node} common={common} menuData={menuData} fontEpoch={fontEpoch} />;
+    return <BindingPlaceholder node={node} common={common} menuData={menuData} fontEpoch={fontEpoch} onMeasure={onMeasure} />;
+  }
+
+  if (node.type === 'whatsapp-button') {
+    return <WhatsAppButtonKonva node={node} common={common} fontEpoch={fontEpoch} />;
+  }
+
+  if (node.type === 'date-field') {
+    return <DateFieldKonva node={node} common={common} menuData={menuData} fontEpoch={fontEpoch} />;
   }
 
   // Unknown — render a dashed outline so the user can see + delete it.
@@ -1407,18 +1573,41 @@ function KonvaImageNode({ node, common, fit }) {
     }
   }
 
+  // Rounded mask: clip the bitmap (and placeholder fill) to a rounded rect so
+  // the editor preview matches the public renderer's border-radius. The failed
+  // outline rides outside the clip so it stays fully visible.
+  const radius = node.style?.borderRadius || 0;
+  const clip = radius > 0
+    ? (ctx) => roundRectPath(ctx, 0, 0, w, h, Math.min(radius, w / 2, h / 2))
+    : undefined;
+
   return (
     <Group {...common}>
-      <Rect
-        width={w} height={h}
-        fill={img ? 'transparent' : 'rgba(120,120,120,0.12)'}
-        stroke={failed ? '#c33' : undefined}
-        strokeWidth={failed ? 2 : 0}
-        dash={failed ? [4, 4] : undefined}
-      />
-      {inner}
+      <Group clipFunc={clip}>
+        <Rect
+          width={w} height={h}
+          fill={img ? 'transparent' : 'rgba(120,120,120,0.12)'}
+        />
+        {inner}
+      </Group>
+      {failed && (
+        <Rect width={w} height={h} stroke="#c33" strokeWidth={2} dash={[4, 4]} cornerRadius={radius} listening={false} />
+      )}
     </Group>
   );
+}
+
+// Trace a rounded-rectangle sub-path on a Konva/canvas 2D context — used as a
+// Group clipFunc so images get the same rounded mask the DOM renderer applies
+// via border-radius.
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
 }
 
 // Editor preview for item-binding nodes. Renders the same fields the
@@ -1427,7 +1616,7 @@ function KonvaImageNode({ node, common, fit }) {
 // Background/stroke/borderRadius come from node.style so visual edits
 // match what customers will see. Unbound nodes get a faint dashed
 // outline so they're discoverable.
-function BindingPlaceholder({ node, common, menuData, fontEpoch = 0 }) {
+function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure }) {
   const idx = useMemo(() => {
     const m = new Map();
     Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
@@ -1437,6 +1626,8 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0 }) {
   const s = node.style || {};
   const fields = node.fields && node.fields.length > 0 ? node.fields : ['name', 'price'];
   const stacked = node.layout === 'stacked';
+  const auto = !!node.autoWidth && !stacked;
+  const inlineRef = useRef(null);
   const fontSize = s.fontSize || 48;
   const color = s.color || '#111';
   const fontFamily = s.fontFamily || 'Georgia, serif';
@@ -1463,6 +1654,19 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0 }) {
   if (showName)  inlineParts.push(nameText);
   if (showPrice && priceText) inlineParts.push(priceText);
   const inlineText = inlineParts.join('   ');
+
+  // Auto-box (inline only): let Konva measure the line and persist the box back
+  // silently, so the binding hugs its dynamic text like a free-text autoWidth
+  // node — matching the public renderer.
+  useEffect(() => {
+    if (!auto) return;
+    const n = inlineRef.current;
+    if (!n) return;
+    const w = Math.ceil(n.width()) + pad * 2;
+    const h = Math.ceil(n.height());
+    if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) onMeasure?.(node.id, { w, h });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auto, inlineText, fontFamily, fontSize, fontStyleStr, pad, node.w, node.h, fontEpoch]);
 
   const bg = s.fill || 'transparent';
   const stroke = s.stroke && (s.strokeWidth || 0) > 0 ? s.stroke : (item ? undefined : '#f28b05');
@@ -1494,17 +1698,19 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0 }) {
       {/* Same metric-cache workaround as text nodes — see comment above. */}
       {!stacked && (
         <Text
-          key={`${fontFamily}-${fontSize}-${fontStyleStr}-${fontEpoch}`}
+          ref={inlineRef}
+          key={`${fontFamily}-${fontSize}-${fontStyleStr}-${fontEpoch}-${auto}`}
           x={pad} y={0}
-          width={Math.max(0, node.w - pad * 2)}
-          height={node.h}
+          width={auto ? undefined : Math.max(0, node.w - pad * 2)}
+          height={auto ? undefined : node.h}
+          wrap={auto ? 'none' : 'word'}
           text={inlineText}
           fontFamily={fontFamily}
           fontSize={fontSize}
           fontStyle={fontStyleStr}
           fill={color}
           align={align}
-          verticalAlign="middle"
+          verticalAlign={auto ? 'top' : 'middle'}
         />
       )}
       {stacked && (
@@ -1537,6 +1743,82 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0 }) {
           )}
         </>
       )}
+    </Group>
+  );
+}
+
+// WhatsApp button node preview. A rounded pill with the WhatsApp mark drawn as
+// a Konva Path plus the label, matching the public renderer's styled anchor.
+function WhatsAppButtonKonva({ node, common, fontEpoch = 0 }) {
+  const s = node.style || {};
+  const label = node.label || 'Pedir por WhatsApp';
+  const bg = s.fill || '#25D366';
+  const color = s.color || '#ffffff';
+  const fontSize = s.fontSize || 28;
+  const radius = s.borderRadius ?? Math.min(node.h / 2, 999);
+  const glyph = Math.min(node.h * 0.5, fontSize);
+  const gap = glyph * 0.4;
+  const pad = s.padding ?? 12;
+  return (
+    <Group {...common}>
+      <Rect width={node.w} height={node.h} fill={bg} cornerRadius={Math.min(radius, node.h / 2)} />
+      <Group x={0} y={0} clipFunc={(ctx) => roundRectPath(ctx, 0, 0, node.w, node.h, Math.min(radius, node.h / 2))}>
+        {/* Center the glyph + label as a unit. */}
+        <Path
+          x={node.w / 2 - (glyph + gap + label.length * fontSize * 0.28) / 2}
+          y={node.h / 2 - glyph / 2}
+          data="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.76.46 3.45 1.34 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.16c-.24.68-1.4 1.3-1.94 1.35-.5.05-.98.23-3.3-.69-2.78-1.1-4.56-3.94-4.7-4.13-.14-.19-1.13-1.5-1.13-2.86 0-1.36.71-2.03.97-2.31.24-.26.53-.32.7-.32.18 0 .35 0 .5.01.16.01.38-.06.59.45.24.58.81 2 .88 2.15.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.16-.29.36-.42.48-.14.14-.28.29-.12.57.16.28.72 1.19 1.55 1.93 1.06.95 1.96 1.24 2.24 1.38.28.14.44.12.6-.07.16-.19.69-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.61.76 1.89.9.28.14.46.21.53.32.07.12.07.66-.17 1.34Z"
+          fill={color}
+          scaleX={glyph / 24}
+          scaleY={glyph / 24}
+          listening={false}
+        />
+        <Text
+          key={`wa-${fontSize}-${fontEpoch}`}
+          x={pad} y={0}
+          width={Math.max(0, node.w - pad * 2)}
+          height={node.h}
+          text={label}
+          fontFamily={s.fontFamily || 'system-ui, sans-serif'}
+          fontSize={fontSize}
+          fontStyle={`${s.fontWeight || 800}`}
+          fill={color}
+          align="center"
+          verticalAlign="middle"
+          listening={false}
+        />
+      </Group>
+    </Group>
+  );
+}
+
+// Date-field node preview. Emoji + label + formatted date on one line — the
+// businessless replacement for the coffee-only roast line. Binds to an item's
+// roast_date when linked, else shows the node's own value.
+function DateFieldKonva({ node, common, menuData, fontEpoch = 0 }) {
+  const idx = useMemo(() => {
+    const m = new Map();
+    Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
+    return m;
+  }, [menuData]);
+  const s = node.style || {};
+  const bound = node.item_id ? idx.get(node.item_id) : null;
+  const value = node.value || bound?.roastDate || bound?.roast_date || null;
+  const dateStr = formatDateField(value, { lang: 'es', relative: node.relative !== false });
+  const text = [node.emoji || '', node.label || '', dateStr || (value ? '' : 'AAAA-MM-DD')].filter(Boolean).join(' ');
+  return (
+    <Group {...common}>
+      <Text
+        key={`date-${s.fontSize}-${fontEpoch}`}
+        width={node.w} height={node.h}
+        text={text}
+        fontFamily={s.fontFamily || 'system-ui, sans-serif'}
+        fontSize={s.fontSize || 32}
+        fontStyle={`${s.fontWeight || 600}`}
+        fill={s.color || '#8a6d3b'}
+        align={s.align || 'left'}
+        verticalAlign="middle"
+      />
     </Group>
   );
 }
@@ -1634,7 +1916,7 @@ function PageTabs({ doc, pageIndex, onSelect, onAdd, onDelete }) {
   );
 }
 
-function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, onTogglePen, penActive }) {
+function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, onAddWhatsApp, onAddDate, onTogglePen, penActive }) {
   return (
     <div style={toolbar}>
       <ToolBtn icon="lucide:type" label="Texto" onClick={onAddText} />
@@ -1644,6 +1926,8 @@ function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, 
       <ToolBtn icon="lucide:image" label="Imagen" onClick={onAddImage} />
       <div style={{ height: 1, background: 'rgba(255,255,255,0.15)', margin: '4px 0' }} />
       <ToolBtn icon="lucide:link" label="Producto" onClick={onAddBinding} />
+      <ToolBtn icon="mdi:whatsapp" label="WhatsApp" onClick={onAddWhatsApp} />
+      <ToolBtn icon="lucide:calendar-days" label="Fecha" onClick={onAddDate} />
     </div>
   );
 }
@@ -1819,6 +2103,8 @@ function NodeProperties({ node, onUpdate, onSetFont, onDelete, onForward, onBack
       {node.type === 'path' && <PathProps node={node} onUpdate={onUpdate} />}
       {node.type === 'image' && <ImageProps node={node} onUpdate={onUpdate} openAssetPicker={openAssetPicker} />}
       {node.type === 'item-binding' && <BindingProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} openItemPicker={openItemPicker} menuData={menuData} />}
+      {node.type === 'whatsapp-button' && <WhatsAppProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} />}
+      {node.type === 'date-field' && <DateFieldProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} openItemPicker={openItemPicker} menuData={menuData} />}
 
       <button onClick={onDelete} style={{ ...smallBtn, color: '#ff7e7e', borderColor: '#ff7e7e' }}>
         <Icon icon="lucide:trash-2" /> Eliminar
@@ -1832,6 +2118,8 @@ function labelForNode(n) {
   if (n.type === 'shape') return n.shape === 'circle' ? 'Círculo' : 'Rectángulo';
   if (n.type === 'image') return 'Imagen';
   if (n.type === 'item-binding') return 'Producto vinculado';
+  if (n.type === 'whatsapp-button') return 'Botón WhatsApp';
+  if (n.type === 'date-field') return 'Fecha';
   if (n.type === 'path') return 'Trazo';
   return n.type;
 }
@@ -1937,6 +2225,26 @@ function TextProps({ node, onUpdate, onSetFont }) {
           <option value="right">Derecha</option>
         </select>
       </Row>
+
+      <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4 }}>
+        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>Tipografía</p>
+      </div>
+      <Row label="Estilo">
+        <button
+          onClick={() => onUpdate({ style: { fontStyle: s.fontStyle === 'italic' ? 'normal' : 'italic' } })}
+          style={{ ...smallBtn, fontStyle: 'italic', ...(s.fontStyle === 'italic' ? { background: '#1f6feb', color: 'white', borderColor: '#1f6feb' } : null) }}
+          title="Cursiva"
+        >
+          <Icon icon="lucide:italic" /> Cursiva
+        </button>
+      </Row>
+      <Row label="Interlineado">
+        <NumInput value={s.lineHeight ?? 1.15} step={0.05} onChange={v => onUpdate({ style: { lineHeight: Math.max(0.5, v) } })} suffix="×" />
+      </Row>
+      <Row label="Interletraje">
+        <NumInput value={s.letterSpacing || 0} onChange={v => onUpdate({ style: { letterSpacing: v } })} suffix="px" />
+      </Row>
+
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
         <input
           type="checkbox"
@@ -1993,6 +2301,9 @@ function ImageProps({ node, onUpdate, openAssetPicker }) {
           <option value="contain">Contener</option>
         </select>
       </Row>
+      <Row label="Radio esquinas">
+        <NumInput value={node.style?.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: Math.max(0, v) } })} suffix="px" />
+      </Row>
     </>
   );
 }
@@ -2040,6 +2351,13 @@ function BindingProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
           <option value="stacked">Apilado</option>
         </select>
       </Row>
+      {node.layout !== 'stacked' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
+          <input type="checkbox" checked={!!node.autoWidth} onChange={e => onUpdate({ autoWidth: e.target.checked })} />
+          Ancho automático
+          <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(la caja se ajusta al texto)</span>
+        </label>
+      )}
       <FontPicker value={node.style?.fontFamily} onSetFont={onSetFont} />
       <Row label="Tamaño texto"><NumInput value={node.style?.fontSize || 48} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
       <Row label="Color texto"><ColorPicker value={node.style?.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
@@ -2077,6 +2395,100 @@ function BindingProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
   );
 }
 
+function WhatsAppProps({ node, onUpdate, onSetFont }) {
+  const s = node.style || {};
+  return (
+    <>
+      <Row label="Enlace de WhatsApp">
+        <input
+          type="url"
+          inputMode="url"
+          value={node.url || ''}
+          onChange={e => onUpdate({ url: e.target.value })}
+          placeholder="https://wa.me/52..."
+          style={textInputStyle}
+        />
+      </Row>
+      <Row label="Texto del botón">
+        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder="Pedir por WhatsApp" style={textInputStyle} />
+      </Row>
+      <FontPicker value={s.fontFamily} onSetFont={onSetFont} />
+      <Row label="Tamaño texto"><NumInput value={s.fontSize || 28} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
+      <Row label="Color fondo"><ColorPicker value={s.fill || '#25D366'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
+      <Row label="Color texto"><ColorPicker value={s.color || '#ffffff'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
+      <Row label="Radio esquinas"><NumInput value={s.borderRadius ?? 999} onChange={v => onUpdate({ style: { borderRadius: Math.max(0, v) } })} suffix="px" /></Row>
+      <p style={{ margin: 0, fontSize: '0.72rem', color: '#8b949e' }}>
+        Abre el enlace en el navegador al tocarlo en el menú público.
+      </p>
+    </>
+  );
+}
+
+function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
+  const s = node.style || {};
+  const itemIndex = useMemo(() => {
+    const m = new Map();
+    Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
+    return m;
+  }, [menuData]);
+  const item = node.item_id ? itemIndex.get(node.item_id) : null;
+  return (
+    <>
+      <Row label="Emoji">
+        <input
+          value={node.emoji || ''}
+          onChange={e => onUpdate({ emoji: e.target.value })}
+          placeholder="🔥"
+          maxLength={4}
+          style={{ ...textInputStyle, width: 64, flex: '0 0 auto', textAlign: 'center', fontSize: '1.1rem' }}
+        />
+        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>Cualquier emoji o vacío</span>
+      </Row>
+      <Row label="Etiqueta">
+        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder="Tostado:, Cosecha:, Vence:…" style={textInputStyle} />
+      </Row>
+      <Row label="Origen de la fecha">
+        <button
+          onClick={() => openItemPicker?.(ids => { if (ids[0]) onUpdate({ item_id: ids[0], value: '' }); })}
+          style={{ ...smallBtn, flex: 1, justifyContent: 'flex-start', background: '#0d1117' }}
+          title="Vincular a la fecha de un producto"
+        >
+          <Icon icon={item ? 'lucide:link' : 'lucide:calendar'} style={{ color: item ? '#3fb950' : '#8b949e' }} />
+          <span style={{ flex: 1, textAlign: 'left' }}>{item ? `${item.name}` : 'Fecha manual'}</span>
+        </button>
+        {node.item_id && (
+          <button onClick={() => onUpdate({ item_id: null })} style={smallBtn} title="Quitar vínculo"><Icon icon="lucide:x" /></button>
+        )}
+      </Row>
+      {!node.item_id && (
+        <Row label="Fecha">
+          <input
+            type="date"
+            value={node.value || ''}
+            onChange={e => onUpdate({ value: e.target.value })}
+            style={textInputStyle}
+          />
+        </Row>
+      )}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
+        <input type="checkbox" checked={node.relative !== false} onChange={e => onUpdate({ relative: e.target.checked })} />
+        Mostrar frescura relativa
+        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(«hace 3 días»)</span>
+      </label>
+      <FontPicker value={s.fontFamily} onSetFont={onSetFont} />
+      <Row label="Tamaño texto"><NumInput value={s.fontSize || 32} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
+      <Row label="Color texto"><ColorPicker value={s.color || '#8a6d3b'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
+      <Row label="Alineación">
+        <select value={s.align || 'left'} onChange={e => onUpdate({ style: { align: e.target.value } })} style={selectStyle}>
+          <option value="left">Izquierda</option>
+          <option value="center">Centro</option>
+          <option value="right">Derecha</option>
+        </select>
+      </Row>
+    </>
+  );
+}
+
 function Row({ label, children }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -2086,11 +2498,12 @@ function Row({ label, children }) {
   );
 }
 
-function NumInput({ value, onChange, suffix }) {
+function NumInput({ value, onChange, suffix, step }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#22272e', borderRadius: 6, padding: '4px 8px', border: '1px solid #30363d', flex: 1 }}>
       <input
         type="number"
+        step={step ?? 1}
         value={value ?? 0}
         onChange={e => onChange(Number(e.target.value))}
         style={{ width: '100%', background: 'transparent', border: 'none', color: 'white', outline: 'none', fontSize: '0.85rem' }}

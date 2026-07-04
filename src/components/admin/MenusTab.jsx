@@ -20,6 +20,7 @@ import MenuShareCard from './MenuShareCard';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 import { FONT_PRESETS } from '../../utils/menuTheme';
 import { sampleDocument, templateDoc } from '../../utils/canvasDocument';
+import { openInBrowser } from '../../utils/openInBrowser';
 import CanvasEditor from '../menuCanvas/CanvasEditor';
 import QRCode from 'qrcode';
 
@@ -128,7 +129,7 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
       return;
     }
     const tvUrl = `${window.location.origin}/menu/tv?u=${btoa(url)}&k=${btoa(key)}`;
-    window.open(tvUrl, '_blank', 'noopener,noreferrer');
+    openInBrowser(tvUrl);
   }
 
   if (loading) return <div className="admin-section fade-in"><p>Cargando…</p></div>;
@@ -250,7 +251,7 @@ function PublicMenuContent({ menuData, onSet }) {
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 'var(--admin-card-radius)', marginTop: 24, overflow: 'hidden' }}>
       <button onClick={() => setExpanded(e => !e)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 20, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-main)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: '1.05rem' }}>
-          <Icon icon="lucide:coffee" style={{ color: 'var(--brand-color)' }} />
+          <Icon icon="lucide:calendar-clock" style={{ color: 'var(--brand-color)' }} />
           Contenido del menú público
         </span>
         <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} />
@@ -258,7 +259,7 @@ function PublicMenuContent({ menuData, onSet }) {
       {expanded && (
         <div style={{ borderTop: '1px solid var(--border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Fecha de tueste y enlace de WhatsApp por producto. Aparecen solo en el menú público (badge de frescura + botón «Pedir por WhatsApp»). Deja en blanco para no mostrarlos.
+            Fecha (tueste, cosecha, caducidad…) y enlace de WhatsApp por producto. Aparecen solo en el menú público (badge de frescura + botón «Pedir por WhatsApp»). Para un texto y emoji personalizados, usa el elemento «Fecha» en el editor de lienzo. Deja en blanco para no mostrarlos.
           </p>
           {!hasItems && <p style={{ margin: 0, color: 'var(--text-muted)' }}>No hay productos en el menú.</p>}
           {categoryOrder.map(cat => {
@@ -299,7 +300,7 @@ function PublicItemRow({ item, onSet }) {
         type="date"
         value={item.roastDate || ''}
         onChange={(e) => onSet(item.id, { roastDate: e.target.value })}
-        title="Fecha de tueste"
+        title="Fecha (tueste, cosecha, caducidad…)"
         style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', fontWeight: 700, outline: 'none' }}
       />
       <input

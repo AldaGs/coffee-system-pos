@@ -10,7 +10,7 @@
 // editors.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontFamilies, pathToSvgD } from '../../utils/canvasDocument';
+import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontFamilies, docFontLoadSpecs, pathToSvgD, formatDateField } from '../../utils/canvasDocument';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
 export default function CanvasRenderer({ document, data, lang, isTv = false, tvPageIndex = 0, isPrint = false }) {
@@ -27,10 +27,14 @@ export default function CanvasRenderer({ document, data, lang, isTv = false, tvP
   useEffect(() => {
     syncDocFonts(document);
     const fonts = (typeof window !== 'undefined') && window.document?.fonts;
-    const fams = docFontFamilies(document);
-    if (!fonts || fams.length === 0) return;
+    const specs = docFontLoadSpecs(document);
+    if (!fonts || specs.length === 0) return;
     let active = true;
-    Promise.all(fams.map(f => fonts.load(`16px ${f}`).catch(() => {})))
+    // Prime every family × weight the document uses, not just the default 400
+    // face — otherwise bold headings paint in a fallback until lazily fetched,
+    // which is exactly the "font differs on the display link" mismatch. Bump
+    // state once resolved so the tree repaints with correct glyphs.
+    Promise.all(specs.map(s => fonts.load(s).catch(() => {})))
       .then(() => { if (active) setFontTick(t => t + 1); });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -273,21 +277,86 @@ function NodeView({ node, itemIndex, lang }) {
     return <ItemBindingView node={node} item={item} lang={lang} />;
   }
 
+  if (node.type === 'whatsapp-button') {
+    const s = node.style || {};
+    const label = node.label || 'Pedir por WhatsApp';
+    const href = (node.url || '').trim();
+    const bg = s.fill || '#25D366';
+    return (
+      <a
+        href={href || undefined}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={e => { if (!href) e.preventDefault(); e.stopPropagation(); }}
+        style={{
+          ...baseStyle,
+          display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(s.align) === 'flex-start' ? 'center' : justifyFromAlign(s.align),
+          gap: Math.max(6, (s.fontSize || 28) * 0.35),
+          padding: s.padding ?? 12,
+          boxSizing: 'border-box',
+          background: bg,
+          color: s.color || '#ffffff',
+          borderRadius: s.borderRadius ?? 999,
+          fontFamily: s.fontFamily || 'system-ui, sans-serif',
+          fontSize: s.fontSize || 28,
+          fontWeight: s.fontWeight || 800,
+          textDecoration: 'none',
+          cursor: href ? 'pointer' : 'default'
+        }}
+      >
+        <WhatsAppGlyph size={(s.fontSize || 28) * 0.95} />
+        <span>{label}</span>
+      </a>
+    );
+  }
+
+  if (node.type === 'date-field') {
+    const s = node.style || {};
+    // Prefer an explicit value; else pull the bound item's roast_date so a
+    // freshness line stays live with the catalog.
+    const bound = node.item_id ? itemIndex.get(node.item_id) : null;
+    const value = node.value || bound?.roast_date || null;
+    const dateStr = formatDateField(value, { lang, relative: node.relative !== false });
+    const emoji = node.emoji || '';
+    const label = node.label || '';
+    const text = [emoji, label, dateStr].filter(Boolean).join(' ');
+    if (!text) return <div style={{ ...baseStyle, ...textStyle(s), opacity: 0.35 }}>{emoji || '📅'}</div>;
+    return (
+      <div style={{ ...baseStyle, ...textStyle(s), display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(s.align) }}>
+        {text}
+      </div>
+    );
+  }
+
   // Unknown node type — render an empty bounding box so existing layouts
   // don't shift when future node types ship.
   return <div style={baseStyle} />;
+}
+
+// Inline WhatsApp mark, shared by the whatsapp-button node. Kept local to the
+// renderer so the public bundle carries no icon-font dependency.
+function WhatsAppGlyph({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden style={{ flexShrink: 0 }}>
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.76.46 3.45 1.34 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm5.8 14.16c-.24.68-1.4 1.3-1.94 1.35-.5.05-.98.23-3.3-.69-2.78-1.1-4.56-3.94-4.7-4.13-.14-.19-1.13-1.5-1.13-2.86 0-1.36.71-2.03.97-2.31.24-.26.53-.32.7-.32.18 0 .35 0 .5.01.16.01.38-.06.59.45.24.58.81 2 .88 2.15.07.14.12.31.02.5-.09.19-.14.31-.28.48-.14.16-.29.36-.42.48-.14.14-.28.29-.12.57.16.28.72 1.19 1.55 1.93 1.06.95 1.96 1.24 2.24 1.38.28.14.44.12.6-.07.16-.19.69-.81.88-1.09.18-.28.37-.23.62-.14.25.09 1.61.76 1.89.9.28.14.46.21.53.32.07.12.07.66-.17 1.34Z"/>
+    </svg>
+  );
 }
 
 function ItemBindingView({ node, item, lang, outOfStock = false }) {
   const fields = node.fields && node.fields.length > 0 ? node.fields : ['name', 'price'];
   const layout = node.layout === 'stacked' ? 'column' : 'row';
   const s = node.style || {};
+  // Auto-box: the binding hugs its content instead of filling the authored
+  // w/h — mirrors the free-text autoWidth option so dynamic item text never
+  // clips. The name column stops flex-growing so the box collapses to fit.
+  const auto = !!node.autoWidth;
   const parts = [];
 
   for (const f of fields) {
     if (f === 'emoji' && item.emoji) parts.push(<span key="emoji" style={{ marginRight: 12 }}>{item.emoji}</span>);
-    if (f === 'image' && item.image_url) parts.push(<img key="image" src={item.image_url} alt="" style={{ height: '100%', objectFit: 'cover', borderRadius: 8 }} />);
-    if (f === 'name') parts.push(<span key="name" style={{ flex: 1 }}>{item.name}</span>);
+    if (f === 'image' && item.image_url) parts.push(<img key="image" src={item.image_url} alt="" style={{ height: auto ? '1.2em' : '100%', objectFit: 'cover', borderRadius: 8 }} />);
+    if (f === 'name') parts.push(<span key="name" style={{ flex: auto ? '0 0 auto' : 1, whiteSpace: auto ? 'nowrap' : undefined }}>{item.name}</span>);
     if (f === 'price') parts.push(
       <span key="price" style={{ whiteSpace: 'nowrap', marginLeft: 16 }}>
         {item.price_type === 'open' ? '—' : formatForDisplay(item.price_cents, lang)}
@@ -297,7 +366,9 @@ function ItemBindingView({ node, item, lang, outOfStock = false }) {
 
   const baseStyle = {
     position: 'absolute',
-    left: node.x || 0, top: node.y || 0, width: node.w || 0, height: node.h || 0,
+    left: node.x || 0, top: node.y || 0,
+    width: auto ? 'auto' : (node.w || 0), height: auto ? 'auto' : (node.h || 0),
+    whiteSpace: auto ? 'nowrap' : undefined,
     transform: node.rotation ? `rotate(${node.rotation}deg)` : undefined,
     transformOrigin: 'center center',
     display: 'flex',

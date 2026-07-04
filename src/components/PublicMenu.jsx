@@ -949,7 +949,13 @@ function ConfigMissing() {
 }
 
 const pageStyle = {
-  minHeight: '100vh',
+  // Own scroll container: the global `body { overflow: hidden }` (POS
+  // anti-bounce in index.css) would otherwise trap a menu taller than the
+  // viewport, so the public page scrolls itself instead of the body.
+  height: '100dvh',
+  overflowY: 'auto',
+  overflowX: 'hidden',
+  WebkitOverflowScrolling: 'touch',
   background: '#fafafa',
   fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   color: '#222',

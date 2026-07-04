@@ -308,6 +308,25 @@ export function docFontFamilies(doc) {
   return out;
 }
 
+// Weights the FontFaceSet loader primes for each document family. Loading a
+// single weight (the browser default 400) leaves bolder text painting in a
+// fallback face until it's lazily fetched — which never triggers a Konva
+// re-measure and, on the public page, causes the "font looks different on the
+// display link" mismatch. Priming the whole ramp keeps editor + renderer in
+// sync. Kept small on purpose; unused weights resolve instantly.
+export const DOC_FONT_WEIGHTS = [300, 400, 500, 600, 700, 800, 900];
+
+// Build the `FontFaceSet.load()` specifiers for every family × weight the
+// document declares, e.g. `600 16px "Playfair Display"`. Callers Promise.all
+// these and repaint once resolved.
+export function docFontLoadSpecs(doc) {
+  const specs = [];
+  for (const fam of docFontFamilies(doc)) {
+    for (const w of DOC_FONT_WEIGHTS) specs.push(`${w} 16px ${fam}`);
+  }
+  return specs;
+}
+
 // Idempotently sync <link rel=stylesheet> tags for the document's fonts,
 // removing any previously-injected ones no longer referenced.
 export function syncDocFonts(doc) {
@@ -398,6 +417,48 @@ export function templateCardsDoc({ shopName = 'Menú', categories = [] } = {}) {
     rowBreak();
   }
   return { document: doc, theme };
+}
+
+// ── Date-field node formatting ──────────────────────────────────────────
+// Businessless date line for the 'date-field' node: an owner-chosen emoji +
+// label ("Tostado", "Cosecha", "Vence", …) followed by the formatted date and
+// an optional relative hint ("hace 3 días"). No coffee-specific defaults live
+// here — the node carries its own label/emoji so any shop can repurpose it.
+// value is an ISO date string (YYYY-MM-DD). Returns null for empty/unparseable
+// input so the renderer can omit the line cleanly.
+export function formatDateField(value, { lang = 'es', relative = true } = {}) {
+  if (!value) return null;
+  const d = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  const en = lang === 'en';
+  const dateStr = d.toLocaleDateString(en ? 'en-US' : 'es-MX', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!relative) return dateStr;
+  const today = new Date();
+  const days = Math.floor(
+    (new Date(today.getFullYear(), today.getMonth(), today.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000
+  );
+  if (days <= 0) return `${dateStr} · ${en ? 'today' : 'hoy'}`;
+  const ago = en ? `${days} day${days === 1 ? '' : 's'} ago` : `hace ${days} día${days === 1 ? '' : 's'}`;
+  return `${dateStr} · ${ago}`;
+}
+
+// ── Node duplication ────────────────────────────────────────────────────
+// Deep-clone a node for copy/paste/duplicate. Assigns nothing (the caller
+// stamps a fresh id + z) and offsets the geometry by (dx, dy) so the copy is
+// visible next to the original. Paths translate their absolute points instead
+// of a raw x/y write, mirroring moveNodeTo in the editor.
+export function cloneNodeGeometry(node, dx = 24, dy = 24) {
+  const copy = JSON.parse(JSON.stringify(node));
+  delete copy.id;
+  if (copy.type === 'path' && Array.isArray(copy.points)) {
+    copy.points = translatePath(copy.points, dx, dy);
+    const bb = pathBBox(copy.points);
+    copy.x = bb.x; copy.y = bb.y; copy.w = bb.w; copy.h = bb.h;
+  } else {
+    copy.x = (copy.x || 0) + dx;
+    copy.y = (copy.y || 0) + dy;
+  }
+  return copy;
 }
 
 // Lookup by template id, mirroring DesignedEditor's template ids
