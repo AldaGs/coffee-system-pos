@@ -1150,6 +1150,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       'price_type', i.price_type, 'emoji', i.emoji, 'image_url', i.image_url,
                       'sort_order', i.sort_order,
                       'available', public.menu_item_available(i.id),
+                      'roast_date', i.data->>'roastDate', 'whatsapp_url', i.data->>'whatsappUrl',
                       'modifier_group_ids', COALESCE((
                         SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                         FROM public.menu_item_modifier_groups l
@@ -1228,6 +1229,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       'price_type', i.price_type, 'emoji', i.emoji, 'image_url', i.image_url,
                       'sort_order', i.sort_order,
                       'available', public.menu_item_available(i.id),
+                      'roast_date', i.data->>'roastDate', 'whatsapp_url', i.data->>'whatsappUrl',
                       'modifier_group_ids', COALESCE((
                         SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                         FROM public.menu_item_modifier_groups l
@@ -1436,7 +1438,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "Authenticated can read schema_meta" ON public.schema_meta
           FOR SELECT TO authenticated USING (true);
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '0.6', now())
+        VALUES ('schema_version', '0.7', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

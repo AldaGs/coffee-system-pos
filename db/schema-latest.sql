@@ -1032,6 +1032,7 @@
                   'price_type', i.price_type, 'emoji', i.emoji, 'image_url', i.image_url,
                   'sort_order', i.sort_order,
                   'available', public.menu_item_available(i.id),
+                  'roast_date', i.data->>'roastDate', 'whatsapp_url', i.data->>'whatsappUrl',
                   'modifier_group_ids', COALESCE((
                     SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                     FROM public.menu_item_modifier_groups l
@@ -1111,6 +1112,7 @@
                   'price_type', i.price_type, 'emoji', i.emoji, 'image_url', i.image_url,
                   'sort_order', i.sort_order,
                   'available', public.menu_item_available(i.id),
+                  'roast_date', i.data->>'roastDate', 'whatsapp_url', i.data->>'whatsappUrl',
                   'modifier_group_ids', COALESCE((
                     SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                     FROM public.menu_item_modifier_groups l
