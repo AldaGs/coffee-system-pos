@@ -55,6 +55,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   const [showGrid, setShowGrid] = useState(false);
   const [snapEnabled, setSnapEnabled] = useState(true);
   const [guides, setGuides] = useState([]);
+  // "Simulate sold-out" preview: treats every stock-linked / bound item as out
+  // of stock so the owner can see which elements auto-hide (ghosted) or dim
+  // without touching real inventory.
+  const [previewOOS, setPreviewOOS] = useState(false);
 
   // Ruler guides (Figma/Photoshop-style): persistent lines stored per page on
   // page.guides = { v:[x...], h:[y...] }. `activeGuide` is the one currently
@@ -255,6 +259,54 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     const set = new Set(selectedIds);
     const src = (page?.nodes || []).filter(n => set.has(n.id));
     addClones(src, 24, 24);
+  }
+
+  // ---------- Visibility link (stock) ---------------------------------------
+  // Find the item-binding whose center is closest to the selection's center, so
+  // "link to product" can suggest the obvious item in one click.
+  function nearestBindingItemId(ids) {
+    const set = new Set(ids);
+    const sel = (page?.nodes || []).filter(n => set.has(n.id));
+    if (!sel.length) return null;
+    const cx = sel.reduce((s, n) => s + (n.x + n.w / 2), 0) / sel.length;
+    const cy = sel.reduce((s, n) => s + (n.y + n.h / 2), 0) / sel.length;
+    let best = null, bestD = Infinity;
+    for (const n of (page?.nodes || [])) {
+      if (n.type !== 'item-binding' || !n.item_id || set.has(n.id)) continue;
+      const d = Math.hypot(n.x + n.w / 2 - cx, n.y + n.h / 2 - cy);
+      if (d < bestD) { bestD = d; best = n.item_id; }
+    }
+    return best;
+  }
+
+  // Link every eligible (non-binding) node in `ids` to a catalog item in one
+  // commit, preserving each node's existing hide toggle.
+  function linkNodesToItem(ids, itemId) {
+    const set = new Set(ids);
+    mutatePage(p => ({
+      ...p,
+      nodes: (p.nodes || []).map(n =>
+        set.has(n.id) && n.type !== 'item-binding'
+          ? { ...n, link: { itemId, hideWhenOOS: n.link?.hideWhenOOS ?? true } }
+          : n)
+    }));
+  }
+  function unlinkNodes(ids) {
+    const set = new Set(ids);
+    mutatePage(p => ({ ...p, nodes: (p.nodes || []).map(n => set.has(n.id) ? { ...n, link: null } : n) }));
+  }
+
+  // Context-menu action: link the selection to the nearest binding's item in
+  // one click, or open the picker when the page has no bindings yet.
+  function linkSelectionToProduct() {
+    const ids = selectedIds.filter(id => {
+      const n = (page?.nodes || []).find(x => x.id === id);
+      return n && n.type !== 'item-binding';
+    });
+    if (!ids.length) return;
+    const near = nearestBindingItemId(ids);
+    if (near) { linkNodesToItem(ids, near); return; }
+    setItemPickerCb(() => (picked) => { if (picked?.[0]) linkNodesToItem(ids, picked[0]); setItemPickerCb(null); });
   }
 
   // Set a node's font family and, if it's a web font, register its URL on the
@@ -897,6 +949,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         showRulers={showRulers} onToggleRulers={() => setShowRulers(v => !v)}
         showGrid={showGrid} onToggleGrid={() => setShowGrid(v => !v)}
         snapEnabled={snapEnabled} onToggleSnap={() => setSnapEnabled(v => !v)}
+        previewOOS={previewOOS} onTogglePreviewOOS={() => setPreviewOOS(v => !v)}
       />
 
       <PageTabs
@@ -906,6 +959,13 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         onAdd={addPage}
         onDelete={deletePage}
       />
+
+      {previewOOS && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', background: 'rgba(210,120,30,0.18)', borderBottom: '1px solid rgba(210,120,30,0.4)', color: '#f0b370', fontSize: '0.8rem', fontWeight: 700 }}>
+          <Icon icon="lucide:package-x" />
+          Vista previa: productos agotados — los elementos atenuados se ocultan o se marcan en el menú público. No cambia el inventario real.
+        </div>
+      )}
 
       <div style={mainRow}>
         <Toolbar
@@ -1003,12 +1063,19 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                 <Layer listening={!penMode}>
                   {/* Opaque page background so PNG export isn't transparent. */}
                   <Rect x={0} y={0} width={pageW} height={pageH} fill={page.background || '#ffffff'} listening={false} />
-                  {sortedNodes(page).map(node => (
+                  {sortedNodes(page).map(node => {
+                    const linkedOut = node.link?.itemId && node.link.hideWhenOOS !== false;
+                    const bindingHides = node.type === 'item-binding' && node.hide_when_out_of_stock;
+                    const ghost = previewOOS && (linkedOut || bindingHides);
+                    const dim = previewOOS && node.type === 'item-binding' && !node.hide_when_out_of_stock;
+                    return (
                     <NodeKonva
                       key={node.id}
                       node={node}
                       menuData={menuData}
                       fontEpoch={fontEpoch}
+                      ghost={ghost}
+                      dim={dim}
                       isSelected={selectedIds.includes(node.id)}
                       onSelect={e => (e?.evt?.shiftKey ? toggleSelect(node.id) : selectOne(node.id))}
                       onDblClick={handleNodeDblClick}
@@ -1020,7 +1087,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                       onNodeTransformEnd={handleNodeTransformEnd}
                       onContextMenu={handleNodeContextMenu}
                     />
-                  ))}
+                    );
+                  })}
                   {!exporting && <SelectionTransformer selectedIds={selectedIds} />}
                 </Layer>
                 <Layer listening={false}>
@@ -1129,20 +1197,34 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         />
       )}
 
-      {contextMenu && (
-        <ContextMenu
-          pos={contextMenu}
-          hasSelection={selectedIds.length > 0}
-          selectionCount={selectedIds.length}
-          canPaste={clipboardRef.current.length > 0}
-          onDuplicate={() => { duplicateSelection(); setContextMenu(null); }}
-          onCopy={() => { copySelection(); setContextMenu(null); }}
-          onPaste={() => { pasteClipboard(); setContextMenu(null); }}
-          onForward={() => { selectedIds.forEach(bringForward); setContextMenu(null); }}
-          onBack={() => { selectedIds.forEach(sendBack); setContextMenu(null); }}
-          onDelete={() => { removeNodes(selectedIds); setContextMenu(null); }}
-        />
-      )}
+      {contextMenu && (() => {
+        const selNodes = (page?.nodes || []).filter(n => selectedIds.includes(n.id));
+        const canLink = selNodes.some(n => n.type !== 'item-binding');
+        const isLinked = selNodes.some(n => n.link?.itemId);
+        const suggestId = canLink ? nearestBindingItemId(selectedIds) : null;
+        const suggestName = suggestId
+          ? (Object.values(menuData?.categories || {}).flat().find(x => x.id === suggestId)?.name || null)
+          : null;
+        return (
+          <ContextMenu
+            pos={contextMenu}
+            hasSelection={selectedIds.length > 0}
+            selectionCount={selectedIds.length}
+            canPaste={clipboardRef.current.length > 0}
+            canLink={canLink}
+            isLinked={isLinked}
+            linkSuggestion={suggestName}
+            onLinkProduct={() => { linkSelectionToProduct(); setContextMenu(null); }}
+            onUnlink={() => { unlinkNodes(selectedIds); setContextMenu(null); }}
+            onDuplicate={() => { duplicateSelection(); setContextMenu(null); }}
+            onCopy={() => { copySelection(); setContextMenu(null); }}
+            onPaste={() => { pasteClipboard(); setContextMenu(null); }}
+            onForward={() => { selectedIds.forEach(bringForward); setContextMenu(null); }}
+            onBack={() => { selectedIds.forEach(sendBack); setContextMenu(null); }}
+            onDelete={() => { removeNodes(selectedIds); setContextMenu(null); }}
+          />
+        );
+      })()}
     </div>
    </PaletteContext.Provider>
   );
@@ -1151,7 +1233,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 // Right-click menu. Positioned at the cursor in screen space; the parent closes
 // it on any outside click (window listener). Items collapse to just Paste when
 // nothing is selected.
-function ContextMenu({ pos, hasSelection, selectionCount, canPaste, onDuplicate, onCopy, onPaste, onForward, onBack, onDelete }) {
+function ContextMenu({ pos, hasSelection, selectionCount, canPaste, canLink, isLinked, linkSuggestion, onLinkProduct, onUnlink, onDuplicate, onCopy, onPaste, onForward, onBack, onDelete }) {
   const item = (icon, label, onClick, opts = {}) => (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -1187,6 +1269,13 @@ function ContextMenu({ pos, hasSelection, selectionCount, canPaste, onDuplicate,
           {item('lucide:copy-plus', 'Duplicar', onDuplicate, { hint: 'Ctrl+D' })}
           {item('lucide:copy', 'Copiar', onCopy, { hint: 'Ctrl+C' })}
           {item('lucide:clipboard-paste', 'Pegar', onPaste, { hint: 'Ctrl+V', disabled: !canPaste })}
+          {canLink && (
+            <>
+              <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
+              {item('lucide:link', linkSuggestion ? `Vincular a ${linkSuggestion}` : 'Vincular a producto…', onLinkProduct, { hint: linkSuggestion ? 'oculta al agotarse' : undefined })}
+              {isLinked && item('lucide:link-2-off', 'Quitar vínculo', onUnlink)}
+            </>
+          )}
           <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
           {item('lucide:chevron-up', 'Traer adelante', onForward)}
           {item('lucide:chevron-down', 'Enviar atrás', onBack)}
@@ -1314,7 +1403,7 @@ function GuidesOverlay({ guides, scale, activeGuide, onStartDragGuide }) {
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblClick, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd, onContextMenu }) {
+function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, isSelected, onSelect, onDblClick, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd, onContextMenu }) {
   const shapeRef = useRef(null);
 
   // Auto-width text: after each render, read the konva-measured size and
@@ -1336,6 +1425,9 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblC
     ref: shapeRef,
     id: node.id,
     x: node.x, y: node.y, rotation: node.rotation || 0,
+    // Sold-out preview: ghost the elements that would hide, dim the bindings
+    // that stay but show as unavailable. Still selectable/editable.
+    opacity: ghost ? 0.15 : (dim ? 0.5 : 1),
     draggable: true,
     onClick: onSelect, onTap: onSelect,
     onDblClick: () => onDblClick?.(node), onDblTap: () => onDblClick?.(node),
@@ -1440,7 +1532,7 @@ function NodeKonva({ node, menuData, fontEpoch = 0, isSelected, onSelect, onDblC
   }
 
   if (node.type === 'item-binding') {
-    return <BindingPlaceholder node={node} common={common} menuData={menuData} fontEpoch={fontEpoch} onMeasure={onMeasure} />;
+    return <BindingPlaceholder node={node} common={common} menuData={menuData} fontEpoch={fontEpoch} onMeasure={onMeasure} strike={dim} />;
   }
 
   if (node.type === 'whatsapp-button') {
@@ -1627,7 +1719,7 @@ function roundRectPath(ctx, x, y, w, h, r) {
 // Background/stroke/borderRadius come from node.style so visual edits
 // match what customers will see. Unbound nodes get a faint dashed
 // outline so they're discoverable.
-function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure }) {
+function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure, strike = false }) {
   const idx = useMemo(() => {
     const m = new Map();
     Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
@@ -1721,6 +1813,7 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure }
           fontStyle={fontStyleStr}
           fill={color}
           align={align}
+          textDecoration={strike ? 'line-through' : undefined}
           verticalAlign={auto ? 'top' : 'middle'}
         />
       )}
@@ -1737,6 +1830,7 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure }
             fontStyle={fontStyleStr}
             fill={color}
             align={align}
+            textDecoration={strike ? 'line-through' : undefined}
             verticalAlign="top"
           />
           {showPrice && priceText && (
@@ -1750,6 +1844,7 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure }
               fontStyle={fontStyleStr}
               fill={color}
               align={align}
+              textDecoration={strike ? 'line-through' : undefined}
             />
           )}
         </>
@@ -1878,7 +1973,7 @@ function SelectionTransformer({ selectedIds }) {
 // Chrome
 // ============================================================================
 
-function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint, onExportPng, showRulers, onToggleRulers, showGrid, onToggleGrid, snapEnabled, onToggleSnap }) {
+function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint, onExportPng, showRulers, onToggleRulers, showGrid, onToggleGrid, snapEnabled, onToggleSnap, previewOOS, onTogglePreviewOOS }) {
   const toggle = on => ({ ...ghostBtn, background: on ? 'rgba(31,111,235,0.35)' : 'transparent' });
   return (
     <div style={topbar}>
@@ -1888,6 +1983,7 @@ function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onS
       <div style={{ flex: 1, color: 'rgba(255,255,255,0.85)', fontWeight: 800 }}>
         Editor de lienzo — {menuName} {dirty && <span style={{ color: '#ffb84d', fontWeight: 700, marginLeft: 6 }}>•</span>}
       </div>
+      <button onClick={onTogglePreviewOOS} style={{ ...toggle(previewOOS), background: previewOOS ? 'rgba(210,120,30,0.45)' : 'transparent' }} title="Simular productos agotados (previsualiza qué se oculta)"><Icon icon="lucide:package-x" /></button>
       <button onClick={onToggleSnap} style={toggle(snapEnabled)} title="Ajuste y guías inteligentes"><Icon icon="lucide:magnet" /></button>
       <button onClick={onToggleRulers} style={toggle(showRulers)} title="Reglas"><Icon icon="lucide:ruler" /></button>
       <button onClick={onToggleGrid} style={toggle(showGrid)} title="Cuadrícula"><Icon icon="lucide:grid-3x3" /></button>
