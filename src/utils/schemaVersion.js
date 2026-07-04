@@ -13,6 +13,13 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 0.8 — public vs register hide split: the `menu_categories.public_hidden`
+//       column plus a one-time backfill from is_hidden, and get_active_menu /
+//       get_menu_by_id now filter the public menu on public_hidden (categories)
+//       and menu_items.data->>'publicHidden' (items) instead of is_hidden
+//       (migration 030). Lets a shop hide an item/category from the Register
+//       independently of the customer-facing menu. Idempotent re-run picks up
+//       the rewritten RPCs and (once) the backfill on existing installs.
 // 0.7 — public-menu item extras: get_active_menu / get_menu_by_id now emit
 //       per-item `roast_date` and `whatsapp_url` (from menu_items.data jsonb;
 //       migration 029). Powers the coffee roast-date badge and the "order on
@@ -44,4 +51,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '0.7';
+export const APP_SCHEMA_VERSION = '0.8';
