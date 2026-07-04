@@ -284,6 +284,9 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
           {menu.kind === 'designed' && (
             <DesignedEditor menu={menu} onChange={onScheduleChange} showAlert={showAlert} categoryNames={categoryNames} menuCategories={menuCategories} onOpenCanvas={onOpenCanvas} />
           )}
+          {isLive && (
+            <LiveMenuOptions menu={menu} onChange={onScheduleChange} showAlert={showAlert} />
+          )}
           <ScheduleEditor
             menu={menu}
             onChange={onScheduleChange}
@@ -309,6 +312,52 @@ function buildTemplateCatalog(menuCategories, selectedNames, allNames) {
     ? allNames.filter(n => selectedNames.includes(n))   // keep catalog order
     : allNames;
   return names.map(name => ({ name, items: menuCategories?.[name] || [] }));
+}
+
+// Options for the implicit kind='live' catalog menu — the one shared as the
+// default public menu / QR. Writes onto the live menu row's data jsonb, read
+// by PublicMenu's live branch. Out-of-stock defaults to SHOWN (badge) so a
+// coffee lineup can advertise the full list; ticking the box hides sold-out
+// items instead (based on inventory stock).
+function LiveMenuOptions({ menu, onChange, showAlert }) {
+  const data = menu.data || {};
+  async function patch(next) {
+    try {
+      await updateMenu(menu.id, { data: { ...data, ...next } });
+      onChange();
+    } catch (err) { showAlert?.('Error', err.message); }
+  }
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={data.hide_out_of_stock === true}
+          onChange={e => patch({ hide_out_of_stock: e.target.checked })}
+        />
+        <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+          Ocultar productos agotados
+          <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
+            (si se desactiva, se muestran con la etiqueta «Agotado»)
+          </span>
+        </span>
+      </label>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={data.show_modifiers !== false}
+          onChange={e => patch({ show_modifiers: e.target.checked })}
+        />
+        <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+          Mostrar modificadores
+          <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
+            (opciones bajo cada producto)
+          </span>
+        </span>
+      </label>
+    </div>
+  );
 }
 
 function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategories, onOpenCanvas }) {
