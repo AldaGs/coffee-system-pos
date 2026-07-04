@@ -560,6 +560,22 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
         </span>
       </label>
 
+      {template === 'list' && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={data.list_show_images === true}
+            onChange={e => patch({ list_show_images: e.target.checked })}
+          />
+          <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
+            Mostrar imágenes
+            <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
+              (miniatura del producto en vez del emoji)
+            </span>
+          </span>
+        </label>
+      )}
+
       <ThemeEditor menu={menu} data={data} onChange={onChange} showAlert={showAlert} />
 
       <CanvasBetaToggle
