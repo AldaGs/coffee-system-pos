@@ -25,6 +25,9 @@ function MenuShareCard({ menuData }) {
   const [error, setError] = useState(null);
   const [menuUrl, setMenuUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [customDomain, setCustomDomain] = useState('');
+  const [isAddingDomain, setIsAddingDomain] = useState(false);
+  const [domainStatus, setDomainStatus] = useState(null);
 
   // Derive project ref + anon key from localStorage (written by SetupScreen).
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url') || '';
@@ -95,6 +98,31 @@ function MenuShareCard({ menuData }) {
       color: { dark: '#111', light: '#ffffff' }
     }).catch(err => setError(err.message));
   }, [menuUrl]);
+
+  const handleAddDomain = async () => {
+    if (!customDomain) return;
+    setIsAddingDomain(true);
+    setDomainStatus(null);
+    try {
+      const res = await fetch('/api/add-domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: customDomain.trim() })
+      });
+      const data = await res.json();
+      
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al agregar dominio');
+      }
+      
+      setDomainStatus({ success: true, message: `Dominio ${data.domain} agregado con éxito. Estado: ${data.status}` });
+      setCustomDomain('');
+    } catch (err) {
+      setDomainStatus({ success: false, message: err.message });
+    } finally {
+      setIsAddingDomain(false);
+    }
+  };
 
   const handleCopy = async () => {
     if (!menuUrl) return;
@@ -233,6 +261,63 @@ function MenuShareCard({ menuData }) {
           {error && error !== 'clipboard' && (
             <p style={errorTextStyle}>{error}</p>
           )}
+
+          {/* Custom Domain Section */}
+          <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+            <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Icon icon="lucide:globe" style={{ color: brand }} />
+              Dominio Personalizado
+            </label>
+            <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Usa tu propio dominio (ej. menu.micafe.com).
+            </p>
+            <div style={urlRowStyle}>
+              <input
+                type="text"
+                placeholder="menu.micafe.com"
+                value={customDomain}
+                onChange={e => setCustomDomain(e.target.value)}
+                style={urlInputStyle}
+              />
+              <button
+                type="button"
+                onClick={handleAddDomain}
+                disabled={isAddingDomain || !customDomain}
+                style={{ ...buttonStyle, background: brand, opacity: (isAddingDomain || !customDomain) ? 0.5 : 1 }}
+              >
+                {isAddingDomain ? (
+                  <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <Icon icon="lucide:plus" />
+                )}
+                {isAddingDomain ? 'Vincular...' : 'Vincular'}
+              </button>
+            </div>
+            {domainStatus && (
+              <p style={{ marginTop: 8, fontSize: '0.85rem', color: domainStatus.success ? '#27ae60' : '#e74c3c' }}>
+                {domainStatus.message}
+              </p>
+            )}
+
+            <div style={{ marginTop: 16, padding: 16, background: 'var(--bg-main)', borderRadius: 12, border: '1px solid var(--border)' }}>
+              <p style={{ margin: '0 0 8px', fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>Ayuda: Registros DNS</p>
+              <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Para que tu dominio funcione, ve a tu proveedor (GoDaddy, Cloudflare, etc.) y agrega estos dos registros a tus DNS:
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', fontSize: '0.85rem', alignItems: 'center' }}>
+                <strong style={{ color: 'var(--text-main)' }}>Tipo</strong><strong style={{ color: 'var(--text-main)' }}>Valor</strong>
+                
+                <code style={codeStyle}>CNAME</code>
+                <code style={codeStyle}>cname.vercel-dns.com.</code>
+
+                <code style={codeStyle}>TXT</code>
+                <code style={codeStyle}>tinypos-ref={projectRef}</code>
+              </div>
+              <p style={{ margin: '12px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                El registro TXT es crucial para que TinyPOS sepa qué menú cargar cuando alguien visita tu dominio.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -349,6 +434,16 @@ const errorTextStyle = {
   fontSize: '0.85rem',
   color: '#e74c3c',
   fontWeight: 600
+};
+
+const codeStyle = {
+  background: 'var(--bg-surface)',
+  padding: '4px 8px',
+  borderRadius: 6,
+  border: '1px solid var(--border)',
+  color: 'var(--text-main)',
+  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+  userSelect: 'all'
 };
 
 export default MenuShareCard;

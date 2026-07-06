@@ -179,6 +179,7 @@ function ScaledPage({ page, pageW, pageH, itemIndex, lang, fit }) {
 }
 
 function NodeView({ node, itemIndex, lang }) {
+  if (node.hidden) return null;
   // Visibility link: any node can be tied to a catalog item's stock so
   // decorative elements (badges, callouts, background photos) disappear
   // alongside a product that sells out — not just its bound price line. The

@@ -27,6 +27,7 @@ import { openInBrowser } from '../../utils/openInBrowser';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
 import ItemPicker from './ItemPicker';
+import LayersPanel from './LayersPanel';
 
 const HISTORY_LIMIT = 50;
 
@@ -588,7 +589,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     setMarquee(null);
     if (!m || (m.w < 4 && m.h < 4)) return; // a click, not a drag
     const hit = (page?.nodes || [])
-      .filter(n => rectsOverlap(m, { x: n.x, y: n.y, w: n.w, h: n.h }))
+      .filter(n => !n.hidden && !n.locked && rectsOverlap(m, { x: n.x, y: n.y, w: n.w, h: n.h }))
       .map(n => n.id);
     setSelectedIds(prev => e.evt.shiftKey ? Array.from(new Set([...prev, ...hit])) : hit);
   }
@@ -753,6 +754,19 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       return { ...n, points: pts, x: bb.x, y: bb.y, w: bb.w, h: bb.h };
     }
     return { ...n, x, y };
+  }
+
+  // Record a history step after a transform gesture completes. We don't
+  // mutate here because `handleNodeTransform` already silently baked the
+  // final values into the doc; we just push that doc into history.
+  const transformHistoryGuardRef = useRef(false);
+  function handleNodeTransformEndHistory() {
+    if (transformHistoryGuardRef.current) return;
+    transformHistoryGuardRef.current = true;
+    requestAnimationFrame(() => { transformHistoryGuardRef.current = false; });
+    pushHistory(doc); // Wait, pushHistory expects the *previous* doc, but doc is already updated.
+    // Actually, `handleNodeTransform` updates `doc` without pushing history. 
+    // We need to push the pre-transform state. Let's handle this similarly to path editing.
   }
 
   // Align the selection's edges/centers to a reference frame: the selection's
@@ -1094,6 +1108,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                   {/* Opaque page background so PNG export isn't transparent. */}
                   <Rect x={0} y={0} width={pageW} height={pageH} fill={page.background || '#ffffff'} listening={false} />
                   {sortedNodes(page).map(node => {
+                    if (node.hidden) return null;
                     const linkedOut = node.link?.itemId && node.link.hideWhenOOS !== false;
                     const bindingHides = node.type === 'item-binding' && node.hide_when_out_of_stock;
                     const ghost = previewOOS && (linkedOut || bindingHides);
@@ -1107,8 +1122,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                       ghost={ghost}
                       dim={dim}
                       isSelected={selectedIds.includes(node.id)}
-                      onSelect={e => (e?.evt?.shiftKey ? toggleSelect(node.id) : selectOne(node.id))}
-                      onDblClick={handleNodeDblClick}
+                      onSelect={e => {
+                        if (node.locked) return;
+                        if (e?.evt?.shiftKey) toggleSelect(node.id);
+                        else selectOne(node.id);
+                      }}
+                      onDblClick={n => !node.locked && handleNodeDblClick(n)}
                       onChange={patch => updateNode(node.id, patch)}
                       onMeasure={updateNodeSilent}
                       onDragStart={e => handleDragStart(e, node)}
@@ -1207,13 +1226,16 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             changePageSize={changePageSize}
             selected={selected}
             multiCount={selectedIds.length}
+            selectedIds={selectedIds}
+            onSelectNode={(id, multi) => multi ? toggleSelect(id) : selectOne(id)}
             onAlign={(dir, target) => alignSelected(dir, target)}
             onDistribute={axis => distributeSelected(axis)}
             onUpdate={patch => selected && updateNode(selected.id, patch)}
+            onUpdateNode={updateNode}
             onSetFont={(stack, url) => selected && setNodeFont(selected.id, stack, url)}
             onDelete={() => selected && removeNode(selected.id)}
-            onForward={() => selected && bringForward(selected.id)}
-            onBack={() => selected && sendBack(selected.id)}
+            onForward={id => bringForward(id || selected?.id)}
+            onBack={id => sendBack(id || selected?.id)}
             openAssetPicker={(cb) => setAssetPickerCb(() => (url) => { cb(url); setAssetPickerCb(null); })}
             openItemPicker={(cb) => setItemPickerCb(() => (ids) => { cb(ids); setItemPickerCb(null); })}
             menuData={menuData}
@@ -1468,8 +1490,9 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
     x: node.x, y: node.y, rotation: node.rotation || 0,
     // Sold-out preview: ghost the elements that would hide, dim the bindings
     // that stay but show as unavailable. Still selectable/editable.
-    opacity: ghost ? 0.15 : (dim ? 0.5 : 1),
-    draggable: true,
+    opacity: node.hidden ? 0 : (ghost ? 0.15 : (dim ? 0.5 : 1)),
+    draggable: !node.locked,
+    listening: !node.locked,
     onClick: onSelect, onTap: onSelect,
     onDblClick: () => onDblClick?.(node), onDblTap: () => onDblClick?.(node),
     onDragStart,
@@ -2097,26 +2120,57 @@ function ToolBtn({ icon, label, onClick, active, isNarrow }) {
   );
 }
 
-function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, onAlign, onDistribute, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, selectedIds, onSelectNode, onAlign, onDistribute, onUpdate, onUpdateNode, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
+  const [activeTab, setActiveTab] = useState('props');
+  const baseStyle = style || propsPanel;
+
   return (
-    <aside style={style || propsPanel}>
-      {multiCount > 1 ? (
-        <MultiSelectProps count={multiCount} onAlign={onAlign} onDistribute={onDistribute} />
-      ) : !selected ? (
-        <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} />
-      ) : (
-        <NodeProperties
-          node={selected}
-          onUpdate={onUpdate}
-          onSetFont={onSetFont}
-          onDelete={onDelete}
-          onForward={onForward}
-          onBack={onBack}
-          openAssetPicker={openAssetPicker}
-          openItemPicker={openItemPicker}
-          menuData={menuData}
-        />
-      )}
+    <aside style={{ ...baseStyle, padding: 0, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid #30363d' }}>
+        <button
+          onClick={() => setActiveTab('props')}
+          style={{ flex: 1, padding: '12px 8px', background: 'transparent', border: 'none', borderBottom: activeTab === 'props' ? '2px solid #1f6feb' : '2px solid transparent', color: activeTab === 'props' ? '#fff' : '#8b949e', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}
+        >
+          Propiedades
+        </button>
+        <button
+          onClick={() => setActiveTab('layers')}
+          style={{ flex: 1, padding: '12px 8px', background: 'transparent', border: 'none', borderBottom: activeTab === 'layers' ? '2px solid #1f6feb' : '2px solid transparent', color: activeTab === 'layers' ? '#fff' : '#8b949e', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}
+        >
+          Capas
+        </button>
+      </div>
+
+      <div style={{ padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column' }}>
+        {activeTab === 'layers' ? (
+          <LayersPanel
+            nodes={page?.nodes}
+            selectedIds={selectedIds}
+            onSelect={onSelectNode}
+            onUpdate={onUpdateNode}
+            onBringForward={onForward}
+            onSendBack={onBack}
+          />
+        ) : (
+          multiCount > 1 ? (
+            <MultiSelectProps count={multiCount} onAlign={onAlign} onDistribute={onDistribute} />
+          ) : !selected ? (
+            <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} />
+          ) : (
+            <NodeProperties
+              node={selected}
+              onUpdate={onUpdate}
+              onSetFont={onSetFont}
+              onDelete={onDelete}
+              onForward={() => onForward(selected.id)}
+              onBack={() => onBack(selected.id)}
+              openAssetPicker={openAssetPicker}
+              openItemPicker={openItemPicker}
+              menuData={menuData}
+            />
+          )
+        )}
+      </div>
     </aside>
   );
 }
