@@ -302,20 +302,42 @@ function MenuShareCard({ menuData }) {
             <div style={{ marginTop: 16, padding: 16, background: 'var(--bg-main)', borderRadius: 12, border: '1px solid var(--border)' }}>
               <p style={{ margin: '0 0 8px', fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>Ayuda: Registros DNS</p>
               <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Para que tu dominio funcione, ve a tu proveedor (GoDaddy, Cloudflare, etc.) y agrega estos dos registros a tus DNS:
+                Configura tu DNS en tu proveedor (Hostinger, GoDaddy, etc.) según lo que quieras usar:
               </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 16px', fontSize: '0.85rem', alignItems: 'center' }}>
-                <strong style={{ color: 'var(--text-main)' }}>Tipo</strong><strong style={{ color: 'var(--text-main)' }}>Valor</strong>
-                
-                <code style={codeStyle}>CNAME</code>
-                <code style={codeStyle}>cname.vercel-dns.com.</code>
 
-                <code style={codeStyle}>TXT</code>
-                <code style={codeStyle}>tinypos-ref={projectRef}</code>
+              <div style={{ marginBottom: 16 }}>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>Opción A: Usar un Subdominio (ej. menu.tu-cafe.com)</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: '6px 12px', fontSize: '0.8rem', alignItems: 'center', background: 'var(--bg-surface)', padding: 8, borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <strong style={{ color: 'var(--text-muted)' }}>Tipo</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>Nombre</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>Valor / Objetivo</strong>
+                  
+                  <code style={codeStyle}>CNAME</code>
+                  <code style={codeStyle}>menu</code>
+                  <code style={codeStyle}>cname.vercel-dns.com.</code>
+
+                  <code style={codeStyle}>TXT</code>
+                  <code style={codeStyle}>_tinypos.menu</code>
+                  <code style={codeStyle}>tinypos-ref={projectRef}</code>
+                </div>
               </div>
-              <p style={{ margin: '12px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                <strong>Nota vital:</strong> Por reglas de Internet, un CNAME no puede compartir nombre con un TXT. Si tu CNAME se llama <code style={{background: '#222', padding: '2px 4px', borderRadius: 4}}>menu</code>, el registro TXT debes crearlo con el nombre <code style={{background: '#222', padding: '2px 4px', borderRadius: 4}}>_tinypos.menu</code>.
-              </p>
+
+              <div>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>Opción B: Usar el Dominio Principal (ej. tu-cafe.com)</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: '6px 12px', fontSize: '0.8rem', alignItems: 'center', background: 'var(--bg-surface)', padding: 8, borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <strong style={{ color: 'var(--text-muted)' }}>Tipo</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>Nombre</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>Valor / Objetivo</strong>
+                  
+                  <code style={codeStyle}>A</code>
+                  <code style={codeStyle}>@</code>
+                  <code style={codeStyle}>76.76.21.21</code>
+
+                  <code style={codeStyle}>TXT</code>
+                  <code style={codeStyle}>_tinypos</code>
+                  <code style={codeStyle}>tinypos-ref={projectRef}</code>
+                </div>
+              </div>
             </div>
           </div>
         </div>
