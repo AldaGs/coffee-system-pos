@@ -25,9 +25,12 @@ function MenuShareCard({ menuData }) {
   const [error, setError] = useState(null);
   const [menuUrl, setMenuUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [customDomain, setCustomDomain] = useState('');
+  const [customDomain, setCustomDomain] = useState(() => localStorage.getItem('tinypos_custom_domain') || '');
+  const [linkedDomain, setLinkedDomain] = useState(() => localStorage.getItem('tinypos_custom_domain') || '');
   const [isAddingDomain, setIsAddingDomain] = useState(false);
+  const [isRemovingDomain, setIsRemovingDomain] = useState(false);
   const [domainStatus, setDomainStatus] = useState(null);
+  const [isHelpOpen, setIsHelpOpen] = useState(!localStorage.getItem('tinypos_custom_domain'));
 
   // Derive project ref + anon key from localStorage (written by SetupScreen).
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url') || '';
@@ -115,12 +118,41 @@ function MenuShareCard({ menuData }) {
         throw new Error(data.error || 'Error al agregar dominio');
       }
       
-      setDomainStatus({ success: true, message: `Dominio ${data.domain} agregado con éxito. Estado: ${data.status}` });
-      setCustomDomain('');
+      setDomainStatus({ success: true, message: `Dominio ${data.domain} agregado con éxito.` });
+      setLinkedDomain(data.domain);
+      localStorage.setItem('tinypos_custom_domain', data.domain);
+      setIsHelpOpen(false);
     } catch (err) {
       setDomainStatus({ success: false, message: err.message });
     } finally {
       setIsAddingDomain(false);
+    }
+  };
+
+  const handleRemoveDomain = async () => {
+    setIsRemovingDomain(true);
+    setDomainStatus(null);
+    try {
+      const res = await fetch('/api/remove-domain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: linkedDomain })
+      });
+      const data = await res.json();
+      
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Error al remover dominio');
+      }
+      
+      setDomainStatus({ success: true, message: `Dominio removido con éxito.` });
+      setLinkedDomain('');
+      setCustomDomain('');
+      localStorage.removeItem('tinypos_custom_domain');
+      setIsHelpOpen(true);
+    } catch (err) {
+      setDomainStatus({ success: false, message: err.message });
+    } finally {
+      setIsRemovingDomain(false);
     }
   };
 
@@ -277,21 +309,38 @@ function MenuShareCard({ menuData }) {
                 placeholder="menu.micafe.com"
                 value={customDomain}
                 onChange={e => setCustomDomain(e.target.value)}
-                style={urlInputStyle}
+                readOnly={!!linkedDomain}
+                style={{ ...urlInputStyle, opacity: linkedDomain ? 0.7 : 1 }}
               />
-              <button
-                type="button"
-                onClick={handleAddDomain}
-                disabled={isAddingDomain || !customDomain}
-                style={{ ...buttonStyle, background: brand, opacity: (isAddingDomain || !customDomain) ? 0.5 : 1 }}
-              >
-                {isAddingDomain ? (
-                  <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} />
-                ) : (
-                  <Icon icon="lucide:plus" />
-                )}
-                {isAddingDomain ? 'Vincular...' : 'Vincular'}
-              </button>
+              {linkedDomain ? (
+                <button
+                  type="button"
+                  onClick={handleRemoveDomain}
+                  disabled={isRemovingDomain}
+                  style={{ ...buttonStyle, background: '#e74c3c', opacity: isRemovingDomain ? 0.5 : 1 }}
+                >
+                  {isRemovingDomain ? (
+                    <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Icon icon="lucide:trash" />
+                  )}
+                  Desvincular
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleAddDomain}
+                  disabled={isAddingDomain || !customDomain}
+                  style={{ ...buttonStyle, background: brand, opacity: (isAddingDomain || !customDomain) ? 0.5 : 1 }}
+                >
+                  {isAddingDomain ? (
+                    <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} />
+                  ) : (
+                    <Icon icon="lucide:plus" />
+                  )}
+                  Vincular
+                </button>
+              )}
             </div>
             {domainStatus && (
               <p style={{ marginTop: 8, fontSize: '0.85rem', color: domainStatus.success ? '#27ae60' : '#e74c3c' }}>
@@ -299,7 +348,17 @@ function MenuShareCard({ menuData }) {
               </p>
             )}
 
-            <div style={{ marginTop: 16, padding: 16, background: 'var(--bg-main)', borderRadius: 12, border: '1px solid var(--border)' }}>
+            <button 
+               type="button" 
+               onClick={() => setIsHelpOpen(!isHelpOpen)}
+               style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginTop: 16, fontSize: '0.9rem' }}
+            >
+              <Icon icon={isHelpOpen ? "lucide:chevron-up" : "lucide:chevron-down"} />
+              {isHelpOpen ? "Ocultar instrucciones DNS" : "Mostrar instrucciones DNS"}
+            </button>
+
+            {isHelpOpen && (
+              <div style={{ marginTop: 12, padding: 16, background: 'var(--bg-main)', borderRadius: 12, border: '1px solid var(--border)' }}>
               <p style={{ margin: '0 0 8px', fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>Ayuda: Registros DNS</p>
               <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Configura tu DNS en tu proveedor (Hostinger, GoDaddy, etc.) según lo que quieras usar:
@@ -338,7 +397,8 @@ function MenuShareCard({ menuData }) {
                   <code style={codeStyle}>tinypos-ref={projectRef}</code>
                 </div>
               </div>
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
