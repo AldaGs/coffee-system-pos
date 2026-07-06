@@ -51,88 +51,108 @@ function PublicMenu() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const projectRef = params.get('p');
+    const pinnedId = params.get('m');
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    
+    const isCustomDomain = 
+      hostname &&
+      !hostname.includes('localhost') && 
+      !hostname.includes('127.0.0.1') && 
+      !hostname.endsWith('.vercel.app') &&
+      hostname !== 'tinypos.app' &&
+      hostname !== 'www.tinypos.app';
 
-    // Short-URL path: ?p=PROJECT_REF. Derives the Supabase URL from the ref
-    // and fetches the anon key from the public menu bucket's config.json.
-    if (projectRef) {
+    let cancelled = false;
+
+    const loadMenuFromRef = async (projectRef) => {
       const supabaseUrl = `https://${projectRef}.supabase.co`;
       const configUrl = `${supabaseUrl}/storage/v1/object/public/menu/config.json`;
 
-      let cancelled = false;
-      (async () => {
-        try {
-          const res = await fetch(configUrl);
-          if (!res.ok) throw new Error('Config not found');
-          const config = await res.json();
-          const publishableKey = config.k;
-          if (!publishableKey) throw new Error('Missing key in config');
+      try {
+        const res = await fetch(configUrl);
+        if (!res.ok) throw new Error('Config not found');
+        const config = await res.json();
+        const publishableKey = config.k;
+        if (!publishableKey) throw new Error('Missing key in config');
+        if (cancelled) return;
+
+        const client = createClient(supabaseUrl, publishableKey, {
+          auth: { persistSession: false, autoRefreshToken: false }
+        });
+
+        async function fetchMenu() {
+          const { data, error } = pinnedId
+            ? await client.rpc('get_menu_by_id', { p_id: Number(pinnedId) })
+            : await client.rpc('get_active_menu');
           if (cancelled) return;
-
-          const client = createClient(supabaseUrl, publishableKey, {
-            auth: { persistSession: false, autoRefreshToken: false }
+          if (error) { setError(error.message); return; }
+          setData(data);
+          setActiveCategoryId(prev => {
+            if (prev && data?.categories?.some(c => c.id === prev)) return prev;
+            return data?.categories?.[0]?.id ?? null;
           });
-
-          const pinnedId = params.get('m');
-          async function fetchMenu() {
-            const { data, error } = pinnedId
-              ? await client.rpc('get_menu_by_id', { p_id: Number(pinnedId) })
-              : await client.rpc('get_active_menu');
-            if (cancelled) return;
-            if (error) { setError(error.message); return; }
-            setData(data);
-            setActiveCategoryId(prev => {
-              if (prev && data?.categories?.some(c => c.id === prev)) return prev;
-              return data?.categories?.[0]?.id ?? null;
-            });
-          }
-          fetchMenu();
-          const iv = setInterval(fetchMenu, 5 * 60 * 1000);
-          // Stash cleanup ref so the outer return can clear it.
-          intervalRef.current = iv;
-        } catch (err) {
-          if (!cancelled) setError(err.message || 'Failed to load menu config');
         }
-      })();
-      return () => {
-        cancelled = true;
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      };
-    }
+        fetchMenu();
+        const iv = setInterval(fetchMenu, 5 * 60 * 1000);
+        intervalRef.current = iv;
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load menu config');
+      }
+    };
 
-    // Legacy long-URL path: ?u=BASE64_URL&k=BASE64_KEY (backwards compat).
-    const supabaseUrl = decodeParam(params.get('u'));
-    const publishableKey = decodeParam(params.get('k'));
+    const projectRefParam = params.get('p');
+    if (projectRefParam) {
+      loadMenuFromRef(projectRefParam);
+    } else if (isCustomDomain) {
+      // Resolve custom domain project ref dynamically
+      fetch(`/api/resolve-domain?domain=${hostname}`)
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.projectRef) {
+            loadMenuFromRef(data.projectRef);
+          } else {
+            setError('Dominio no configurado correctamente. Falta el registro TXT.');
+          }
+        })
+        .catch(err => {
+          if (!cancelled) setError('Error resolviendo el dominio.');
+        });
+    } else {
+      // Legacy long-URL path: ?u=BASE64_URL&k=BASE64_KEY (backwards compat).
+      const supabaseUrl = decodeParam(params.get('u'));
+      const publishableKey = decodeParam(params.get('k'));
 
-    if (!supabaseUrl || !publishableKey) {
-      setError('missing-config');
-      return;
-    }
+      if (!supabaseUrl || !publishableKey) {
+        setError('missing-config');
+        return;
+      }
 
-    const client = createClient(supabaseUrl, publishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
-    });
-
-    // ?m=<id> pins a specific menu (per-card share links), bypassing the
-    // schedule resolver. Falls back to get_active_menu when absent.
-    const pinnedId = params.get('m');
-    let cancelled = false;
-    async function fetchMenu() {
-      const { data, error } = pinnedId
-        ? await client.rpc('get_menu_by_id', { p_id: Number(pinnedId) })
-        : await client.rpc('get_active_menu');
-      if (cancelled) return;
-      if (error) { setError(error.message); return; }
-      setData(data);
-      setActiveCategoryId(prev => {
-        if (prev && data?.categories?.some(c => c.id === prev)) return prev;
-        return data?.categories?.[0]?.id ?? null;
+      const client = createClient(supabaseUrl, publishableKey, {
+        auth: { persistSession: false, autoRefreshToken: false }
       });
+
+      async function fetchLegacyMenu() {
+        const { data, error } = pinnedId
+          ? await client.rpc('get_menu_by_id', { p_id: Number(pinnedId) })
+          : await client.rpc('get_active_menu');
+        if (cancelled) return;
+        if (error) { setError(error.message); return; }
+        setData(data);
+        setActiveCategoryId(prev => {
+          if (prev && data?.categories?.some(c => c.id === prev)) return prev;
+          return data?.categories?.[0]?.id ?? null;
+        });
+      }
+      fetchLegacyMenu();
+      const iv = setInterval(fetchLegacyMenu, 5 * 60 * 1000);
+      intervalRef.current = iv;
     }
-    fetchMenu();
-    // Re-resolve every 5 min so scheduled swaps appear without a manual refresh.
-    const iv = setInterval(fetchMenu, 5 * 60 * 1000);
-    return () => { cancelled = true; clearInterval(iv); };
+
+    return () => {
+      cancelled = true;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, []);
 
   const groupsById = useMemo(() => {

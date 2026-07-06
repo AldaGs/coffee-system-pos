@@ -24,7 +24,16 @@ function App() {
   // login form, or the device-authorization check. Uses its own anon-keyed
   // Supabase client (see PublicMenu.jsx) so it doesn't piggyback on any
   // logged-in session.
-  if (typeof window !== 'undefined' && (window.location.pathname === '/menu' || window.location.pathname === '/menu/tv')) {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isCustomDomain = 
+    hostname &&
+    !hostname.includes('localhost') && 
+    !hostname.includes('127.0.0.1') && 
+    !hostname.endsWith('.vercel.app') &&
+    hostname !== 'tinypos.app' &&
+    hostname !== 'www.tinypos.app';
+
+  if (typeof window !== 'undefined' && (window.location.pathname === '/menu' || window.location.pathname === '/menu/tv' || isCustomDomain)) {
     return <PublicMenu />;
   }
 
