@@ -19,7 +19,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Path, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
-import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, buildItemIndex, syncDocFonts, docFontLoadSpecs, pathToSvgD, pathBBox, translatePath, cloneNodeGeometry, formatDateField } from '../../utils/canvasDocument';
+import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, syncDocFonts, docFontLoadSpecs, pathToSvgD, pathBBox, translatePath, cloneNodeGeometry, formatDateField } from '../../utils/canvasDocument';
 import { CANVAS_FONTS, googleUrlForToken, fontIdForStack, parseGoogleFontUrl } from '../../utils/canvasFonts';
 import { PaletteContext } from './paletteContext';
 import { updateMenu } from '../../api/menus';
@@ -122,11 +122,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     Promise.all(specs.map(s => document.fonts.load(s).catch(() => {})))
       .then(() => { if (active) setFontEpoch(e => e + 1); });
     return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fontsKey]);
 
   // Leave path anchor-editing when the path is no longer the selection.
   useEffect(() => {
-    if (editingPathId && !selectedIds.includes(editingPathId)) setEditingPathId(null);
+    if (editingPathId && !selectedIds.includes(editingPathId)) setTimeout(() => setEditingPathId(null), 0);
   }, [selectedIds, editingPathId]);
 
   const page = doc.pages[pageIndex] || doc.pages[0];
@@ -441,7 +442,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   // On narrow layouts, surface the bottom sheet automatically when a selection
   // appears so the just-tapped node's controls are reachable without hunting.
   useEffect(() => {
-    if (isNarrow && selectedIds.length > 0) setPanelOpen(true);
+    if (isNarrow && selectedIds.length > 0) setTimeout(() => setPanelOpen(true), 0);
   }, [isNarrow, selectedIds.length]);
 
   // ---------- Stage scaling -------------------------------------------------
@@ -756,18 +757,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     return { ...n, x, y };
   }
 
-  // Record a history step after a transform gesture completes. We don't
-  // mutate here because `handleNodeTransform` already silently baked the
-  // final values into the doc; we just push that doc into history.
-  const transformHistoryGuardRef = useRef(false);
-  function handleNodeTransformEndHistory() {
-    if (transformHistoryGuardRef.current) return;
-    transformHistoryGuardRef.current = true;
-    requestAnimationFrame(() => { transformHistoryGuardRef.current = false; });
-    pushHistory(doc); // Wait, pushHistory expects the *previous* doc, but doc is already updated.
-    // Actually, `handleNodeTransform` updates `doc` without pushing history. 
-    // We need to push the pre-transform state. Let's handle this similarly to path editing.
-  }
+
 
   // Align the selection's edges/centers to a reference frame: the selection's
   // own bbox, the page, or the "key object" (the first node selected, which
@@ -967,6 +957,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     return () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
     // Re-bind only when the drag identity or geometry changes — pos lives in a
     // ref so per-move state updates don't thrash the listeners.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGuide?.axis, activeGuide?.index, stageScale, pageW, pageH, doc, pageIndex]);
 
   return (
@@ -1466,7 +1457,7 @@ function GuidesOverlay({ guides, scale, activeGuide, onStartDragGuide }) {
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, isSelected, onSelect, onDblClick, onChange, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd, onContextMenu }) {
+function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, onSelect, onDblClick, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd, onContextMenu }) {
   const shapeRef = useRef(null);
 
   // Auto-width text: after each render, read the konva-measured size and
@@ -1715,7 +1706,7 @@ function KonvaImageNode({ node, common, fit }) {
   const [img, setImg] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    setImg(null); setFailed(false);
+    setTimeout(() => { setImg(null); setFailed(false); }, 0);
     const i = new window.Image();
     i.crossOrigin = 'anonymous';
     i.src = node.src;
@@ -2017,7 +2008,6 @@ function SelectionTransformer({ selectedIds }) {
     const nodes = (selectedIds || []).map(id => stage.findOne(`#${id}`)).filter(Boolean).filter(n => n.name() !== 'pathnode');
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   });
   return (
     <Transformer
@@ -2801,7 +2791,7 @@ const primaryBtn = { background: '#238636', border: 'none', color: 'white', padd
 const toolBtnStyle = { background: '#22272e', border: '1px solid #30363d', color: 'white', borderRadius: 8, padding: '8px 4px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 };
 const panelTitle = { margin: 0, fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#8b949e' };
 const smallBtn  = { background: 'transparent', border: '1px solid #30363d', color: '#ddd', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '0.8rem' };
-const colorInput = { width: 36, height: 28, border: '1px solid #30363d', borderRadius: 6, background: 'transparent', cursor: 'pointer', padding: 0 };
+
 const textInputStyle = { flex: 1, background: '#22272e', border: '1px solid #30363d', color: 'white', borderRadius: 6, padding: '6px 8px', fontSize: '0.85rem', outline: 'none' };
 const textareaStyle  = { ...textInputStyle, width: '100%', resize: 'vertical', fontFamily: 'inherit' };
 const selectStyle    = { ...textInputStyle, cursor: 'pointer' };

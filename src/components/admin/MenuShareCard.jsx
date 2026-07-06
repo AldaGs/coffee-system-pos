@@ -81,11 +81,11 @@ function MenuShareCard({ menuData }) {
     } finally {
       setUploading(false);
     }
-  }, [projectRef, anonKey, missingCreds]);
+  }, [projectRef, anonKey, missingCreds, supabaseUrl]);
 
   // On mount (and whenever creds change), upload the config.
   useEffect(() => {
-    generateShortUrl();
+    setTimeout(generateShortUrl, 0);
   }, [generateShortUrl]);
 
   // Render the inline QR into the visible canvas once menuUrl is ready.
