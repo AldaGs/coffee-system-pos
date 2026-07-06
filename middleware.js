@@ -28,34 +28,39 @@ export default async function middleware(req) {
   if (!isPrimary) {
     try {
       // Cloudflare DNS over HTTPS (DoH)
-      const dohResponse = await fetch(`https://cloudflare-dns.com/dns-query?name=${hostname}&type=TXT`, {
-        headers: { accept: 'application/dns-json' }
-      });
+      // We check both the exact hostname (works if they use an A record) 
+      // and a special _tinypos subdomain (required if they use a CNAME, due to DNS RFCs)
+      const domainsToCheck = [hostname, `_tinypos.${hostname}`];
       
-      const dnsData = await dohResponse.json();
+      let projectRef = null;
       
-      if (dnsData.Answer) {
-        // Iterate through all TXT records to find ours
-        for (const record of dnsData.Answer) {
-          // TXT record data often comes wrapped in quotes, e.g., "tinypos-ref=xyz"
-          const txtData = record.data.replace(/^"|"$/g, '');
-          
-          if (txtData.startsWith('tinypos-ref=')) {
-            const projectRef = txtData.split('=')[1].trim();
-            
-            // Rewrite the request to /menu?p=PROJECT_REF
-            // If they visited the root (menu.somecafe.com/), we send them to /menu.
-            // If they visited /menu/tv (menu.somecafe.com/menu/tv), we preserve the path.
-            const path = url.pathname === '/' ? '/menu' : url.pathname;
-            const rewriteUrl = new URL(path, req.url);
-            
-            // Preserve existing query params if any, and add the project ref
-            url.searchParams.forEach((val, key) => rewriteUrl.searchParams.set(key, val));
-            rewriteUrl.searchParams.set('p', projectRef);
-            
-            return rewrite(rewriteUrl);
+      for (const domain of domainsToCheck) {
+        const dohResponse = await fetch(`https://cloudflare-dns.com/dns-query?name=${domain}&type=TXT`, {
+          headers: { accept: 'application/dns-json' }
+        });
+        
+        const dnsData = await dohResponse.json();
+        if (dnsData.Answer) {
+          for (const record of dnsData.Answer) {
+            const txtData = record.data.replace(/^"|"$/g, '');
+            if (txtData.startsWith('tinypos-ref=')) {
+              projectRef = txtData.split('=')[1].trim();
+              break;
+            }
           }
         }
+        if (projectRef) break;
+      }
+      
+      if (projectRef) {
+        // Rewrite the request to /menu?p=PROJECT_REF
+        const path = url.pathname === '/' ? '/menu' : url.pathname;
+        const rewriteUrl = new URL(path, req.url);
+        
+        url.searchParams.forEach((val, key) => rewriteUrl.searchParams.set(key, val));
+        rewriteUrl.searchParams.set('p', projectRef);
+        
+        return rewrite(rewriteUrl);
       }
     } catch (err) {
       console.error(`Edge Middleware DNS lookup failed for ${hostname}:`, err);

@@ -314,7 +314,7 @@ function MenuShareCard({ menuData }) {
                 <code style={codeStyle}>tinypos-ref={projectRef}</code>
               </div>
               <p style={{ margin: '12px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                El registro TXT es crucial para que TinyPOS sepa qué menú cargar cuando alguien visita tu dominio.
+                <strong>Nota vital:</strong> Por reglas de Internet, un CNAME no puede compartir nombre con un TXT. Si tu CNAME se llama <code style={{background: '#222', padding: '2px 4px', borderRadius: 4}}>menu</code>, el registro TXT debes crearlo con el nombre <code style={{background: '#222', padding: '2px 4px', borderRadius: 4}}>_tinypos.menu</code>.
               </p>
             </div>
           </div>
