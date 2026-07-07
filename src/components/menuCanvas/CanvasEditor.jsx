@@ -187,7 +187,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         finishPath(penDraft, false);
       } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.length && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') {
         e.preventDefault();
-        removeNodes(selectedIds);
+        // Locked nodes are protected from deletion, like every other edit.
+        const lockedIds = new Set((page?.nodes || []).filter(n => n.locked).map(n => n.id));
+        const deletable = selectedIds.filter(id => !lockedIds.has(id));
+        if (deletable.length) removeNodes(deletable);
       } else if (e.key === 'Escape') {
         if (penMode) cancelPen();
         else if (editingPathId) setEditingPathId(null);
@@ -2017,7 +2020,9 @@ function SelectionTransformer({ selectedIds }) {
     if (!tr) return;
     const stage = tr.getStage();
     // Paths opt out of the box transformer (name="pathnode").
-    const nodes = (selectedIds || []).map(id => stage.findOne(`#${id}`)).filter(Boolean).filter(n => n.name() !== 'pathnode');
+    // Skip paths (freeform) and locked nodes (draggable:false) so the
+    // transformer never offers resize/rotate handles on a locked element.
+    const nodes = (selectedIds || []).map(id => stage.findOne(`#${id}`)).filter(Boolean).filter(n => n.name() !== 'pathnode' && n.draggable());
     tr.nodes(nodes);
     tr.getLayer()?.batchDraw();
   });
@@ -2157,6 +2162,8 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
             <MultiSelectProps count={multiCount} onAlign={onAlign} onDistribute={onDistribute} />
           ) : !selected ? (
             <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} />
+          ) : selected.locked ? (
+            <LockedNotice onUnlock={() => onUpdateNode(selected.id, { locked: false })} />
           ) : (
             <NodeProperties
               node={selected}
@@ -2277,6 +2284,24 @@ function PageProperties({ doc, page, changePageBg, changePageSize }) {
       <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa' }}>
         Selecciona un objeto en el lienzo para editar sus propiedades.
       </p>
+    </div>
+  );
+}
+
+// Shown instead of the editable properties when a locked node is selected
+// (e.g. picked from the Layers panel). Editing stays blocked until unlocked —
+// matching Illustrator, where a locked item can't be modified.
+function LockedNotice({ onUnlock }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
+      <h3 style={panelTitle}>Elemento bloqueado</h3>
+      <p style={{ margin: 0, fontSize: '0.82rem', color: '#8b949e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+        <Icon icon="lucide:lock" style={{ flexShrink: 0, marginTop: 2 }} />
+        Este elemento está bloqueado. Desbloquéalo para mover o editar sus propiedades.
+      </p>
+      <button onClick={onUnlock} style={{ ...smallBtn, background: '#1f6feb', color: 'white', borderColor: '#1f6feb', justifyContent: 'center', alignSelf: 'stretch' }}>
+        <Icon icon="lucide:unlock" /> Desbloquear
+      </button>
     </div>
   );
 }

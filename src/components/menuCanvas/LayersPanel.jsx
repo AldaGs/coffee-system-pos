@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 
 // Illustrator-style layers list: top of the list = top of the stacking order.
@@ -34,13 +34,35 @@ export default function LayersPanel({ nodes, selectedIds, onSelect, onUpdate, on
   const [overId, setOverId] = useState(null);
   const [overPos, setOverPos] = useState('before'); // 'before' = drop above the row
 
+  // Keep the active row visible: when the selection changes (e.g. the user
+  // clicked an element on the canvas), scroll the most-recently-selected row
+  // into view. Not while dragging, so a reorder drag doesn't fight the scroll.
+  const primaryId = selectedIds[selectedIds.length - 1] || null;
+  const activeRowRef = useRef(null);
+  const selKey = selectedIds.join(',');
+  useEffect(() => {
+    if (dragId) return;
+    activeRowRef.current?.scrollIntoView({ block: 'nearest' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selKey]);
+
+  // The rows that travel together on a drag: the whole selection when the
+  // grabbed row is part of a multi-selection, otherwise just that row.
+  function movingSetFor(id) {
+    return (selectedIds.includes(id) && selectedIds.length > 1) ? new Set(selectedIds) : new Set([id]);
+  }
+  const movingSet = dragId ? movingSetFor(dragId) : new Set();
+
   function move(fromId, toId, pos) {
-    if (!onReorder || fromId === toId) return;
-    const order = ids.filter(id => id !== fromId);
+    if (!onReorder) return;
+    const moving = movingSetFor(fromId);
+    if (moving.has(toId)) return; // dropping the group onto itself is a no-op
+    const movingOrdered = ids.filter(id => moving.has(id)); // preserve relative order
+    const order = ids.filter(id => !moving.has(id));
     let idx = order.indexOf(toId);
     if (idx < 0) return;
     if (pos === 'after') idx += 1;
-    order.splice(idx, 0, fromId);
+    order.splice(idx, 0, ...movingOrdered);
     onReorder(order);
   }
 
@@ -63,8 +85,9 @@ export default function LayersPanel({ nodes, selectedIds, onSelect, onUpdate, on
         <LayerItem
           key={node.id}
           node={node}
+          rowRef={node.id === primaryId ? activeRowRef : null}
           isSelected={selectedIds.includes(node.id)}
-          isDragging={dragId === node.id}
+          isDragging={movingSet.has(node.id)}
           dropBefore={dragId && overId === node.id && overPos === 'before'}
           dropAfter={dragId && overId === node.id && overPos === 'after'}
           canForward={i > 0}
@@ -74,7 +97,7 @@ export default function LayersPanel({ nodes, selectedIds, onSelect, onUpdate, on
           onForward={() => nudge(node.id, -1)}
           onBack={() => nudge(node.id, +1)}
           onDragStart={() => setDragId(node.id)}
-          onDragOverItem={(pos) => { if (dragId && dragId !== node.id) { setOverId(node.id); setOverPos(pos); } }}
+          onDragOverItem={(pos) => { if (dragId && !movingSet.has(node.id)) { setOverId(node.id); setOverPos(pos); } }}
           onDropItem={() => { if (dragId) move(dragId, node.id, overPos); endDrag(); }}
           onDragEnd={endDrag}
         />
@@ -89,7 +112,7 @@ export default function LayersPanel({ nodes, selectedIds, onSelect, onUpdate, on
 }
 
 function LayerItem({
-  node, isSelected, isDragging, dropBefore, dropAfter, canForward, canBack,
+  node, rowRef, isSelected, isDragging, dropBefore, dropAfter, canForward, canBack,
   onSelect, onUpdate, onForward, onBack, onDragStart, onDragOverItem, onDropItem, onDragEnd
 }) {
   const [editing, setEditing] = useState(false);
@@ -123,6 +146,7 @@ function LayerItem({
 
   return (
     <div
+      ref={rowRef}
       draggable={!editing}
       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', node.id); onDragStart(); }}
       onDragOver={handleDragOver}
