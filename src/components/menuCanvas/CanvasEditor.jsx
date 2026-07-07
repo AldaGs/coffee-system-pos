@@ -358,6 +358,17 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     });
   }
 
+  // Reassign z from an explicit top-first ordering (Layers panel drag-and-drop
+  // or its up/down buttons). Unlike the neighbor-swap helpers above, this
+  // normalizes every node to a unique z, so reordering stays correct even when
+  // a template seeded many nodes at the same z.
+  function reorderNodesByIds(orderedTopFirst) {
+    const n = orderedTopFirst.length;
+    const zById = new Map();
+    orderedTopFirst.forEach((id, i) => zById.set(id, n - i)); // top of list → highest z
+    mutatePage(p => ({ ...p, nodes: (p.nodes || []).map(node => zById.has(node.id) ? { ...node, z: zById.get(node.id) } : node) }));
+  }
+
   // ---------- Page operations -----------------------------------------------
 
   function addPage() {
@@ -1223,6 +1234,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             onDistribute={axis => distributeSelected(axis)}
             onUpdate={patch => selected && updateNode(selected.id, patch)}
             onUpdateNode={updateNode}
+            onReorder={reorderNodesByIds}
             onSetFont={(stack, url) => selected && setNodeFont(selected.id, stack, url)}
             onDelete={() => selected && removeNode(selected.id)}
             onForward={id => bringForward(id || selected?.id)}
@@ -2110,7 +2122,7 @@ function ToolBtn({ icon, label, onClick, active, isNarrow }) {
   );
 }
 
-function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, selectedIds, onSelectNode, onAlign, onDistribute, onUpdate, onUpdateNode, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, selectedIds, onSelectNode, onAlign, onDistribute, onUpdate, onUpdateNode, onReorder, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
   const [activeTab, setActiveTab] = useState('props');
   const baseStyle = style || propsPanel;
 
@@ -2138,8 +2150,7 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
             selectedIds={selectedIds}
             onSelect={onSelectNode}
             onUpdate={onUpdateNode}
-            onBringForward={onForward}
-            onSendBack={onBack}
+            onReorder={onReorder}
           />
         ) : (
           multiCount > 1 ? (
