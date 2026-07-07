@@ -15,7 +15,7 @@
 //   - Snap/guides/multi-select/group
 //   - Print + page-size presets switching (4c.5)
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Path, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
@@ -182,6 +182,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         if (clipboardRef.current.length) { e.preventDefault(); pasteClipboard(); }
       } else if (meta && e.key.toLowerCase() === 'd') {
         if (selectedIds.length) { e.preventDefault(); duplicateSelection(); }
+      } else if (meta && e.key === '0') {
+        e.preventDefault(); resetZoom();
+      } else if (meta && (e.key === '=' || e.key === '+')) {
+        e.preventDefault(); zoomByFactor(1.2);
+      } else if (meta && e.key === '-') {
+        e.preventDefault(); zoomByFactor(1 / 1.2);
       } else if (e.key === 'Enter' && penMode) {
         e.preventDefault();
         finishPath(penDraft, false);
@@ -464,7 +470,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   const pageW = doc.page_size?.w || 1920;
   const pageH = doc.page_size?.h || 1080;
   const stageWrapRef = useRef(null);
-  const [stageScale, setStageScale] = useState(1);
+  // The on-screen scale is the fit-to-viewport scale times the user's zoom.
+  // zoom = 1 means "fit"; Ctrl/⌘ + wheel (or the zoom controls) change it.
+  const [fitScale, setFitScale] = useState(1);
+  const [zoom, setZoom] = useState(1);
+  const stageScale = fitScale * zoom;
+  const MIN_SCALE = 0.1, MAX_SCALE = 8;
 
   useEffect(() => {
     function recalc() {
@@ -473,12 +484,67 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       const pad = 40 + (showRulers ? RULER : 0);
       const aw = el.clientWidth - pad;
       const ah = el.clientHeight - pad;
-      setStageScale(Math.min(aw / pageW, ah / pageH));
+      setFitScale(Math.min(aw / pageW, ah / pageH));
     }
     recalc();
     window.addEventListener('resize', recalc);
     return () => window.removeEventListener('resize', recalc);
   }, [pageW, pageH, showRulers, isNarrow, panelOpen]);
+
+  // Refs so the imperative wheel handler reads live values without re-binding.
+  const stageScaleRef = useRef(stageScale);
+  const fitScaleRef = useRef(fitScale);
+  useEffect(() => { stageScaleRef.current = stageScale; fitScaleRef.current = fitScale; });
+
+  // A scroll target queued by a zoom step, applied after the DOM resizes so the
+  // point under the cursor (or the viewport center) stays put across the zoom.
+  const pendingScrollRef = useRef(null);
+  useLayoutEffect(() => {
+    const t = pendingScrollRef.current;
+    if (t && stageWrapRef.current) {
+      stageWrapRef.current.scrollLeft = t.left;
+      stageWrapRef.current.scrollTop = t.top;
+    }
+    pendingScrollRef.current = null;
+  }, [zoom]);
+
+  // Change the absolute scale toward a target, anchored at a container-relative
+  // point (cx, cy) so that point doesn't drift. Queues the matching scroll.
+  const applyScaleAt = useCallback((nextScaleRaw, cx, cy) => {
+    const el = stageWrapRef.current;
+    const old = stageScaleRef.current;
+    const fit = fitScaleRef.current || 1;
+    const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScaleRaw));
+    if (!el || Math.abs(nextScale - old) < 1e-4) return;
+    const f = nextScale / old;
+    pendingScrollRef.current = { left: (el.scrollLeft + cx) * f - cx, top: (el.scrollTop + cy) * f - cy };
+    setZoom(nextScale / fit);
+  }, []);
+
+  // Intercept Ctrl/⌘ + wheel: zoom the canvas instead of the browser page.
+  // Registered natively (passive:false) so preventDefault actually stops the
+  // page-zoom gesture. Plain wheel keeps its default scroll/pan behavior.
+  useEffect(() => {
+    const el = stageWrapRef.current;
+    if (!el) return;
+    function onWheel(e) {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      applyScaleAt(stageScaleRef.current * factor, e.clientX - rect.left, e.clientY - rect.top);
+    }
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [applyScaleAt]);
+
+  // Zoom controls (buttons / keyboard) — anchored at the viewport center.
+  function zoomByFactor(factor) {
+    const el = stageWrapRef.current;
+    if (!el) { setZoom(z => Math.max(MIN_SCALE, Math.min(MAX_SCALE, (fitScaleRef.current * z) * factor)) / (fitScaleRef.current || 1)); return; }
+    applyScaleAt(stageScaleRef.current * factor, el.clientWidth / 2, el.clientHeight / 2);
+  }
+  function resetZoom() { pendingScrollRef.current = { left: 0, top: 0 }; setZoom(1); }
 
   // Pointer position in page coordinates (undo the stage scale).
   function pagePointer(e) {
@@ -1294,6 +1360,15 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           />
         );
       })()}
+
+      {/* Floating zoom control (Ctrl/⌘ + wheel also zooms the canvas). */}
+      <div style={zoomWidget}>
+        <button onClick={() => zoomByFactor(1 / 1.2)} style={zoomBtn} title="Alejar (Ctrl −)"><Icon icon="lucide:minus" /></button>
+        <button onClick={resetZoom} style={{ ...zoomBtn, minWidth: 54, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title="Ajustar a la ventana (Ctrl 0)">
+          {Math.round(stageScale * 100)}%
+        </button>
+        <button onClick={() => zoomByFactor(1.2)} style={zoomBtn} title="Acercar (Ctrl +)"><Icon icon="lucide:plus" /></button>
+      </div>
     </div>
    </PaletteContext.Provider>
   );
@@ -2815,9 +2890,15 @@ const mainRow  = { display: 'flex', flex: 1, minHeight: 0 };
 const mainRowNarrow = { ...mainRow, flexDirection: 'column' };
 const toolbar  = { width: 80, padding: 12, background: '#161b22', borderRight: '1px solid #30363d', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' };
 const toolbarNarrow = { display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'stretch', padding: '8px 12px', background: '#161b22', borderBottom: '1px solid #30363d', overflowX: 'auto', WebkitOverflowScrolling: 'touch', flexShrink: 0 };
-const stageArea = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: '#0d1117', overflow: 'auto' };
+// `safe center` keeps the page centered when it fits but stops the flexbox
+// from clipping the top/left once the zoomed canvas overflows, so every edge
+// stays reachable by scrolling/panning.
+const stageArea = { flex: 1, display: 'flex', alignItems: 'safe center', justifyContent: 'safe center', padding: 20, background: '#0d1117', overflow: 'auto' };
 const stageAreaNarrow = { ...stageArea, padding: 8, minHeight: 0 };
 const propsPanel = { width: 300, padding: 16, background: '#161b22', borderLeft: '1px solid #30363d', overflowY: 'auto' };
+
+const zoomWidget = { position: 'absolute', bottom: 16, left: 96, zIndex: 1500, display: 'flex', alignItems: 'center', gap: 2, background: 'rgba(22,27,34,0.92)', border: '1px solid #30363d', borderRadius: 10, padding: 4, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' };
+const zoomBtn = { background: 'transparent', border: 'none', color: '#e6edf3', cursor: 'pointer', padding: '6px 8px', borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem' };
 // Bottom sheet on narrow: full width, capped height, its own scroll.
 const propsPanelNarrow = { width: '100%', padding: 16, background: '#161b22', borderTop: '1px solid #30363d', overflowY: 'auto', maxHeight: '46vh', flexShrink: 0 };
 const sheetHandle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', background: '#161b22', borderTop: '1px solid #30363d', flexShrink: 0, cursor: 'pointer', userSelect: 'none' };
