@@ -1,5 +1,6 @@
 import React from 'react';
 import { Icon } from '@iconify/react';
+import { reportError } from '../../utils/reportError';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,8 +15,9 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Here you could log the error to a service like Sentry in the future
     console.error("🛑 TinyPOS Error Caught by Boundary:", error, errorInfo);
+    // Forward to the error sink so a render crash is visible off-device.
+    reportError('error-boundary', error, { componentStack: errorInfo?.componentStack });
   }
 
   handleReload = () => {

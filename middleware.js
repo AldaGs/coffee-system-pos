@@ -103,6 +103,23 @@ export default async function middleware(req) {
     }
   } catch (err) {
     console.error(`Edge Middleware DNS lookup failed for ${hostname}:`, err);
+    // Best-effort report so edge failures aren't invisible on the free tier.
+    // Awaited with its own short timeout so it can't hang the response.
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 1000);
+      await fetch(new URL('/api/log-error', req.url).toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'edge-middleware',
+          message: `DNS lookup failed for ${hostname}: ${err?.message || err}`,
+          url: req.url,
+        }),
+        signal: ctrl.signal,
+      }).catch(() => {});
+      clearTimeout(timer);
+    } catch { /* never throw from reporting */ }
   }
 
   // No valid TXT record (or lookup failed) — serve the app normally.
