@@ -3,6 +3,7 @@ import { db } from '../db';
 import { computeStarsForTicket } from '../hooks/useLoyalty';
 import { recordTipAccrual } from './tipsService';
 import { isLocalMode } from '../utils/appMode';
+import { isCloudReachable } from '../utils/network';
 import { useUpgradeNagStore } from '../store/useUpgradeNagStore';
 import { calculateItemizedTaxBreakdown } from '../utils/posMath';
 
@@ -95,7 +96,11 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   // must be skipped. Treating it as "offline" routes the sale through the same
   // catch path that persists to Dexie (syncQueue + inventory_logs) — which also
   // becomes the payload the upgrade migration pushes up later.
-  const isOnline = !isLocalMode() && navigator.onLine;
+  //
+  // isCloudReachable() (not bare navigator.onLine) means a connection already
+  // known to be slow/half-open — the breaker is open — skips the cloud path
+  // entirely and records the sale locally in ~0ms, exactly like airplane mode.
+  const isOnline = !isLocalMode() && isCloudReachable();
 
   // Loyalty accrual: if a phone is attached to this ticket AND the loyalty program
   // qualifies the cart, record the phone + stars on the sale row. A server-side

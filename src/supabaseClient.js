@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createTimeoutFetch } from './utils/network';
 
 // Prioritize keys in the browser's local storage (from the SetupScreen)
 // over the hardcoded environment variables.
@@ -25,6 +26,12 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
       auth: {
         persistSession: true,
         autoRefreshToken: true,
+      },
+      // Give every cloud request a deadline + circuit breaker so a slow /
+      // half-open connection fails fast into the offline path instead of
+      // freezing the UI. See src/utils/network.js.
+      global: {
+        fetch: createTimeoutFetch(),
       },
     })
   : null;
