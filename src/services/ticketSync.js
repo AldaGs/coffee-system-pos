@@ -1,8 +1,9 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { isCloudReachable } from '../utils/network';
 
 export const fetchActiveTickets = async () => {
-    if (!navigator.onLine) return;
+    if (!isCloudReachable()) return;
 
     try {
         // 1. Ask Supabase for all currently active tickets

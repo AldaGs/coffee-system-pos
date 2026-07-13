@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { isCloudReachable } from '../utils/network';
 
 // Normalize a cloud expense row into the shape Dexie + Register use locally.
 // Cloud columns: id (bigint), amount, reason, category, payment_source, cashier_name, created_at, local_id.
@@ -26,7 +27,7 @@ const normalize = (cloud) => ({
 // `local_id` — a row this device wrote locally and synced to cloud will be
 // updated in place rather than duplicated.
 export const fetchAndMergeExpenses = async () => {
-  if (!navigator.onLine) return;
+  if (!isCloudReachable()) return;
   const { data, error } = await supabase
     .from('expenses')
     .select('*')

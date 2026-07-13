@@ -1,14 +1,17 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
+import { isCloudReachable } from '../utils/network';
 
 export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => {
   // Local ('guest') mode has no cloud project to sync to — data lives only in
   // Dexie. No-op so the interval/online listener never touch a null client.
   if (isLocalMode() || !supabase) return false;
 
-  // Don't try if we are offline
-  if (!navigator.onLine) return false;
+  // Don't try if we are offline — or if the cloud is known-unreachable (a slow
+  // link that already tripped the breaker). Retrying here would just stall the
+  // whole sync batch behind one timeout.
+  if (!isCloudReachable()) return false;
 
   let hasAuthError = false;
 
