@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 import { isLocalMode } from '../utils/appMode';
+import { isCloudReachable } from '../utils/network';
 
 // Mirror an active_ticket mutation to the cloud. If offline or the write fails,
 // stash the patch on db.updateQueue so attemptBackgroundSync can replay it.
@@ -18,7 +19,10 @@ export const pushActiveTicketUpdate = (ticketId, patch) => {
     local_id: crypto.randomUUID()
   }).catch(err => console.error('Failed to queue active_ticket_update:', err));
 
-  if (!navigator.onLine) { enqueue(); return; }
+  // A known-slow link (breaker open) queues immediately rather than firing a
+  // cloud write per keystroke/tap that would each stall — the local Dexie write
+  // already happened, so the queued patch is pure catch-up.
+  if (!isCloudReachable()) { enqueue(); return; }
 
   supabase.from('active_tickets').update(patch).eq('id', ticketId)
     .then(({ error }) => { if (error) { console.warn('Cloud active_ticket update failed, queuing:', error); enqueue(); } })
@@ -62,7 +66,7 @@ export function useTickets({
 
     await db.active_tickets.add(newTicket);
 
-    if (!isLocalMode() && navigator.onLine) {
+    if (!isLocalMode() && isCloudReachable()) {
       try {
         await supabase.from('active_tickets').insert([newTicket]);
       } catch (err) {
@@ -122,7 +126,7 @@ export function useTickets({
 
         await db.active_tickets.update(activeTicket.id, { name: newName });
 
-        if (!isLocalMode() && navigator.onLine) {
+        if (!isLocalMode() && isCloudReachable()) {
           try {
             await supabase.from('active_tickets').update({ name: newName }).eq('id', activeTicket.id);
           } catch (err) {
@@ -140,7 +144,7 @@ export function useTickets({
     if (!activeTicket) return;
     const ticketIdToDelete = activeTicket.id;
     await db.active_tickets.delete(ticketIdToDelete);
-    if (!isLocalMode() && navigator.onLine) {
+    if (!isLocalMode() && isCloudReachable()) {
       try {
         await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
       } catch (err) {

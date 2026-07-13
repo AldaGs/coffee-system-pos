@@ -1,12 +1,13 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { isCloudReachable } from '../utils/network';
 
 // Pulls sales history from Supabase into Dexie, deduplicating by `local_id`.
 // Dexie's primary key is its own auto-incremented `id`, but the cloud row has
 // a different server-assigned `id`. Without dedup, every sale that originated
 // on this device would appear twice in OrdersTab after a cloud fetch.
 export const fetchAndMergeSales = async () => {
-  if (!navigator.onLine) return;
+  if (!isCloudReachable()) return;
   const { data: salesHistory, error } = await supabase.from('sales').select('*');
   if (error || !salesHistory) return;
 
