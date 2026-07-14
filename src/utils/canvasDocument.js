@@ -461,6 +461,97 @@ export function cloneNodeGeometry(node, dx = 24, dy = 24) {
   return copy;
 }
 
+// ── Text auto-fit ─────────────────────────────────────────────────────────
+// A single shared canvas 2D context for text measurement. Using canvas
+// measureText in BOTH renderers (rather than Konva metrics in one and DOM
+// layout in the other) is what keeps the fitted size identical on the editor
+// canvas and the public page.
+let _measureCtx = null;
+function measureCtx() {
+  if (_measureCtx) return _measureCtx;
+  if (typeof document === 'undefined') return null;
+  _measureCtx = document.createElement('canvas').getContext('2d');
+  return _measureCtx;
+}
+
+// Largest integer font size ≤ maxSize at which `text` word-wraps inside a
+// width×height box. Used by the text "fit to box" (auto-fit) option so a
+// heading shrinks instead of overflowing. Greedy word wrap mirrors how both
+// Konva and CSS break lines closely enough for a visual fit. Falls back to
+// maxSize when there's no DOM (SSR) or a degenerate box.
+export function fitTextFontSize({ text, width, height, fontFamily = 'sans-serif', fontWeight = 400, fontStyle = 'normal', lineHeight = 1.15, letterSpacing = 0, maxSize = 200, minSize = 6 }) {
+  const ctx = measureCtx();
+  const cap = Math.max(minSize, Math.floor(maxSize));
+  if (!ctx || !width || !height) return cap;
+  const paragraphs = String(text ?? '').split('\n');
+  const measure = (str, size) => {
+    ctx.font = `${fontStyle || 'normal'} ${fontWeight || 400} ${size}px ${fontFamily}`;
+    return ctx.measureText(str).width + (letterSpacing || 0) * Math.max(0, str.length - 1);
+  };
+  const wrap = (para, size) => {
+    if (para === '') return [''];
+    const lines = [];
+    let cur = '';
+    for (const word of para.split(' ')) {
+      const trial = cur ? cur + ' ' + word : word;
+      if (!cur || measure(trial, size) <= width) cur = trial;
+      else { lines.push(cur); cur = word; }
+    }
+    lines.push(cur);
+    return lines;
+  };
+  const fits = (size) => {
+    let total = 0;
+    for (const p of paragraphs) {
+      const lines = wrap(p, size);
+      for (const ln of lines) if (measure(ln, size) > width + 0.5) return false;
+      total += lines.length;
+    }
+    return total * size * (lineHeight || 1.15) <= height + 0.5;
+  };
+  if (fits(cap)) return cap;
+  let lo = minSize, hi = cap;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+}
+
+// Mirror a path's absolute points (and their bézier handles) about the center
+// of their bounding box, on the 'h' (horizontal) or 'v' (vertical) axis. The
+// bbox is unchanged by a center mirror, so the node's x/y/w/h stay valid and
+// both renderers draw the flipped geometry with no extra flags.
+export function flipPathPoints(points, axis) {
+  const bb = pathBBox(points);
+  const cx = bb.x + bb.w / 2, cy = bb.y + bb.h / 2;
+  const fx = x => axis === 'h' ? 2 * cx - x : x;
+  const fy = y => axis === 'v' ? 2 * cy - y : y;
+  const m = pt => pt ? { x: fx(pt.x), y: fy(pt.y) } : null;
+  return points.map(p => ({ x: fx(p.x), y: fy(p.y), hIn: m(p.hIn), hOut: m(p.hOut) }));
+}
+
+// ── Grouping ────────────────────────────────────────────────────────────
+// Reorder an id list so every group's members sit contiguously, anchored at
+// the group's first appearance in the input order and preserving the members'
+// relative order. `groupOf(id)` returns the group id for a node, or a falsy
+// value for ungrouped nodes. This is the invariant that lets grouped nodes
+// keep a contiguous z-band (so nothing renders between them) no matter how a
+// reorder drag shuffles the raw list — the editor and Layers panel both funnel
+// every reorder through it.
+export function clusterByGroup(orderIds, groupOf) {
+  const out = [];
+  const emitted = new Set();
+  for (const id of orderIds) {
+    const g = groupOf(id);
+    if (!g) { out.push(id); continue; }
+    if (emitted.has(g)) continue;
+    emitted.add(g);
+    for (const other of orderIds) if (groupOf(other) === g) out.push(other);
+  }
+  return out;
+}
+
 // Lookup by template id, mirroring DesignedEditor's template ids
 // ('list' | 'cards' | 'chalkboard'). Returns { document, theme }.
 export function templateDoc(template, ctx) {

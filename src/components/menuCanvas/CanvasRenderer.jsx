@@ -10,7 +10,7 @@
 // editors.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontFamilies, docFontLoadSpecs, pathToSvgD, formatDateField } from '../../utils/canvasDocument';
+import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontLoadSpecs, pathToSvgD, fitTextFontSize, formatDateField } from '../../utils/canvasDocument';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
 export default function CanvasRenderer({ document, data, lang, isTv = false, tvPageIndex = 0, isPrint = false }) {
@@ -196,7 +196,8 @@ function NodeView({ node, itemIndex, lang }) {
     width: node.w || 0,
     height: node.h || 0,
     transform: node.rotation ? `rotate(${node.rotation}deg)` : undefined,
-    transformOrigin: 'center center'
+    transformOrigin: 'center center',
+    opacity: node.opacity ?? 1
   };
 
   if (node.type === 'text') {
@@ -205,22 +206,39 @@ function NodeView({ node, itemIndex, lang }) {
     // differences clipping the last letter).
     if (node.autoWidth) {
       return (
-        <div style={{ ...baseStyle, width: 'auto', height: 'auto', whiteSpace: 'nowrap', ...textStyle(node.style) }}>
+        <div style={{ ...baseStyle, width: 'auto', height: 'auto', whiteSpace: 'nowrap', ...textStyle(node.style), ...cssShadow(node.shadow, 'text') }}>
           {node.text || ''}
         </div>
       );
     }
-    return <div style={{ ...baseStyle, ...textStyle(node.style), display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(node.style?.align) }}>{node.text || ''}</div>;
+    // Auto-fit: shrink the font to fit the fixed box (authored size = cap).
+    // Same canvas-measured fit as the editor, so the size matches.
+    const ts = node.style || {};
+    const fitted = node.autoFit
+      ? fitTextFontSize({
+          text: node.text || '', width: node.w || 0, height: node.h || 0,
+          fontFamily: ts.fontFamily || 'system-ui, -apple-system, sans-serif',
+          fontWeight: ts.fontWeight || 400, fontStyle: ts.fontStyle || 'normal',
+          lineHeight: ts.lineHeight || 1.15, letterSpacing: ts.letterSpacing || 0,
+          maxSize: ts.fontSize || 24,
+        })
+      : null;
+    return <div style={{ ...baseStyle, ...textStyle(node.style), ...(fitted ? { fontSize: fitted } : null), ...cssShadow(node.shadow, 'text'), display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(node.style?.align) }}>{node.text || ''}</div>;
   }
 
   if (node.type === 'image') {
+    // Mirror the bitmap in place (transform-origin center) so flip matches the
+    // editor without changing the box the image occupies.
+    const flip = (node.flipH || node.flipV)
+      ? `scaleX(${node.flipH ? -1 : 1}) scaleY(${node.flipV ? -1 : 1})`
+      : undefined;
     return (
       <div style={baseStyle}>
         <img
           src={node.src}
           alt=""
           loading="lazy"
-          style={{ width: '100%', height: '100%', objectFit: node.fit || 'cover', display: 'block', borderRadius: node.style?.borderRadius || 0 }}
+          style={{ width: '100%', height: '100%', objectFit: node.fit || 'cover', display: 'block', borderRadius: node.style?.borderRadius || 0, transform: flip, ...cssShadow(node.shadow, 'filter') }}
         />
       </div>
     );
@@ -234,7 +252,7 @@ function NodeView({ node, itemIndex, lang }) {
     const x = node.x || 0, y = node.y || 0, w = Math.max(1, node.w || 1), h = Math.max(1, node.h || 1);
     return (
       <svg
-        style={{ position: 'absolute', left: x, top: y, width: w, height: h, overflow: 'visible' }}
+        style={{ position: 'absolute', left: x, top: y, width: w, height: h, overflow: 'visible', opacity: node.opacity ?? 1, ...cssShadow(node.shadow, 'filter') }}
         viewBox={`${x} ${y} ${w} ${h}`}
       >
         <path
@@ -251,11 +269,13 @@ function NodeView({ node, itemIndex, lang }) {
 
   if (node.type === 'shape') {
     const s = node.style || {};
+    const shadowStyle = cssShadow(node.shadow, 'box');
+    const fillCss = gradientCss(s.gradient);
     const shapeStyle = node.shape === 'circle'
-      ? { ...baseStyle, borderRadius: '50%', background: s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined }
+      ? { ...baseStyle, borderRadius: '50%', background: fillCss || s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined, ...shadowStyle }
       : node.shape === 'line'
-      ? { ...baseStyle, background: s.fill || s.stroke || '#000' }
-      : { ...baseStyle, background: s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined, borderRadius: s.borderRadius || 0 };
+      ? { ...baseStyle, background: fillCss || s.fill || s.stroke || '#000', ...shadowStyle }
+      : { ...baseStyle, background: fillCss || s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined, borderRadius: s.borderRadius || 0, ...shadowStyle };
     if (!node.label) return <div style={shapeStyle} />;
     // Centered label rides inside the shape box.
     const ls = node.labelStyle || {};
@@ -391,8 +411,10 @@ function ItemBindingView({ node, item, lang, outOfStock = false }) {
     borderRadius: s.borderRadius || 0,
     boxSizing: 'border-box',
     ...textStyle(s),
+    ...cssShadow(node.shadow, 'box'),
     justifyContent: justifyFromAlign(s.align),
-    ...(outOfStock ? { opacity: 0.45, textDecoration: 'line-through' } : null)
+    opacity: (node.opacity ?? 1) * (outOfStock ? 0.45 : 1),
+    ...(outOfStock ? { textDecoration: 'line-through' } : null)
   };
 
   return <div style={baseStyle}>{parts}</div>;
@@ -415,4 +437,41 @@ function justifyFromAlign(a) {
   if (a === 'center') return 'center';
   if (a === 'right')  return 'flex-end';
   return 'flex-start';
+}
+
+// Fold a hex color + 0..1 alpha into an rgba() string. The shadow model stores
+// opacity separately (mirroring Konva's shadowOpacity), so the DOM shadow bakes
+// it into the color's alpha channel. Accepts #rgb and #rrggbb; falls back to
+// the raw value (e.g. a named color) with the alpha dropped.
+function hexToRgba(hex, alpha = 1) {
+  if (typeof hex !== 'string') return `rgba(0,0,0,${alpha})`;
+  let h = hex.trim();
+  if (h[0] === '#') h = h.slice(1);
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length !== 6 || /[^0-9a-f]/i.test(h)) return hex;
+  const n = parseInt(h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+// CSS gradient string for a shape's style.gradient, or null when unset. Kept
+// in sync with the editor's gradientToCss so preview == public output.
+function gradientCss(g) {
+  if (!g || !Array.isArray(g.stops) || g.stops.length === 0) return null;
+  const stops = [...g.stops].sort((a, b) => (a.offset ?? 0) - (b.offset ?? 0));
+  const parts = stops.map(s => `${s.color} ${Math.round((s.offset ?? 0) * 100)}%`).join(', ');
+  return g.type === 'radial' ? `radial-gradient(circle at center, ${parts})` : `linear-gradient(${g.angle ?? 0}deg, ${parts})`;
+}
+
+// CSS drop shadow for a node's shadow model, or null when disabled. `kind`
+// picks the property that matches the element: text uses text-shadow, filled
+// boxes use box-shadow, and SVG paths use a drop-shadow filter (box-shadow on
+// an <svg> would frame the viewport, not the stroke).
+function cssShadow(shadow, kind) {
+  if (!shadow || !shadow.enabled) return null;
+  const { color = '#000000', blur = 8, offsetX = 4, offsetY = 4, opacity = 0.5 } = shadow;
+  const rgba = hexToRgba(color, opacity);
+  const spec = `${offsetX}px ${offsetY}px ${blur}px ${rgba}`;
+  if (kind === 'text') return { textShadow: spec };
+  if (kind === 'filter') return { filter: `drop-shadow(${spec})` };
+  return { boxShadow: spec };
 }

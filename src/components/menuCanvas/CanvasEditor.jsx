@@ -19,11 +19,12 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Path, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
-import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, syncDocFonts, docFontLoadSpecs, pathToSvgD, pathBBox, translatePath, cloneNodeGeometry, formatDateField } from '../../utils/canvasDocument';
+import { newDocument, newPage, PAGE_PRESETS, presetKeyFor, syncDocFonts, docFontLoadSpecs, pathToSvgD, pathBBox, translatePath, cloneNodeGeometry, clusterByGroup, flipPathPoints, fitTextFontSize, formatDateField } from '../../utils/canvasDocument';
 import { CANVAS_FONTS, googleUrlForToken, fontIdForStack, parseGoogleFontUrl } from '../../utils/canvasFonts';
 import { PaletteContext } from './paletteContext';
 import { updateMenu } from '../../api/menus';
 import { openInBrowser } from '../../utils/openInBrowser';
+import { useCanvasImage } from '../../utils/canvasImageCache';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
 import ItemPicker from './ItemPicker';
@@ -182,6 +183,9 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         if (clipboardRef.current.length) { e.preventDefault(); pasteClipboard(); }
       } else if (meta && e.key.toLowerCase() === 'd') {
         if (selectedIds.length) { e.preventDefault(); duplicateSelection(); }
+      } else if (meta && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) ungroupSelected(); else groupSelected();
       } else if (meta && e.key === '0') {
         e.preventDefault(); resetZoom();
       } else if (meta && (e.key === '=' || e.key === '+')) {
@@ -262,11 +266,22 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   function addClones(clones, dx = 24, dy = 24) {
     if (!clones || clones.length === 0) return;
     const z0 = nextZ(page);
+    // Remap group ids so pasting/duplicating a group yields a fresh, independent
+    // group rather than merging the copies into the original.
+    const gidMap = new Map();
     const withIds = clones.map((c, i) => {
       const g = cloneNodeGeometry(c, dx, dy); // re-offset from the stored clone
+      if (g.groupId) {
+        if (!gidMap.has(g.groupId)) gidMap.set(g.groupId, 'grp_' + nanoid(6));
+        g.groupId = gidMap.get(g.groupId);
+      }
       return { ...g, id: nanoid(8), z: z0 + i };
     });
-    mutatePage(p => ({ ...p, nodes: [...(p.nodes || []), ...withIds] }));
+    mutatePage(p => {
+      const groups = { ...(p.groups || {}) };
+      for (const [oldG, newG] of gidMap) groups[newG] = { name: `${p.groups?.[oldG]?.name || 'Grupo'} copia` };
+      return { ...p, nodes: [...(p.nodes || []), ...withIds], groups };
+    });
     setSelectedIds(withIds.map(n => n.id));
   }
 
@@ -372,10 +387,105 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
   // normalizes every node to a unique z, so reordering stays correct even when
   // a template seeded many nodes at the same z.
   function reorderNodesByIds(orderedTopFirst) {
-    const n = orderedTopFirst.length;
+    // Grouped nodes must stay contiguous so nothing renders between members —
+    // re-cluster before assigning z regardless of how the drag shuffled ids.
+    const groupOf = id => (page?.nodes || []).find(n => n.id === id)?.groupId;
+    const ordered = clusterByGroup(orderedTopFirst, groupOf);
+    const n = ordered.length;
     const zById = new Map();
-    orderedTopFirst.forEach((id, i) => zById.set(id, n - i)); // top of list → highest z
+    ordered.forEach((id, i) => zById.set(id, n - i)); // top of list → highest z
     mutatePage(p => ({ ...p, nodes: (p.nodes || []).map(node => zById.has(node.id) ? { ...node, z: zById.get(node.id) } : node) }));
+  }
+
+  // ---------- Grouping ------------------------------------------------------
+  // Flat model: a "group" is just a shared groupId on ≥1 node, with an optional
+  // display name in page.groups. Grouping selects-as-one on the canvas and
+  // clusters in the Layers panel; the public renderer never sees groups because
+  // every node keeps its own absolute geometry and z.
+
+  // Every id that shares a group with any id in `ids` (self if ungrouped).
+  function expandGroups(ids) {
+    const nodes = page?.nodes || [];
+    const gids = new Set();
+    for (const id of ids) {
+      const g = nodes.find(n => n.id === id)?.groupId;
+      if (g) gids.add(g);
+    }
+    if (gids.size === 0) return ids;
+    const out = new Set(ids);
+    for (const n of nodes) if (n.groupId && gids.has(n.groupId)) out.add(n.id);
+    return Array.from(out);
+  }
+  // The nodes that move together when `id` is clicked on the canvas: its whole
+  // group, or just itself.
+  function groupPeers(id) {
+    const g = (page?.nodes || []).find(n => n.id === id)?.groupId;
+    if (!g) return [id];
+    return (page?.nodes || []).filter(n => n.groupId === g).map(n => n.id);
+  }
+  // Canvas selection with group semantics: a plain click selects the clicked
+  // node's whole group; shift-click toggles that group in/out of the selection.
+  function selectFromCanvas(id, additive) {
+    const peers = groupPeers(id);
+    if (!additive) { setSelectedIds(peers); return; }
+    setSelectedIds(prev => {
+      const allIn = peers.every(p => prev.includes(p));
+      return allIn ? prev.filter(p => !peers.includes(p)) : Array.from(new Set([...prev, ...peers]));
+    });
+  }
+
+  function groupSelected() {
+    const set = new Set(selectedIds);
+    if (set.size < 2) return;
+    const gid = 'grp_' + nanoid(6);
+    const nodes = page?.nodes || [];
+    // Cluster the members at their frontmost position, keeping relative order.
+    const topFirst = [...nodes].sort((a, b) => (b.z || 0) - (a.z || 0)).map(n => n.id);
+    const clustered = clusterByGroup(topFirst, id => (set.has(id) ? gid : nodes.find(n => n.id === id)?.groupId));
+    const zById = new Map();
+    clustered.forEach((id, i) => zById.set(id, clustered.length - i));
+    const groupNum = Object.keys(page?.groups || {}).length + 1;
+    commit({
+      ...doc,
+      pages: doc.pages.map((p, i) => i === pageIndex ? {
+        ...p,
+        groups: { ...(p.groups || {}), [gid]: { name: `Grupo ${groupNum}` } },
+        nodes: (p.nodes || []).map(n => ({
+          ...n,
+          ...(set.has(n.id) ? { groupId: gid } : {}),
+          ...(zById.has(n.id) ? { z: zById.get(n.id) } : {}),
+        })),
+      } : p),
+    });
+    setSelectedIds(clustered.filter(id => set.has(id)));
+  }
+
+  function ungroupSelected() {
+    const set = new Set(selectedIds);
+    const nodes = page?.nodes || [];
+    const gids = new Set(nodes.filter(n => set.has(n.id) && n.groupId).map(n => n.groupId));
+    if (gids.size === 0) return;
+    commit({
+      ...doc,
+      pages: doc.pages.map((p, i) => i === pageIndex ? {
+        ...p,
+        groups: Object.fromEntries(Object.entries(p.groups || {}).filter(([g]) => !gids.has(g))),
+        nodes: (p.nodes || []).map(n => {
+          if (!gids.has(n.groupId)) return n;
+          const { groupId, ...rest } = n; // eslint-disable-line no-unused-vars
+          return rest;
+        }),
+      } : p),
+    });
+  }
+  function renameGroup(gid, name) {
+    mutatePage(p => ({ ...p, groups: { ...(p.groups || {}), [gid]: { ...(p.groups?.[gid] || {}), name } } }));
+  }
+  // Bulk patch every node in `ids` in one commit (group lock/hide from the
+  // Layers panel header).
+  function bulkUpdateNodes(ids, patch) {
+    const set = new Set(ids);
+    mutatePage(p => ({ ...p, nodes: (p.nodes || []).map(n => set.has(n.id) ? { ...n, ...patch } : n) }));
   }
 
   // ---------- Page operations -----------------------------------------------
@@ -672,7 +782,9 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     const hit = (page?.nodes || [])
       .filter(n => !n.hidden && !n.locked && rectsOverlap(m, { x: n.x, y: n.y, w: n.w, h: n.h }))
       .map(n => n.id);
-    setSelectedIds(prev => e.evt.shiftKey ? Array.from(new Set([...prev, ...hit])) : hit);
+    // Marquee touching one group member pulls in the whole group.
+    const hitExpanded = expandGroups(hit);
+    setSelectedIds(prev => e.evt.shiftKey ? Array.from(new Set([...prev, ...hitExpanded])) : hitExpanded);
   }
 
   // ---------- Snapping + smart guides ---------------------------------------
@@ -793,37 +905,95 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     groupDragRef.current = null;
   }
 
-  // Transform end: bake scale → w/h (and rotation/position) for the dragged
-  // node, or for the whole selection on a group transform, in ONE commit.
-  // The Transformer fires transformend once PER attached node, so a guard ref
-  // makes only the first call of a gesture do the work (it already resets
-  // every selected node's scale), keeping it to a single undo step.
+  // Live resize is WYSIWYG: instead of letting Konva stretch the node's pixels
+  // during the drag (which distorts text glyphs / re-cropped images and then
+  // snaps back on release), we bake the scale into real geometry on every
+  // transform frame and reset the konva scale to 1. Text grows its FONT SIZE
+  // rather than its box, so it scales like Illustrator/Figma; every other node
+  // re-renders its children from the new w/h so the preview already matches the
+  // committed result. A pre-drag snapshot feeds a single undo step on end.
   const transformGuardRef = useRef(false);
+  const transformStartRef = useRef(null);
+
+  function handleNodeTransformStart() {
+    if (transformStartRef.current == null) transformStartRef.current = doc;
+  }
+
+  // Per-frame, single-node normalization. Group transforms are skipped here
+  // (fighting the multi-node bounding box mid-drag causes jitter) and baked in
+  // one shot on end instead.
+  function handleNodeTransform(e, node) {
+    if (selectedIds.length > 1) return;
+    const kn = e.target;
+    const sx = kn.scaleX(), sy = kn.scaleY();
+    // Auto-fit text resizes as a box (below) so the font refits the new bounds;
+    // other text grows its font instead of stretching.
+    if (node.type === 'text' && !node.autoFit) {
+      // Grow the font by the geometric mean of the two axes: corner drags are
+      // uniform (sx==sy) so it tracks exactly; side drags still feel
+      // proportional. Set it imperatively (synchronous) so Konva re-measures
+      // this same frame — no state churn, no remount of the transform target.
+      const factor = Math.sqrt(Math.abs(sx * sy)) || 1;
+      const base = node.style?.fontSize || 24;
+      kn.fontSize(Math.max(4, base * factor));
+      if (!node.autoWidth) kn.width(Math.max(10, node.w * sx));
+      kn.scaleX(1); kn.scaleY(1);
+      return;
+    }
+    // Shapes / images / bindings render their content from w/h props, so bake
+    // the scale into a silent size update and reset scale. Their outer Group
+    // isn't keyed by size, so children re-render at the right proportions
+    // without remounting the node the Transformer is attached to.
+    kn.scaleX(1); kn.scaleY(1);
+    updateNodeSilent(node.id, {
+      x: Math.round(kn.x()), y: Math.round(kn.y()),
+      w: Math.max(10, Math.round(node.w * sx)),
+      h: Math.max(10, Math.round(node.h * sy)),
+    });
+  }
+
+  // Transform end: fold each node's remaining scale into real geometry and
+  // record ONE undo step from the pre-drag snapshot. The Transformer fires
+  // transformend once PER attached node, so a guard makes only the first call
+  // of a gesture do the work. Combining the live-baked value with the current
+  // konva scale multiplicatively means this is correct whether the live pass
+  // ran (single node → scale ~1) or was skipped (group → scale carries it).
   function handleNodeTransformEnd(node) {
     if (transformGuardRef.current) return;
     transformGuardRef.current = true;
     requestAnimationFrame(() => { transformGuardRef.current = false; });
 
+    const startDoc = transformStartRef.current;
+    transformStartRef.current = null;
     const stage = stageRef.current;
     const ids = selectedIds.length > 1 && selectedIds.includes(node.id) ? selectedIds : [node.id];
     const set = new Set(ids);
-    mutatePage(p => ({
-      ...p,
-      nodes: (p.nodes || []).map(n => {
-        if (!set.has(n.id)) return n;
-        const kn = stage?.findOne('#' + n.id);
-        if (!kn) return n;
-        const sx = kn.scaleX(), sy = kn.scaleY();
-        const patch = {
-          x: Math.round(kn.x()), y: Math.round(kn.y()),
-          w: Math.max(10, Math.round(n.w * sx)), h: Math.max(10, Math.round(n.h * sy)),
-          rotation: Math.round(kn.rotation())
-        };
-        if (n.type === 'text' && n.autoWidth && Math.abs(sx - 1) > 0.001) patch.autoWidth = false;
-        kn.scaleX(1); kn.scaleY(1);
-        return { ...n, ...patch };
-      })
+    setDoc(d => ({
+      ...d,
+      pages: d.pages.map((p, i) => i === pageIndex ? {
+        ...p,
+        nodes: (p.nodes || []).map(n => {
+          if (!set.has(n.id)) return n;
+          const kn = stage?.findOne('#' + n.id);
+          if (!kn) return n;
+          const sx = kn.scaleX(), sy = kn.scaleY();
+          kn.scaleX(1); kn.scaleY(1);
+          const base = { x: Math.round(kn.x()), y: Math.round(kn.y()), rotation: Math.round(kn.rotation()) };
+          if (n.type === 'text' && !n.autoFit) {
+            const factor = Math.sqrt(Math.abs(sx * sy)) || 1;
+            const nextFont = Math.max(4, Math.round((kn.fontSize?.() || n.style?.fontSize || 24) * factor));
+            const patch = { ...base, style: { ...n.style, fontSize: nextFont } };
+            if (!n.autoWidth) {
+              patch.w = Math.max(10, Math.round((kn.width?.() || n.w) * sx));
+              patch.h = Math.max(10, Math.round((kn.height?.() || n.h) * sy));
+            }
+            return { ...n, ...patch };
+          }
+          return { ...n, ...base, w: Math.max(10, Math.round(n.w * sx)), h: Math.max(10, Math.round(n.h * sy)) };
+        })
+      } : p)
     }));
+    pushHistory(startDoc);
   }
 
   // Move a node to (x, y) — path-safe: paths translate their points instead
@@ -1195,8 +1365,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                       isSelected={selectedIds.includes(node.id)}
                       onSelect={e => {
                         if (node.locked) return;
-                        if (e?.evt?.shiftKey) toggleSelect(node.id);
-                        else selectOne(node.id);
+                        selectFromCanvas(node.id, !!e?.evt?.shiftKey);
                       }}
                       onDblClick={n => !node.locked && handleNodeDblClick(n)}
                       onChange={patch => updateNode(node.id, patch)}
@@ -1204,6 +1373,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
                       onDragStart={e => handleDragStart(e, node)}
                       onDragMove={e => handleDragMove(e, node)}
                       onNodeDragEnd={handleNodeDragEnd}
+                      onNodeTransformStart={handleNodeTransformStart}
+                      onNodeTransform={handleNodeTransform}
                       onNodeTransformEnd={handleNodeTransformEnd}
                       onContextMenu={handleNodeContextMenu}
                     />
@@ -1299,6 +1470,13 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             multiCount={selectedIds.length}
             selectedIds={selectedIds}
             onSelectNode={(id, multi) => multi ? toggleSelect(id) : selectOne(id)}
+            onSelectGroup={gid => setSelectedIds((page?.nodes || []).filter(n => n.groupId === gid).map(n => n.id))}
+            groups={page?.groups || {}}
+            onRenameGroup={renameGroup}
+            onBulkUpdate={bulkUpdateNodes}
+            onGroup={groupSelected}
+            onUngroup={ungroupSelected}
+            canUngroup={selectedIds.some(id => (page?.nodes || []).find(n => n.id === id)?.groupId)}
             onAlign={(dir, target) => alignSelected(dir, target)}
             onDistribute={axis => distributeSelected(axis)}
             onUpdate={patch => selected && updateNode(selected.id, patch)}
@@ -1334,6 +1512,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 
       {contextMenu && (() => {
         const selNodes = (page?.nodes || []).filter(n => selectedIds.includes(n.id));
+        const canGroup = selectedIds.length >= 2;
+        const canUngroup = selNodes.some(n => n.groupId);
         const canLink = selNodes.some(n => n.type !== 'item-binding');
         const isLinked = selNodes.some(n => n.link?.itemId);
         const suggestId = canLink ? nearestBindingItemId(selectedIds) : null;
@@ -1346,9 +1526,13 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             hasSelection={selectedIds.length > 0}
             selectionCount={selectedIds.length}
             canPaste={clipboardRef.current.length > 0}
+            canGroup={canGroup}
+            canUngroup={canUngroup}
             canLink={canLink}
             isLinked={isLinked}
             linkSuggestion={suggestName}
+            onGroup={() => { groupSelected(); setContextMenu(null); }}
+            onUngroup={() => { ungroupSelected(); setContextMenu(null); }}
             onLinkProduct={() => { linkSelectionToProduct(); setContextMenu(null); }}
             onUnlink={() => { unlinkNodes(selectedIds); setContextMenu(null); }}
             onDuplicate={() => { duplicateSelection(); setContextMenu(null); }}
@@ -1377,7 +1561,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 // Right-click menu. Positioned at the cursor in screen space; the parent closes
 // it on any outside click (window listener). Items collapse to just Paste when
 // nothing is selected.
-function ContextMenu({ pos, hasSelection, selectionCount, canPaste, canLink, isLinked, linkSuggestion, onLinkProduct, onUnlink, onDuplicate, onCopy, onPaste, onForward, onBack, onDelete }) {
+function ContextMenu({ pos, hasSelection, selectionCount, canPaste, canGroup, canUngroup, canLink, isLinked, linkSuggestion, onGroup, onUngroup, onLinkProduct, onUnlink, onDuplicate, onCopy, onPaste, onForward, onBack, onDelete }) {
   const item = (icon, label, onClick, opts = {}) => (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -1413,6 +1597,13 @@ function ContextMenu({ pos, hasSelection, selectionCount, canPaste, canLink, isL
           {item('lucide:copy-plus', 'Duplicar', onDuplicate, { hint: 'Ctrl+D' })}
           {item('lucide:copy', 'Copiar', onCopy, { hint: 'Ctrl+C' })}
           {item('lucide:clipboard-paste', 'Pegar', onPaste, { hint: 'Ctrl+V', disabled: !canPaste })}
+          {(canGroup || canUngroup) && (
+            <>
+              <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
+              {canGroup && item('lucide:group', 'Agrupar', onGroup, { hint: 'Ctrl+G' })}
+              {canUngroup && item('lucide:ungroup', 'Desagrupar', onUngroup, { hint: 'Ctrl+Shift+G' })}
+            </>
+          )}
           {canLink && (
             <>
               <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
@@ -1547,8 +1738,81 @@ function GuidesOverlay({ guides, scale, activeGuide, onStartDragGuide }) {
 // Konva node renderers
 // ============================================================================
 
-function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, onSelect, onDblClick, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformEnd, onContextMenu }) {
+// Konva drop-shadow attrs for a node's `shadow` model, or null when disabled.
+// Applies to leaf shapes (Text, Path, and a shape node's inner Rect/Circle) —
+// a Group doesn't paint its own shadow, so shape/image wrappers push it inward.
+function shadowKonvaProps(shadow) {
+  if (!shadow || !shadow.enabled) return null;
+  return {
+    shadowColor: shadow.color || '#000000',
+    shadowBlur: shadow.blur ?? 8,
+    shadowOffsetX: shadow.offsetX ?? 4,
+    shadowOffsetY: shadow.offsetY ?? 4,
+    shadowOpacity: shadow.opacity ?? 0.5,
+  };
+}
+
+// Sorted [offset, 'color', …] color-stop array shared by the Konva gradient
+// props and the CSS preview. Returns null when there's nothing to render.
+function gradientStops(g) {
+  if (!g || !Array.isArray(g.stops) || g.stops.length === 0) return null;
+  return [...g.stops].sort((a, b) => (a.offset ?? 0) - (b.offset ?? 0));
+}
+
+// CSS gradient string for the editor's preview swatch (kept in sync with the
+// public renderer's gradientCss).
+function gradientToCss(g) {
+  const stops = gradientStops(g);
+  if (!stops) return null;
+  const parts = stops.map(s => `${s.color} ${Math.round((s.offset ?? 0) * 100)}%`).join(', ');
+  return g.type === 'radial' ? `radial-gradient(circle at center, ${parts})` : `linear-gradient(${g.angle ?? 0}deg, ${parts})`;
+}
+
+// Konva fill props for a shape node: a gradient when style.gradient is set,
+// else a flat color. Linear angle follows the CSS convention (0° = bottom→top)
+// so the editor preview and the public CSS match. Circle geometry is centered
+// on its own origin; rect geometry spans its top-left box.
+function shapeFillProps(node, s) {
+  const stops = gradientStops(s.gradient);
+  if (!stops) return { fill: s.fill || '#ccc' };
+  const g = s.gradient;
+  const isCircle = node.shape === 'circle';
+  const w = node.w, h = node.h;
+  const colorStops = stops.flatMap(st => [st.offset ?? 0, st.color]);
+  if (g.type === 'radial') {
+    const cx = isCircle ? 0 : w / 2, cy = isCircle ? 0 : h / 2;
+    const r = isCircle ? Math.min(w, h) / 2 : Math.max(w, h) / 2;
+    return {
+      fillPriority: 'radial-gradient',
+      fillRadialGradientStartPoint: { x: cx, y: cy },
+      fillRadialGradientEndPoint: { x: cx, y: cy },
+      fillRadialGradientStartRadius: 0,
+      fillRadialGradientEndRadius: r,
+      fillRadialGradientColorStops: colorStops,
+    };
+  }
+  const rad = (g.angle ?? 0) * Math.PI / 180;
+  const dx = Math.sin(rad), dy = -Math.cos(rad);
+  const cx = isCircle ? 0 : w / 2, cy = isCircle ? 0 : h / 2;
+  const len = isCircle ? Math.min(w, h) : Math.abs(w * dx) + Math.abs(h * dy);
+  return {
+    fillPriority: 'linear-gradient',
+    fillLinearGradientStartPoint: { x: cx - dx * len / 2, y: cy - dy * len / 2 },
+    fillLinearGradientEndPoint: { x: cx + dx * len / 2, y: cy + dy * len / 2 },
+    fillLinearGradientColorStops: colorStops,
+  };
+}
+
+function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, onSelect, onDblClick, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformStart, onNodeTransform, onNodeTransformEnd, onContextMenu }) {
   const shapeRef = useRef(null);
+  // Convergence guard for the auto-measure loop: each measured size is
+  // persisted back into node.w/h (a dep of this effect), which re-runs it. If
+  // Konva's measurement oscillates by >1px (sub-pixel/ceil interaction, a
+  // pending font, etc.) the persist→re-measure→persist cycle never settles and
+  // React allocates fiber/update objects until the tab OOM-crashes. We bound it
+  // to a few attempts per *real* input change (text/font/epoch), keyed below;
+  // w/h are deliberately excluded from the key so normal editing still re-fits.
+  const measureGuard = useRef({ key: '', count: 0 });
 
   // Auto-width text: after each render, read the konva-measured size and
   // persist it (silently) so the doc box matches the glyphs everywhere.
@@ -1556,9 +1820,16 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
     if (node.type !== 'text' || !node.autoWidth) return;
     const n = shapeRef.current;
     if (!n) return;
+    const key = `${node.text}|${node.style?.fontFamily}|${node.style?.fontSize}|${node.style?.fontWeight}|${fontEpoch}`;
+    const g = measureGuard.current;
+    if (g.key !== key) { g.key = key; g.count = 0; }
+    if (g.count >= 4) return; // settled or oscillating — stop feeding the loop
     const w = Math.ceil(n.width());
     const h = Math.ceil(n.height());
-    if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) onMeasure?.(node.id, { w, h });
+    if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) {
+      g.count += 1;
+      onMeasure?.(node.id, { w, h });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.type, node.autoWidth, node.text, node.w, node.h, node.style?.fontFamily, node.style?.fontSize, node.style?.fontWeight, fontEpoch]);
 
@@ -1570,8 +1841,10 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
     id: node.id,
     x: node.x, y: node.y, rotation: node.rotation || 0,
     // Sold-out preview: ghost the elements that would hide, dim the bindings
-    // that stay but show as unavailable. Still selectable/editable.
-    opacity: node.hidden ? 0 : (ghost ? 0.15 : (dim ? 0.5 : 1)),
+    // that stay but show as unavailable. The per-node opacity multiplies into
+    // whichever preview state applies, so a half-transparent node still reads
+    // as half-transparent (and ghosting/dimming layer on top).
+    opacity: node.hidden ? 0 : (ghost ? 0.15 : (node.opacity ?? 1) * (dim ? 0.5 : 1)),
     draggable: !node.locked,
     listening: !node.locked,
     onClick: onSelect, onTap: onSelect,
@@ -1579,6 +1852,8 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
     onDragStart,
     onDragMove,
     onDragEnd: () => onNodeDragEnd?.(node),
+    onTransformStart: () => onNodeTransformStart?.(node),
+    onTransform: (e) => onNodeTransform?.(e, node),
     onTransformEnd: () => onNodeTransformEnd?.(node),
     onContextMenu: (e) => onContextMenu?.(e, node)
   };
@@ -1591,6 +1866,20 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
     // its authored box. The font key forces a remount so stale glyph metrics
     // don't linger when the font/size/weight changes.
     const auto = !!node.autoWidth;
+    // Auto-fit: shrink the font (down from the authored size, which acts as the
+    // cap) so the text fits the fixed box instead of overflowing. Computed from
+    // the box + text, so resizing the box refits. The KEY keeps the authored
+    // s.fontSize — not the fitted size — so a box-resize drag doesn't remount
+    // the transform target every frame.
+    const cap = s.fontSize || 24;
+    const renderSize = (!auto && node.autoFit)
+      ? fitTextFontSize({
+          text: node.text || '', width: node.w, height: node.h,
+          fontFamily: s.fontFamily || 'Georgia, serif', fontWeight: s.fontWeight || 400,
+          fontStyle: s.fontStyle || 'normal', lineHeight: s.lineHeight || 1.15,
+          letterSpacing: s.letterSpacing || 0, maxSize: cap,
+        })
+      : cap;
     return (
       <Text
         key={`${s.fontFamily}-${s.fontSize}-${s.fontWeight}-${s.fontStyle}-${s.letterSpacing}-${s.lineHeight}-${fontEpoch}-${auto}`}
@@ -1600,13 +1889,14 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
         height={auto ? undefined : node.h}
         wrap={auto ? 'none' : 'word'}
         fontFamily={s.fontFamily || 'Georgia, serif'}
-        fontSize={s.fontSize || 24}
+        fontSize={renderSize}
         fontStyle={`${s.fontStyle || 'normal'} ${s.fontWeight || 400}`.trim()}
         letterSpacing={s.letterSpacing || 0}
         lineHeight={s.lineHeight || 1.15}
         fill={s.color || '#111'}
         align={s.align || 'left'}
         verticalAlign={auto ? 'top' : 'middle'}
+        {...shadowKonvaProps(node.shadow)}
       />
     );
   }
@@ -1615,24 +1905,28 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
     const s = node.style || {};
     // Both shapes render inside a Group at (node.x, node.y) with a node.w×node.h
     // box, so drag/transform are uniform (no circle center special-casing) and
-    // an optional centered label can ride along.
+    // an optional centered label can ride along. The shadow rides on the inner
+    // fill shape — a Group paints no shadow of its own.
+    const shadow = shadowKonvaProps(node.shadow);
     return (
       <Group {...common}>
         {node.shape === 'circle' ? (
           <Circle
             x={node.w / 2} y={node.h / 2}
             radius={Math.min(node.w, node.h) / 2}
-            fill={s.fill || '#ccc'}
+            {...shapeFillProps(node, s)}
             stroke={s.stroke || undefined}
             strokeWidth={s.strokeWidth || 0}
+            {...shadow}
           />
         ) : (
           <Rect
             width={node.w} height={node.h}
-            fill={s.fill || '#ccc'}
+            {...shapeFillProps(node, s)}
             stroke={s.stroke || undefined}
             strokeWidth={s.strokeWidth || 0}
             cornerRadius={s.borderRadius || 0}
+            {...shadow}
           />
         )}
         {node.label ? (
@@ -1668,6 +1962,7 @@ function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, 
         lineCap="round"
         lineJoin="round"
         hitStrokeWidth={Math.max(14, (s.strokeWidth ?? 6) + 8)}
+        {...shadowKonvaProps(node.shadow)}
       />
     );
   }
@@ -1793,30 +2088,24 @@ function PenPreview({ draft, cursor, scale }) {
 //   cover   → fill the box, centre-crop (no distortion)
 //   contain → fit inside the box, letterboxed + centred (no distortion)
 function KonvaImageNode({ node, common, fit }) {
-  const [img, setImg] = useState(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    setTimeout(() => { setImg(null); setFailed(false); }, 0);
-    const i = new window.Image();
-    i.crossOrigin = 'anonymous';
-    i.src = node.src;
-    i.onload = () => setImg(i);
-    i.onerror = () => setFailed(true);
-  }, [node.src]);
+  // Shared, downscaled cache: one decoded (and size-capped) bitmap per unique
+  // src, reused across every node instance and remount. `img` is the cached
+  // canvas; imgW/imgH are its intrinsic (downscaled) dimensions for crop math.
+  const { image: img, width: imgW, height: imgH, failed } = useCanvasImage(node.src);
 
   const w = node.w, h = node.h;
   let inner = null;
   if (img) {
     if (fit === 'contain') {
-      const s = Math.min(w / img.width, h / img.height);
-      const dw = img.width * s, dh = img.height * s;
+      const s = Math.min(w / imgW, h / imgH);
+      const dw = imgW * s, dh = imgH * s;
       inner = <KImage image={img} x={(w - dw) / 2} y={(h - dh) / 2} width={dw} height={dh} listening={false} />;
     } else {
       // cover: crop the source to the box's aspect ratio.
-      const ar = w / h, iar = img.width / img.height;
+      const ar = w / h, iar = imgW / imgH;
       let cw, ch, cx, cy;
-      if (iar > ar) { ch = img.height; cw = img.height * ar; cx = (img.width - cw) / 2; cy = 0; }
-      else { cw = img.width; ch = img.width / ar; cx = 0; cy = (img.height - ch) / 2; }
+      if (iar > ar) { ch = imgH; cw = imgH * ar; cx = (imgW - cw) / 2; cy = 0; }
+      else { cw = imgW; ch = imgW / ar; cx = 0; cy = (imgH - ch) / 2; }
       inner = <KImage image={img} width={w} height={h} crop={{ x: cx, y: cy, width: cw, height: ch }} listening={false} />;
     }
   }
@@ -1829,9 +2118,19 @@ function KonvaImageNode({ node, common, fit }) {
     ? (ctx) => roundRectPath(ctx, 0, 0, w, h, Math.min(radius, w / 2, h / 2))
     : undefined;
 
+  // Flip mirrors the bitmap inside the box (scale on an INNER group), so the
+  // outer transform-target Group keeps scaleX/scaleY = 1 and the resize
+  // pipeline never sees a negative scale. The offset keeps the mirror centered.
+  const fh = node.flipH ? -1 : 1, fv = node.flipV ? -1 : 1;
+  // A shadow can't ride on the clip group (the clip would swallow it) or the
+  // transparent box rect, so cast it from a matching rounded rect behind the
+  // bitmap. For the common opaque/cover image this reads as a clean card
+  // shadow; the public renderer uses filter:drop-shadow for a pixel-exact one.
+  const shadow = shadowKonvaProps(node.shadow);
   return (
     <Group {...common}>
-      <Group clipFunc={clip}>
+      {shadow && <Rect width={w} height={h} cornerRadius={radius} fill="#ffffff" listening={false} {...shadow} />}
+      <Group clipFunc={clip} scaleX={fh} scaleY={fv} x={node.flipH ? w : 0} y={node.flipV ? h : 0}>
         <Rect
           width={w} height={h}
           fill={img ? 'transparent' : 'rgba(120,120,120,0.12)'}
@@ -1906,13 +2205,26 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure, 
   // Auto-box (inline only): let Konva measure the line and persist the box back
   // silently, so the binding hugs its dynamic text like a free-text autoWidth
   // node — matching the public renderer.
+  //
+  // Same convergence guard as NodeKonva's auto-width text (see there): the
+  // persisted w/h re-trigger this effect, so a >1px measurement oscillation
+  // would loop forever and leak React internals until OOM. Bound it to a few
+  // attempts per real input change; w/h are excluded from the key.
+  const measureGuard = useRef({ key: '', count: 0 });
   useEffect(() => {
     if (!auto) return;
     const n = inlineRef.current;
     if (!n) return;
+    const key = `${inlineText}|${fontFamily}|${fontSize}|${fontStyleStr}|${pad}|${fontEpoch}`;
+    const g = measureGuard.current;
+    if (g.key !== key) { g.key = key; g.count = 0; }
+    if (g.count >= 4) return;
     const w = Math.ceil(n.width()) + pad * 2;
     const h = Math.ceil(n.height());
-    if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) onMeasure?.(node.id, { w, h });
+    if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) {
+      g.count += 1;
+      onMeasure?.(node.id, { w, h });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto, inlineText, fontFamily, fontSize, fontStyleStr, pad, node.w, node.h, fontEpoch]);
 
@@ -1930,6 +2242,7 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure, 
         strokeWidth={strokeWidth}
         dash={dash}
         cornerRadius={s.borderRadius || 0}
+        {...shadowKonvaProps(node.shadow)}
       />
       {showImage && (
         // Use a placeholder rect for the image area in the editor — Konva
@@ -2202,7 +2515,7 @@ function ToolBtn({ icon, label, onClick, active, isNarrow }) {
   );
 }
 
-function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, selectedIds, onSelectNode, onAlign, onDistribute, onUpdate, onUpdateNode, onReorder, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
+function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, selectedIds, onSelectNode, onSelectGroup, groups, onRenameGroup, onBulkUpdate, onGroup, onUngroup, canUngroup, onAlign, onDistribute, onUpdate, onUpdateNode, onReorder, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
   const [activeTab, setActiveTab] = useState('props');
   const baseStyle = style || propsPanel;
 
@@ -2227,14 +2540,18 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
         {activeTab === 'layers' ? (
           <LayersPanel
             nodes={page?.nodes}
+            groups={groups}
             selectedIds={selectedIds}
             onSelect={onSelectNode}
+            onSelectGroup={onSelectGroup}
             onUpdate={onUpdateNode}
+            onBulkUpdate={onBulkUpdate}
+            onRenameGroup={onRenameGroup}
             onReorder={onReorder}
           />
         ) : (
           multiCount > 1 ? (
-            <MultiSelectProps count={multiCount} onAlign={onAlign} onDistribute={onDistribute} />
+            <MultiSelectProps count={multiCount} canUngroup={canUngroup} onGroup={onGroup} onUngroup={onUngroup} onAlign={onAlign} onDistribute={onDistribute} />
           ) : !selected ? (
             <PageProperties doc={doc} page={page} changePageBg={changePageBg} changePageSize={changePageSize} />
           ) : selected.locked ? (
@@ -2243,6 +2560,7 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
             <NodeProperties
               node={selected}
               onUpdate={onUpdate}
+              onUngroup={onUngroup}
               onSetFont={onSetFont}
               onDelete={onDelete}
               onForward={() => onForward(selected.id)}
@@ -2261,7 +2579,7 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
 // Shown when 2+ nodes are selected: alignment + distribution tools. The
 // target switch decides the reference frame — the selection bbox, the page,
 // or the key object (the first node selected, which stays put).
-function MultiSelectProps({ count, onAlign, onDistribute }) {
+function MultiSelectProps({ count, canUngroup, onGroup, onUngroup, onAlign, onDistribute }) {
   const [target, setTarget] = useState('selection');
   const aligns = [
     { dir: 'left', icon: 'lucide:align-start-vertical', label: 'Izquierda' },
@@ -2282,6 +2600,17 @@ function MultiSelectProps({ count, onAlign, onDistribute }) {
       <p style={{ margin: 0, fontSize: '0.78rem', color: '#8b949e' }}>
         Arrastra cualquiera para moverlos juntos, o usa el recuadro para escalar/rotar el grupo.
       </p>
+
+      <Row label="Grupo">
+        <button onClick={onGroup} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }}>
+          <Icon icon="lucide:group" /> Agrupar
+        </button>
+        {canUngroup && (
+          <button onClick={onUngroup} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }}>
+            <Icon icon="lucide:ungroup" /> Desagrupar
+          </button>
+        )}
+      </Row>
 
       <Row label="Alinear respecto a">
         <div style={{ display: 'flex', gap: 4, width: '100%' }}>
@@ -2381,7 +2710,7 @@ function LockedNotice({ onUnlock }) {
   );
 }
 
-function NodeProperties({ node, onUpdate, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+function NodeProperties({ node, onUpdate, onUngroup, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h3 style={panelTitle}>{labelForNode(node)}</h3>
@@ -2390,6 +2719,12 @@ function NodeProperties({ node, onUpdate, onSetFont, onDelete, onForward, onBack
         <button onClick={onBack} style={smallBtn}><Icon icon="lucide:chevron-down" /> Atrás</button>
         <button onClick={onForward} style={smallBtn}><Icon icon="lucide:chevron-up" /> Adelante</button>
       </Row>
+
+      {node.groupId && (
+        <button onClick={onUngroup} style={smallBtn}>
+          <Icon icon="lucide:ungroup" /> Desagrupar
+        </button>
+      )}
 
       {/* Paths are absolute point geometry — numeric x/y/w/h editing would
           desync them, so those rows are hidden for paths (drag to move). */}
@@ -2417,6 +2752,9 @@ function NodeProperties({ node, onUpdate, onSetFont, onDelete, onForward, onBack
       {node.type === 'whatsapp-button' && <WhatsAppProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} />}
       {node.type === 'date-field' && <DateFieldProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} openItemPicker={openItemPicker} menuData={menuData} />}
 
+      {/* Opacity (all nodes) + drop shadow (leaf shapes we can render it on). */}
+      <AppearanceProps node={node} onUpdate={onUpdate} />
+
       {/* Item-bindings own their availability behavior; every other node type
           can borrow a product's stock to auto-hide. */}
       {node.type !== 'item-binding' && (
@@ -2441,6 +2779,55 @@ function labelForNode(n) {
   return n.type;
 }
 
+// Shared appearance controls: per-node opacity (every type) and a drop shadow
+// for the leaf-shape types the renderers can actually paint one on (text,
+// shape, path). Both keys live on the node root — updateNode shallow-merges
+// them — so they survive alongside the type-specific `style` block.
+function AppearanceProps({ node, onUpdate }) {
+  const supportsShadow = ['text', 'shape', 'path', 'image', 'item-binding'].includes(node.type);
+  const sh = node.shadow || {};
+  const opacity = node.opacity ?? 1;
+  return (
+    <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p style={{ ...panelTitle, margin: 0, fontSize: '0.75rem' }}>Apariencia</p>
+      <Row label="Opacidad">
+        <input
+          type="range" min={0} max={100} value={Math.round(opacity * 100)}
+          onChange={e => onUpdate({ opacity: Number(e.target.value) / 100 })}
+          style={{ flex: 1, accentColor: '#1f6feb' }}
+        />
+        <span style={{ color: '#8b949e', fontSize: '0.72rem', width: 36, textAlign: 'right' }}>{Math.round(opacity * 100)}%</span>
+      </Row>
+      {supportsShadow && (
+        <>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!sh.enabled} onChange={e => onUpdate({ shadow: { ...sh, enabled: e.target.checked } })} />
+            Sombra
+          </label>
+          {sh.enabled && (
+            <>
+              <Row label="Color"><ColorPicker value={sh.color || '#000000'} onChange={c => onUpdate({ shadow: { ...sh, color: c } })} /></Row>
+              <Row label="Desenfoque"><NumInput value={sh.blur ?? 8} onChange={v => onUpdate({ shadow: { ...sh, blur: Math.max(0, v) } })} suffix="px" /></Row>
+              <Row label="Desplazamiento">
+                <NumInput value={sh.offsetX ?? 4} onChange={v => onUpdate({ shadow: { ...sh, offsetX: v } })} suffix="X" />
+                <NumInput value={sh.offsetY ?? 4} onChange={v => onUpdate({ shadow: { ...sh, offsetY: v } })} suffix="Y" />
+              </Row>
+              <Row label="Opacidad sombra">
+                <input
+                  type="range" min={0} max={100} value={Math.round((sh.opacity ?? 0.5) * 100)}
+                  onChange={e => onUpdate({ shadow: { ...sh, opacity: Number(e.target.value) / 100 } })}
+                  style={{ flex: 1, accentColor: '#1f6feb' }}
+                />
+                <span style={{ color: '#8b949e', fontSize: '0.72rem', width: 36, textAlign: 'right' }}>{Math.round((sh.opacity ?? 0.5) * 100)}%</span>
+              </Row>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function PathProps({ node, onUpdate }) {
   const s = node.style || {};
   return (
@@ -2457,6 +2844,16 @@ function PathProps({ node, onUpdate }) {
         <input type="checkbox" checked={!!node.closed} onChange={e => onUpdate({ closed: e.target.checked })} />
         Cerrar trazo
       </label>
+      {/* Paths mirror their actual points (bbox unchanged), so this is a one-shot
+          geometry flip rather than a persisted flag — clicking twice restores. */}
+      <Row label="Voltear">
+        <button onClick={() => onUpdate({ points: flipPathPoints(node.points, 'h') })} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }} title="Voltear horizontalmente">
+          <Icon icon="lucide:flip-horizontal-2" /> H
+        </button>
+        <button onClick={() => onUpdate({ points: flipPathPoints(node.points, 'v') })} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }} title="Voltear verticalmente">
+          <Icon icon="lucide:flip-vertical-2" /> V
+        </button>
+      </Row>
     </>
   );
 }
@@ -2566,21 +2963,104 @@ function TextProps({ node, onUpdate, onSetFont }) {
         <input
           type="checkbox"
           checked={!!node.autoWidth}
-          onChange={e => onUpdate({ autoWidth: e.target.checked })}
+          onChange={e => onUpdate({ autoWidth: e.target.checked, ...(e.target.checked ? { autoFit: false } : {}) })}
         />
         Ancho automático
         <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(la caja se ajusta al texto)</span>
       </label>
+      {!node.autoWidth && (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={!!node.autoFit}
+            onChange={e => onUpdate({ autoFit: e.target.checked })}
+          />
+          Ajustar al cuadro
+          <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(reduce el tamaño para que quepa)</span>
+        </label>
+      )}
     </>
+  );
+}
+
+// Gradient fill editor: type (linear/radial), angle (linear only), and a list
+// of color stops with per-stop position + color. A live CSS preview bar mirrors
+// what the public page will paint. Always keeps ≥2 stops.
+function GradientEditor({ gradient, onChange }) {
+  const g = gradient;
+  const type = g.type || 'linear';
+  const stops = g.stops || [];
+  const preview = gradientToCss(g);
+  const setStop = (i, patch) => onChange({ ...g, stops: stops.map((s, k) => k === i ? { ...s, ...patch } : s) });
+  const addStop = () => onChange({ ...g, stops: [...stops, { offset: 0.5, color: '#888888' }].sort((a, b) => (a.offset ?? 0) - (b.offset ?? 0)) });
+  const removeStop = (i) => { if (stops.length > 2) onChange({ ...g, stops: stops.filter((_, k) => k !== i) }); };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ height: 22, borderRadius: 6, border: '1px solid #30363d', background: preview || '#333' }} />
+      <Row label="Tipo">
+        <select value={type} onChange={e => onChange({ ...g, type: e.target.value })} style={selectStyle}>
+          <option value="linear">Lineal</option>
+          <option value="radial">Radial</option>
+        </select>
+      </Row>
+      {type === 'linear' && (
+        <Row label="Ángulo">
+          <NumInput value={g.angle ?? 0} onChange={v => onChange({ ...g, angle: ((Math.round(v) % 360) + 360) % 360 })} suffix="°" />
+        </Row>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {stops.map((st, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ColorPicker value={st.color} onChange={c => setStop(i, { color: c })} />
+            <input
+              type="range" min={0} max={100} value={Math.round((st.offset ?? 0) * 100)}
+              onChange={e => setStop(i, { offset: Number(e.target.value) / 100 })}
+              style={{ flex: 1, accentColor: '#1f6feb' }}
+            />
+            <span style={{ fontSize: '0.68rem', color: '#8b949e', width: 28, textAlign: 'right' }}>{Math.round((st.offset ?? 0) * 100)}</span>
+            <button
+              onClick={() => removeStop(i)}
+              disabled={stops.length <= 2}
+              style={{ ...smallBtn, padding: '4px 6px', opacity: stops.length <= 2 ? 0.3 : 1 }}
+              title="Quitar punto"
+            >
+              <Icon icon="lucide:x" />
+            </button>
+          </div>
+        ))}
+      </div>
+      <button onClick={addStop} style={{ ...smallBtn, justifyContent: 'center' }}><Icon icon="lucide:plus" /> Punto de color</button>
+    </div>
   );
 }
 
 function ShapeProps({ node, onUpdate }) {
   const s = node.style || {};
   const ls = node.labelStyle || {};
+  const g = s.gradient;
   return (
     <>
-      <Row label="Relleno"><ColorPicker value={s.fill || '#cccccc'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
+      <Row label="Relleno">
+        <select
+          value={g ? 'gradient' : 'solid'}
+          onChange={e => {
+            if (e.target.value === 'gradient') {
+              onUpdate({ style: { gradient: { type: 'linear', angle: 0, stops: [{ offset: 0, color: s.fill || '#cccccc' }, { offset: 1, color: '#ffffff' }] } } });
+            } else {
+              onUpdate({ style: { gradient: null } });
+            }
+          }}
+          style={selectStyle}
+        >
+          <option value="solid">Sólido</option>
+          <option value="gradient">Degradado</option>
+        </select>
+      </Row>
+      {g ? (
+        <GradientEditor gradient={g} onChange={ng => onUpdate({ style: { gradient: ng } })} />
+      ) : (
+        <Row label="Color"><ColorPicker value={s.fill || '#cccccc'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
+      )}
       <Row label="Borde"><ColorPicker value={s.stroke || '#000000'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
       <Row label="Grosor"><NumInput value={s.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
       {node.shape !== 'circle' && (
@@ -2621,7 +3101,24 @@ function ImageProps({ node, onUpdate, openAssetPicker }) {
       <Row label="Radio esquinas">
         <NumInput value={node.style?.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: Math.max(0, v) } })} suffix="px" />
       </Row>
+      <FlipRow flipH={node.flipH} flipV={node.flipV} onFlip={axis => onUpdate(axis === 'h' ? { flipH: !node.flipH } : { flipV: !node.flipV })} />
     </>
+  );
+}
+
+// Flip toggles shared by nodes that support mirroring. Horizontal/vertical are
+// independent, so the buttons show a pressed state per axis.
+function FlipRow({ flipH, flipV, onFlip }) {
+  const btn = (on) => ({ ...smallBtn, flex: 1, justifyContent: 'center', ...(on ? { background: '#1f6feb', color: 'white', borderColor: '#1f6feb' } : null) });
+  return (
+    <Row label="Voltear">
+      <button onClick={() => onFlip('h')} style={btn(flipH)} title="Voltear horizontalmente">
+        <Icon icon="lucide:flip-horizontal-2" /> H
+      </button>
+      <button onClick={() => onFlip('v')} style={btn(flipV)} title="Voltear verticalmente">
+        <Icon icon="lucide:flip-vertical-2" /> V
+      </button>
+    </Row>
   );
 }
 

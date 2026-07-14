@@ -14,6 +14,11 @@ export default defineConfig({
         clientsClaim: true, // Takes control of the client immediately
         cleanupOutdatedCaches: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        // The main bundle (Konva-powered canvas editor + app) sits just past
+        // workbox's default 2 MiB per-file precache cap; without this the SW
+        // silently drops the app shell from the precache and the PWA stops
+        // working offline. Bump the ceiling to keep the shell precached.
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // Serve the SPA shell for in-app navigations...
         navigateFallback: 'index.html',
         // ...but NEVER for server routes. Without this denylist the SW

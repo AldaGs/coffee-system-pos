@@ -9,10 +9,19 @@ import { useAuthStore } from '../store/useAuthStore';
 export const usePresence = (myDeviceId, showAlert) => {
   const { activeCashier, isLocked, logout } = useAuthStore();
   const activeCashierRef = useRef(activeCashier);
+  // showAlert's identity is not guaranteed stable across renders. Read it
+  // through a ref so it never appears in the effect deps below — otherwise a
+  // changing showAlert tears down and rebuilds the presence channel on every
+  // render, which leaks sockets on a flaky link (the OOM-crash path).
+  const showAlertRef = useRef(showAlert);
 
   useEffect(() => {
     activeCashierRef.current = activeCashier;
   }, [activeCashier]);
+
+  useEffect(() => {
+    showAlertRef.current = showAlert;
+  }, [showAlert]);
 
   useEffect(() => {
     if (!supabase || !navigator.onLine || !activeCashier?.id || isLocked) return;
@@ -27,7 +36,7 @@ export const usePresence = (myDeviceId, showAlert) => {
     const executeLockout = (reason) => {
       console.warn(`🔒 ${reason}`);
       logout();
-      showAlert("Access Revoked", reason);
+      showAlertRef.current("Access Revoked", reason);
     };
 
     channel
@@ -64,5 +73,5 @@ export const usePresence = (myDeviceId, showAlert) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeCashier?.id, isLocked, myDeviceId, logout, showAlert]);
+  }, [activeCashier?.id, isLocked, myDeviceId, logout]);
 };
