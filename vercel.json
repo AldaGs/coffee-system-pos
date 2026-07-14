@@ -1,6 +1,18 @@
 {
   "rewrites": [
     {
+      "source": "/api/add-domain",
+      "destination": "/api/domains?op=add"
+    },
+    {
+      "source": "/api/remove-domain",
+      "destination": "/api/domains?op=remove"
+    },
+    {
+      "source": "/api/resolve-domain",
+      "destination": "/api/domains"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
