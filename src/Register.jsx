@@ -58,6 +58,7 @@ import { fetchAndMergeExpenses } from './services/expenseSync';
 import { fetchActiveTickets } from './services/ticketSync';
 import { createRealtimeChannel } from './utils/realtime';
 import { fromCents } from './utils/moneyUtils';
+import { getBusinessProfile, getCachedBusinessType } from './utils/businessProfile';
 
 
 const getOrCreateDeviceId = () => {
@@ -69,13 +70,17 @@ const getOrCreateDeviceId = () => {
   return id;
 };
 
-// Per-device register layout. CRITICAL: this is read EXCLUSIVELY from
+// Per-device register layout. CRITICAL: the CHOICE is read EXCLUSIVELY from
 // localStorage (set in Admin → Device Settings) and is never synced to
 // Supabase, so each physical station can run a different layout against the
-// same store. Defaults to 'cafe' for any device that hasn't chosen one.
+// same store. When a station has never chosen one, the default is seeded from
+// the store-wide business type (restaurant → tables, e-commerce → orders,
+// etc.) rather than a hardcoded 'cafe' — an operator can still override it.
 const getLayoutMode = () => {
   try {
-    return localStorage.getItem('tinypos_layout_mode') || 'cafe';
+    const stored = localStorage.getItem('tinypos_layout_mode');
+    if (stored) return stored;
+    return getBusinessProfile(getCachedBusinessType()).defaultLayout;
   } catch {
     return 'cafe';
   }

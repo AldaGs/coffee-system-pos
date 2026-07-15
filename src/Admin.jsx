@@ -175,6 +175,7 @@ function Admin() {
   const [generalSettings, setGeneralSettings] = useState(() => {
     const defaultSettings = {
       name: "Main Register",
+      businessType: "restaurant",
       brandColor: 'var(--brand-color)',
       isDarkMode: false,
       autoLockMinutes: 5,

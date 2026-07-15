@@ -13,6 +13,7 @@ import { db } from '../../db';
 import { isLocalMode, beginCloudUpgrade } from '../../utils/appMode';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
+import { getBusinessProfile } from '../../utils/businessProfile';
 
 // Session keys used by the schema-update OAuth round-trip. Mirror the
 // burn-after-reading pattern from DevicesTab — the PAT only exists between
@@ -61,7 +62,10 @@ function GeneralSettingsTab({
   const LAYOUT_MODE_KEY = 'tinypos_layout_mode';
   const [layoutMode, setLayoutMode] = useState(() => {
     if (typeof window === 'undefined') return 'cafe';
-    return localStorage.getItem(LAYOUT_MODE_KEY) || 'cafe';
+    const stored = localStorage.getItem(LAYOUT_MODE_KEY);
+    if (stored) return stored;
+    // No per-device choice yet — seed from the store-wide business type.
+    return getBusinessProfile(generalSettings.businessType).defaultLayout;
   });
   const handleLayoutModeChange = (mode) => {
     setLayoutMode(mode);
@@ -432,6 +436,27 @@ function GeneralSettingsTab({
               {t('settings.registerName')}
             </label>
             <input type="text" value={generalSettings.name} onChange={(e) => setGeneralSettings({ ...generalSettings, name: e.target.value })} placeholder="e.g., Front Counter iPad" style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+          </div>
+
+          {/* Store-wide business type. Synced (lives in generalSettings →
+              shop_settings), unlike the per-device layout mode below. Sets
+              defaults + vocabulary across the app and is read by sibling apps. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Icon icon="lucide:store" style={{ color: 'var(--brand-color)' }} />
+              {t('settings.businessType')}
+            </label>
+            <small style={{ color: 'var(--text-muted)', marginTop: '-2px' }}>{t('settings.businessTypeDesc')}</small>
+            <select
+              value={generalSettings.businessType || 'restaurant'}
+              onChange={(e) => setGeneralSettings({ ...generalSettings, businessType: e.target.value })}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
+            >
+              <option value="restaurant">{t('settings.bizRestaurant')}</option>
+              <option value="quickservice">{t('settings.bizQuickService')}</option>
+              <option value="store">{t('settings.bizStore')}</option>
+              <option value="ecommerce">{t('settings.bizEcommerce')}</option>
+            </select>
           </div>
 
           {/* FIX: Changed from Grid to Flex + mobile-flex-stack class */}
