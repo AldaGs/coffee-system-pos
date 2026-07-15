@@ -44,7 +44,7 @@ function TicketArea({
 
         {/* 3. Mobile Close Button / Header */}
         <div className="mobile-ticket-header desktop-hidden" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px', borderBottom: '1px solid var(--border)' }}>
-          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Current Order</h2>
+          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{activeTicket?.name || t('ticket.currentOrder')}</h2>
           <button
             onClick={() => setIsMobileCartOpen(false)}
             style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: 'var(--text-muted)' }}

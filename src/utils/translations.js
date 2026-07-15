@@ -1057,6 +1057,7 @@ export const translations = {
     "sync.dataLossWarningDesc": "You have {{count}} records pending to sync. Please connect to the internet to save them to the cloud before disconnecting the device.",
 
     // --- Ticket Area ---
+    "ticket.currentOrder": "Current Order",
     "ticket.noOrders": "No Active Orders",
     "ticket.noOrdersDesc": "You don't have any open tickets right now.",
     "ticket.btnStart": "Start New Ticket",
@@ -2361,6 +2362,7 @@ export const translations = {
     "sync.dataLossWarningDesc": "Tienes {{count}} registros pendientes de sincronizar. Conéctate a internet para que se guarden en la nube antes de desconectar el equipo.",
 
     // --- Ticket Area ---
+    "ticket.currentOrder": "Pedido Actual",
     "ticket.noOrders": "Sin Órdenes Activas",
     "ticket.noOrdersDesc": "No tienes tickets abiertos en este momento.",
     "ticket.btnStart": "Nueva Orden",
