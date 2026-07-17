@@ -218,21 +218,23 @@ function TicketArea({
                     {t('ticket.btnRename')}
                   </button>
                 </div>
-                <button
-                  onClick={() => {
-                    setIsActionSheetOpen(false);
-                    gateRegisterAction({
-                      posSettings, activeCashier, requirePin,
-                      title: t('ticket.authDiscount'),
-                      run: () => setIsDiscountModalOpen(true),
-                    });
-                  }}
-                  aria-label={lockHint ? t('settings.lockBadgeAria') : undefined}
-                  style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                >
-                  {lockHint && <Icon icon="lucide:lock" style={{ fontSize: '0.95rem' }} />}
-                  {t('ticket.btnDiscount')}
-                </button>
+                {posSettings?.isAdvancedMode === true && (
+                  <button
+                    onClick={() => {
+                      setIsActionSheetOpen(false);
+                      gateRegisterAction({
+                        posSettings, activeCashier, requirePin,
+                        title: t('ticket.authDiscount'),
+                        run: () => setIsDiscountModalOpen(true),
+                      });
+                    }}
+                    aria-label={lockHint ? t('settings.lockBadgeAria') : undefined}
+                    style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#8e44ad', border: '1px solid #8e44ad', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  >
+                    {lockHint && <Icon icon="lucide:lock" style={{ fontSize: '0.95rem' }} />}
+                    {t('ticket.btnDiscount')}
+                  </button>
+                )}
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>
                     {t('ticket.btnPrint')}

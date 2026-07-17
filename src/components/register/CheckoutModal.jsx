@@ -114,6 +114,7 @@ function CheckoutModal({
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button onClick={() => { handlePartialPayment(Math.floor(remaining / nWays), 'Cash', null); setNWays(Math.max(1, nWays - 1)); }} style={{ flex: 1, padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>{t('check.cash')}</button>
                 <button onClick={() => { handlePartialPayment(Math.floor(remaining / nWays), 'Card', null); setNWays(Math.max(1, nWays - 1)); }} style={{ flex: 1, padding: '16px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>{t('check.card')}</button>
+                <button onClick={() => { handlePartialPayment(Math.floor(remaining / nWays), 'Transfer', null); setNWays(Math.max(1, nWays - 1)); }} style={{ flex: 1, padding: '16px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', cursor: 'pointer' }}>{t('check.transfer')}</button>
               </div>
             </div>
           )}
@@ -197,6 +198,7 @@ function CheckoutModal({
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button onClick={() => handlePartialPayment(finalItemTotal, 'Cash', [item.id])} style={{ padding: '8px 12px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.cash')}</button>
                             <button onClick={() => handlePartialPayment(finalItemTotal, 'Card', [item.id])} style={{ padding: '8px 12px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.card')}</button>
+                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Transfer', [item.id])} style={{ padding: '8px 12px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.transfer')}</button>
                           </div>
                         )}
                       </div>
@@ -217,6 +219,7 @@ function CheckoutModal({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
                   <button onClick={() => { const amt = toCents(customVal); if (amt > 0 && amt <= remaining) { handlePartialPayment(amt, 'Cash'); setCustomVal(''); } else showAlert(t('common.error'), t('check.alertInvalid')); }} style={{ padding: '10px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.cash')}</button>
                   <button onClick={() => { const amt = toCents(customVal); if (amt > 0 && amt <= remaining) { handlePartialPayment(amt, 'Card'); setCustomVal(''); } else showAlert(t('common.error'), t('check.alertInvalid')); }} style={{ padding: '10px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.card')}</button>
+                  <button onClick={() => { const amt = toCents(customVal); if (amt > 0 && amt <= remaining) { handlePartialPayment(amt, 'Transfer'); setCustomVal(''); } else showAlert(t('common.error'), t('check.alertInvalid')); }} style={{ padding: '10px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold' }}>{t('check.transfer')}</button>
                 </div>
               </div>
               {splitPayments.length > 0 && (

@@ -1777,8 +1777,13 @@ function Admin() {
             { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
             { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true, cloudOnly: true },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
-          ].filter(tab => !(tab.cloudOnly && isLocalMode())).map(tab => {
-            const isLocked = tab.advancedOnly && generalSettings.isAdvancedMode !== true;
+          ].filter(tab => !(tab.cloudOnly && isLocalMode()))
+            // Keep reachable tabs contiguous at the top; locked ones sink to the
+            // bottom rather than leaving gaps between what you can actually open.
+            .map(tab => ({ ...tab, isLocked: tab.advancedOnly === true && generalSettings.isAdvancedMode !== true }))
+            .sort((a, b) => Number(a.isLocked) - Number(b.isLocked))
+            .map(tab => {
+            const isLocked = tab.isLocked;
             return (
               <button
                 key={tab.id}
