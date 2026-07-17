@@ -223,17 +223,19 @@ function GeneralSettingsTab({
     setPinError(false);
   };
 
-  // PIN check is async because cashier PINs aren't in memory (useMenuStore
-  // scrubs them) — we go through the verify_pin RPC. Master pinCode is still
-  // checked locally as a fast path.
+  // PIN check is async because PINs aren't in memory: useMenuStore.setMenuData
+  // scrubs cashiers[].pin and posSettings.pinCode on load, so verify_pin (bcrypt
+  // against cashier_pins) is the only authority.
+  //
+  // There used to be a local `pinAttempt === generalSettings.pinCode` fast path
+  // here. It could never succeed — generalSettings comes from the scrubbed cache
+  // merged over defaults that have no pinCode key, so it compared a string to
+  // undefined. Worse, useMenuStore's getGeneralSettings defaults pinCode to '',
+  // so wiring this to that getter instead would have made an EMPTY pin authorize.
+  // The RPC covers the master PIN (cashier id 0), so the path is gone.
   const handlePinSubmit = async () => {
-    const isMasterPin = pinAttempt === generalSettings.pinCode;
-    let authorized = isMasterPin;
-    if (!authorized) {
-      const { verifyAuthorizerPin } = useMenuStore.getState();
-      const result = await verifyAuthorizerPin(pinAttempt, 'admin');
-      authorized = !!result;
-    }
+    const { verifyAuthorizerPin } = useMenuStore.getState();
+    const authorized = !!(await verifyAuthorizerPin(pinAttempt, 'admin'));
     if (authorized) {
       const action = pinChallenge.onAuthorized;
       closePinChallenge();

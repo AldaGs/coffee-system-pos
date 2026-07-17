@@ -463,7 +463,16 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         INSERT INTO public.shop_settings (id, menu_data)
         VALUES (
           1,
-          '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "pin": "${adminPin}", "isAdmin": true}], "posSettings": {"name": "tinypos", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "${adminPin}", "strictAdminAccess": false, "strictRegisterOverrides": false}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
+          -- NO plaintext PIN here. The admin PIN is seeded hashed into
+          -- cashier_pins below (ids 0 + 1) and every check goes through the
+          -- verify_pin RPC against that table. Writing it here too put a
+          -- readable second copy in shop_settings — a table any authenticated
+          -- user can select — and the client scrubs cashiers[].pin and
+          -- posSettings.pinCode on load anyway (useMenuStore.setMenuData), so
+          -- nothing ever read it. api/install.js already seeds it this way.
+          -- The legacy backfill below still hashes plaintext pins out of older
+          -- menu_data blobs; it just finds nothing to do on a fresh install.
+          '{"categories": {"Café": []}, "cashiers": [{"id": 1, "name": "Admin", "isAdmin": true}], "posSettings": {"name": "tinypos", "language": "en", "brandColor": "#f28b05", "isDarkMode": false, "autoLockMinutes": 5, "enableCorte": true, "ticketVisibility": "open", "pinCode": "", "strictAdminAccess": false, "strictRegisterOverrides": false}, "receiptSettings": {"header": "", "subheader": "", "footer": "", "logo": null, "enableTaxBreakdown": false, "taxRate": 16}, "loyaltySettings": {"isActive": false, "visitsRequired": 10, "rewardDescription": "tu próxima bebida GRATIS"}, "modifierGroups": {}, "discountRules": []}'::jsonb
         )
         ON CONFLICT (id) DO NOTHING;
 
