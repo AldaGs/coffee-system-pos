@@ -905,6 +905,21 @@ body.dark-mode {
   overflow-x: auto;
 }
 
+/* Settings header pinned to the top of .admin-main's scrollport so Save stays
+   reachable on a long page. The negative margins + matching horizontal padding
+   let the background bleed across .admin-main's padding, so content scrolls
+   under it instead of peeking around the edges — they must track .admin-main's
+   padding at every breakpoint (40px base, 16px under 768px below). */
+.settings-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-main);
+  border-bottom: 1px solid var(--border);
+  margin: -40px -40px 32px;
+  padding: 40px 40px 20px;
+}
+
 .desktop-hidden {
   display: none !important;
 }
@@ -1136,6 +1151,13 @@ body.dark-mode {
   
   .admin-section-header {
     margin-bottom: 24px !important;
+  }
+
+  /* Track .admin-main's 16px mobile padding (see .settings-sticky-header).
+     !important to beat the margin-bottom rule directly above. */
+  .settings-sticky-header {
+    margin: -16px -16px 24px !important;
+    padding: 16px 16px 12px;
   }
 
   .admin-section-header h1 {

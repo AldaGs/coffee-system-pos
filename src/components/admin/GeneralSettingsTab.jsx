@@ -418,11 +418,32 @@ function GeneralSettingsTab({
 
   const isAdvancedOn = generalSettings.isAdvancedMode === true;
 
+  // overflowX visible overrides .admin-section's `overflow-x: auto`, which would
+  // otherwise make this element its own scroll container and stop the sticky
+  // header from ever sticking to .admin-main's scrollport.
   return (
-    <div className="admin-section fade-in">
-      <div className="admin-section-header" style={{ marginBottom: '32px' }}>
-        <h1 style={{ color: 'var(--text-main)', fontSize: '2rem', marginBottom: '8px', fontWeight: '800' }}>{t('settings.title')}</h1>
-        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>{t('settings.subtitle')}</p>
+    <div className="admin-section fade-in" style={{ overflowX: 'visible' }}>
+      {/* Sticky so Save stays reachable without scrolling back down — this page
+          is long. Negative margins + matching padding let the background span
+          .admin-main's 40px padding, so content scrolls under it cleanly. */}
+      <div
+        className="admin-section-header settings-sticky-header"
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: '20px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h1 style={{ color: 'var(--text-main)', fontSize: '2rem', marginBottom: '8px', fontWeight: '800' }}>{t('settings.title')}</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>{t('settings.subtitle')}</p>
+        </div>
+        <button onClick={handleSaveGeneralSettings} style={{ flexShrink: 0, padding: '14px 28px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+          <Icon icon="lucide:save" />
+          {t('settings.btnSave')}
+        </button>
       </div>
 
       <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'start' }}>
@@ -984,13 +1005,8 @@ function GeneralSettingsTab({
             </div>
           </div>
 
-          {/* --- BOTTOM ACTIONS --- */}
+          {/* --- BOTTOM ACTIONS --- (Save moved to the sticky header above) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <button onClick={handleSaveGeneralSettings} style={{ width: '100%', boxSizing: 'border-box', padding: '18px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
-              <Icon icon="lucide:save" />
-              {t('settings.btnSave')}
-            </button>
-
             {/* Legacy tool: <ExportKeysButton /> */}
 
             {/*
