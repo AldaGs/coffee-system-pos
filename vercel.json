@@ -13,6 +13,30 @@
       "destination": "/api/domains"
     },
     {
+      "source": "/api/get-orgs",
+      "destination": "/api/supabase?op=orgs"
+    },
+    {
+      "source": "/api/get-projects",
+      "destination": "/api/supabase?op=projects"
+    },
+    {
+      "source": "/api/get-keys",
+      "destination": "/api/supabase?op=keys"
+    },
+    {
+      "source": "/api/get-project-status",
+      "destination": "/api/supabase?op=status"
+    },
+    {
+      "source": "/api/create-project",
+      "destination": "/api/supabase?op=create"
+    },
+    {
+      "source": "/api/run-sql",
+      "destination": "/api/supabase?op=sql"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
