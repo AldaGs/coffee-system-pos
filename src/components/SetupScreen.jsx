@@ -903,10 +903,27 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           IF EXISTS (SELECT 1 FROM public.menu_categories) THEN RETURN; END IF;
           SELECT menu_data INTO v_menu FROM public.shop_settings WHERE id = 1;
           IF v_menu IS NULL THEN RETURN; END IF;
-          -- Archive the raw legacy JSONB before any migration attempt — recovery surface.
+          -- Archive the legacy JSONB before any migration attempt — recovery surface.
+          -- MENU KEYS ONLY: menu_data is the whole legacy settings blob and carries
+          -- cashiers[].pin in PLAINTEXT (hashed into cashier_pins precisely so it
+          -- doesn't sit in a readable table) plus posSettings.pinCode. menu_versions
+          -- is read by the menu-history UI, so archiving the raw blob leaks the admin
+          -- PIN to any authenticated user, and breaks the column's contract: every
+          -- other writer stores the build_menu_snapshot() shape, and
+          -- restore_menu_version() only reads these keys anyway.
+          -- Allowlist, not a subtract, so a new secret-bearing key can't leak later.
+          -- Mirrors api/install.js.
           BEGIN
             INSERT INTO public.menu_versions (snapshot, reason, trigger_op)
-              VALUES (v_menu, 'pre-jsonb-strip', 'install_split_menu_data');
+              VALUES (
+                (SELECT COALESCE(jsonb_object_agg(k, v_menu->k), '{}'::jsonb)
+                   FROM unnest(ARRAY[
+                     'categories', 'categoryOrder', 'hiddenCategories',
+                     'publicHiddenCategories', 'modifierGroups',
+                     'modifierGroupSettings', 'discountRules'
+                   ]) AS k
+                  WHERE v_menu ? k),
+                'pre-jsonb-strip', 'install_split_menu_data');
           EXCEPTION WHEN undefined_table THEN NULL;
           END;
           v_order  := COALESCE(v_menu->'categoryOrder',    '[]'::jsonb);
@@ -982,6 +999,25 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           END IF;
         END
         $menu_split$;
+
+        -- Scrub archives written by earlier runs of the block above, which stored
+        -- the raw menu_data blob — including cashiers[].pin in plaintext — into a
+        -- table the menu-history UI renders. Project them down to the same menu-key
+        -- allowlist. Idempotent: the ?| guard skips rows already clean, and rows
+        -- from other writers (reason <> 'pre-jsonb-strip') are never touched.
+        -- Mirrors api/install.js.
+        UPDATE public.menu_versions mv
+        SET snapshot = (
+          SELECT COALESCE(jsonb_object_agg(k, mv.snapshot->k), '{}'::jsonb)
+            FROM unnest(ARRAY[
+              'categories', 'categoryOrder', 'hiddenCategories',
+              'publicHiddenCategories', 'modifierGroups',
+              'modifierGroupSettings', 'discountRules'
+            ]) AS k
+           WHERE mv.snapshot ? k
+        )
+        WHERE mv.reason = 'pre-jsonb-strip'
+          AND mv.snapshot ?| ARRAY['cashiers', 'posSettings', 'receiptSettings', 'loyaltySettings'];
 
         -- Loyalty trigger: fires AFTER INSERT on sales, exactly once per sale.
         -- Idempotent by construction — sales upserts use onConflict: local_id, so retries
