@@ -906,13 +906,17 @@ body.dark-mode {
 }
 
 /* Settings header pinned to the top of .admin-main's scrollport so Save stays
-   reachable on a long page. The negative margins + matching horizontal padding
-   let the background bleed across .admin-main's padding, so content scrolls
-   under it instead of peeking around the edges — they must track .admin-main's
-   padding at every breakpoint (40px base, 16px under 768px below). */
+   reachable on a long page. The negative margins + matching padding let the
+   background bleed across .admin-main's padding, so content scrolls under it
+   instead of peeking around the edges.
+   `top` is NEGATIVE the padding, not 0: sticky resolves against the scrollport's
+   padding-box edge, so top:0 would pin the header below the 40px padding strip
+   and let content scroll through the gap above it. Pulling it up by the padding
+   and absorbing that in its own padding-top closes the gap. Both values must
+   track .admin-main's padding at every breakpoint (40px here, 16px <768px). */
 .settings-sticky-header {
   position: sticky;
-  top: 0;
+  top: -40px;
   z-index: 20;
   background: var(--bg-main);
   border-bottom: 1px solid var(--border);
@@ -1156,6 +1160,7 @@ body.dark-mode {
   /* Track .admin-main's 16px mobile padding (see .settings-sticky-header).
      !important to beat the margin-bottom rule directly above. */
   .settings-sticky-header {
+    top: -16px;
     margin: -16px -16px 24px !important;
     padding: 16px 16px 12px;
   }
