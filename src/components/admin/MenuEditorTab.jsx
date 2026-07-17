@@ -73,6 +73,12 @@ function MenuEditorTab({
     );
   };
 
+  // An item can't exist without a category to hang it on: menu_items.category_id
+  // is NOT NULL, and the cloud writer resolves the category by name first. With
+  // no categories the form could still be filled in and submitted, and the write
+  // failed with a raw PostgREST 406. Hide the form instead of failing late.
+  const hasCategories = Object.keys(menuData.categories || {}).length > 0;
+
   // When editing ends (editingItemId cleared by save or cancel), bring the
   // edited row back into view so the user doesn't lose their place in a long list.
   useEffect(() => {
@@ -176,18 +182,31 @@ function MenuEditorTab({
               <Icon icon="lucide:plus-square" style={{ color: 'var(--brand-color)' }} />
               {t('menu.addItem')}
             </h3>
+            {!hasCategories && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px', padding: '32px 16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px dashed var(--border)' }}>
+                <Icon icon="lucide:folder-plus" style={{ fontSize: '2rem', color: 'var(--text-muted)' }} />
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontWeight: 'bold' }}>
+                  {t('menu.noCategoriesTitle')}
+                </p>
+                <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  {t('menu.noCategoriesBody')}
+                </p>
+              </div>
+            )}
+
+            {hasCategories && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelCategory') || 'Category'}</label>
-                <select 
-                  value={newItemForm.category} 
-                  onChange={(e) => setNewItemForm({ ...newItemForm, category: e.target.value })} 
+                <select
+                  value={newItemForm.category}
+                  onChange={(e) => setNewItemForm({ ...newItemForm, category: e.target.value })}
                   style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
                 >
                   {Object.keys(menuData.categories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Icon</label>
@@ -392,6 +411,7 @@ function MenuEditorTab({
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
 

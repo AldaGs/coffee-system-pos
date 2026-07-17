@@ -900,6 +900,23 @@ function Admin() {
   const handleUpdateVendor = async (id, patch) => { await updateVendor(id, patch); await refreshVendors(); };
   const handleDeleteVendor = async (id) => { await deleteVendor(id); await refreshVendors(); };
 
+  // menu_items.id is a GLOBAL text primary key, not scoped to the category, so a
+  // bare name slug collides the moment the same item name exists anywhere in the
+  // menu ("Americano" in both Café and Caliente) — the insert fails with
+  // menu_items_pkey. Suffix the slug until it's free across every category.
+  // Existing ids are never rewritten: they're referenced by modifier links,
+  // recipes and sale-line snapshots.
+  const uniqueItemId = (name) => {
+    const base = name.toLowerCase().replace(/\s+/g, '_');
+    const taken = new Set(
+      Object.values(menuData.categories || {}).flat().map(it => it.id)
+    );
+    if (!taken.has(base)) return base;
+    let n = 2;
+    while (taken.has(`${base}_${n}`)) n++;
+    return `${base}_${n}`;
+  };
+
   // Resolve the { vendorId, vendorName } pair to stamp on a menu item from the
   // form's selected vendor. Denormalizing the name keeps the sale-line snapshot
   // (and historic settlement reports) readable even if the vendor is later renamed.
@@ -918,6 +935,12 @@ function Admin() {
   const handleAddDrink = () => {
     if (!newItemForm.category || !newItemForm.name || !newItemForm.price) {
       return showAlert(t('menu.missingFieldsTitle'), t('menu.missingFieldsDesc'));
+    }
+    // The form can still hold a category that was deleted since it was picked.
+    // Writing it would resolve the category by name in the cloud, find nothing,
+    // and surface a raw PostgREST 406 — catch it here with a real message.
+    if (!menuData.categories?.[newItemForm.category]) {
+      return showAlert(t('menu.missingCategoryTitle'), t('menu.missingCategoryDesc'));
     }
 
     if (editingItemId) {
@@ -969,7 +992,7 @@ function Admin() {
     }
 
     const newDrink = {
-      id: newItemForm.name.toLowerCase().replace(/\s+/g, '_'),
+      id: uniqueItemId(newItemForm.name),
       name: newItemForm.name,
       basePrice: toCents(newItemForm.price || 0),
       priceType: newItemForm.priceType || 'fixed',
