@@ -218,7 +218,9 @@ function TicketArea({
                     {t('ticket.btnRename')}
                   </button>
                 </div>
-                {posSettings?.isAdvancedMode === true && (
+                {/* Lite mode blocks new discounts, but a ticket carrying one from
+                    before the toggle flipped still needs a way to remove it. */}
+                {(posSettings?.isAdvancedMode === true || !!activeTicket.discount) && (
                   <button
                     onClick={() => {
                       setIsActionSheetOpen(false);

@@ -1,9 +1,13 @@
 import { useTranslation } from '../../hooks/useTranslation';
 
-function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, activeTicket }) {
+function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, activeTicket, isAdvancedMode }) {
   const { t } = useTranslation();
 
   if (!isDiscountModalOpen) return null;
+
+  // Lite mode reaches this modal only to clear a discount left on a live ticket,
+  // so the editor is hidden — otherwise the gate could be walked straight past.
+  const canEdit = isAdvancedMode === true;
 
   return (
     <div className="modal-overlay" style={{ zIndex: 100 }}>
@@ -13,9 +17,10 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
           <button onClick={() => setIsDiscountModalOpen(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
         </div>
 
+        {canEdit && (
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-          <button 
-            onClick={() => setDiscountForm({ ...discountForm, type: 'percentage' })} 
+          <button
+            onClick={() => setDiscountForm({ ...discountForm, type: 'percentage' })}
             style={{ flex: 1, padding: '12px', borderRadius: '8px', fontWeight: 'bold', border: `2px solid ${discountForm.type === 'percentage' ? '#8e44ad' : 'var(--border)'}`, background: discountForm.type === 'percentage' ? '#f5eef8' : 'var(--bg-main)', color: discountForm.type === 'percentage' ? '#8e44ad' : 'var(--text-main)' }}
           >
             {t('discModal.perc')}
@@ -27,7 +32,9 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
             {t('discModal.flat')}
           </button>
         </div>
+        )}
 
+        {canEdit && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
           <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>
             {discountForm.type === 'percentage' ? t('discModal.labelPerc') : t('discModal.labelFlat')}
@@ -51,6 +58,7 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
             style={{ width: '100%', padding: '15px', fontSize: '1.5rem', textAlign: 'center', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)' }}
           />
         </div>
+        )}
 
         <div style={{ display: 'flex', gap: '10px' }}>
           {activeTicket?.discount && (
@@ -58,9 +66,11 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
               {t('discModal.btnRemove')}
             </button>
           )}
-          <button onClick={handleApplyDiscount} style={{ flex: 2, padding: '16px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
-            {t('discModal.btnApply')}
-          </button>
+          {canEdit && (
+            <button onClick={handleApplyDiscount} style={{ flex: 2, padding: '16px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }}>
+              {t('discModal.btnApply')}
+            </button>
+          )}
         </div>
       </div>
     </div>
