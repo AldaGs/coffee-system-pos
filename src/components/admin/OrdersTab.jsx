@@ -445,10 +445,10 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                 </button>
                 <button
                   onClick={() => handleSharePNG(order)}
-                  title={t('ticket.btnPNG')}
+                  title={t('ticket.btnShare')}
                   style={{ padding: '10px', background: 'rgba(230, 126, 34, 0.1)', color: '#e67e22', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
                 >
-                  <Icon icon="lucide:image" />
+                  <Icon icon="lucide:share-2" />
                 </button>
                 <button
                   onClick={() => handleShareWA(order)}
