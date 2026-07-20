@@ -232,8 +232,8 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                   const matchedWarehouseItem = !isManual ? inventoryItems?.find(inv => inv.name === ing.name) : null;
 
                   return (
-                    <div key={ing.id} className="recipe-ingredient-row" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr)', gap: '12px', alignItems: 'center', background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-main)', padding: '12px', borderRadius: '16px', border: `1px solid ${isManual ? 'rgba(155, 89, 182, 0.2)' : 'var(--border)'}` }}>
-                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', minWidth: 0 }}>
+                    <div key={ing.id} className="recipe-ingredient-row" style={{ background: isManual ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-main)', padding: '12px', borderRadius: '16px', border: `1px solid ${isManual ? 'rgba(155, 89, 182, 0.2)' : 'var(--border)'}` }}>
+                      <div className="rc-name" style={{ display: 'flex', gap: '8px', alignItems: 'center', minWidth: 0 }}>
                         <button
                           onClick={() => handleUpdateIngredient(ing.id, 'isManual', !isManual)}
                           title={isManual ? 'Switch to Live Inventory' : 'Switch to Manual Cost'}
@@ -264,7 +264,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                         )}
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: `1px solid ${isManual ? '#9b59b6' : 'var(--border)'}`, borderRadius: '10px', overflow: 'hidden', minWidth: 0 }}>
+                      <div className="rc-qty" style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: `1px solid ${isManual ? '#9b59b6' : 'var(--border)'}`, borderRadius: '10px', overflow: 'hidden', minWidth: 0 }}>
                         <input
                           type="number"
                           placeholder={t('recipe.qty')}
@@ -288,7 +288,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                       </div>
 
                       {isManual ? (
-                        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: '1px solid #9b59b6', borderRadius: '10px', paddingLeft: '10px', minWidth: 0 }}>
+                        <div className="rc-cost" style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-surface)', border: '1px solid #9b59b6', borderRadius: '10px', paddingLeft: '10px', minWidth: 0 }}>
                           <span style={{ color: '#9b59b6', fontSize: '0.8rem', fontWeight: 'bold' }}>$</span>
                           <input
                             type="number"
@@ -300,12 +300,12 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                           />
                         </div>
                       ) : (
-                        <div style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', background: 'rgba(0,0,0,0.02)', borderRadius: '10px' }}>
+                        <div className="rc-cost" style={{ padding: '12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', background: 'rgba(0,0,0,0.02)', borderRadius: '10px' }}>
                           ${fromMillicents(matchedWarehouseItem?.unit_cost || 0)}
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      <div className="rc-total" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                         <div style={{ flex: 1, padding: '12px', borderRadius: '10px', background: 'var(--bg-main)', color: 'var(--text-main)', textAlign: 'right', fontWeight: '900', border: '1px solid var(--border)' }}>
                           {isManual
                             ? formatForDisplay(toCents(parseFloat(ing.qty || 0) * parseFloat(ing.manualCostPerUnit || 0)))

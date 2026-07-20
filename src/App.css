@@ -1383,6 +1383,31 @@ body.dark-mode {
   }
 }
 }
+
+/* Recipe builder — ingredient row. The grid layout lives here (not inline on
+   the element) so the mobile media query below can actually reflow it; an
+   inline grid-template-columns would win over any stylesheet rule. */
+.recipe-ingredient-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 12px;
+  align-items: center;
+}
+@media (max-width: 640px) {
+  .recipe-ingredient-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "name name"
+      "qty  cost"
+      "total total";
+    gap: 10px;
+  }
+  .recipe-ingredient-row > .rc-name  { grid-area: name; }
+  .recipe-ingredient-row > .rc-qty   { grid-area: qty; }
+  .recipe-ingredient-row > .rc-cost  { grid-area: cost; }
+  .recipe-ingredient-row > .rc-total { grid-area: total; }
+}
+
 /* ===================================================================
    ORDER FLOW LAYOUT (Mesas/Pedidos — Full Service)
    Responsive split-pane: a persistent active-tickets list (30%) + the

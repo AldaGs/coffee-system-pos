@@ -237,8 +237,9 @@ function TicketArea({
                   <button style={{ flex: 1, padding: '16px', background: '#3498db', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); printRawReceipt(activeTicket, cartTotal); }}>
                     {t('ticket.btnPrint')}
                   </button>
-                  <button style={{ flex: 1, padding: '16px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); handleSaveAsPNG(activeTicket); }}>
-                    {t('ticket.btnPNG')}
+                  <button style={{ flex: 1, padding: '16px', background: '#e67e22', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={() => { setIsActionSheetOpen(false); handleSaveAsPNG(activeTicket); }}>
+                    <Icon icon="lucide:share-2" />
+                    {t('ticket.btnShare')}
                   </button>
                   <button style={{ flex: 1, padding: '16px', background: '#25D366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem' }} onClick={() => { setIsActionSheetOpen(false); setLoyaltyModal({ isOpen: true, step: 'phone', phone: '', data: null }); }}>
                     {t('ticket.btnWA')}
