@@ -174,8 +174,12 @@ function PublicMenu() {
   // freshness. Owners who prefer the old hide-when-sold-out behavior can set
   // menu.data.hide_out_of_stock = true on the menu row.
   const hideOos = data.menu?.data?.hide_out_of_stock === true;
+  // Drop categories that end up with nothing to show so an empty category's
+  // title (and its nav tab) never renders — a heading over a bare "—" reads
+  // like a mistake to a customer.
   const categories = (data.categories || [])
-    .map(c => ({ ...c, items: hideOos ? c.items.filter(it => it.available !== false) : c.items }));
+    .map(c => ({ ...c, items: hideOos ? c.items.filter(it => it.available !== false) : c.items }))
+    .filter(c => c.items.length > 0);
   const activeCategory = categories.find(c => c.id === activeCategoryId) || categories[0];
   // Modifier groups show under each item by default; owners can hide them per
   // menu via menu.data.show_modifiers (set in the menu editor).
@@ -551,7 +555,10 @@ function TemplatedMenu({ data, brand, lang }) {
   const listShowImages = opts.list_show_images === true; // list template only, default OFF (emoji)
   const categories = (data.categories || [])
     .filter(c => !wanted || wanted.has(c.name))
-    .map(c => hideOos ? { ...c, items: c.items.filter(it => it.available !== false) } : c);
+    .map(c => hideOos ? { ...c, items: c.items.filter(it => it.available !== false) } : c)
+    // Hide a category entirely once it has no items left to show, so its
+    // title doesn't render as a heading over an empty section.
+    .filter(c => c.items.length > 0);
   const groupsById = mapGroups(data.modifier_groups);
 
   const template = opts.template || 'list';
@@ -764,7 +771,10 @@ function TvMode({ data, brand, lang }) {
       // items is the worst case for this feature.
       const cats = (data.categories || [])
         .filter(c => !wanted || wanted.has(c.name))
-        .map(c => ({ ...c, items: c.items.filter(it => it.available !== false) }));
+        .map(c => ({ ...c, items: c.items.filter(it => it.available !== false) }))
+        // Skip categories with no available items so the kiosk never rotates
+        // to a slide showing just a title and an empty list.
+        .filter(c => c.items.length > 0);
       return cats.map(c => ({ key: `cat-${c.id}`, kind: 'category', payload: c }));
     }
     if (kind === 'pdf' || kind === 'image') {
