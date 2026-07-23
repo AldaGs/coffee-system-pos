@@ -6,6 +6,7 @@ import QuantityEditModal from './QuantityEditModal';
 import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
+import { supabase } from '../../supabaseClient';
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -28,6 +29,37 @@ function TicketArea({
     requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket,
     posSettings, activeCashier, handleSendToKds,
   } = usePos();
+
+  const handleShareCFDI = (ticket) => {
+    const cfdiDomain = localStorage.getItem('tinypos_cfdi_custom_domain') || localStorage.getItem('tinypos_custom_domain');
+    let baseUrl = cfdiDomain ? `https://${cfdiDomain}` : window.location.origin;
+    const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
+    const anonKey = localStorage.getItem('tinypos_supabase_anon_key');
+    
+    // Short URL Strategy
+    const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : '';
+    const cfdiUrl = projectRef 
+      ? `${baseUrl}/cfdi/${ticket.local_id || ticket.id}?p=${projectRef}` 
+      : `${baseUrl}/cfdi/${ticket.local_id || ticket.id}?u=${btoa(supabaseUrl)}&k=${btoa(anonKey)}`;
+    
+    // Fire-and-forget upload of the config for short URLs to work
+    if (projectRef && supabase) {
+      const config = JSON.stringify({ k: anonKey });
+      const blob = new Blob([config], { type: 'application/json' });
+      supabase.storage.from('menu').upload('config.json', blob, { upsert: true, contentType: 'application/json', cacheControl: '0' }).catch(console.error);
+    }
+    
+    if (navigator.share) {
+      navigator.share({
+        title: 'Solicitud de Factura CFDI',
+        text: 'Enlace para solicitar factura',
+        url: cfdiUrl
+      }).catch(console.error);
+    } else {
+      navigator.clipboard.writeText(cfdiUrl);
+      alert('Enlace CFDI copiado al portapapeles');
+    }
+  };
 
   const lockHint = showOverrideLock(posSettings, activeCashier);
 
@@ -245,6 +277,9 @@ function TicketArea({
                     {t('ticket.btnWA')}
                   </button>
                 </div>
+                <button style={{ width: '100%', padding: '16px', background: 'var(--bg-main)', color: '#34495e', border: '1px solid #34495e', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={() => { setIsActionSheetOpen(false); handleShareCFDI(activeTicket); }}>
+                  <Icon icon="lucide:file-text" /> Factura / CFDI
+                </button>
               </div>
             </div>
         </>

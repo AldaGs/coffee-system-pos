@@ -115,7 +115,7 @@ function PublicMenu() {
             setError('Dominio no configurado correctamente. Falta el registro TXT.');
           }
         })
-        .catch(err => {
+        .catch(() => {
           if (!cancelled) setError('Error resolviendo el dominio.');
         });
     } else {
@@ -124,7 +124,7 @@ function PublicMenu() {
       const publishableKey = decodeParam(params.get('k'));
 
       if (!supabaseUrl || !publishableKey) {
-        setError('missing-config');
+        setTimeout(() => setError('missing-config'), 0);
         return;
       }
 
@@ -788,7 +788,7 @@ function TvMode({ data, brand, lang }) {
 
   // Reset index when slide set shrinks (e.g. a category was hidden).
   useEffect(() => {
-    if (idx >= slides.length) setIdx(0);
+    if (idx >= slides.length) setTimeout(() => setIdx(0), 0);
   }, [slides.length, idx]);
 
   // Rotation: hide → swap → show, for a clean crossfade.

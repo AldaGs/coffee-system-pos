@@ -42,6 +42,10 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   // Full refunds default to 'full' (no service was rendered); partials default to 'none'.
   const [tipRefundMode, setTipRefundMode] = useState('full');
 
+  // --- CFDI MODAL STATE ---
+  const [cfdiModal, setCfdiModal] = useState({ isOpen: false, order: null });
+  const [cfdiFolio, setCfdiFolio] = useState('');
+
   // --- Per-line refund helpers (mode 'items') ---
   // Charged price for ONE unit of a line: base + each modifier's price delta.
   // Mirrors lineRevenueCents in vendorUtils so refund amounts reconcile.
@@ -211,6 +215,50 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
     }
   };
 
+  const handleProcessCfdi = async () => {
+    const { order } = cfdiModal;
+    if (!order || !cfdiFolio.trim()) return showAlert(t('common.error'), "Ingresa el folio del CFDI");
+
+    try {
+      const updateData = { cfdi_status: 'issued', cfdi_folio: cfdiFolio.trim() };
+      await db.sales.update(order.id, updateData);
+
+      const queueEntry = {
+        type: 'sale_update',
+        local_id: order.local_id || null,
+        cloud_id: order.local_id ? null : order.id,
+        data: updateData
+      };
+
+      if (navigator.onLine) {
+        const query = order.local_id
+          ? supabase.from('sales').update(updateData).eq('local_id', order.local_id)
+          : supabase.from('sales').update(updateData).eq('id', order.id);
+        const { error } = await query;
+        if (error) throw error;
+      } else {
+        await db.updateQueue.add(queueEntry);
+      }
+
+      setCfdiModal({ isOpen: false, order: null });
+      setCfdiFolio('');
+      showAlert(t('toast.success'), 'CFDI Marcado como Emitido');
+    } catch (err) {
+      if (!navigator.onLine) {
+         await db.updateQueue.add({
+           type: 'sale_update',
+           local_id: order.local_id || null,
+           cloud_id: order.local_id ? null : order.id,
+           data: { cfdi_status: 'issued', cfdi_folio: cfdiFolio.trim() }
+         });
+         setCfdiModal({ isOpen: false, order: null });
+         setCfdiFolio('');
+         return showAlert(t('toast.success'), 'CFDI Marcado (Offline)');
+      }
+      showAlert(t('common.error'), err.message);
+    }
+  };
+
   const getOrderTicket = (order) => {
     // If we have the full items array (saved in newer versions)
     if (order.items && Array.isArray(order.items)) {
@@ -265,6 +313,37 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
 
       sendFinalMessageUtil(phone, ticket, order.total_amount, { t, lang, receiptSettings });
     });
+  };
+
+  const handleShareCFDI = (order) => {
+    const cfdiDomain = localStorage.getItem('tinypos_cfdi_custom_domain') || localStorage.getItem('tinypos_custom_domain');
+    let baseUrl = cfdiDomain ? `https://${cfdiDomain}` : window.location.origin;
+    const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
+    const anonKey = localStorage.getItem('tinypos_supabase_anon_key');
+    
+    // Short URL Strategy
+    const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : '';
+    const cfdiUrl = projectRef 
+      ? `${baseUrl}/cfdi/${order.local_id || order.id}?p=${projectRef}` 
+      : `${baseUrl}/cfdi/${order.local_id || order.id}?u=${btoa(supabaseUrl)}&k=${btoa(anonKey)}`;
+    
+    // Fire-and-forget upload of the config for short URLs to work
+    if (projectRef && supabase) {
+      const config = JSON.stringify({ k: anonKey });
+      const blob = new Blob([config], { type: 'application/json' });
+      supabase.storage.from('menu').upload('config.json', blob, { upsert: true, contentType: 'application/json', cacheControl: '0' }).catch(console.error);
+    }
+    
+    if (navigator.share) {
+      navigator.share({
+        title: 'Solicitud de Factura CFDI',
+        text: 'Enlace para solicitar factura',
+        url: cfdiUrl
+      }).catch(console.error);
+    } else {
+      navigator.clipboard.writeText(cfdiUrl);
+      showAlert('Copiado', 'Enlace CFDI copiado al portapapeles');
+    }
   };
 
 
@@ -407,6 +486,18 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                       {t('orders.completed')}
                     </span>
                   )}
+                  {order.cfdi_status === 'requested' && (
+                    <span style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(52, 152, 219, 0.2)' }}>
+                      <Icon icon="lucide:file-text" />
+                      CFDI Solicitado
+                    </span>
+                  )}
+                  {order.cfdi_status === 'issued' && (
+                    <span style={{ background: 'rgba(155, 89, 182, 0.1)', color: '#8e44ad', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(155, 89, 182, 0.2)' }}>
+                      <Icon icon="lucide:file-check" />
+                      CFDI Emitido
+                    </span>
+                  )}
                 </div>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -457,7 +548,35 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                 >
                   <Icon icon="lucide:message-circle" />
                 </button>
+                <button
+                  onClick={() => handleShareCFDI(order)}
+                  title="Factura / CFDI"
+                  style={{ padding: '10px', background: 'var(--bg-main)', color: '#34495e', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer' }}
+                >
+                  <Icon icon="lucide:file-text" />
+                </button>
               </div>
+
+              {order.cfdi_status === 'requested' && (
+                <button
+                  onClick={() => setCfdiModal({ isOpen: true, order })}
+                  style={{
+                    padding: '12px 20px',
+                    background: 'rgba(52, 152, 219, 0.05)',
+                    color: '#2980b9',
+                    border: '2px solid rgba(52, 152, 219, 0.2)',
+                    borderRadius: '16px',
+                    cursor: 'pointer',
+                    fontWeight: '900',
+                    transition: '0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <Icon icon="lucide:file-check" /> Emitir CFDI
+                </button>
+              )}
 
               <button
                 onClick={() => {
@@ -676,6 +795,44 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
             <div className="modal-actions">
               <button onClick={() => setRefundModal({ isOpen: false, order: null })} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
               <button onClick={handleProcessRefund} className="btn-confirm" style={{ flex: 2, background: 'var(--brand-color)', color: 'white' }}>{t('orders.btnConfirmRefund')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CFDI Modal */}
+      {cfdiModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '400px' }}>
+            <h2 style={{ marginBottom: '5px', fontSize: '1.4rem' }}>Emitir Factura</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '20px', fontSize: '0.9rem' }}>
+              Ingresa el folio del CFDI generado en el portal del SAT para enviarlo al cliente y marcar el ticket como facturado.
+            </p>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>Folio Fiscal / ID de CFDI</label>
+              <input
+                type="text"
+                autoFocus
+                value={cfdiFolio}
+                onChange={(e) => setCfdiFolio(e.target.value)}
+                placeholder="Ej. AAA123..."
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  border: '2px solid var(--border)',
+                  background: 'var(--bg-main)',
+                  color: 'var(--text-main)',
+                  fontSize: '1.1rem',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            <div className="modal-actions">
+              <button onClick={() => { setCfdiModal({ isOpen: false, order: null }); setCfdiFolio(''); }} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
+              <button onClick={handleProcessCfdi} className="btn-confirm" disabled={!cfdiFolio.trim()} style={{ flex: 1, background: cfdiFolio.trim() ? '#2980b9' : 'var(--bg-main)', color: cfdiFolio.trim() ? 'white' : 'var(--text-muted)' }}>Guardar</button>
             </div>
           </div>
         </div>

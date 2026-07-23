@@ -184,6 +184,7 @@ function MenuEditorTab({
                   onChange={(e) => setNewItemForm({ ...newItemForm, category: e.target.value })} 
                   style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}
                 >
+                  <option value="" disabled>{t('menu.selectCategory') || 'Seleccionar Categoría'}</option>
                   {Object.keys(menuData.categories).map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
               </div>

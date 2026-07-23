@@ -168,7 +168,7 @@ db.version(13).stores({
 //       and needs no schema change — Dexie stores are schemaless per-row, the
 //       string above only declares indexes. table_id is added as an index so the
 //       floor view can query open tickets per table.
-db.version(14).stores({
+db.version(15).stores({
   sales: '++id, status, created_at, local_id',
   menu: 'id',
   syncQueue: '++id, local_id',
@@ -187,6 +187,7 @@ db.version(14).stores({
   vendors: 'id, sort_order',
   vendor_payouts: '++id, vendor_id, created_at, local_id',
   floor_plan: 'id, zone, sort_order',
-  tables: 'id, floor_id, zone, number'
+  tables: 'id, floor_id, zone, number',
+  fiscal_profiles: 'id, rfc'
 });
 

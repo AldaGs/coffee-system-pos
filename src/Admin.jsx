@@ -42,6 +42,7 @@ import GeneralSettingsTab from './components/admin/GeneralSettingsTab';
 import RecipeBuilderTab from './components/admin/RecipeBuilderTab';
 import EditDrinkModal from './components/admin/EditDrinkModal';
 import InventoryTab from './components/admin/InventoryTab.jsx';
+import CfdiTab from './components/admin/CfdiTab';
 import ActivityTab from './components/admin/ActivityTab';
 import TipsTab from './components/admin/TipsTab';
 import DevicesTab from './components/admin/DevicesTab';
@@ -1768,6 +1769,7 @@ function Admin() {
             // Public menus (TinyMenu) need a Supabase project to publish — cloud only.
             { id: 'menus', icon: 'lucide:layout-list', label: t('admin.publicMenus'), cloudOnly: true },
             { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
+            { id: 'cfdi', icon: 'lucide:file-text', label: t('admin.cfdi'), cloudOnly: true },
             { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
             { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
             // Team (server-side PINs/app_users), Devices (Management API provisioning),
@@ -1986,6 +1988,11 @@ function Admin() {
         {/* 4. RECEIPT TAB */}
         {activeTab === 'receipt' && (
           <ReceiptSettingsTab receiptForm={receiptForm} setReceiptForm={setReceiptForm} handleLogoUpload={handleLogoUpload} handleSaveReceipt={handleSaveReceipt} />
+        )}
+
+        {/* CFDI TAB */}
+        {activeTab === 'cfdi' && (
+          <CfdiTab showAlert={showAlert} showConfirm={showConfirm} />
         )}
 
         {/* 6. LOYALTY SETTINGS TAB */}

@@ -12,30 +12,12 @@ import LocalAuthGate from './components/LocalAuthGate';
 import UpgradeGuide from './components/UpgradeGuide';
 import UpgradeNagModal from './components/UpgradeNagModal';
 import MigrationScreen from './components/MigrationScreen';
+import PublicCFDI from './components/PublicCFDI';
 import { supabase } from './supabaseClient';
 import { getMode, setMode, MODE_LOCAL, isUpgradePending, clearUpgradePending } from './utils/appMode';
 import UpdateNotification from './components/shared/UpdateNotification';
 
-function App() {
-
-  // --- GATE 0: PUBLIC LIVE MENU ---
-  // Customer-facing read-only page at /menu. Short-circuits every auth/setup
-  // gate below so a customer scanning a QR code never sees SetupScreen, the
-  // login form, or the device-authorization check. Uses its own anon-keyed
-  // Supabase client (see PublicMenu.jsx) so it doesn't piggyback on any
-  // logged-in session.
-  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-  const isCustomDomain = 
-    hostname &&
-    !hostname.includes('localhost') && 
-    !hostname.includes('127.0.0.1') && 
-    !hostname.endsWith('.vercel.app') &&
-    hostname !== 'tinypos.app' &&
-    hostname !== 'www.tinypos.app';
-
-  if (typeof window !== 'undefined' && (window.location.pathname === '/menu' || window.location.pathname === '/menu/tv' || isCustomDomain)) {
-    return <PublicMenu />;
-  }
+function MainApp() {
 
   // --- 1. NEW: CHECK FOR INSTALLATION ---
   // We now check for the specific keys that SetupScreen saves.
@@ -454,4 +436,26 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  // --- GATE 0: PUBLIC LIVE MENU & CFDI ---
+  // Customer-facing pages that short-circuit auth/setup gates
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isCustomDomain = 
+    hostname &&
+    !hostname.includes('localhost') && 
+    !hostname.includes('127.0.0.1') && 
+    !hostname.endsWith('.vercel.app') &&
+    hostname !== 'tinypos.app' &&
+    hostname !== 'www.tinypos.app';
+
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/cfdi/')) {
+    const ticketId = window.location.pathname.split('/cfdi/')[1];
+    return <PublicCFDI ticketId={ticketId} />;
+  }
+
+  if (typeof window !== 'undefined' && (window.location.pathname === '/menu' || window.location.pathname === '/menu/tv' || isCustomDomain)) {
+    return <PublicMenu />;
+  }
+
+  return <MainApp />;
+}
