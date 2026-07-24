@@ -1052,6 +1052,13 @@ export const translations = {
     "pin.btnCancel": "CANCEL",
     "pin.btnVerify": "Verify [Enter]",
 
+    // --- Connection status pill ---
+    "conn.offline": "Offline — saved on device",
+    "conn.degraded": "Weak connection — saved on device",
+    "conn.syncing": "Syncing {count}…",
+    "conn.pendingSuffix": " · {count} to sync",
+    "conn.online": "Online",
+
     // --- Sync Status Modal ---
     "sync.title": "System Status",
     "sync.offlineTitle": "You are currently offline.",
@@ -2369,6 +2376,13 @@ export const translations = {
     "pin.required": "REQUERIDO",
     "pin.btnCancel": "CANCELAR",
     "pin.btnVerify": "Verificar [Enter]",
+
+    // --- Connection status pill ---
+    "conn.offline": "Sin conexión — guardado en el dispositivo",
+    "conn.degraded": "Conexión débil — guardado en el dispositivo",
+    "conn.syncing": "Sincronizando {count}…",
+    "conn.pendingSuffix": " · {count} por sincronizar",
+    "conn.online": "En línea",
 
     // --- Sync Status Modal ---
     "sync.title": "Estado del Sistema",

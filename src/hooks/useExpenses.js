@@ -6,6 +6,7 @@ import { toCents, formatForDisplay } from '../utils/moneyUtils';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 import { isLocalMode } from '../utils/appMode';
+import { isCloudReachable } from '../utils/network';
 
 const LS_EXPENSES_KEY = 'tinypos_expenses';
 const LS_QUEUE_KEY = 'tinypos_expense_queue';
@@ -94,7 +95,7 @@ export function useExpenses({ activeCashier, t, showAlert }) {
       // no cloud to sync to, so report success without queueing.
       cloudOk = true;
     } else try {
-      if (!navigator.onLine) throw new Error('Device is offline');
+      if (!isCloudReachable()) throw new Error('Device is offline');
       const { error } = await supabase.from('expenses').insert([cloudExpense]);
       if (error) throw error;
       cloudOk = true;
@@ -127,8 +128,9 @@ export function useExpenses({ activeCashier, t, showAlert }) {
         t('expense.success'),
         `${t('expense.successDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`
       );
-    } else if (!navigator.onLine) {
-      // Expected case: user is offline. Reassure, don't alarm.
+    } else if (!isCloudReachable()) {
+      // Expected case: offline or a degraded link the breaker already tripped.
+      // Reassure, don't alarm.
       showAlert(
         t('expense.queuedTitle'),
         `${t('expense.queuedDesc')} ${formatForDisplay(expenseAmount)}:\n${expenseForm.reason}`

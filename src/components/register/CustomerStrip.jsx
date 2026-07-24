@@ -4,6 +4,7 @@ import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { supabase } from '../../supabaseClient';
 import { computeStarsForTicket } from '../../hooks/useLoyalty';
+import { isCloudReachable } from '../../utils/network';
 
 const formatPhone = (p) => (p || '').replace(/(\d{2})(\d{4})(\d{4})/, '$1 $2 $3');
 
@@ -30,7 +31,7 @@ function CustomerStrip() {
     if (!phone) { setCurrentVisits(null); setCompletedAt(null); return; }
     (async () => {
       try {
-        if (!navigator.onLine) return;
+        if (!isCloudReachable()) return;
         const { data, error } = await supabase
           .from('customers').select('visits, completed_at').eq('phone', phone).maybeSingle();
         if (!cancelled && !error) {

@@ -1359,6 +1359,50 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+        -- Idempotent inventory deduction, keyed on inventory_logs.local_id.
+        -- Mirrors api/install.js — see migration 034. Claims each log's deduction
+        -- exactly once so a slow-link retry can't double-count stock; the old
+        -- deduct_inventory is kept for app versions that still call it.
+        CREATE TABLE IF NOT EXISTS public.inventory_deductions_applied (
+          local_id uuid PRIMARY KEY,
+          applied_at timestamptz NOT NULL DEFAULT now()
+        );
+        ALTER TABLE public.inventory_deductions_applied ENABLE ROW LEVEL SECURITY;
+        DROP POLICY IF EXISTS "Authenticated can access inventory_deductions_applied" ON public.inventory_deductions_applied;
+        CREATE POLICY "Authenticated can access inventory_deductions_applied" ON public.inventory_deductions_applied
+          FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+        CREATE OR REPLACE FUNCTION public.deduct_inventory_log(p_local_id uuid, p_item_id bigint, p_qty numeric)
+        RETURNS TABLE (
+          out_id bigint,
+          out_name text,
+          out_current_stock numeric,
+          out_applied boolean
+        ) AS $$
+        DECLARE
+          v_rows integer;
+        BEGIN
+          INSERT INTO public.inventory_deductions_applied (local_id)
+          VALUES (p_local_id)
+          ON CONFLICT (local_id) DO NOTHING;
+          GET DIAGNOSTICS v_rows = ROW_COUNT;
+
+          IF v_rows = 0 THEN
+            RETURN QUERY
+              SELECT inv.id, inv.name, inv.current_stock, false
+              FROM public.inventory AS inv
+              WHERE inv.id = p_item_id;
+            RETURN;
+          END IF;
+
+          RETURN QUERY
+            UPDATE public.inventory AS inv
+            SET current_stock = inv.current_stock - p_qty
+            WHERE inv.id = p_item_id AND inv.current_stock >= p_qty
+            RETURNING inv.id, inv.name, inv.current_stock, true;
+        END;
+        $$ LANGUAGE plpgsql SECURITY DEFINER;
+
         -- ==========================================
         -- APP USERS: unified allowlist. Mirrors api/install.js — no auth
         -- schema references (no FK to auth.users, no trigger on auth.users,
@@ -1470,7 +1514,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "Authenticated can read schema_meta" ON public.schema_meta
           FOR SELECT TO authenticated USING (true);
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '1.0', now())
+        VALUES ('schema_version', '1.1', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

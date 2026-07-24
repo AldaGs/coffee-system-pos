@@ -17,6 +17,12 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.1 — idempotent inventory deduction: the `inventory_deductions_applied` dedup
+//       table plus `deduct_inventory_log(local_id, item_id, qty)` (migration 034).
+//       Binds each stock decrement to the inventory_logs.local_id it came from and
+//       claims that id exactly once, so a slow-link retry (replay, or a checkout
+//       that committed then timed out and was requeued) can no longer double-count
+//       stock. The old deduct_inventory is retained for backward compatibility.
 // 1.0 — CFDI Factura Global periods: the `cfdi_global_periods` table (migration
 //       033) records which months (period='YYYY-MM') have had their monthly
 //       global invoice issued. The public CFDI portal reads it (anon SELECT) to
@@ -61,4 +67,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.0';
+export const APP_SCHEMA_VERSION = '1.1';

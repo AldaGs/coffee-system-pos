@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuthStore } from '../store/useAuthStore';
+import { isCloudReachable } from '../utils/network';
 
 /**
  * Hook to manage multi-device presence and force-kick lockout.
@@ -24,7 +25,7 @@ export const usePresence = (myDeviceId, showAlert) => {
   }, [showAlert]);
 
   useEffect(() => {
-    if (!supabase || !navigator.onLine || !activeCashier?.id || isLocked) return;
+    if (!supabase || !isCloudReachable() || !activeCashier?.id || isLocked) return;
 
     const channel = supabase.channel('cashier-presence', {
       config: {

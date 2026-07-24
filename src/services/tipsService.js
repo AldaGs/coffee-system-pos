@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { isCloudReachable } from '../utils/network';
 
 // Tips are a custodial liability, not revenue. Every movement of tipped funds
 // must produce a tip_events row so the ledger can reconcile to the balance:
@@ -22,7 +23,7 @@ const writeEvent = async ({ event_type, delta_cents, sale_local_id = null, payou
   // Local first (always succeeds; survives offline).
   try { await db.tip_events.add(row); } catch (e) { console.warn('tip_events local write failed', e); }
   // Cloud best-effort. Conflict on local_id keeps writes idempotent on retry.
-  if (navigator.onLine) {
+  if (isCloudReachable()) {
     try {
       await supabase.from('tip_events').upsert(row, { onConflict: 'local_id' });
     } catch (e) {
@@ -67,7 +68,7 @@ export const recordTipPayout = async ({ amountCents, method = 'cash', recipient 
     created_at: new Date().toISOString()
   };
   try { await db.tip_payouts.add(payout); } catch (e) { console.warn('tip_payouts local write failed', e); }
-  if (navigator.onLine) {
+  if (isCloudReachable()) {
     try {
       await supabase.from('tip_payouts').upsert(payout, { onConflict: 'local_id' });
     } catch (e) {

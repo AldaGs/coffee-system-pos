@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -474,6 +474,56 @@ CREATE POLICY "CFDI portal can read global periods" ON public.cfdi_global_period
   FOR SELECT TO anon USING (true);
 
 ${stamp('1.0')}`,
+  },
+  {
+    // 1.1 — idempotent inventory deduction: dedup table + deduct_inventory_log,
+    // keyed on inventory_logs.local_id so a slow-link retry (replay, or a
+    // checkout that committed then timed out and was requeued) can't double-count
+    // stock (migration 034). The old deduct_inventory is left in place for
+    // backward compatibility with app versions that still call it.
+    version: '1.1',
+    sql: `
+CREATE TABLE IF NOT EXISTS public.inventory_deductions_applied (
+  local_id uuid PRIMARY KEY,
+  applied_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.inventory_deductions_applied ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated can access inventory_deductions_applied" ON public.inventory_deductions_applied;
+CREATE POLICY "Authenticated can access inventory_deductions_applied" ON public.inventory_deductions_applied
+  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE OR REPLACE FUNCTION public.deduct_inventory_log(p_local_id uuid, p_item_id bigint, p_qty numeric)
+RETURNS TABLE (
+  out_id bigint,
+  out_name text,
+  out_current_stock numeric,
+  out_applied boolean
+) AS $$
+DECLARE
+  v_rows integer;
+BEGIN
+  INSERT INTO public.inventory_deductions_applied (local_id)
+  VALUES (p_local_id)
+  ON CONFLICT (local_id) DO NOTHING;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+
+  IF v_rows = 0 THEN
+    RETURN QUERY
+      SELECT inv.id, inv.name, inv.current_stock, false
+      FROM public.inventory AS inv
+      WHERE inv.id = p_item_id;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+    UPDATE public.inventory AS inv
+    SET current_stock = inv.current_stock - p_qty
+    WHERE inv.id = p_item_id AND inv.current_stock >= p_qty
+    RETURNING inv.id, inv.name, inv.current_stock, true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+${stamp('1.1')}`,
   },
 ];
 

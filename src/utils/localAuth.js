@@ -121,3 +121,56 @@ export async function getLocalMasterPin() {
   const row = await db.app_local.get(PINS_KEY);
   return row?.pins?.['0'] ?? null;
 }
+
+// ---- Cloud-mode offline PIN cache -------------------------------------------
+// In CLOUD mode PINs are verified by the `verify_pin` SECURITY DEFINER RPC, and
+// plaintext PINs are scrubbed from the cached menu (see useMenuStore.setMenuData).
+// The RPC is therefore the ONLY way into the register — which means a slow /
+// half-open or dropped link would lock staff out of the till entirely, the exact
+// symptom users hit in the field.
+//
+// To keep the register usable on a degraded link WITHOUT persisting plaintext or
+// the server's PIN secret, we cache a PBKDF2 hash of every PIN that has ALREADY
+// verified successfully online on this device. When the cloud is unreachable we
+// verify the entered PIN against that cache instead of the RPC.
+//
+// Tradeoffs, deliberate:
+//   - A brand-new device with no prior successful online login still needs the
+//     cloud for the first unlock (nothing is cached yet).
+//   - A cloud-side PIN rotation only takes effect offline after the new PIN is
+//     used online once on this device; the old PIN keeps working offline until
+//     then. Acceptable staleness for a device-lock code.
+
+const CLOUD_PIN_CACHE_KEY = 'cloud_pin_cache';
+
+// Bind the hash to the cashier id so a cached entry can only ever unlock the
+// cashier it was recorded for, never a different one that shares a PIN.
+const cloudPinMaterial = (cashierId, pin) => `${cashierId}:${pin}`;
+
+// Pure derive helper (no Dexie) so the hashing can be unit-tested in isolation.
+export async function deriveCloudPinHash(cashierId, pin, saltHex) {
+  return deriveHash(cloudPinMaterial(cashierId, pin), fromHex(saltHex));
+}
+
+// Record that (cashierId, pin) verified online, so it still opens the register
+// if the link degrades later. Called only after a successful `verify_pin` RPC.
+export async function cacheCloudPinVerification(cashierId, pin) {
+  const row = (await db.app_local.get(CLOUD_PIN_CACHE_KEY))
+    || { key: CLOUD_PIN_CACHE_KEY, entries: {} };
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
+  const hash = await deriveHash(cloudPinMaterial(cashierId, pin), salt);
+  row.entries = row.entries || {};
+  row.entries[String(cashierId)] = { salt: toHex(salt), hash };
+  await db.app_local.put(row);
+}
+
+// Verify an entered PIN against the on-device cache. Returns false (never throws)
+// when nothing is cached for this cashier — a fresh device simply has no offline
+// fallback until its first successful online login.
+export async function verifyCachedCloudPin(cashierId, pin) {
+  const row = await db.app_local.get(CLOUD_PIN_CACHE_KEY);
+  const entry = row?.entries?.[String(cashierId)];
+  if (!entry?.hash || !entry?.salt) return false;
+  const candidate = await deriveHash(cloudPinMaterial(cashierId, pin), fromHex(entry.salt));
+  return safeEqual(candidate, entry.hash);
+}

@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
+import { isCloudReachable } from '../utils/network';
 
 // Vendor payout ledger. Records money actually paid to a vendor against a frozen
 // settlement statement. Mirrors tipsService: local-first (survives offline), then
@@ -49,7 +50,7 @@ export async function recordVendorPayout({
   // Local first (always succeeds; survives offline).
   try { await db.vendor_payouts.add(row); } catch (e) { console.warn('vendor_payouts local write failed', e); }
   // Cloud best-effort. Conflict on local_id keeps writes idempotent on retry.
-  if (navigator.onLine) {
+  if (isCloudReachable()) {
     try {
       await supabase.from('vendor_payouts').upsert(row, { onConflict: 'local_id' });
     } catch (e) {

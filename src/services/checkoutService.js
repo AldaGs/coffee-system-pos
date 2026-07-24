@@ -173,9 +173,13 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
         const warehouseItem = currentInventory.find(inv => String(inv.id) === String(item.linkedWarehouseId));
 
         if (warehouseItem) {
-          // ONLINE ATOMIC DEDUCTION
+          // Generate the log's local_id up front and bind the deduction to it, so
+          // if this sale later times out and is requeued the replay reuses the
+          // same id and the server dedups instead of decrementing a second time.
+          const whLogId = crypto.randomUUID();
+          // ONLINE ATOMIC DEDUCTION (idempotent per log; needs schema >= 1.1)
           if (isOnline) {
-            const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(warehouseItem.id), qty: itemQty });
+            const { data, error } = await supabase.rpc('deduct_inventory_log', { p_local_id: whLogId, p_item_id: Number(warehouseItem.id), p_qty: itemQty });
             if (error) throw new Error(`RPC error deducting ${warehouseItem.name}: ${error.message}`);
             if (!data || data.length === 0) throw new Error(`Insufficient stock for ${warehouseItem.name}`);
           }
@@ -187,7 +191,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
             created_at: timestamp,
             ticket_id: String(activeTicket.id),
             unit_cost: warehouseItem.unit_cost || 0,
-            local_id: crypto.randomUUID()
+            local_id: whLogId
           });
 
           const newStock = warehouseItem.current_stock - itemQty;
@@ -205,8 +209,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                 || (mod.deductionTarget && currentInventory.find(inv => inv.name === mod.deductionTarget));
 
               if (modItem) {
+                const modLogId = crypto.randomUUID();
                 if (isOnline) {
-                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(modItem.id), qty: itemQty });
+                  const { data, error } = await supabase.rpc('deduct_inventory_log', { p_local_id: modLogId, p_item_id: Number(modItem.id), p_qty: itemQty });
                   if (error) throw new Error(`RPC error deducting modifier ${modItem.name}: ${error.message}`);
                   if (!data || data.length === 0) throw new Error(`Insufficient stock for modifier ${modItem.name}`);
                 }
@@ -218,7 +223,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   created_at: timestamp,
                   ticket_id: String(activeTicket.id),
                   unit_cost: modItem.unit_cost || 0,
-                  local_id: crypto.randomUUID()
+                  local_id: modLogId
                 });
 
                 const newModStock = modItem.current_stock - itemQty;
@@ -269,8 +274,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                 || currentInventory.find(inv => inv.name === ing.item_name);
 
               if (whItem) {
+                const ingLogId = crypto.randomUUID();
                 if (isOnline) {
-                  const { data, error } = await supabase.rpc('deduct_inventory', { item_id: Number(whItem.id), qty: ing.qty });
+                  const { data, error } = await supabase.rpc('deduct_inventory_log', { p_local_id: ingLogId, p_item_id: Number(whItem.id), p_qty: ing.qty });
                   if (error) throw new Error(`RPC error deducting ingredient ${whItem.name}: ${error.message}`);
                   if (!data || data.length === 0) throw new Error(`Insufficient stock for ingredient ${whItem.name}`);
                 }
@@ -282,7 +288,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
                   created_at: timestamp,
                   ticket_id: String(activeTicket.id),
                   unit_cost: whItem.unit_cost || 0,
-                  local_id: crypto.randomUUID()
+                  local_id: ingLogId
                 });
 
                 const newStock = whItem.current_stock - ing.qty;

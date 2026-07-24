@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
+import { isCloudReachable } from '../utils/network';
 
 // Minimal programmatic expense writer, factored out of useExpenses so other
 // flows (e.g. vendor payouts) can post a cash-out that shows up in Analytics'
@@ -29,7 +30,7 @@ export async function writeExpense({ amountCents, reason, category = 'General', 
   };
   try { await db.expenses.put(localRow); } catch (e) { console.warn('expense local write failed', e); }
 
-  if (!isLocalMode() && navigator.onLine) {
+  if (!isLocalMode() && isCloudReachable()) {
     try {
       await supabase.from('expenses').upsert(
         { amount: Math.round(amountCents), reason, category, payment_source: paymentSource, cashier_name: cashierName || 'system', local_id },

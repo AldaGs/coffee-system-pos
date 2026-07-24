@@ -1,6 +1,7 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
+import { isCloudReachable } from '../utils/network';
 
 export const computeStarsForTicket = (ticket, loyaltySettings) => {
   if (!ticket || !loyaltySettings) return 0;
@@ -65,7 +66,7 @@ export const useLoyalty = (posState) => {
         currentVisits = customer?.visits || 0;
         completedAt = customer?.completed_at || null;
       } else {
-        if (!navigator.onLine) throw new Error("Device is offline");
+        if (!isCloudReachable()) throw new Error("Device is offline");
         const { data: customer, error } = await supabase
           .from('customers')
           .select('visits, completed_at')
@@ -87,7 +88,7 @@ export const useLoyalty = (posState) => {
     if (activeTicket) {
       try {
         await db.active_tickets.update(activeTicket.id, { loyalty_phone: cleanPhone });
-        if (!isLocalMode() && navigator.onLine) {
+        if (!isLocalMode() && isCloudReachable()) {
           supabase.from('active_tickets').update({ loyalty_phone: cleanPhone }).eq('id', activeTicket.id);
         }
       } catch (err) {
@@ -152,7 +153,7 @@ export const useLoyalty = (posState) => {
         items: updatedItems,
         loyalty_stars_pending: target
       });
-      if (!isLocalMode() && navigator.onLine) {
+      if (!isLocalMode() && isCloudReachable()) {
         supabase.from('active_tickets')
           .update({ items: updatedItems, loyalty_stars_pending: target })
           .eq('id', activeTicket.id);
@@ -189,7 +190,7 @@ export const useLoyalty = (posState) => {
         loyalty_stars_pending: 0,
         items
       });
-      if (!isLocalMode() && navigator.onLine) {
+      if (!isLocalMode() && isCloudReachable()) {
         supabase.from('active_tickets')
           .update({ loyalty_phone: null, loyalty_stars_pending: 0, items })
           .eq('id', activeTicket.id);

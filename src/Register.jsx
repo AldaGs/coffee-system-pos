@@ -50,6 +50,7 @@ import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
+import ConnectionStatusPill from './components/shared/ConnectionStatusPill';
 import DiscountModal from './components/register/DiscountModal';
 import TicketImage from './components/register/TicketImage';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
@@ -174,7 +175,12 @@ function Register() {
           // active tickets, same philosophy as the boot overwrite).
           await db.active_tickets.put(newRow);
         }
-      }
+      },
+      // Degraded-link fallback: if the websocket keeps flapping, stop churning
+      // handshakes and poll a full resync instead so the floor map still tracks
+      // other stations. fetchActiveTickets overwrites Dexie with cloud truth and
+      // self-guards on isCloudReachable().
+      { poll: fetchActiveTickets },
     );
     return cleanup;
   }, []);
@@ -973,6 +979,15 @@ function Register() {
   return (
     <PosContext.Provider value={posState}>
       <div className="pos-container">
+        {/* Connectivity indicator — floats top-right across every register layout.
+            Hidden while online + fully synced; tap to open the sync status modal.
+            Tells the cashier a sale saved locally so they don't retry on a bad
+            link and create duplicates. */}
+        <div style={{ position: 'fixed', top: '10px', right: '10px', zIndex: 1200, pointerEvents: 'none' }}>
+          <div style={{ pointerEvents: 'auto' }}>
+            <ConnectionStatusPill onClick={() => setIsSyncModalOpen(true)} />
+          </div>
+        </div>
         {/* Issue 8: Out of date banner */}
         {lastSyncedAt && (new Date() - new Date(lastSyncedAt) > 24 * 60 * 60 * 1000) && (
           <div style={{ background: '#f39c12', color: 'white', padding: '8px', textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem', width: '100%', position: 'absolute', top: 0, left: 0, zIndex: 1000 }}>
