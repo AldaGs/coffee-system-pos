@@ -11,6 +11,7 @@ import { updateItem, updateModifierOption, updateDiscountRule } from '../../api/
 import { useMenuStore } from '../../store/useMenuStore';
 import { db } from '../../db';
 import { isLocalMode, beginCloudUpgrade } from '../../utils/appMode';
+import { isCloudReachable } from '../../utils/network';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
 import { getBusinessProfile } from '../../utils/businessProfile';
@@ -377,7 +378,7 @@ function GeneralSettingsTab({
 
             // Persist Sale
             await db.sales.put(updatedSale);
-            if (navigator.onLine) {
+            if (isCloudReachable()) {
               await supabase.from('sales').update(updatedSale).eq('id', updatedSale.id);
             }
           }

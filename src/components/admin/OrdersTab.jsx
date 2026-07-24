@@ -12,6 +12,7 @@ import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../util
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 import { recordTipRefund } from '../../services/tipsService';
 import { logActivity } from '../../services/activityService';
+import { isCloudReachable } from '../../utils/network';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
 
@@ -150,7 +151,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
         data: updateData
       };
 
-      if (navigator.onLine) {
+      if (isCloudReachable()) {
         const query = order.local_id
           ? supabase.from('sales').update(updateData).eq('local_id', order.local_id)
           : supabase.from('sales').update(updateData).eq('id', order.id);
@@ -184,8 +185,9 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       setRefundModal({ isOpen: false, order: null });
       showAlert(t('toast.success'), t('toast.success'));
     } catch (err) {
-      if (!navigator.onLine) {
-         // Already handled by the if(navigator.onLine) but just in case of race
+      if (!isCloudReachable()) {
+         // The cloud path above timed out or the breaker tripped mid-write on a
+         // slow/half-open link: queue the update instead of surfacing a hard error.
          await db.updateQueue.add({
            type: 'sale_update',
            local_id: order.local_id || null,
@@ -231,7 +233,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
         data: updateData
       };
 
-      if (navigator.onLine) {
+      if (isCloudReachable()) {
         const query = order.local_id
           ? supabase.from('sales').update(updateData).eq('local_id', order.local_id)
           : supabase.from('sales').update(updateData).eq('id', order.id);
@@ -245,7 +247,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       setCfdiFolio('');
       showAlert(t('toast.success'), 'CFDI Marcado como Emitido');
     } catch (err) {
-      if (!navigator.onLine) {
+      if (!isCloudReachable()) {
          await db.updateQueue.add({
            type: 'sale_update',
            local_id: order.local_id || null,

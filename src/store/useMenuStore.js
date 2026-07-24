@@ -75,12 +75,33 @@ export const useMenuStore = create((set, get) => ({
       return verifyLocalPin(cashierId, pin);
     }
     const { supabase } = await import('../supabaseClient');
-    if (!navigator.onLine) {
-      throw new Error("Internet connection required for PIN verification");
+    const { isCloudReachable } = await import('../utils/network');
+    const { verifyCachedCloudPin, cacheCloudPinVerification } = await import('../utils/localAuth');
+
+    // Slow / half-open or dropped link: the `verify_pin` RPC is the only way in,
+    // so hitting it here would freeze (then fail) the login and lock staff out of
+    // the till. Instead verify against the on-device cache of PINs that already
+    // succeeded online on this device. (A brand-new device with nothing cached
+    // still needs the cloud for its first unlock — verifyCachedCloudPin returns
+    // false, so the caller reports a bad PIN, same as before.)
+    if (!isCloudReachable()) {
+      return verifyCachedCloudPin(cashierId, pin);
     }
-    const { data, error } = await supabase.rpc('verify_pin', { p_cashier_id: cashierId, p_pin: pin });
-    if (error) throw error;
-    return data;
+
+    try {
+      const { data, error } = await supabase.rpc('verify_pin', { p_cashier_id: cashierId, p_pin: pin });
+      if (error) throw error;
+      // Remember a good PIN so the register still opens if the link degrades.
+      if (data) await cacheCloudPinVerification(cashierId, pin);
+      return data;
+    } catch (err) {
+      // The RPC failed to complete (timeout, or the breaker tripped mid-call).
+      // Fall back to the offline cache rather than hard-failing on a flaky link;
+      // only surface the error when the cache can't vouch for this PIN.
+      const cached = await verifyCachedCloudPin(cashierId, pin);
+      if (cached) return true;
+      throw err;
+    }
   },
 
   verifyAdminPin: async (pin) => {

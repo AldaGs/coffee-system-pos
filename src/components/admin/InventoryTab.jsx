@@ -6,6 +6,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { logActivity } from '../../services/activityService';
 import { toCents, toMillicents, fromMillicents, formatForDisplay, formatMillicentsForDisplay, millicentsToCents } from '../../utils/moneyUtils';
 import { isLocalMode } from '../../utils/appMode';
+import { isCloudReachable } from '../../utils/network';
 import { useUpgradeNagStore } from '../../store/useUpgradeNagStore';
 
 // --- Mode-aware persistence helpers ---------------------------------------
@@ -54,7 +55,7 @@ async function persistInventoryExpense(expense) {
     return;
   }
   try {
-    if (!navigator.onLine) throw new Error('Device is offline');
+    if (!isCloudReachable()) throw new Error('Device is offline');
     const { error } = await supabase.from('expenses').insert([withId]);
     if (error) throw error;
   } catch (err) {
