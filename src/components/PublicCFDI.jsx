@@ -265,7 +265,7 @@ function PublicCFDI({ ticketId }) {
               <Icon icon="lucide:alert-triangle" style={{ fontSize: '1.5rem', flexShrink: 0 }} />
               <div>
                 <strong style={{ display: 'block', marginBottom: '5px' }}>Ticket pendiente de pago</strong>
-                <span>Puedes ingresar tus datos ahora, pero la factura solo podrá ser solicitada una vez que el ticket sea pagado en caja.</span>
+                <span>La factura solo podrá ser solicitada una vez que el ticket sea pagado.</span>
               </div>
             </div>
           )}
