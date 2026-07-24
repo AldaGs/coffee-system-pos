@@ -24,6 +24,7 @@ import { CANVAS_FONTS, googleUrlForToken, fontIdForStack, parseGoogleFontUrl } f
 import { PaletteContext } from './paletteContext';
 import { updateMenu } from '../../api/menus';
 import { openInBrowser } from '../../utils/openInBrowser';
+import { menuBaseUrl } from '../../utils/customDomainSync';
 import { useCanvasImage } from '../../utils/canvasImageCache';
 import AssetPicker from './AssetPicker';
 import ColorPicker from './ColorPicker';
@@ -534,7 +535,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     }
     if (dirty && !window.confirm('Hay cambios sin guardar. Imprime guardará primero.')) return;
     const go = () => {
-      const printUrl = `${window.location.origin}/menu?u=${btoa(url)}&k=${btoa(key)}&m=${menu.id}&print=1`;
+      const printUrl = `${menuBaseUrl()}/menu?u=${btoa(url)}&k=${btoa(key)}&m=${menu.id}&print=1`;
       openInBrowser(printUrl);
     };
     if (dirty) save().then(go).catch(() => {}); else go();

@@ -21,6 +21,7 @@ import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 import { FONT_PRESETS } from '../../utils/menuTheme';
 import { sampleDocument, templateDoc } from '../../utils/canvasDocument';
 import { openInBrowser } from '../../utils/openInBrowser';
+import { menuBaseUrl } from '../../utils/customDomainSync';
 import CanvasEditor from '../menuCanvas/CanvasEditor';
 import QRCode from 'qrcode';
 
@@ -128,7 +129,7 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
       showAlert?.('Configuración faltante', 'No se encontraron credenciales locales para construir el enlace.');
       return;
     }
-    const tvUrl = `${window.location.origin}/menu/tv?u=${btoa(url)}&k=${btoa(key)}`;
+    const tvUrl = `${menuBaseUrl()}/menu/tv?u=${btoa(url)}&k=${btoa(key)}`;
     openInBrowser(tvUrl);
   }
 
@@ -927,9 +928,9 @@ function MenuShareBlock({ menu }) {
       catch { return ''; }
     })();
     if (projectRef) {
-      return `${window.location.origin}/menu?p=${projectRef}&m=${menu.id}`;
+      return `${menuBaseUrl()}/menu?p=${projectRef}&m=${menu.id}`;
     }
-    return `${window.location.origin}/menu?u=${btoa(supabaseUrl)}&k=${btoa(key)}&m=${menu.id}`;
+    return `${menuBaseUrl()}/menu?u=${btoa(supabaseUrl)}&k=${btoa(key)}&m=${menu.id}`;
   })();
 
   useEffect(() => {

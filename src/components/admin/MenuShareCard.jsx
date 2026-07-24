@@ -14,6 +14,7 @@ import QRCode from 'qrcode';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { supabase } from '../../supabaseClient';
+import { readCustomDomain, persistCustomDomain, menuBaseUrl } from '../../utils/customDomainSync';
 
 const QR_SIZE = 180;       // rendered size in the card
 const QR_DOWNLOAD_SIZE = 1024; // larger version for the downloaded PNG
@@ -25,12 +26,12 @@ function MenuShareCard({ menuData }) {
   const [error, setError] = useState(null);
   const [menuUrl, setMenuUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [customDomain, setCustomDomain] = useState(() => localStorage.getItem('tinypos_custom_domain') || '');
-  const [linkedDomain, setLinkedDomain] = useState(() => localStorage.getItem('tinypos_custom_domain') || '');
+  const [customDomain, setCustomDomain] = useState(() => readCustomDomain('menu'));
+  const [linkedDomain, setLinkedDomain] = useState(() => readCustomDomain('menu'));
   const [isAddingDomain, setIsAddingDomain] = useState(false);
   const [isRemovingDomain, setIsRemovingDomain] = useState(false);
   const [domainStatus, setDomainStatus] = useState(null);
-  const [isHelpOpen, setIsHelpOpen] = useState(!localStorage.getItem('tinypos_custom_domain'));
+  const [isHelpOpen, setIsHelpOpen] = useState(!readCustomDomain('menu'));
 
   // Derive project ref + anon key from localStorage (written by SetupScreen).
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url') || '';
@@ -71,20 +72,20 @@ function MenuShareCard({ menuData }) {
       // 2. Build the short URL: /menu?p=PROJECT_REF
       //    PublicMenu reads ?p, constructs the Supabase URL, and fetches
       //    the anon key from storage.
-      const origin = window.location.origin;
+      const origin = menuBaseUrl();
       setMenuUrl(`${origin}/menu?p=${projectRef}`);
     } catch (err) {
       console.error('MenuShareCard: config upload failed', err);
       setError(err.message || 'Error uploading config');
       // Fall back to the long URL so the QR is still usable.
-      const origin = window.location.origin;
+      const origin = menuBaseUrl();
       const u = btoa(supabaseUrl);
       const k = btoa(anonKey);
       setMenuUrl(`${origin}/menu?u=${u}&k=${k}`);
     } finally {
       setUploading(false);
     }
-  }, [projectRef, anonKey, missingCreds, supabaseUrl]);
+  }, [projectRef, anonKey, missingCreds, supabaseUrl, linkedDomain]);
 
   // On mount (and whenever creds change), upload the config.
   useEffect(() => {
@@ -120,7 +121,7 @@ function MenuShareCard({ menuData }) {
       
       setDomainStatus({ success: true, message: `Dominio ${data.domain} agregado con éxito.` });
       setLinkedDomain(data.domain);
-      localStorage.setItem('tinypos_custom_domain', data.domain);
+      await persistCustomDomain('menu', data.domain);
       setIsHelpOpen(false);
     } catch (err) {
       setDomainStatus({ success: false, message: err.message });
@@ -147,7 +148,7 @@ function MenuShareCard({ menuData }) {
       setDomainStatus({ success: true, message: `Dominio removido con éxito.` });
       setLinkedDomain('');
       setCustomDomain('');
-      localStorage.removeItem('tinypos_custom_domain');
+      await persistCustomDomain('menu', '');
       setIsHelpOpen(true);
     } catch (err) {
       setDomainStatus({ success: false, message: err.message });

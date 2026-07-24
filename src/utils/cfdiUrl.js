@@ -12,9 +12,21 @@
  *  - sharingUtils (QR on thermal / link in WhatsApp)
  */
 export function buildCfdiUrl(ticketOrSaleId) {
+  // Prefer this device's localStorage copy, then the store-wide synced domain
+  // (posSettings.cfdiCustomDomain in the cached menu) so links built on a device
+  // that never linked the domain locally still use it instead of the raw origin.
+  let syncedDomain = '';
+  try {
+    syncedDomain =
+      JSON.parse(localStorage.getItem('tinypos_cached_menu') || '{}')
+        .posSettings?.cfdiCustomDomain || '';
+  } catch {
+    /* cache unavailable/corrupt — fall through to origin */
+  }
   const cfdiDomain =
     localStorage.getItem('tinypos_cfdi_custom_domain') ||
-    localStorage.getItem('tinypos_custom_domain');
+    localStorage.getItem('tinypos_custom_domain') ||
+    syncedDomain;
   const baseUrl = cfdiDomain ? `https://${cfdiDomain}` : window.location.origin;
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
   const anonKey = localStorage.getItem('tinypos_supabase_anon_key');

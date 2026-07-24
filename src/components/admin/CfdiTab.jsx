@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import { buildCfdiUrl, ensureCfdiConfig } from '../../utils/cfdiUrl';
+import { readCustomDomain, persistCustomDomain } from '../../utils/customDomainSync';
 
 function CfdiTab({ showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -14,8 +15,8 @@ function CfdiTab({ showAlert, showConfirm }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Custom Domain State
-  const [customDomain, setCustomDomain] = useState(() => localStorage.getItem('tinypos_cfdi_custom_domain') || '');
-  const [linkedDomain, setLinkedDomain] = useState(() => localStorage.getItem('tinypos_cfdi_custom_domain') || '');
+  const [customDomain, setCustomDomain] = useState(() => readCustomDomain('cfdi'));
+  const [linkedDomain, setLinkedDomain] = useState(() => readCustomDomain('cfdi'));
   const [isAddingDomain, setIsAddingDomain] = useState(false);
   const [isRemovingDomain, setIsRemovingDomain] = useState(false);
   const [domainStatus, setDomainStatus] = useState(null);
@@ -323,7 +324,7 @@ function CfdiTab({ showAlert, showConfirm }) {
       
       setDomainStatus({ success: true, message: `Dominio ${data.domain} agregado con éxito.` });
       setLinkedDomain(data.domain);
-      localStorage.setItem('tinypos_cfdi_custom_domain', data.domain);
+      await persistCustomDomain('cfdi', data.domain);
     } catch (err) {
       setDomainStatus({ success: false, message: err.message });
     } finally {
@@ -349,7 +350,7 @@ function CfdiTab({ showAlert, showConfirm }) {
       setDomainStatus({ success: true, message: `Dominio removido con éxito.` });
       setLinkedDomain('');
       setCustomDomain('');
-      localStorage.removeItem('tinypos_cfdi_custom_domain');
+      await persistCustomDomain('cfdi', '');
     } catch (err) {
       setDomainStatus({ success: false, message: err.message });
     } finally {
