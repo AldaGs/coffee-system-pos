@@ -70,13 +70,20 @@ function CfdiTab({ showAlert, showConfirm }) {
   }, [showAlert, t]);
 
   useEffect(() => {
-    // Wrap in setTimeout to avoid "Calling setState synchronously within an effect" warning
-    // since fetchRequests calls setLoading(true) synchronously before the first await.
+    // Fetch once on mount only. We deliberately do NOT depend on `fetchRequests`
+    // here: its identity changes on every render (it closes over `showAlert`/`t`),
+    // and because the catch block calls `showAlert` — which updates dialog state and
+    // forces a re-render — depending on it created a hot loop. When the Supabase
+    // circuit breaker is open every request fails instantly, so that loop spun as
+    // fast as React could render, freezing the tab and flooding the console with
+    // "Cloud unreachable" errors. Handlers below call fetchRequests() directly when
+    // a manual refresh is needed.
     const timer = setTimeout(() => {
       fetchRequests();
     }, 0);
     return () => clearTimeout(timer);
-  }, [fetchRequests]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCopy = (text, label) => {
     if (!text) return;

@@ -8,7 +8,7 @@ import PinChallengeModal from '../register/PinChallengeModal';
 import { usePinChallenge } from '../../hooks/usePinChallenge';
 import { useDialog } from '../../hooks/useDialog';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from '../../utils/sharingUtils';
-import { buildCfdiUrl, ensureCfdiConfig } from '../../utils/cfdiUrl';
+import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 import { recordTipRefund } from '../../services/tipsService';
 import { logActivity } from '../../services/activityService';
@@ -17,7 +17,7 @@ import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
-  const { showAlert, showPrompt } = useDialog();
+  const { showAlert, showPrompt, showConfirm } = useDialog();
   const [sharingOrder, setSharingOrder] = useState(null);
 
   const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
@@ -316,7 +316,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
     });
   };
 
-  const handleShareCFDI = (order) => {
+  const doShareCFDI = (order) => {
     const cfdiUrl = buildCfdiUrl(order.local_id || order.id);
     ensureCfdiConfig(supabase);
 
@@ -330,6 +330,23 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       navigator.clipboard.writeText(cfdiUrl);
       showAlert('Copiado', 'Enlace CFDI copiado al portapapeles');
     }
+  };
+
+  const handleShareCFDI = (order) => {
+    // Warn before sharing when the sale was paid in a previous calendar month —
+    // invoicing it now may require refacturación (see getCfdiPeriodWarning).
+    const warn = getCfdiPeriodWarning(order.created_at);
+    if (warn?.crossMonth) {
+      showConfirm(
+        'Ticket de un mes anterior',
+        `Este ticket fue pagado el ${warn.paidStr} (${warn.monthName}), un mes anterior al actual. ` +
+        `Facturarlo ahora puede requerir refacturación o quedar fuera de la declaración mensual. ` +
+        `¿Compartir el enlace de todos modos?`,
+        () => doShareCFDI(order)
+      );
+      return;
+    }
+    doShareCFDI(order);
   };
 
 

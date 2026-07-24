@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
+import { getCfdiPeriodWarning } from '../utils/cfdiUrl';
 
 function decodeParam(value) {
   if (!value) return '';
@@ -269,15 +270,24 @@ function PublicCFDI({ ticketId }) {
             </div>
           )}
 
-          {isPaid && !isRequested && !isIssued && !isReopened && !isCanceled && !success && (
-             <div style={{ background: 'rgba(46, 204, 113, 0.1)', border: '1px solid #27ae60', color: '#27ae60', padding: '15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-              <Icon icon="lucide:check-circle" style={{ fontSize: '1.5rem', flexShrink: 0 }} />
+          {isPaid && !isRequested && !isIssued && !isReopened && !isCanceled && !success && (() => {
+            const warn = getCfdiPeriodWarning(sale.created_at);
+            const crossMonth = warn?.crossMonth;
+            const accent = crossMonth ? '#f39c12' : '#27ae60';
+            return (
+             <div style={{ background: crossMonth ? 'rgba(243, 156, 18, 0.1)' : 'rgba(46, 204, 113, 0.1)', border: `1px solid ${accent}`, color: crossMonth ? '#d68910' : '#27ae60', padding: '15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <Icon icon={crossMonth ? 'lucide:alert-triangle' : 'lucide:check-circle'} style={{ fontSize: '1.5rem', flexShrink: 0 }} />
               <div>
-                <strong style={{ display: 'block', marginBottom: '5px' }}>Ticket pagado el {new Date(sale.created_at).toLocaleDateString('es-MX')}</strong>
-                <span>Por favor verifica que la fecha fiscal corresponda a tus necesidades.</span>
+                <strong style={{ display: 'block', marginBottom: '5px' }}>Ticket pagado el {warn?.paidStr || new Date(sale.created_at).toLocaleDateString('es-MX')}</strong>
+                <span>
+                  {crossMonth
+                    ? `Este ticket es de un mes anterior (${warn.monthName}). La factura puede emitirse con la fecha del pago; confirma con el establecimiento si necesitas la factura del mes en curso.`
+                    : 'Por favor verifica que la fecha fiscal corresponda a tus necesidades.'}
+                </span>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {isReopened && !success && (
             <div style={{ background: 'rgba(243, 156, 18, 0.1)', border: '1px solid #f39c12', color: '#d68910', padding: '15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>

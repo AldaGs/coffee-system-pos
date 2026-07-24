@@ -7,7 +7,7 @@ import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { supabase } from '../../supabaseClient';
-import { buildCfdiUrl, ensureCfdiConfig } from '../../utils/cfdiUrl';
+import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -32,6 +32,18 @@ function TicketArea({
   } = usePos();
 
   const handleShareCFDI = (ticket) => {
+    // Warn before sharing when the sale was paid in a previous calendar month —
+    // invoicing it now may require refacturación (see getCfdiPeriodWarning).
+    const warn = getCfdiPeriodWarning(ticket.created_at);
+    if (warn?.crossMonth) {
+      const proceed = window.confirm(
+        `⚠️ Este ticket fue pagado el ${warn.paidStr} (${warn.monthName}), ` +
+        `un mes anterior al actual.\n\nFacturarlo ahora puede requerir refacturación ` +
+        `o quedar fuera de la declaración mensual. ¿Compartir el enlace de todos modos?`
+      );
+      if (!proceed) return;
+    }
+
     const cfdiUrl = buildCfdiUrl(ticket.local_id || ticket.id);
     ensureCfdiConfig(supabase);
 
