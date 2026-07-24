@@ -458,8 +458,10 @@ ${stamp('0.9')}`,
 CREATE TABLE IF NOT EXISTS public.cfdi_global_periods (
   period text PRIMARY KEY,
   business_name text,
+  summary jsonb,
   closed_at timestamp with time zone DEFAULT now()
 );
+ALTER TABLE public.cfdi_global_periods ADD COLUMN IF NOT EXISTS summary jsonb;
 
 ALTER TABLE public.cfdi_global_periods ENABLE ROW LEVEL SECURITY;
 

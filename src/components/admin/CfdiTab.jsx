@@ -27,6 +27,9 @@ function CfdiTab({ showAlert, showConfirm }) {
   const [globalPeriods, setGlobalPeriods] = useState([]);
   const [newPeriod, setNewPeriod] = useState('');
   const [isSavingPeriod, setIsSavingPeriod] = useState(false);
+  const [periodPreview, setPeriodPreview] = useState(null); // live summary for newPeriod
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [expandedPeriod, setExpandedPeriod] = useState(null); // which closed row is expanded
 
   // Business name snapshot for the portal legend, from the cached menu settings.
   const businessName = (() => {
@@ -118,13 +121,67 @@ function CfdiTab({ showAlert, showConfirm }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reconciliation totals for a month ('YYYY-MM'), computed from paid sales in
+  // that period. Amounts in cents. The Factura Global should total `globalCents`
+  // (net sales that were NOT individually invoiced); `invoicedCents` are the
+  // individual CFDIs already issued and excluded from the global.
+  const computeMonthSummary = useCallback(async (period) => {
+    const [y, m] = period.split('-').map(Number);
+    if (!y || !m) return null;
+    const start = new Date(y, m - 1, 1);
+    const end = new Date(y, m, 1);
+    const { data, error } = await supabase
+      .from('sales')
+      .select('total_amount, refund_amount, cfdi_status')
+      .gte('created_at', start.toISOString())
+      .lt('created_at', end.toISOString());
+    if (error) throw error;
+
+    const acc = {
+      ticketCount: 0, grossCents: 0, refundCents: 0, netCents: 0,
+      invoicedCount: 0, invoicedCents: 0, globalCount: 0, globalCents: 0,
+    };
+    for (const s of data || []) {
+      const gross = Number(s.total_amount) || 0;
+      const refund = Number(s.refund_amount) || 0;
+      const net = gross - refund;
+      acc.ticketCount += 1;
+      acc.grossCents += gross;
+      acc.refundCents += refund;
+      acc.netCents += net;
+      if (s.cfdi_status === 'issued') {
+        acc.invoicedCount += 1;
+        acc.invoicedCents += net;
+      } else {
+        acc.globalCount += 1;
+        acc.globalCents += net;
+      }
+    }
+    return acc;
+  }, []);
+
+  // Live preview of the selected month's totals before closing.
+  useEffect(() => {
+    if (!showGlobalConfig || !newPeriod) { setPeriodPreview(null); return; }
+    let cancelled = false;
+    setIsLoadingPreview(true);
+    computeMonthSummary(newPeriod)
+      .then(s => { if (!cancelled) setPeriodPreview(s); })
+      .catch(err => { console.error(err); if (!cancelled) setPeriodPreview(null); })
+      .finally(() => { if (!cancelled) setIsLoadingPreview(false); });
+    return () => { cancelled = true; };
+  }, [showGlobalConfig, newPeriod, computeMonthSummary]);
+
   const handleCloseGlobalPeriod = async () => {
     if (!newPeriod) return;
     try {
       setIsSavingPeriod(true);
+      // Snapshot the totals now so a later refund can't change what was filed.
+      let summary = null;
+      try { summary = await computeMonthSummary(newPeriod); } catch { /* keep null */ }
       const { error } = await supabase
         .from('cfdi_global_periods')
-        .upsert({ period: newPeriod, business_name: businessName || null }, { onConflict: 'period' });
+        .upsert({ period: newPeriod, business_name: businessName || null, summary }, { onConflict: 'period' });
       if (error) throw error;
       showAlert(t('toast.success'), `Periodo ${newPeriod} cerrado. Los tickets de ese mes ya no podrán facturarse individualmente.`);
       setNewPeriod('');
@@ -300,6 +357,41 @@ function CfdiTab({ showAlert, showConfirm }) {
     }
   };
 
+  const fmtCents = (c) => `$${((Number(c) || 0) / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+  // Reconciliation breakdown for a period summary object.
+  const renderSummary = (s, { frozen = false } = {}) => {
+    if (!s) return null;
+    const rows = [
+      { label: `Tickets del mes (${s.ticketCount})`, value: fmtCents(s.grossCents) },
+      ...(s.refundCents ? [{ label: 'Reembolsos', value: `- ${fmtCents(s.refundCents)}` }] : []),
+      { label: 'Ventas netas', value: fmtCents(s.netCents), strong: true },
+      { label: `Facturas individuales (${s.invoicedCount})`, value: `- ${fmtCents(s.invoicedCents)}` },
+    ];
+    return (
+      <div style={{ marginTop: '12px', padding: '14px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: r.strong ? 'bold' : 'normal', padding: '2px 0' }}>
+            <span style={{ color: r.strong ? 'var(--text-main)' : 'var(--text-muted)' }}>{r.label}</span>
+            <span>{r.value}</span>
+          </div>
+        ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '8px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+          <span style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Icon icon="lucide:receipt-text" style={{ color: 'var(--brand-color)' }} />
+            Factura Global ({s.globalCount})
+          </span>
+          <span style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text-main)' }}>{fmtCents(s.globalCents)}</span>
+        </div>
+        <p style={{ margin: '10px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          {frozen
+            ? 'Totales congelados al momento del cierre — usa este monto para conciliar con tu contador.'
+            : 'El monto de la Factura Global es lo que aún no se facturó individualmente. Se guardará congelado al cerrar el periodo.'}
+        </p>
+      </div>
+    );
+  };
+
   const filteredRequests = requests.filter(r => {
     if (filter === 'pending') return r.cfdi_status === 'requested' || r.cfdi_status === 'reopened';
     if (filter === 'issued') return r.cfdi_status === 'issued' || r.cfdi_status === 'canceled';
@@ -358,24 +450,50 @@ function CfdiTab({ showAlert, showConfirm }) {
             </button>
           </div>
 
+          {newPeriod && (
+            isLoadingPreview
+              ? <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 20px 0' }}>Calculando totales de {newPeriod}…</p>
+              : periodPreview
+                ? <div style={{ marginBottom: '20px' }}>{renderSummary(periodPreview)}</div>
+                : null
+          )}
+
           {globalPeriods.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {globalPeriods.map(p => (
-                <div key={p.period} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontWeight: 'bold' }}>
-                    <Icon icon="lucide:lock" style={{ color: '#27ae60' }} /> {p.period}
-                    {p.closed_at && <span style={{ fontWeight: 'normal', fontSize: '0.8rem', color: 'var(--text-muted)' }}>· cerrado {new Date(p.closed_at).toLocaleDateString('es-MX')}</span>}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleReopenGlobalPeriod(p.period)}
-                    disabled={isSavingPeriod}
-                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
-                  >
-                    <Icon icon="lucide:unlock" /> Reabrir
-                  </button>
+              {globalPeriods.map(p => {
+                const isExpanded = expandedPeriod === p.period;
+                return (
+                <div key={p.period} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontWeight: 'bold', flexWrap: 'wrap' }}>
+                      <Icon icon="lucide:lock" style={{ color: '#27ae60' }} /> {p.period}
+                      {p.summary && <span style={{ fontWeight: 'normal', fontSize: '0.85rem', color: 'var(--text-muted)' }}>· Global {fmtCents(p.summary.globalCents)}</span>}
+                      {p.closed_at && <span style={{ fontWeight: 'normal', fontSize: '0.8rem', color: 'var(--text-muted)' }}>· cerrado {new Date(p.closed_at).toLocaleDateString('es-MX')}</span>}
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      {p.summary && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedPeriod(isExpanded ? null : p.period)}
+                          style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                        >
+                          <Icon icon={isExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} /> Resumen
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleReopenGlobalPeriod(p.period)}
+                        disabled={isSavingPeriod}
+                        style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                      >
+                        <Icon icon="lucide:unlock" /> Reabrir
+                      </button>
+                    </div>
+                  </div>
+                  {isExpanded && renderSummary(p.summary, { frozen: true })}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

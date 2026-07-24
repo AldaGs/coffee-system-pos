@@ -14,8 +14,16 @@
 CREATE TABLE IF NOT EXISTS public.cfdi_global_periods (
   period text PRIMARY KEY,                                   -- 'YYYY-MM'
   business_name text,
+  summary jsonb,                                             -- frozen totals at close (see below)
   closed_at timestamp with time zone DEFAULT now()
 );
+
+-- `summary` snapshots the period's reconciliation totals at close time so a
+-- later refund doesn't change what was already filed. Shape (amounts in cents):
+--   { ticketCount, grossCents, refundCents, netCents,
+--     invoicedCount, invoicedCents,        -- individually issued CFDI
+--     globalCount, globalCents }            -- the Factura Global remainder
+ALTER TABLE public.cfdi_global_periods ADD COLUMN IF NOT EXISTS summary jsonb;
 
 ALTER TABLE public.cfdi_global_periods ENABLE ROW LEVEL SECURITY;
 
