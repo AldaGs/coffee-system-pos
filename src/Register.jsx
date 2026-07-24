@@ -175,7 +175,12 @@ function Register() {
           // active tickets, same philosophy as the boot overwrite).
           await db.active_tickets.put(newRow);
         }
-      }
+      },
+      // Degraded-link fallback: if the websocket keeps flapping, stop churning
+      // handshakes and poll a full resync instead so the floor map still tracks
+      // other stations. fetchActiveTickets overwrites Dexie with cloud truth and
+      // self-guards on isCloudReachable().
+      { poll: fetchActiveTickets },
     );
     return cleanup;
   }, []);
