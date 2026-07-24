@@ -25,6 +25,7 @@ import { useMenuStore } from './store/useMenuStore';
 import { useTranslation } from './hooks/useTranslation';
 import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 import { isLocalMode } from './utils/appMode';
+import { isCloudReachable } from './utils/network';
 import { useUpgradeNagStore } from './store/useUpgradeNagStore';
 
 import AnalyticsTab from './components/admin/AnalyticsTab';
@@ -278,20 +279,29 @@ function Admin() {
     }
     setIsLoading(true);
 
+    // Each source is loaded INDEPENDENTLY. The admin boot used to be one long
+    // await-chain in a single try/catch: on a slow link the first request that
+    // hit the deadline threw, opened the breaker, and every later section was
+    // skipped — so the admin came up with half its tabs blank. Now a failure in
+    // any one section is caught locally and falls back to the cache that
+    // useMenuStore/Dexie already hold, so the remaining tabs still populate.
     const fetchData = async () => {
+      const local = isLocalMode();
+
+      const applySettingsForms = (settings) => {
+        if (settings?.receiptSettings) setReceiptForm(prev => ({ ...prev, ...settings.receiptSettings }));
+        if (settings?.posSettings) setGeneralSettings(prev => ({ ...prev, ...settings.posSettings }));
+        if (settings?.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...settings.loyaltySettings }));
+      };
+
+      // 1. Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
+      //    Cashiers, posSettings, receiptSettings, loyaltySettings ride on
+      //    shop_settings.menu_data and are merged so the in-memory `menuData`
+      //    shape stays identical for child components. On a degraded link the
+      //    cloud refresh fails fast; we then keep the menu useMenuStore already
+      //    hydrated from localStorage on boot, so the tabs render last-known data
+      //    instead of coming up empty.
       try {
-        // 1. Fetch Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
-        //    Menu pieces live in menu_categories / menu_items / menu_modifier_groups
-        //    / menu_modifier_options / menu_item_modifier_groups / menu_discount_rules.
-        //    Cashiers, posSettings, receiptSettings, loyaltySettings still ride on
-        //    shop_settings.menu_data. They're merged here so the in-memory `menuData`
-        //    shape stays identical for child components.
-        //
-        //    Local ('guest') mode: the menu comes from Dexie via the dispatcher,
-        //    settings come from whatever useMenuStore has cached locally, and the
-        //    cloud-only reads (recipes, server inventory/logs, sales pull) are
-        //    skipped — Dexie live queries already feed those views.
-        const local = isLocalMode();
         const menu = await loadMenu();
         const settings = local
           ? (useMenuStore.getState().menuData || {})
@@ -301,63 +311,70 @@ function Admin() {
               return settingsRes.data?.menu_data || {};
             })();
         setMenuData({ ...settings, ...menu });
-
-        // Vendor registry (works in both modes via the dispatcher). Tolerate a
-        // missing table on pre-0.4 installs that haven't run Update Schema yet.
-        try {
-          setVendors(await loadVendors());
-        } catch (e) {
-          console.warn('Vendors unavailable (run Update Schema?):', e.message);
-        }
-
-        const firstCategory = menu.categoryOrder[0];
+        applySettingsForms(settings);
+        const firstCategory = menu.categoryOrder?.[0];
         if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
-
-        // 3. Load UI Settings (Receipt, General, Loyalty)
-        if (settings.receiptSettings) setReceiptForm(prev => ({ ...prev, ...settings.receiptSettings }));
-        if (settings.posSettings) setGeneralSettings(prev => ({ ...prev, ...settings.posSettings }));
-        if (settings.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...settings.loyaltySettings }));
-
-        if (local) {
-          // Inventory lives in Dexie locally; recipes/sales-pull are cloud-only.
-          const invData = await db.inventory.toArray();
-          if (invData) setInventoryItems(invData);
-          const logsData = await db.inventory_logs.toArray();
-          if (logsData) setInventoryLogs(logsData);
-        } else {
-          // 2. Pull every device's expenses into Dexie. The useLiveQuery above
-          // will pick up the merged rows automatically.
-          await fetchAndMergeExpenses();
-
-          // 4. Fetch Sales History (dedupe by local_id — see salesSync.js)
-          await fetchAndMergeSales();
-
-          // 5. Fetch Recipes & Inventory
-          const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
-          if (recipesData) {
-            // Convert cents back to decimal strings for the Recipe Builder UI
-            const mappedRecipes = recipesData.map(r => ({
-              ...r,
-              custom_price: r.custom_price ? fromCents(r.custom_price).toString() : null
-            }));
-            setRecipes(mappedRecipes); // Use mappedRecipes instead of raw recipesData
-          }
-
-          const { data: invData } = await supabase.from('inventory').select('*');
-          if (invData) {
-            setInventoryItems(invData);
-            await db.inventory.bulkPut(invData);
-          }
-
-          const { data: logsData } = await supabase.from('inventory_logs').select('*');
-          if (logsData) setInventoryLogs(logsData);
-        }
-
       } catch (error) {
-        console.error("Error fetching data:", error.message);
-      } finally {
-        setIsLoading(false);
+        console.warn('Admin menu/settings refresh failed; using cached menu.', error?.message);
+        applySettingsForms(useMenuStore.getState().menuData || {});
       }
+
+      // 2. Vendor registry (both modes via the dispatcher). Tolerate a missing
+      //    table on pre-0.4 installs that haven't run Update Schema yet.
+      try {
+        setVendors(await loadVendors());
+      } catch (e) {
+        console.warn('Vendors unavailable (run Update Schema?):', e.message);
+      }
+
+      // 3. Inventory — seed from the Dexie cache first so the tab is never blank,
+      //    then (cloud mode, reachable) overlay fresh server data below.
+      try {
+        const cachedInv = await db.inventory.toArray();
+        if (cachedInv?.length) setInventoryItems(cachedInv);
+        const cachedLogs = await db.inventory_logs.toArray();
+        if (cachedLogs?.length) setInventoryLogs(cachedLogs);
+      } catch (e) {
+        console.warn('Cached inventory load failed:', e.message);
+      }
+
+      if (!local) {
+        // 4. Cloud-only merges. Both self-skip when the cloud is unreachable
+        //    (isCloudReachable guard inside), so they're cheap on a bad link.
+        try { await fetchAndMergeExpenses(); } catch (e) { console.warn('Expense merge failed:', e.message); }
+        try { await fetchAndMergeSales(); } catch (e) { console.warn('Sales merge failed:', e.message); }
+
+        // 5. Fresh recipes + inventory from the cloud — only when the link is
+        //    actually up. When it's not, the cached recipes (useMenuStore) and the
+        //    Dexie inventory seeded in step 3 already back these tabs.
+        if (isCloudReachable()) {
+          try {
+            const { data: recipesData } = await supabase.from('recipes').select('*').order('created_at', { ascending: false });
+            if (recipesData) {
+              // Convert cents back to decimal strings for the Recipe Builder UI.
+              setRecipes(recipesData.map(r => ({
+                ...r,
+                custom_price: r.custom_price ? fromCents(r.custom_price).toString() : null
+              })));
+            }
+          } catch (e) { console.warn('Recipes load failed; using cache.', e.message); }
+
+          try {
+            const { data: invData } = await supabase.from('inventory').select('*');
+            if (invData) {
+              setInventoryItems(invData);
+              await db.inventory.bulkPut(invData);
+            }
+          } catch (e) { console.warn('Inventory refresh failed; using cache.', e.message); }
+
+          try {
+            const { data: logsData } = await supabase.from('inventory_logs').select('*');
+            if (logsData) setInventoryLogs(logsData);
+          } catch (e) { console.warn('Inventory logs refresh failed; using cache.', e.message); }
+        }
+      }
+
+      setIsLoading(false);
     };
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
