@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { getCfdiPeriodWarning, getPeriodKey } from '../utils/cfdiUrl';
+import { parseConstancia } from '../utils/constanciaFiscal';
 
 function decodeParam(value) {
   if (!value) return '';
@@ -47,6 +48,8 @@ function PublicCFDI({ ticketId }) {
   const [folioCopied, setFolioCopied] = useState(false);
   // Per-field validation errors for the fiscal form.
   const [fieldErrors, setFieldErrors] = useState({});
+  // Constancia (Situación Fiscal) PDF upload → prefill state.
+  const [constanciaState, setConstanciaState] = useState({ status: 'idle', message: '' });
   // The month's Factura Global row, if this ticket's period is already closed.
   const [globalPeriod, setGlobalPeriod] = useState(null);
 
@@ -214,6 +217,41 @@ function PublicCFDI({ ticketId }) {
     setTimeout(() => setFolioCopied(false), 2000);
   };
 
+  const handleConstanciaUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file) return;
+
+    if (file.type && file.type !== 'application/pdf') {
+      setConstanciaState({ status: 'error', message: 'Sube tu constancia en formato PDF.' });
+      return;
+    }
+
+    setConstanciaState({ status: 'loading', message: '' });
+    try {
+      const fields = await parseConstancia(file);
+      setFormData(prev => ({
+        ...prev,
+        rfc: fields.rfc || prev.rfc,
+        razon_social: fields.razon_social || prev.razon_social,
+        cp: fields.cp || prev.cp,
+        regimen_fiscal: fields.regimen_fiscal || prev.regimen_fiscal,
+      }));
+      setFieldErrors({});
+      const filled = ['rfc', 'razon_social', 'cp', 'regimen_fiscal'].filter(k => fields[k]).length;
+      setConstanciaState({
+        status: 'success',
+        message: `Datos cargados de tu constancia. Solo falta tu correo${fields.regimen_fiscal ? '' : ' y confirmar el régimen'}.`,
+        filled,
+      });
+    } catch (err) {
+      setConstanciaState({
+        status: 'error',
+        message: err?.message || 'No pudimos leer el PDF. Verifica que sea tu Constancia de Situación Fiscal.',
+      });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (sale.is_paid === false) {
@@ -351,6 +389,8 @@ function PublicCFDI({ ticketId }) {
       <style>{`
         .cfdi-page *, .cfdi-page *::before, .cfdi-page *::after { box-sizing: border-box; }
         .cfdi-page input, .cfdi-page select { width: 100%; max-width: 100%; }
+        .cfdi-page .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 480px) {
           .cfdi-row { flex-direction: column !important; }
         }
@@ -509,7 +549,31 @@ function PublicCFDI({ ticketId }) {
           {/* Form */}
           {(!success && !isIssued && !isCanceled && !blockedByGlobal) && (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              
+
+              {/* Constancia upload — prefills RFC, razón social, CP y régimen. */}
+              {isEditable && (
+                <div style={{ background: '#f0f7ff', border: '1px dashed #3498db', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', background: constanciaState.status === 'loading' ? '#bdc3c7' : '#3498db', color: 'white', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 'bold', cursor: constanciaState.status === 'loading' ? 'wait' : 'pointer' }}>
+                    <Icon icon={constanciaState.status === 'loading' ? 'lucide:loader' : 'lucide:upload'} style={{ fontSize: '1.1rem' }} className={constanciaState.status === 'loading' ? 'spin' : undefined} />
+                    {constanciaState.status === 'loading' ? 'Leyendo…' : 'Subir Constancia de Situación Fiscal'}
+                    <input type="file" accept="application/pdf,.pdf" onChange={handleConstanciaUpload} disabled={constanciaState.status === 'loading'} style={{ display: 'none' }} />
+                  </label>
+                  <p style={{ margin: '10px 0 0 0', fontSize: '0.8rem', color: '#5d6d7e' }}>
+                    Sube tu PDF del SAT y llenamos tus datos automáticamente. Tu archivo se procesa en tu dispositivo y no se guarda.
+                  </p>
+                  {constanciaState.status === 'success' && (
+                    <p style={{ margin: '10px 0 0 0', fontSize: '0.85rem', color: '#27ae60', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <Icon icon="lucide:check-circle" /> {constanciaState.message}
+                    </p>
+                  )}
+                  {constanciaState.status === 'error' && (
+                    <p style={{ margin: '10px 0 0 0', fontSize: '0.85rem', color: '#c0392b', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      <Icon icon="lucide:alert-circle" /> {constanciaState.message}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>RFC</label>
                 <input required disabled={!isEditable} type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13} placeholder="XAXX010101000" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.rfc ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
