@@ -55,4 +55,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '0.8';
+export const APP_SCHEMA_VERSION = '0.9';
