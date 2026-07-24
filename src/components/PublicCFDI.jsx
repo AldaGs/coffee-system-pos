@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
-import { getCfdiPeriodWarning } from '../utils/cfdiUrl';
+import { getCfdiPeriodWarning, getPeriodKey } from '../utils/cfdiUrl';
 
 function decodeParam(value) {
   if (!value) return '';
@@ -21,6 +21,8 @@ function PublicCFDI({ ticketId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  // The month's Factura Global row, if this ticket's period is already closed.
+  const [globalPeriod, setGlobalPeriod] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -140,6 +142,26 @@ function PublicCFDI({ ticketId }) {
     fetchTicket();
   }, [supabase, ticketId]);
 
+  // Once we have a paid sale, check whether its month's Factura Global has
+  // already been issued — if so the ticket can no longer be individually
+  // invoiced (it's already included in the global) and we block the form.
+  useEffect(() => {
+    if (!supabase || !sale?.is_paid || !sale?.created_at) {
+      setGlobalPeriod(null);
+      return;
+    }
+    const period = getPeriodKey(sale.created_at);
+    if (!period) return;
+    let cancelled = false;
+    supabase
+      .from('cfdi_global_periods')
+      .select('period, business_name')
+      .eq('period', period)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setGlobalPeriod(data || null); });
+    return () => { cancelled = true; };
+  }, [supabase, sale?.is_paid, sale?.created_at]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value.toUpperCase() });
   };
@@ -245,9 +267,15 @@ function PublicCFDI({ ticketId }) {
   const isReopened = sale?.cfdi_status === 'reopened';
   const isCanceled = sale?.cfdi_status === 'canceled';
 
+  // The month's global invoice has been issued and the customer never requested
+  // an individual factura before then → the ticket is already covered by the
+  // Factura Global and can't be invoiced separately. A reopened request is an
+  // explicit admin override, so it bypasses the block.
+  const blockedByGlobal = isPaid && !!globalPeriod && (!sale?.cfdi_status || sale.cfdi_status === 'none');
+
   // The form is editable if it's paid AND (status is none OR reopened)
   // If it's requested, it's read-only. If it's issued or canceled, we hide the form.
-  const isEditable = isPaid && (!isRequested && !isIssued && !isCanceled);
+  const isEditable = isPaid && (!isRequested && !isIssued && !isCanceled) && !blockedByGlobal;
 
   // --- Purchase summary (helps the customer confirm they scanned the right ticket) ---
   const summaryItems = Array.isArray(sale?.items) ? sale.items : [];
@@ -332,7 +360,18 @@ function PublicCFDI({ ticketId }) {
             </div>
           )}
 
-          {isPaid && !isRequested && !isIssued && !isReopened && !isCanceled && !success && (() => {
+          {blockedByGlobal && (
+            <div style={{ background: 'rgba(52, 152, 219, 0.1)', border: '1px solid #3498db', color: '#2980b9', padding: '20px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
+              <Icon icon="lucide:file-check-2" style={{ fontSize: '3rem', marginBottom: '10px' }} />
+              <h3 style={{ margin: '0 0 10px 0' }}>Factura Global</h3>
+              <p style={{ margin: 0 }}>
+                Tu ticket ya fue incluido en la Factura Global{globalPeriod?.business_name ? ` de ${globalPeriod.business_name}` : ''}.
+                Si necesitas una factura individual, contacta al establecimiento.
+              </p>
+            </div>
+          )}
+
+          {!blockedByGlobal && isPaid && !isRequested && !isIssued && !isReopened && !isCanceled && !success && (() => {
             const warn = getCfdiPeriodWarning(sale.created_at);
             const crossMonth = warn?.crossMonth;
             const accent = crossMonth ? '#f39c12' : '#27ae60';
@@ -396,7 +435,7 @@ function PublicCFDI({ ticketId }) {
           )}
 
           {/* Form */}
-          {(!success && !isIssued && !isCanceled) && (
+          {(!success && !isIssued && !isCanceled && !blockedByGlobal) && (
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>

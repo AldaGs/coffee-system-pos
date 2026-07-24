@@ -22,6 +22,20 @@ function CfdiTab({ showAlert, showConfirm }) {
   const [showDomainConfig, setShowDomainConfig] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
+  // --- Factura Global (closed periods) ---
+  const [showGlobalConfig, setShowGlobalConfig] = useState(false);
+  const [globalPeriods, setGlobalPeriods] = useState([]);
+  const [newPeriod, setNewPeriod] = useState('');
+  const [isSavingPeriod, setIsSavingPeriod] = useState(false);
+
+  // Business name snapshot for the portal legend, from the cached menu settings.
+  const businessName = (() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('tinypos_cached_menu') || '{}');
+      return parsed.receiptSettings?.header || parsed.posSettings?.name || '';
+    } catch { return ''; }
+  })();
+
   // Derive project ref + anon key for DNS instructions
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url') || '';
   const projectRef = (() => {
@@ -84,6 +98,64 @@ function CfdiTab({ showAlert, showConfirm }) {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const fetchGlobalPeriods = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('cfdi_global_periods')
+        .select('*')
+        .order('period', { ascending: false });
+      if (error) throw error;
+      setGlobalPeriods(data || []);
+    } catch (err) {
+      console.error('Error fetching global periods:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { fetchGlobalPeriods(); }, 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleCloseGlobalPeriod = async () => {
+    if (!newPeriod) return;
+    try {
+      setIsSavingPeriod(true);
+      const { error } = await supabase
+        .from('cfdi_global_periods')
+        .upsert({ period: newPeriod, business_name: businessName || null }, { onConflict: 'period' });
+      if (error) throw error;
+      showAlert(t('toast.success'), `Periodo ${newPeriod} cerrado. Los tickets de ese mes ya no podrán facturarse individualmente.`);
+      setNewPeriod('');
+      fetchGlobalPeriods();
+    } catch (err) {
+      console.error(err);
+      showAlert(t('common.error'), 'Error al cerrar el periodo');
+    } finally {
+      setIsSavingPeriod(false);
+    }
+  };
+
+  const handleReopenGlobalPeriod = (period) => {
+    showConfirm('Reabrir Periodo', `¿Reabrir ${period}? Los clientes volverán a poder solicitar factura individual de los tickets de ese mes.`, async () => {
+      try {
+        setIsSavingPeriod(true);
+        const { error } = await supabase
+          .from('cfdi_global_periods')
+          .delete()
+          .eq('period', period);
+        if (error) throw error;
+        showAlert(t('toast.success'), `Periodo ${period} reabierto`);
+        fetchGlobalPeriods();
+      } catch (err) {
+        console.error(err);
+        showAlert(t('common.error'), 'Error al reabrir el periodo');
+      } finally {
+        setIsSavingPeriod(false);
+      }
+    });
+  };
 
   const handleCopy = (text, label) => {
     if (!text) return;
@@ -245,6 +317,10 @@ function CfdiTab({ showAlert, showConfirm }) {
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>Gestiona las solicitudes de factura de tus clientes.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => setShowGlobalConfig(!showGlobalConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon icon="lucide:calendar-check" />
+            Factura Global
+          </button>
           <button onClick={() => setShowDomainConfig(!showDomainConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:globe" />
             Configurar Dominio
@@ -254,6 +330,56 @@ function CfdiTab({ showAlert, showConfirm }) {
           </button>
         </div>
       </div>
+
+      {showGlobalConfig && (
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon icon="lucide:calendar-check" style={{ color: 'var(--brand-color)' }} />
+            Periodos con Factura Global emitida
+          </h3>
+          <p style={{ margin: '0 0 16px 0', color: 'var(--text-muted)' }}>
+            Al cerrar un mes, los tickets de ese periodo dejan de poder facturarse individualmente desde el portal: al cliente se le muestra el aviso de que su ticket ya fue incluido en la Factura Global{businessName ? ` de ${businessName}` : ''}. Ciérralo una vez que hayas emitido la Factura Global del mes en el SAT.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: globalPeriods.length ? '20px' : 0 }}>
+            <input
+              type="month"
+              value={newPeriod}
+              onChange={e => setNewPeriod(e.target.value)}
+              style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+            />
+            <button
+              type="button"
+              onClick={handleCloseGlobalPeriod}
+              disabled={isSavingPeriod || !newPeriod}
+              style={{ background: 'var(--brand-color)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: (isSavingPeriod || !newPeriod) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: (isSavingPeriod || !newPeriod) ? 0.5 : 1, fontWeight: 'bold' }}
+            >
+              <Icon icon="lucide:lock" />
+              Cerrar periodo
+            </button>
+          </div>
+
+          {globalPeriods.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {globalPeriods.map(p => (
+                <div key={p.period} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontWeight: 'bold' }}>
+                    <Icon icon="lucide:lock" style={{ color: '#27ae60' }} /> {p.period}
+                    {p.closed_at && <span style={{ fontWeight: 'normal', fontSize: '0.8rem', color: 'var(--text-muted)' }}>· cerrado {new Date(p.closed_at).toLocaleDateString('es-MX')}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleReopenGlobalPeriod(p.period)}
+                    disabled={isSavingPeriod}
+                    style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
+                  >
+                    <Icon icon="lucide:unlock" /> Reabrir
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showDomainConfig && (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>

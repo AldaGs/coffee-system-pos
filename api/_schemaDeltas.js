@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -446,6 +446,32 @@ CREATE INDEX IF NOT EXISTS idx_sales_cfdi_status ON public.sales(cfdi_status) WH
 CREATE INDEX IF NOT EXISTS idx_active_tickets_cfdi_status ON public.active_tickets(cfdi_status) WHERE cfdi_status != 'none';
 
 ${stamp('0.9')}`,
+  },
+  {
+    // 1.0 — CFDI Factura Global periods (migration 033): a cfdi_global_periods
+    // table recording which months have had their monthly global invoice
+    // issued. The public portal reads it (anon SELECT) to block requests for a
+    // closed month and show the "incluido en la Factura Global" legend; the
+    // admin CFDI tab closes/reopens periods (authenticated full access).
+    version: '1.0',
+    sql: `
+CREATE TABLE IF NOT EXISTS public.cfdi_global_periods (
+  period text PRIMARY KEY,
+  business_name text,
+  closed_at timestamp with time zone DEFAULT now()
+);
+
+ALTER TABLE public.cfdi_global_periods ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON public.cfdi_global_periods;
+CREATE POLICY "Enable all for authenticated users" ON public.cfdi_global_periods
+  FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "CFDI portal can read global periods" ON public.cfdi_global_periods;
+CREATE POLICY "CFDI portal can read global periods" ON public.cfdi_global_periods
+  FOR SELECT TO anon USING (true);
+
+${stamp('1.0')}`,
   },
 ];
 

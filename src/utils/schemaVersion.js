@@ -17,6 +17,12 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.0 — CFDI Factura Global periods: the `cfdi_global_periods` table (migration
+//       033) records which months (period='YYYY-MM') have had their monthly
+//       global invoice issued. The public CFDI portal reads it (anon SELECT) to
+//       block invoice requests for a closed month and show the legend "Tu ticket
+//       ya fue incluido en la Factura Global de <negocio>"; the admin CFDI tab
+//       closes/reopens periods.
 // 0.8 — public vs register hide split: the `menu_categories.public_hidden`
 //       column plus a one-time backfill from is_hidden, and get_active_menu /
 //       get_menu_by_id now filter the public menu on public_hidden (categories)
@@ -55,4 +61,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '0.9';
+export const APP_SCHEMA_VERSION = '1.0';

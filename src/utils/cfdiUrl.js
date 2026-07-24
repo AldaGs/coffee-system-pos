@@ -60,6 +60,21 @@ export function getCfdiPeriodWarning(paidAt, now = new Date()) {
 }
 
 /**
+ * Period key ('YYYY-MM') a sale belongs to, used to match against
+ * cfdi_global_periods (the months whose Factura Global has been issued).
+ * Uses the local calendar, consistent with getCfdiPeriodWarning.
+ *
+ * @param {string|Date} date  A timestamp (sale.created_at).
+ * @returns {string} e.g. '2026-06', or '' if the date is invalid.
+ */
+export function getPeriodKey(date) {
+  if (!date) return '';
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+/**
  * Fire-and-forget: upload the config.json blob so that short-URL lookups
  * (`?p=<projectRef>`) work on the CFDI portal.  Call this once after building
  * the URL whenever the caller has access to the supabase client.
