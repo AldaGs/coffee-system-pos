@@ -36,11 +36,20 @@ export const POS_DEADLINE_MS = 5000;
 // with the POS deadline.
 export const STORAGE_DEADLINE_MS = 60000;
 
-// How long the breaker stays open after a failure. During this window the app
-// behaves as if offline: local Dexie writes only, no cloud round-trips.
+// How long the breaker stays open after the FIRST failure. During this window the
+// app behaves as if offline: local Dexie writes only, no cloud round-trips. Each
+// additional consecutive failure grows the window (see reportCloudFailure) up to
+// MAX_COOLDOWN_MS, so a persistently dead link is retried ever less often instead
+// of on a fixed cadence.
 export const COOLDOWN_MS = 10000;
 
+// Ceiling for the grown cooldown. A link that's been down a while gets probed at
+// most once per minute.
+export const MAX_COOLDOWN_MS = 60000;
+
 let circuitOpenUntil = 0;
+// Consecutive failures since the last success — drives the cooldown back-off.
+let consecutiveFailures = 0;
 
 const isStorageUrl = (url) => typeof url === 'string' && url.includes('/storage/v1/');
 
@@ -51,13 +60,22 @@ const urlOf = (input) => {
 };
 
 // Called by the fetch wrapper (and available to any code that learns the cloud
-// is unreachable through another channel).
+// is unreachable through another channel). Grows the open window with each
+// consecutive failure so a link that stays down is retried less and less often,
+// with subtractive jitter (never longer than the nominal window) so a fleet of
+// devices don't all retry in lockstep.
 export function reportCloudFailure() {
-  circuitOpenUntil = Date.now() + COOLDOWN_MS;
+  consecutiveFailures += 1;
+  const exp = Math.min(consecutiveFailures - 1, 16); // cap to avoid 2**huge
+  const base = Math.min(COOLDOWN_MS * 2 ** exp, MAX_COOLDOWN_MS);
+  // [0.75, 1.0) * base — the first failure therefore never exceeds COOLDOWN_MS.
+  const window = base * (0.75 + Math.random() * 0.25);
+  circuitOpenUntil = Date.now() + window;
 }
 
 export function reportCloudSuccess() {
   circuitOpenUntil = 0;
+  consecutiveFailures = 0;
 }
 
 // True while the breaker is open. Exposed mainly for tests / status UI.
@@ -122,7 +140,106 @@ export function createTimeoutFetch(baseFetch) {
   };
 }
 
-// Test-only: reset breaker state between cases.
+// ---- Proactive heartbeat ----------------------------------------------------
+//
+// The breaker on its own is purely reactive: it opens only after a real request
+// eats the full deadline, and it closes when the fixed cooldown lapses — so a
+// user action is what discovers both the outage AND the recovery, each time
+// paying the deadline. On a persistently bad link that means every cooldown lapse
+// dumps the next tap into another multi-second stall.
+//
+// The heartbeat decouples RECOVERY from user actions. While the breaker is open
+// it probes the cloud in the background; the first probe that succeeds closes the
+// breaker instantly, so by the time the cashier taps again the app already knows
+// the link is back — no probe tax. While the link stays down, a failing probe
+// extends the open window so the cooldown can't lapse and drop a user into a
+// stall.
+//
+// It deliberately spends NO network while the breaker is closed, and a failed
+// probe NEVER opens a healthy breaker. The probe endpoint can be blocked
+// (CORS/proxy) even on a perfectly good link; letting that trip the breaker would
+// route the whole app to the offline path against a working cloud — the exact
+// symptom we're fighting. So real requests stay the only thing that OPENS the
+// breaker; the heartbeat only ever helps it CLOSE (or hold open while confirmed
+// down).
+
+// While the breaker is open: how often to probe for recovery.
+export const HEARTBEAT_PROBE_MS = 5000;
+// While the breaker is closed: how often to cheaply re-check (local only, no
+// network) whether it has opened and probing should begin.
+export const HEARTBEAT_IDLE_MS = 4000;
+
+let heartbeatTimer = null;
+let heartbeatProbe = null;
+let heartbeatRunning = false;
+
+// Symmetric ±15% jitter for the poll cadence, to de-sync a fleet of devices.
+const jitterInterval = (ms) => ms * (0.85 + Math.random() * 0.3);
+
+/**
+ * Start the connectivity heartbeat. Idempotent-ish: starting again replaces any
+ * running heartbeat. Returns a stop function (also exported as
+ * stopConnectivityHeartbeat) for effect cleanup.
+ *
+ * @param {() => Promise<boolean>} probe Resolves true iff the cloud answered.
+ *        Injected so this module stays free of Supabase config. It MUST bypass
+ *        the breaker-open short-circuit (i.e. not use the wrapped fetch), or it
+ *        could never run while the breaker is open.
+ */
+export function startConnectivityHeartbeat(probe, {
+  probeIntervalMs = HEARTBEAT_PROBE_MS,
+  idleIntervalMs = HEARTBEAT_IDLE_MS,
+} = {}) {
+  if (typeof probe !== 'function') return () => {};
+  stopConnectivityHeartbeat();
+  heartbeatProbe = probe;
+  heartbeatRunning = true;
+
+  const tick = async () => {
+    if (!heartbeatRunning) return;
+
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    const hidden = typeof document !== 'undefined' && document.hidden;
+
+    // Only spend a network probe when there's something to detect: the breaker is
+    // open and we're plausibly able to reach the cloud. A truly offline device or
+    // a backgrounded tab just waits.
+    if (isCircuitOpen() && !offline && !hidden) {
+      let ok = false;
+      try { ok = await heartbeatProbe(); } catch { ok = false; }
+      if (!heartbeatRunning) return;
+      if (ok) {
+        // Link is definitively back — the health endpoint answered. Close now so
+        // the next user action goes straight to the cloud instead of re-probing.
+        reportCloudSuccess();
+      } else {
+        // Still down: extend the open window so it can't lapse and drop a user
+        // into a full-deadline stall before the link actually recovers.
+        reportCloudFailure();
+      }
+    }
+
+    if (!heartbeatRunning) return;
+    const base = isCircuitOpen() ? probeIntervalMs : idleIntervalMs;
+    heartbeatTimer = setTimeout(tick, jitterInterval(base));
+  };
+
+  heartbeatTimer = setTimeout(tick, jitterInterval(idleIntervalMs));
+  return stopConnectivityHeartbeat;
+}
+
+export function stopConnectivityHeartbeat() {
+  heartbeatRunning = false;
+  if (heartbeatTimer) {
+    clearTimeout(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  heartbeatProbe = null;
+}
+
+// Test-only: reset breaker + heartbeat state between cases.
 export function _resetCircuitForTests() {
   circuitOpenUntil = 0;
+  consecutiveFailures = 0;
+  stopConnectivityHeartbeat();
 }

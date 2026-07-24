@@ -35,3 +35,30 @@ export const supabase = (supabaseUrl && supabaseAnonKey)
       },
     })
   : null;
+
+// Reachability probe for the connectivity heartbeat (src/utils/network.js).
+//
+// Deliberately uses the RAW fetch, NOT the wrapped client above: the wrapped
+// fetch rejects immediately while the breaker is open, which is exactly when the
+// heartbeat needs to reach the network to detect recovery. Hits GoTrue's
+// unauthenticated health endpoint with its own short deadline. Any HTTP answer
+// (even non-2xx) proves the link is alive end-to-end; only a network-layer
+// failure or timeout counts as unreachable.
+export async function probeCloud(timeoutMs = 3000) {
+  if (!supabaseUrl) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/health`, {
+      method: 'GET',
+      headers: supabaseAnonKey ? { apikey: supabaseAnonKey } : undefined,
+      signal: controller.signal,
+      cache: 'no-store',
+    });
+    return !!res;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}

@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { attemptBackgroundSync } from '../services/syncService';
+import { startConnectivityHeartbeat } from '../utils/network';
+import { supabase, probeCloud } from '../supabaseClient';
+import { isLocalMode } from '../utils/appMode';
 
 // Mount-once background sync. The interval and 'online' listener are installed
 // exactly once for the lifetime of the host component; the latest values for
@@ -28,9 +31,18 @@ export function useSyncQueue({ expenseQueue, clearExpenseQueue, onAuthError, int
     const id = setInterval(runSync, intervalMs);
     runSync();
 
+    // Proactively probe for recovery while the breaker is open, so a degraded
+    // link heals without a user action paying the probe tax. Skipped in local
+    // ('guest') mode — there's no cloud to probe, and a failing probe there would
+    // otherwise trip the breaker against a store that lives entirely in Dexie.
+    const stopHeartbeat = (isLocalMode() || !supabase)
+      ? null
+      : startConnectivityHeartbeat(probeCloud);
+
     return () => {
       window.removeEventListener('online', runSync);
       clearInterval(id);
+      if (stopHeartbeat) stopHeartbeat();
     };
   }, [intervalMs]);
 }

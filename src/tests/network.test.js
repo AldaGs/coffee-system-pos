@@ -5,9 +5,12 @@ import {
   isCircuitOpen,
   reportCloudFailure,
   reportCloudSuccess,
+  startConnectivityHeartbeat,
+  stopConnectivityHeartbeat,
   _resetCircuitForTests,
   POS_DEADLINE_MS,
   COOLDOWN_MS,
+  MAX_COOLDOWN_MS,
 } from '../utils/network';
 
 // jsdom provides AbortController/DOMException; navigator.onLine defaults true.
@@ -41,6 +44,88 @@ describe('network circuit breaker', () => {
     expect(isCircuitOpen()).toBe(true);
     reportCloudSuccess();
     expect(isCircuitOpen()).toBe(false);
+  });
+
+  it('grows the cooldown on consecutive failures (first stays within COOLDOWN_MS)', () => {
+    // First failure: window is [0.75, 1.0) * COOLDOWN_MS, so it always clears by
+    // COOLDOWN_MS and never exceeds it.
+    reportCloudFailure();
+    vi.advanceTimersByTime(COOLDOWN_MS + 1);
+    expect(isCircuitOpen()).toBe(false);
+
+    // A run of failures without any success backs the window off well past a
+    // single COOLDOWN_MS (2**n growth), so it's still open after COOLDOWN_MS.
+    for (let i = 0; i < 5; i++) reportCloudFailure();
+    vi.advanceTimersByTime(COOLDOWN_MS + 1);
+    expect(isCircuitOpen()).toBe(true);
+
+    // ...but never past the ceiling.
+    vi.advanceTimersByTime(MAX_COOLDOWN_MS + 1);
+    expect(isCircuitOpen()).toBe(false);
+
+    // A success resets the back-off: the next lone failure is short again.
+    reportCloudSuccess();
+    reportCloudFailure();
+    vi.advanceTimersByTime(COOLDOWN_MS + 1);
+    expect(isCircuitOpen()).toBe(false);
+  });
+});
+
+describe('connectivity heartbeat', () => {
+  beforeEach(() => {
+    _resetCircuitForTests();
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    stopConnectivityHeartbeat();
+    vi.useRealTimers();
+  });
+
+  it('closes an open breaker once a background probe succeeds', async () => {
+    reportCloudFailure();
+    expect(isCircuitOpen()).toBe(true);
+
+    const probe = vi.fn().mockResolvedValue(true);
+    startConnectivityHeartbeat(probe, { probeIntervalMs: 5000, idleIntervalMs: 4000 });
+
+    // First tick is scheduled after the idle interval (+ up to 15% jitter).
+    await vi.advanceTimersByTimeAsync(4000 * 1.2);
+    expect(probe).toHaveBeenCalled();
+    expect(isCircuitOpen()).toBe(false); // recovery detected without a user action
+  });
+
+  it('never opens a healthy breaker when the probe fails (e.g. blocked endpoint)', async () => {
+    // Breaker closed, link actually fine, but the probe endpoint is unreachable.
+    const probe = vi.fn().mockResolvedValue(false);
+    startConnectivityHeartbeat(probe, { probeIntervalMs: 5000, idleIntervalMs: 4000 });
+
+    await vi.advanceTimersByTimeAsync(4000 * 1.2 * 3);
+    // While closed the heartbeat spends no network probe and cannot trip the breaker.
+    expect(probe).not.toHaveBeenCalled();
+    expect(isCircuitOpen()).toBe(false);
+  });
+
+  it('holds the breaker open while probes keep failing', async () => {
+    reportCloudSuccess(); // reset back-off so the first failure is a short window
+    reportCloudFailure();
+    expect(isCircuitOpen()).toBe(true);
+
+    const probe = vi.fn().mockResolvedValue(false);
+    startConnectivityHeartbeat(probe, { probeIntervalMs: 5000, idleIntervalMs: 4000 });
+
+    // Advance well past the initial cooldown; failing probes keep extending it.
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(probe).toHaveBeenCalled();
+    expect(isCircuitOpen()).toBe(true);
+  });
+
+  it('stops probing after cleanup', async () => {
+    reportCloudFailure();
+    const probe = vi.fn().mockResolvedValue(false);
+    const stop = startConnectivityHeartbeat(probe, { probeIntervalMs: 5000, idleIntervalMs: 4000 });
+    stop();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(probe).not.toHaveBeenCalled();
   });
 });
 
