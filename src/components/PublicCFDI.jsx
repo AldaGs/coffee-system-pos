@@ -13,6 +13,29 @@ function decodeParam(value) {
   }
 }
 
+// --- Fiscal input validation (SAT structures) ---
+// RFC: 3 letters (moral) or 4 letters (física) + 6 digits (date) + 3 alphanumeric homoclave.
+const RFC_RE = /^[A-ZÑ&]{3,4}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]$/;
+const CP_RE = /^[0-9]{5}$/;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const fieldErrorStyle = { color: '#c0392b', fontSize: '0.8rem' };
+
+function validateFiscal(data) {
+  const errors = {};
+  const rfc = (data.rfc || '').trim().toUpperCase();
+  if (!RFC_RE.test(rfc)) errors.rfc = 'RFC inválido. Verifica que tenga 12 o 13 caracteres.';
+  if (!(data.razon_social || '').trim()) errors.razon_social = 'Ingresa la razón social.';
+  if (!CP_RE.test((data.cp || '').trim())) errors.cp = 'El código postal debe tener 5 dígitos.';
+  if (!EMAIL_RE.test((data.email || '').trim())) errors.email = 'Ingresa un correo electrónico válido.';
+  if (!(data.regimen_fiscal || '').trim()) errors.regimen_fiscal = 'Selecciona un régimen fiscal.';
+  if (!(data.uso_cfdi || '').trim()) errors.uso_cfdi = 'Selecciona el uso de CFDI.';
+  return errors;
+}
+
+// True only when every required fiscal field passes validation.
+const isFiscalComplete = (data) => Object.keys(validateFiscal(data)).length === 0;
+
 function PublicCFDI({ ticketId }) {
   const [supabase, setSupabase] = useState(null);
   const [sale, setSale] = useState(null);
@@ -21,6 +44,9 @@ function PublicCFDI({ ticketId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [folioCopied, setFolioCopied] = useState(false);
+  // Per-field validation errors for the fiscal form.
+  const [fieldErrors, setFieldErrors] = useState({});
   // The month's Factura Global row, if this ticket's period is already closed.
   const [globalPeriod, setGlobalPeriod] = useState(null);
 
@@ -163,7 +189,29 @@ function PublicCFDI({ ticketId }) {
   }, [supabase, sale?.is_paid, sale?.created_at]);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value.toUpperCase() });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value.toUpperCase() });
+    if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: undefined }));
+  };
+
+  const handleCopyFolio = async () => {
+    const folio = sale?.cfdi_folio;
+    if (!folio) return;
+    try {
+      await navigator.clipboard.writeText(String(folio));
+    } catch {
+      // Fallback for browsers/contexts without the async clipboard API.
+      const ta = document.createElement('textarea');
+      ta.value = String(folio);
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(ta);
+    }
+    setFolioCopied(true);
+    setTimeout(() => setFolioCopied(false), 2000);
   };
 
   const handleSubmit = async (e) => {
@@ -172,7 +220,14 @@ function PublicCFDI({ ticketId }) {
        // Cannot submit if not paid
        return;
     }
-    
+
+    const errors = validateFiscal(formData);
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+    setFieldErrors({});
+
     setIsSubmitting(true);
     setError(null);
 
@@ -276,6 +331,9 @@ function PublicCFDI({ ticketId }) {
   // The form is editable if it's paid AND (status is none OR reopened)
   // If it's requested, it's read-only. If it's issued or canceled, we hide the form.
   const isEditable = isPaid && (!isRequested && !isIssued && !isCanceled) && !blockedByGlobal;
+
+  // Only allow submitting once every required fiscal field is filled and valid.
+  const formComplete = isFiscalComplete(formData);
 
   // --- Purchase summary (helps the customer confirm they scanned the right ticket) ---
   const summaryItems = Array.isArray(sale?.items) ? sale.items : [];
@@ -422,7 +480,21 @@ function PublicCFDI({ ticketId }) {
             <div style={{ background: 'rgba(52, 152, 219, 0.1)', border: '1px solid #3498db', color: '#2980b9', padding: '20px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
               <Icon icon="lucide:file-check-2" style={{ fontSize: '3rem', marginBottom: '10px' }} />
               <h3 style={{ margin: '0 0 10px 0' }}>Factura Emitida</h3>
-              <p style={{ margin: 0 }}>Folio: <strong>{sale.cfdi_folio}</strong></p>
+              {sale.cfdi_folio ? (
+                <>
+                  <p style={{ margin: '0 0 12px 0' }}>Folio: <strong>{sale.cfdi_folio}</strong></p>
+                  <button
+                    type="button"
+                    onClick={handleCopyFolio}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', background: folioCopied ? '#27ae60' : '#3498db', color: 'white', border: 'none', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 'bold', cursor: 'pointer', transition: 'background 0.2s' }}
+                  >
+                    <Icon icon={folioCopied ? 'lucide:check' : 'lucide:copy'} style={{ fontSize: '1.1rem' }} />
+                    {folioCopied ? '¡Folio copiado!' : 'Copiar folio'}
+                  </button>
+                </>
+              ) : (
+                <p style={{ margin: 0 }}>Tu factura ha sido emitida.</p>
+              )}
             </div>
           )}
 
@@ -440,22 +512,26 @@ function PublicCFDI({ ticketId }) {
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>RFC</label>
-                <input required disabled={!isEditable} type="text" name="rfc" value={formData.rfc} onChange={handleChange} placeholder="XAXX010101000" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
+                <input required disabled={!isEditable} type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13} placeholder="XAXX010101000" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.rfc ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
+                {fieldErrors.rfc && <span style={fieldErrorStyle}>{fieldErrors.rfc}</span>}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Razón Social</label>
-                <input required disabled={!isEditable} type="text" name="razon_social" value={formData.razon_social} onChange={handleChange} placeholder="Empresa S.A. de C.V." style={{ padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '1rem', outline: 'none' }} />
+                <input required disabled={!isEditable} type="text" name="razon_social" value={formData.razon_social} onChange={handleChange} placeholder="Empresa S.A. de C.V." style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.razon_social ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
+                {fieldErrors.razon_social && <span style={fieldErrorStyle}>{fieldErrors.razon_social}</span>}
               </div>
 
               <div className="cfdi-row" style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
                   <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Código Postal</label>
-                  <input required disabled={!isEditable} type="text" name="cp" value={formData.cp} onChange={handleChange} placeholder="12345" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '1rem', outline: 'none' }} />
+                  <input required disabled={!isEditable} type="text" inputMode="numeric" name="cp" value={formData.cp} onChange={handleChange} maxLength={5} placeholder="12345" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.cp ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
+                  {fieldErrors.cp && <span style={fieldErrorStyle}>{fieldErrors.cp}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 2 }}>
                   <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Email para Factura</label>
-                  <input required disabled={!isEditable} type="email" name="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })} placeholder="correo@ejemplo.com" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '1rem', outline: 'none' }} />
+                  <input required disabled={!isEditable} type="email" name="email" value={formData.email} onChange={(e) => { setFormData({ ...formData, email: e.target.value.toLowerCase() }); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); }} placeholder="correo@ejemplo.com" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.email ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
+                  {fieldErrors.email && <span style={fieldErrorStyle}>{fieldErrors.email}</span>}
                 </div>
               </div>
 
@@ -492,17 +568,17 @@ function PublicCFDI({ ticketId }) {
 
               <button 
                 type="submit" 
-                disabled={!isEditable || isSubmitting}
-                style={{ 
+                disabled={!isEditable || !formComplete || isSubmitting}
+                style={{
                   marginTop: '10px',
                   padding: '16px',
-                  background: (!isEditable) ? '#bdc3c7' : '#3498db',
+                  background: (!isEditable || !formComplete) ? '#bdc3c7' : '#3498db',
                   color: 'white',
                   border: 'none',
                   borderRadius: '12px',
                   fontSize: '1.1rem',
                   fontWeight: 'bold',
-                  cursor: (!isEditable || isSubmitting) ? 'not-allowed' : 'pointer',
+                  cursor: (!isEditable || !formComplete || isSubmitting) ? 'not-allowed' : 'pointer',
                   transition: 'background 0.2s'
                 }}
               >
