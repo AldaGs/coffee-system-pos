@@ -20,6 +20,7 @@ function PublicCFDI({ ticketId }) {
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -248,9 +249,27 @@ function PublicCFDI({ ticketId }) {
   // If it's requested, it's read-only. If it's issued or canceled, we hide the form.
   const isEditable = isPaid && (!isRequested && !isIssued && !isCanceled);
 
+  // --- Purchase summary (helps the customer confirm they scanned the right ticket) ---
+  const summaryItems = Array.isArray(sale?.items) ? sale.items : [];
+  const itemCount = summaryItems.reduce((s, line) => s + (Number(line?.qty) || 1), 0);
+  const summaryTotalCents = (sale?.total_amount != null)
+    ? Number(sale.total_amount)
+    : summaryItems.reduce((s, line) => {
+        const mods = (line?.selectedModifiers || []).reduce((m, mod) => m + (Number(mod?.price) || 0), 0);
+        return s + ((Number(line?.basePrice) || 0) + mods) * (Number(line?.qty) || 1);
+      }, 0);
+  const formatMoney = (cents) => `$${(cents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f6fa', fontFamily: 'system-ui', padding: '20px' }}>
-      <div style={{ maxWidth: '600px', margin: '0 auto', background: 'white', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: '#f5f6fa', fontFamily: 'system-ui', padding: '20px', boxSizing: 'border-box', overflowX: 'hidden' }}>
+      <style>{`
+        .cfdi-page *, .cfdi-page *::before, .cfdi-page *::after { box-sizing: border-box; }
+        .cfdi-page input, .cfdi-page select { width: 100%; max-width: 100%; }
+        @media (max-width: 480px) {
+          .cfdi-row { flex-direction: column !important; }
+        }
+      `}</style>
+      <div className="cfdi-page" style={{ maxWidth: '600px', margin: '0 auto', background: 'white', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
         
         <div style={{ background: 'linear-gradient(135deg, #3498db, #2980b9)', padding: '30px', color: 'white', textAlign: 'center' }}>
           <Icon icon="lucide:file-text" style={{ fontSize: '3rem', marginBottom: '10px' }} />
@@ -259,6 +278,49 @@ function PublicCFDI({ ticketId }) {
         </div>
 
         <div style={{ padding: '30px' }}>
+          {/* Purchase summary — lets the customer confirm they opened the right ticket */}
+          {summaryItems.length > 0 && (
+            <div style={{ background: '#f8f9fb', border: '1px solid #e5e8ec', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+              <button
+                type="button"
+                onClick={() => setSummaryOpen(o => !o)}
+                aria-expanded={summaryOpen}
+                style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center', gap: '10px', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit' }}
+              >
+                <span style={{ fontWeight: 'bold', color: '#2c3e50', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Icon icon="lucide:shopping-bag" /> Tu compra
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                  <span style={{ color: '#7f8c8d', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                    {itemCount} {itemCount === 1 ? 'artículo' : 'artículos'} · <strong style={{ color: '#2c3e50' }}>{formatMoney(summaryTotalCents)}</strong>
+                  </span>
+                  <Icon icon={summaryOpen ? 'lucide:chevron-up' : 'lucide:chevron-down'} style={{ fontSize: '1.2rem', color: '#7f8c8d', flexShrink: 0 }} />
+                </span>
+              </button>
+
+              {summaryOpen && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '160px', overflowY: 'auto', marginTop: '12px' }}>
+                    {summaryItems.map((line, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', fontSize: '0.9rem', color: '#34495e' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {(Number(line?.qty) || 1)}× {line?.emoji ? `${line.emoji} ` : ''}{line?.name || 'Artículo'}
+                        </span>
+                        <span style={{ flexShrink: 0, color: '#7f8c8d' }}>
+                          {formatMoney(((Number(line?.basePrice) || 0) + (line?.selectedModifiers || []).reduce((m, mod) => m + (Number(mod?.price) || 0), 0)) * (Number(line?.qty) || 1))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e8ec' }}>
+                    <span style={{ fontWeight: 'bold', color: '#2c3e50' }}>Total</span>
+                    <span style={{ fontWeight: '800', color: '#2c3e50', fontSize: '1.15rem' }}>{formatMoney(summaryTotalCents)}</span>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Status Banners */}
           {!isPaid && (
             <div style={{ background: 'rgba(243, 156, 18, 0.1)', border: '1px solid #f39c12', color: '#d68910', padding: '15px', borderRadius: '8px', marginBottom: '20px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
@@ -347,7 +409,7 @@ function PublicCFDI({ ticketId }) {
                 <input required disabled={!isEditable} type="text" name="razon_social" value={formData.razon_social} onChange={handleChange} placeholder="Empresa S.A. de C.V." style={{ padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '1rem', outline: 'none' }} />
               </div>
 
-              <div style={{ display: 'flex', gap: '15px' }}>
+              <div className="cfdi-row" style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
                   <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Código Postal</label>
                   <input required disabled={!isEditable} type="text" name="cp" value={formData.cp} onChange={handleChange} placeholder="12345" style={{ padding: '12px', borderRadius: '8px', border: '1px solid #bdc3c7', fontSize: '1rem', outline: 'none' }} />
