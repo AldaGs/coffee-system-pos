@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
+import { buildCfdiUrl, ensureCfdiConfig } from '../../utils/cfdiUrl';
 
 function CfdiTab({ showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -130,24 +131,10 @@ function CfdiTab({ showAlert, showConfirm }) {
   };
 
   const handleShareCFDI = (req) => {
-    const cfdiDomain = localStorage.getItem('tinypos_cfdi_custom_domain') || localStorage.getItem('tinypos_custom_domain');
-    let baseUrl = cfdiDomain ? `https://${cfdiDomain}` : window.location.origin;
-    const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
-    const anonKey = localStorage.getItem('tinypos_supabase_anon_key');
-    
-    // Short URL Strategy
-    const projectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : '';
-    const cfdiUrl = projectRef 
-      ? `${baseUrl}/cfdi/${req.sourceTable === 'sales' ? req.local_id || req.id : req.id}?p=${projectRef}` 
-      : `${baseUrl}/cfdi/${req.sourceTable === 'sales' ? req.local_id || req.id : req.id}?u=${btoa(supabaseUrl)}&k=${btoa(anonKey)}`;
-    
-    // Fire-and-forget upload of the config for short URLs to work
-    if (projectRef && supabase) {
-      const config = JSON.stringify({ k: anonKey });
-      const blob = new Blob([config], { type: 'application/json' });
-      supabase.storage.from('menu').upload('config.json', blob, { upsert: true, contentType: 'application/json', cacheControl: '0' }).catch(console.error);
-    }
-    
+    const ticketId = req.sourceTable === 'sales' ? (req.local_id || req.id) : req.id;
+    const cfdiUrl = buildCfdiUrl(ticketId);
+    ensureCfdiConfig(supabase);
+
     if (navigator.share) {
       navigator.share({
         title: 'Solicitud de Factura CFDI',

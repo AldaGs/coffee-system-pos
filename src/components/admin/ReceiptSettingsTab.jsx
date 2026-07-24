@@ -1,4 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
+import QRCode from 'qrcode';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { calculateItemizedTaxBreakdown } from '../../utils/posMath';
@@ -23,6 +25,17 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
     ? calculateItemizedTaxBreakdown(previewItems, previewTotal, receiptForm.taxRate || 16)
     : null;
   const previewNow = new Date();
+
+  // --- QR preview on the receipt mock ---
+  const previewQrRef = useRef(null);
+  useEffect(() => {
+    if (!previewQrRef.current) return;
+    if (!receiptForm.showCfdiQr) return;
+    QRCode.toCanvas(previewQrRef.current, 'https://example.com/cfdi/preview', {
+      width: 120, margin: 1, errorCorrectionLevel: 'L',
+      color: { dark: '#111', light: '#ffffff' },
+    }).catch(console.error);
+  }, [receiptForm.showCfdiQr]);
 
   return (
     <div className="admin-section fade-in">
@@ -102,6 +115,43 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
                     <input type="number" value={receiptForm.taxRate || 16} onChange={(e) => setReceiptForm({ ...receiptForm, taxRate: parseFloat(e.target.value) || 0 })} style={{ width: '100%', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
                     <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontWeight: 'bold', color: 'var(--text-muted)' }}>%</span>
                   </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: '24px', marginTop: '8px' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
+              <Icon icon="lucide:file-text" style={{ color: 'var(--brand-color)' }} />
+              {t('receipt.cfdiSection')}
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Toggle: CFDI QR */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('receipt.showCfdiQr')}</label>
+                <select value={receiptForm.showCfdiQr || false} onChange={(e) => setReceiptForm({ ...receiptForm, showCfdiQr: e.target.value === 'true' })} style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                  <option value={false}>{t('receipt.cfdiQrNo')}</option>
+                  <option value={true}>{t('receipt.cfdiQrYes')}</option>
+                </select>
+                <small style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('receipt.cfdiQrHelp')}</small>
+              </div>
+
+              {/* Toggle: Fiscal Disclaimer */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('receipt.showDisclaimer')}</label>
+                <select value={receiptForm.showFiscalDisclaimer || false} onChange={(e) => setReceiptForm({ ...receiptForm, showFiscalDisclaimer: e.target.value === 'true' })} style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                  <option value={false}>{t('receipt.disclaimerNo')}</option>
+                  <option value={true}>{t('receipt.disclaimerYes')}</option>
+                </select>
+                <small style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('receipt.disclaimerHelp')}</small>
+              </div>
+
+              {/* Editable disclaimer text — only shown when toggle is on */}
+              {receiptForm.showFiscalDisclaimer && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} className="fade-in">
+                  <label style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('receipt.disclaimerLabel')}</label>
+                  <input type="text" value={receiptForm.fiscalDisclaimer || ''} onChange={(e) => setReceiptForm({ ...receiptForm, fiscalDisclaimer: e.target.value })} style={{ padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }} />
                 </div>
               )}
             </div>
@@ -192,6 +242,18 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
             <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', fontStyle: 'italic' }}>
               <p>{receiptForm.footer || '¡Gracias por su compra!'}</p>
             </div>
+
+            {receiptForm.showCfdiQr && (
+              <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                <canvas ref={previewQrRef} style={{ maxWidth: '120px', maxHeight: '120px' }} />
+              </div>
+            )}
+
+            {receiptForm.showFiscalDisclaimer && receiptForm.fiscalDisclaimer && (
+              <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px', fontWeight: 'bold', color: '#555' }}>
+                {receiptForm.fiscalDisclaimer}
+              </div>
+            )}
           </div>
         </div>
 

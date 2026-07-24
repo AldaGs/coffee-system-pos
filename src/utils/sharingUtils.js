@@ -3,6 +3,8 @@ import { calculateTaxBreakdown } from './posMath';
 import * as htmlToImage from 'html-to-image';
 import { formatForDisplay } from './moneyUtils';
 import { useUpgradeNagStore } from '../store/useUpgradeNagStore';
+import QRCode from 'qrcode';
+import { buildCfdiUrl } from './cfdiUrl';
 
 export const convertLogoToESCPOS = async (base64Data) => {
   return new Promise((resolve) => {
@@ -216,6 +218,30 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
     pushText(`${numeroALetras(total)}\n`); // Note: numeroALetras was patched to expect centavos, so just pass `total`
     pushText("--------------------------------\n");
     pushText(`${receiptSettings.footer}\n`);
+
+    // --- CFDI QR Code (ESC/POS raster image) ---
+    if (receiptSettings.showCfdiQr && (ticket.local_id || ticket.id)) {
+      try {
+        const cfdiUrl = buildCfdiUrl(ticket.local_id || ticket.id);
+        const qrDataUrl = await QRCode.toDataURL(cfdiUrl, {
+          width: 200, margin: 1, errorCorrectionLevel: 'L',
+          color: { dark: '#000000', light: '#ffffff' },
+        });
+        pushCommand(ESC_ALIGN_CENTER);
+        const qrBytes = await convertLogoToESCPOS(qrDataUrl);
+        pushCommand(Array.from(qrBytes));
+        pushText("\n");
+      } catch (e) {
+        console.warn('Could not print CFDI QR:', e);
+      }
+    }
+
+    // --- Fiscal disclaimer ---
+    if (receiptSettings.showFiscalDisclaimer && receiptSettings.fiscalDisclaimer) {
+      pushCommand(ESC_ALIGN_CENTER);
+      pushText(`${receiptSettings.fiscalDisclaimer}\n`);
+    }
+
     pushText("\n\n\n");
 
     const finalBytes = new Uint8Array(receiptBuffer);
@@ -341,6 +367,17 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
 
   message += `--------------------------\n`;
   message += `\n${receiptSettings.footer}`;
+
+  // --- Fiscal disclaimer (WhatsApp) ---
+  if (receiptSettings.showFiscalDisclaimer && receiptSettings.fiscalDisclaimer) {
+    message += `\n\n_${receiptSettings.fiscalDisclaimer}_`;
+  }
+
+  // --- CFDI link (WhatsApp: plain URL instead of QR image) ---
+  if (receiptSettings.showCfdiQr && ticket && (ticket.local_id || ticket.id)) {
+    const cfdiUrl = buildCfdiUrl(ticket.local_id || ticket.id);
+    message += `\n\n📄 Solicita tu factura aquí:\n${cfdiUrl}`;
+  }
 
   const encodedMessage = encodeURIComponent(message);
   const targetPhone = `52${phone}`;

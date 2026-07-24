@@ -162,7 +162,10 @@ function Admin() {
       footer: "",
       logo: null,
       enableTaxBreakdown: false,
-      taxRate: 16
+      taxRate: 16,
+      showCfdiQr: false,
+      showFiscalDisclaimer: false,
+      fiscalDisclaimer: 'Este no es un comprobante fiscal',
     };
     const cached = localStorage.getItem('tinypos_cached_menu');
     if (cached) {

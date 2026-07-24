@@ -1,7 +1,10 @@
+import { useEffect, useRef } from 'react';
+import QRCode from 'qrcode';
 import { useTranslation } from '../../hooks/useTranslation';
 import { calculateItemizedTaxBreakdown } from '../../utils/posMath';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { numeroALetras } from '../../utils/numeroALetras';
+import { buildCfdiUrl } from '../../utils/cfdiUrl';
 
 const TicketImage = ({ id, ticket, receiptSettings, total }) => {
   const { t } = useTranslation();
@@ -23,6 +26,18 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
   const taxInfo = receiptSettings?.enableTaxBreakdown
     ? calculateItemizedTaxBreakdown(ticket.items, total, receiptSettings.taxRate || 16)
     : null;
+
+  // --- CFDI QR code on the receipt image ---
+  const qrCanvasRef = useRef(null);
+  const ticketId = ticket?.local_id || ticket?.id;
+  useEffect(() => {
+    if (!qrCanvasRef.current || !receiptSettings?.showCfdiQr || !ticketId) return;
+    const cfdiUrl = buildCfdiUrl(ticketId);
+    QRCode.toCanvas(qrCanvasRef.current, cfdiUrl, {
+      width: 120, margin: 1, errorCorrectionLevel: 'L',
+      color: { dark: '#111', light: '#ffffff' },
+    }).catch(console.error);
+  }, [receiptSettings?.showCfdiQr, ticketId]);
 
   return (
     <div id={id || "ticket-image-container"} style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'Courier New, Courier, monospace', fontSize: '14px', lineHeight: '1.2' }}>
@@ -141,6 +156,18 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
       <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '12px', fontStyle: 'italic' }}>
         <p>{receiptSettings?.footer || '¡Gracias por su compra!'}</p>
       </div>
+
+      {receiptSettings?.showCfdiQr && (
+        <div style={{ textAlign: 'center', marginTop: '10px' }}>
+          <canvas ref={qrCanvasRef} style={{ maxWidth: '120px', maxHeight: '120px' }} />
+        </div>
+      )}
+
+      {receiptSettings?.showFiscalDisclaimer && receiptSettings?.fiscalDisclaimer && (
+        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '10px', fontWeight: 'bold' }}>
+          {receiptSettings.fiscalDisclaimer}
+        </div>
+      )}
     </div>
   );
 };

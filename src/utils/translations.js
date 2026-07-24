@@ -730,6 +730,16 @@ export const translations = {
     "receipt.btnSave": "Save Global Receipt Settings",
     "receipt.previewTitle": "Live Preview",
     "receipt.logoAlt": "Shop Logo",
+    "receipt.cfdiSection": "CFDI / Invoicing",
+    "receipt.showCfdiQr": "Print CFDI QR Code on Tickets",
+    "receipt.cfdiQrNo": "No — Don't print QR",
+    "receipt.cfdiQrYes": "Yes — Print CFDI QR",
+    "receipt.cfdiQrHelp": "Adds a scannable QR code linking to the CFDI invoice request page for each ticket.",
+    "receipt.showDisclaimer": "Show Fiscal Disclaimer",
+    "receipt.disclaimerNo": "No — Hide disclaimer",
+    "receipt.disclaimerYes": "Yes — Show disclaimer",
+    "receipt.disclaimerHelp": "Prints a legal notice below the ticket total.",
+    "receipt.disclaimerLabel": "Disclaimer Text",
 
     // --- Recipe Builder Tab ---
     "recipe.title": "Recipe & Profit Sandbox",
@@ -2039,6 +2049,16 @@ export const translations = {
     "receipt.previewTitle": "Vista Previa",
     "receipt.logoAlt": "Logo de la Tienda",
     "receipt.logoHelp": "Subir logo",
+    "receipt.cfdiSection": "CFDI / Facturación",
+    "receipt.showCfdiQr": "Imprimir QR de CFDI en Tickets",
+    "receipt.cfdiQrNo": "No — No imprimir QR",
+    "receipt.cfdiQrYes": "Sí — Imprimir QR de CFDI",
+    "receipt.cfdiQrHelp": "Agrega un código QR escaneable que dirige a la página de solicitud de factura de cada ticket.",
+    "receipt.showDisclaimer": "Mostrar Aviso Fiscal",
+    "receipt.disclaimerNo": "No — Ocultar aviso",
+    "receipt.disclaimerYes": "Sí — Mostrar aviso",
+    "receipt.disclaimerHelp": "Imprime un aviso legal debajo del total del ticket.",
+    "receipt.disclaimerLabel": "Texto del Aviso",
 
     // --- Recipe Builder Tab ---
     "recipe.title": "Simulador de Recetas y Utilidad",
