@@ -112,14 +112,20 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
         if (cleanLog.deduction_type === 'sale') {
           const itemId = nameToId.get(cleanLog.item_name);
           if (itemId) {
-            const { error: rpcErr } = await supabase.rpc('deduct_inventory', {
-              item_id: Number(itemId),
-              qty: Number(cleanLog.qty_deducted)
+            // Idempotent deduction keyed on this log's local_id: if the online
+            // checkout (or an earlier replay) already applied it — including the
+            // "committed but timed out" case that requeued the sale — the server
+            // has claimed the id and this call decrements nothing. Prevents the
+            // slow-link double-count. Requires schema >= 1.1 (deduct_inventory_log).
+            const { error: rpcErr } = await supabase.rpc('deduct_inventory_log', {
+              p_local_id: cleanLog.local_id,
+              p_item_id: Number(itemId),
+              p_qty: Number(cleanLog.qty_deducted)
             });
-            if (rpcErr) { 
+            if (rpcErr) {
               console.error("RPC deduct failed:", rpcErr);
               if (rpcErr.status === 400 || rpcErr.status === 401) hasAuthError = true;
-              continue; 
+              continue;
             }
           }
         }
