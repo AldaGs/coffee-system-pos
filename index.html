@@ -11,6 +11,24 @@
     <meta name="apple-mobile-web-app-title" content="tinypos">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script>
+      // Suppress the browser's "Install tinypos" PWA prompt on customer-facing
+      // pages (CFDI invoice portal, public menu, custom domains). They ship as
+      // part of the tinypos PWA but a customer scanning a receipt shouldn't be
+      // nagged to install the whole POS. The POS app itself keeps the prompt.
+      // Registered inline in <head> because beforeinstallprompt can fire before
+      // the app module loads.
+      (function () {
+        var p = location.pathname, h = location.hostname;
+        var isCustomDomain = h && !h.includes('localhost') && !h.includes('127.0.0.1') &&
+          !h.endsWith('.vercel.app') && h !== 'tinypos.app' && h !== 'www.tinypos.app';
+        var isCustomerPage = p.indexOf('/cfdi/') === 0 || p === '/menu' ||
+          p.indexOf('/menu/') === 0 || isCustomDomain;
+        if (isCustomerPage) {
+          window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); });
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

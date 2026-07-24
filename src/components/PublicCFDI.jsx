@@ -289,7 +289,7 @@ function PublicCFDI({ ticketId }) {
   const formatMoney = (cents) => `$${(cents / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f6fa', fontFamily: 'system-ui', padding: '20px', boxSizing: 'border-box', overflowX: 'hidden' }}>
+    <div style={{ height: '100dvh', overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#f5f6fa', fontFamily: 'system-ui', padding: '20px', boxSizing: 'border-box', overflowX: 'hidden' }}>
       <style>{`
         .cfdi-page *, .cfdi-page *::before, .cfdi-page *::after { box-sizing: border-box; }
         .cfdi-page input, .cfdi-page select { width: 100%; max-width: 100%; }
