@@ -400,7 +400,7 @@ function CfdiTab({ showAlert, showConfirm }) {
 
   return (
     <div className="admin-tab">
-      <div className="tab-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="tab-header" style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
         <div>
           <h2 style={{ fontSize: '1.8rem', margin: '0 0 5px 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Icon icon="lucide:file-text" style={{ color: 'var(--brand-color)' }} />
@@ -408,16 +408,16 @@ function CfdiTab({ showAlert, showConfirm }) {
           </h2>
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>Gestiona las solicitudes de factura de tus clientes.</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => setShowGlobalConfig(!showGlobalConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
+          <button onClick={() => setShowGlobalConfig(!showGlobalConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
             <Icon icon="lucide:calendar-check" />
             Factura Global
           </button>
-          <button onClick={() => setShowDomainConfig(!showDomainConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={() => setShowDomainConfig(!showDomainConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
             <Icon icon="lucide:globe" />
             Configurar Dominio
           </button>
-          <button onClick={fetchRequests} disabled={loading} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={fetchRequests} disabled={loading} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexShrink: 0 }}>
             <Icon icon="lucide:refresh-cw" className={loading ? 'spin' : ''} />
           </button>
         </div>
