@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
+import { chunkArray, runSyncChunk } from '../utils/syncBatch';
 
 export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => {
   // Local ('guest') mode has no cloud project to sync to — data lives only in
@@ -23,20 +24,29 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
       return (sessionErr?.status === 400 || sessionErr?.status === 401);
     }
 
-    // 1. Sync Sales (Pulling directly from Dexie)
+    // 1. Sync Sales (Pulling directly from Dexie). Chunked so a big backlog can't
+    // blow the deadline as one giant upsert, and so each landed chunk clears from
+    // the queue independently — partial progress survives a mid-batch stall.
     const pendingSales = await db.syncQueue.toArray();
     if (pendingSales.length > 0) {
-      // Strip the local Dexie ID
-      const cleanSales = pendingSales.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
-      
-      const { error: salesErr } = await supabase.from('sales').upsert(cleanSales, { onConflict: 'local_id' });
-      if (!salesErr) {
-        await db.syncQueue.clear();
-        console.log(`☁️ Synced ${cleanSales.length} offline sales.`);
-      } else {
-        console.error("Sales sync failed:", salesErr);
-        if (salesErr.status === 400 || salesErr.status === 401) hasAuthError = true;
+      let synced = 0;
+      for (const chunk of chunkArray(pendingSales)) {
+        // Strip the local Dexie ID from the payload; keep it to delete on success.
+        const cleanSales = chunk.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
+        const { ok, authError } = await runSyncChunk(
+          () => supabase.from('sales').upsert(cleanSales, { onConflict: 'local_id' })
+        );
+        if (ok) {
+          await db.syncQueue.bulkDelete(chunk.map(r => r.id));
+          synced += chunk.length;
+        } else {
+          if (authError) hasAuthError = true;
+          // Link is down or the chunk is stuck: stop now and let the next interval
+          // (or the heartbeat's recovery close) resume from what's left.
+          break;
+        }
       }
+      if (synced > 0) console.log(`☁️ Synced ${synced} offline sales.`);
     }
 
     // 2. Sync Expenses (From LocalStorage)
@@ -57,15 +67,29 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     ).values()];
 
     if (dedupedExpenseQueue.length > 0) {
-      const { error: expErr } = await supabase.from('expenses').upsert(dedupedExpenseQueue, { onConflict: 'local_id' });
-      if (!expErr) {
-        if (clearExpenseQueue) clearExpenseQueue();
-        localStorage.setItem('tinypos_expense_queue', '[]');
-        console.log(`☁️ Synced ${dedupedExpenseQueue.length} offline expenses.`);
-      } else {
-        console.error("Expense sync failed:", expErr);
-        if (expErr.status === 400 || expErr.status === 401) hasAuthError = true;
+      // Chunk the upsert. Whatever doesn't land is folded into `remaining` and
+      // written back to localStorage, so synced chunks aren't re-sent while the
+      // rest waits for the next interval. The React-state queue is always cleared
+      // because every pending row is now represented in `remaining`.
+      const remaining = [];
+      let blocked = false;
+      let synced = 0;
+      for (const chunk of chunkArray(dedupedExpenseQueue)) {
+        if (blocked) { remaining.push(...chunk); continue; }
+        const { ok, authError } = await runSyncChunk(
+          () => supabase.from('expenses').upsert(chunk, { onConflict: 'local_id' })
+        );
+        if (ok) {
+          synced += chunk.length;
+        } else {
+          if (authError) hasAuthError = true;
+          blocked = true;
+          remaining.push(...chunk);
+        }
       }
+      if (clearExpenseQueue) clearExpenseQueue();
+      localStorage.setItem('tinypos_expense_queue', JSON.stringify(remaining));
+      if (synced > 0) console.log(`☁️ Synced ${synced} offline expenses.`);
     }
 
     // 3. Sync Inventory Logs
@@ -151,17 +175,27 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
       }
     }
 
-    // 5. Sync WhatsApp Queue
+    // 5. Sync WhatsApp Queue (chunked, same partial-progress shape as expenses).
     const waQueue = JSON.parse(localStorage.getItem('tinypos_wa_queue') || '[]');
     if (waQueue.length > 0) {
-      const { error: waErr } = await supabase.from('whatsapp_queue').upsert(waQueue, { onConflict: 'id' });
-      if (!waErr) {
-        localStorage.setItem('tinypos_wa_queue', '[]');
-        console.log(`☁️ Synced ${waQueue.length} WhatsApp receipts.`);
-      } else {
-        console.error("WA sync failed:", waErr);
-        if (waErr.status === 400 || waErr.status === 401) hasAuthError = true;
+      const remaining = [];
+      let blocked = false;
+      let synced = 0;
+      for (const chunk of chunkArray(waQueue)) {
+        if (blocked) { remaining.push(...chunk); continue; }
+        const { ok, authError } = await runSyncChunk(
+          () => supabase.from('whatsapp_queue').upsert(chunk, { onConflict: 'id' })
+        );
+        if (ok) {
+          synced += chunk.length;
+        } else {
+          if (authError) hasAuthError = true;
+          blocked = true;
+          remaining.push(...chunk);
+        }
       }
+      localStorage.setItem('tinypos_wa_queue', JSON.stringify(remaining));
+      if (synced > 0) console.log(`☁️ Synced ${synced} WhatsApp receipts.`);
     }
 
   } catch (err) {
