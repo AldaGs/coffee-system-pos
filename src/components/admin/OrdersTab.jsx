@@ -808,7 +808,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       {/* CFDI Modal */}
       {cfdiModal.isOpen && (
         <div className="modal-overlay">
-          <div className="modal" style={{ maxWidth: '400px' }}>
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
             <h2 style={{ marginBottom: '5px', fontSize: '1.4rem' }}>Emitir Factura</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '20px', fontSize: '0.9rem' }}>
               Ingresa el folio del CFDI generado en el portal del SAT para enviarlo al cliente y marcar el ticket como facturado.
