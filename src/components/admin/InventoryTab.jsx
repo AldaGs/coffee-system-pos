@@ -46,6 +46,73 @@ function todayStr() {
   return new Date(d.getTime() - off).toISOString().slice(0, 10);
 }
 
+// Build + persist a lot for `itemName` and return it. Shared by the transform,
+// receive, restock and manual "add batch" (backfill) flows so every entry point
+// writes an identical row shape.
+async function registerLot({ itemName, qty, unit, unitCost, madeDate, receivedDate, sourceName }) {
+  const made = madeDate || todayStr();
+  const lot = {
+    id: crypto.randomUUID(),
+    item_name: itemName,
+    lot_code: await nextLotCode(itemName, made),
+    made_date: made,
+    received_date: receivedDate || made,
+    qty_received: qty,
+    qty_remaining: qty,
+    unit: unit || null,
+    unit_cost: unitCost || 0,
+    source_name: sourceName || null,
+    notes: null,
+    local_id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+  };
+  await persistLot(lot);
+  return lot;
+}
+
+// Reduce a lot-tracked item's lots by `qty`, oldest roast first (FIFO). Used by
+// Audit when a loss/waste is logged, so lot remainders stay truthful — a lost
+// bag comes off the oldest roast. Returns the amount that couldn't be attributed
+// (lots ran dry — stock that predates lot tracking). Best-effort on the cloud.
+async function drawDownLotsFIFO(itemName, qty) {
+  let toConsume = qty;
+  const lots = (await db.inventory_lots.where('item_name').equals(itemName).toArray())
+    .filter(l => (Number(l.qty_remaining) || 0) > 0)
+    .sort((a, b) =>
+      String(a.made_date || '').localeCompare(String(b.made_date || '')) ||
+      String(a.created_at || '').localeCompare(String(b.created_at || '')));
+  for (const lot of lots) {
+    if (toConsume <= 0) break;
+    const take = Math.min(Number(lot.qty_remaining) || 0, toConsume);
+    const newRemaining = Math.max(0, Number((lot.qty_remaining - take).toFixed(6)));
+    await db.inventory_lots.update(lot.id, { qty_remaining: newRemaining });
+    if (!isLocalMode()) {
+      try { await supabase.from('inventory_lots').update({ qty_remaining: newRemaining }).eq('id', lot.id); }
+      catch (e) { console.warn('lot draw-down cloud update failed (kept local):', e?.message); }
+    }
+    toConsume -= take;
+  }
+  return toConsume;
+}
+
+// Add `qty` back to the newest lot (or open one if none). Used by Audit when a
+// surplus is found — the roast is unknown, so it lands on the most recent lot,
+// keeping sum(lot remaining) == stock.
+async function topUpNewestLot(itemName, qty, unit, unitCost) {
+  const lots = (await db.inventory_lots.where('item_name').equals(itemName).toArray())
+    .sort((a, b) =>
+      String(b.made_date || '').localeCompare(String(a.made_date || '')) ||
+      String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const newest = lots[0];
+  if (!newest) { await registerLot({ itemName, qty, unit, unitCost, madeDate: todayStr() }); return; }
+  const newRemaining = Number(((Number(newest.qty_remaining) || 0) + qty).toFixed(6));
+  await db.inventory_lots.update(newest.id, { qty_remaining: newRemaining });
+  if (!isLocalMode()) {
+    try { await supabase.from('inventory_lots').update({ qty_remaining: newRemaining }).eq('id', newest.id); }
+    catch (e) { console.warn('lot top-up cloud update failed (kept local):', e?.message); }
+  }
+}
+
 // A lot is one received/produced batch of a lot-tracked item (roasted coffee,
 // in-house syrup, prepped food). Offline-first: always mirror to Dexie; in cloud
 // mode also push to Supabase, keeping the local row if the push fails so nothing
@@ -142,7 +209,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   const [activeView, setActiveView] = useState('list'); // 'list', 'add', 'transform'
 
-  const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '', paymentSource: 'caja' });
+  const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '', paymentSource: 'caja', trackLots: false, madeDate: todayStr(), receivedDate: todayStr() });
   const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja', madeDate: todayStr(), receivedDate: todayStr() });
 
   // --- LOT / BATCH REGISTRY STATE ---
@@ -151,6 +218,11 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   // Which lot row is expanded to its sale draw-downs, and the loaded rows for it.
   const [expandedLotId, setExpandedLotId] = useState(null);
   const [lotConsumptions, setLotConsumptions] = useState([]);
+  // Manual "add batch" (backfill for stock that predates the feature — e.g. the
+  // roasts already in stock when tracking started). Creates a lot WITHOUT
+  // changing the stock count.
+  const [addingLot, setAddingLot] = useState(false);
+  const [lotForm, setLotForm] = useState({ itemId: '', qty: '', madeDate: todayStr(), receivedDate: todayStr() });
 
   // The batch report: which sales drew from a given lot (the sale -> roast link).
   const fetchLotConsumptions = async (lot) => {
@@ -174,6 +246,38 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     setExpandedLotId(lot.id);
     setLotConsumptions([]);
     fetchLotConsumptions(lot);
+  };
+
+  // Grams of an item already covered by open lots — used to prefill the backfill
+  // qty with just the untracked remainder so one click registers the gap without
+  // double-counting stock that's already lotted.
+  const lottedRemaining = (itemName) =>
+    lots.filter(l => l.item_name === itemName).reduce((s, l) => s + (Number(l.qty_remaining) || 0), 0);
+
+  const handleAddBatch = async () => {
+    const item = inventoryItems.find(i => String(i.id) === String(lotForm.itemId));
+    const qty = parseFloat(lotForm.qty);
+    if (!item || isNaN(qty) || qty <= 0) {
+      return showAlert(t('inv.alertMissing'), t('inv.alertMissingDesc2'));
+    }
+    try {
+      await registerLot({
+        itemName: item.name, qty, unit: item.unit, unitCost: item.unit_cost || 0,
+        madeDate: lotForm.madeDate, receivedDate: lotForm.receivedDate,
+      });
+      // Backfilling implicitly marks the item lot-tracked from here on.
+      if (!item.track_lots) {
+        const saved = await persistInventory({ track_lots: true }, item.id);
+        setInventoryItems(prev => prev.map(i => i.id === item.id ? { ...i, ...saved, track_lots: true } : i));
+      }
+      setAddingLot(false);
+      setLotForm({ itemId: '', qty: '', madeDate: todayStr(), receivedDate: todayStr() });
+      fetchLots();
+      showAlert(t('inv.lotAddedTitle'), `${t('inv.thLotCode')}: ${item.name} — ${qty}${item.unit}.`);
+    } catch (err) {
+      console.error('Add batch failed:', err);
+      showAlert(t('inv.alertError'), t('inv.alertError'));
+    }
   };
 
   // Load the batch registry for the Lots view. Cloud is the source of truth when
@@ -273,11 +377,25 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       name: newItem.name,
       current_stock: stockVal,
       unit: newItem.unit,
-      unit_cost: unitCostInMillicents
+      unit_cost: unitCostInMillicents,
+      // Received roasted coffee / batch product: flag it lot-tracked up front so
+      // the FIFO sale draw-down applies (outsourced roasting arrives here, not
+      // via the in-house Transform).
+      track_lots: !!newItem.trackLots
     };
 
     try {
       const saved = await persistInventory(itemToSave);
+
+      // Batch-tracked delivery: register this received quantity as its first lot.
+      if (newItem.trackLots && stockVal > 0) {
+        try {
+          await registerLot({
+            itemName: itemToSave.name, qty: stockVal, unit: newItem.unit,
+            unitCost: unitCostInMillicents, madeDate: newItem.madeDate, receivedDate: newItem.receivedDate,
+          });
+        } catch (e) { console.warn('Lot registration on receive skipped:', e?.message); }
+      }
 
       await persistInventoryLog({
         item_name: itemToSave.name,
@@ -306,7 +424,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       logActivity('inventory_created', null, { name: itemToSave.name, stock: stockVal, unit: itemToSave.unit });
 
       setInventoryItems([...inventoryItems, saved]);
-      setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '', paymentSource: 'caja' });
+      setNewItem({ name: '', current_stock: '', unit: 'g', total_cost: '', paymentSource: 'caja', trackLots: false, madeDate: todayStr(), receivedDate: todayStr() });
       setActiveView('list');
       useUpgradeNagStore.getState().trigger('inventory_logged');
 
@@ -526,6 +644,17 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       };
 
       await persistInventoryLog(auditLog);
+
+      // Keep the roast lots consistent with the corrected stock. A loss draws
+      // down the oldest roast first (FIFO); a found surplus tops up the newest
+      // lot — so sum(lot remaining) tracks the audited stock. Best-effort.
+      if (auditingItem.track_lots) {
+        try {
+          if (variance < 0) await drawDownLotsFIFO(auditingItem.name, Math.abs(variance));
+          else await topUpNewestLot(auditingItem.name, variance, auditingItem.unit, unitCost);
+        } catch (e) { console.warn('Audit lot reconciliation skipped:', e?.message); }
+      }
+
       setInventoryItems(inventoryItems.map(item => item.id === auditingItem.id ? saved : item));
       setAuditingItem(null);
 
@@ -582,6 +711,17 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         local_id: crypto.randomUUID()
       };
       await persistInventoryLog(restockLog);
+
+      // Batch-tracked item: a restock is a new delivery, so it always opens a new
+      // lot for the received quantity (dates from the restock form).
+      if (restockingItem.track_lots && qtyBought > 0) {
+        try {
+          await registerLot({
+            itemName: restockingItem.name, qty: qtyBought, unit: restockingItem.unit,
+            unitCost: newUnitCostInMillicents, madeDate: restockingItem.madeDate, receivedDate: restockingItem.receivedDate,
+          });
+        } catch (e) { console.warn('Lot registration on restock skipped:', e?.message); }
+      }
 
       // Like transform, record the money that left tagged by pocket so each
       // pocket (Caja / Banco / Dueño) reflects what's actually in it.
@@ -752,6 +892,28 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             </div>
             <button onClick={handleAddItem} style={{ padding: '12px 24px', background: '#2ecc71', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(46, 204, 113, 0.2)' }}>{t('inv.btnSave')}</button>
           </div>
+
+          {/* Batch tracking: for roasted coffee / in-house batches received here
+              (e.g. outsourced roasting). Reveals the roast + received dates. */}
+          <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, color: 'var(--text-main)' }}>
+              <input type="checkbox" checked={newItem.trackLots} onChange={e => setNewItem({ ...newItem, trackLots: e.target.checked })} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
+              <Icon icon="lucide:layers" style={{ color: '#16a085' }} />
+              {t('inv.trackBatches')}
+            </label>
+            {newItem.trackLots && (
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '14px' }}>
+                <div style={{ flex: '1 1 180px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.madeDate')}</label>
+                  <input type="date" value={newItem.madeDate} onChange={e => setNewItem({ ...newItem, madeDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+                </div>
+                <div style={{ flex: '1 1 180px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.receivedDate')}</label>
+                  <input type="date" value={newItem.receivedDate} onChange={e => setNewItem({ ...newItem, receivedDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -826,14 +988,58 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               <Icon icon="lucide:layers" />
               {t('inv.lotsTitle')}
             </h3>
-            <div style={{ width: '250px' }}>
-              <select value={lotFilterItem} onChange={e => setLotFilterItem(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
-                <option value="">{t('inv.filterAll')}</option>
-                {lotItemNames.map(name => <option key={name} value={name}>{name}</option>)}
-              </select>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ width: '220px' }}>
+                <select value={lotFilterItem} onChange={e => setLotFilterItem(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+                  <option value="">{t('inv.filterAll')}</option>
+                  {lotItemNames.map(name => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </div>
+              <button onClick={() => setAddingLot(v => !v)} style={{ padding: '10px 16px', background: addingLot ? '#95a5a6' : '#16a085', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Icon icon={addingLot ? 'lucide:x' : 'lucide:plus'} />{addingLot ? t('inv.btnCancel') : t('inv.btnAddBatch')}
+              </button>
             </div>
           </div>
           <p style={{ margin: '0 0 20px', fontSize: '0.88rem', color: 'var(--text-muted)' }}>{t('inv.lotsSubtitle')}</p>
+
+          {addingLot && (() => {
+            const selected = inventoryItems.find(i => String(i.id) === String(lotForm.itemId));
+            const gap = selected ? Math.max(0, (Number(selected.current_stock) || 0) - lottedRemaining(selected.name)) : 0;
+            return (
+            <div style={{ background: 'rgba(22, 160, 133, 0.05)', border: '1px solid rgba(22, 160, 133, 0.25)', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#16a085', textTransform: 'uppercase', marginBottom: '12px' }}>{t('inv.addBatchTitle')}</div>
+              <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: '2 1 200px' }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.itemName')}</label>
+                  <select value={lotForm.itemId} onChange={e => {
+                      const it = inventoryItems.find(i => String(i.id) === String(e.target.value));
+                      const prefill = it ? Math.max(0, (Number(it.current_stock) || 0) - lottedRemaining(it.name)) : '';
+                      setLotForm({ ...lotForm, itemId: e.target.value, qty: prefill ? String(prefill) : '' });
+                    }} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+                    <option value="">{t('inv.selectOption')}</option>
+                    {sortedItems.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div style={{ flex: '1 1 120px' }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.thReceivedQty')}{selected ? ` (${selected.unit})` : ''}</label>
+                  <input type="number" value={lotForm.qty} onChange={e => setLotForm({ ...lotForm, qty: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+                </div>
+                <div style={{ flex: '1 1 150px' }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.madeDate')}</label>
+                  <input type="date" value={lotForm.madeDate} onChange={e => setLotForm({ ...lotForm, madeDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+                </div>
+                <div style={{ flex: '1 1 150px' }}>
+                  <label style={{ display: 'block', fontSize: '0.82rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.receivedDate')}</label>
+                  <input type="date" value={lotForm.receivedDate} onChange={e => setLotForm({ ...lotForm, receivedDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+                </div>
+                <button onClick={handleAddBatch} style={{ padding: '12px 22px', background: '#16a085', color: 'white', border: 'none', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer' }}>{t('inv.btnSave')}</button>
+              </div>
+              <p style={{ margin: '12px 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                {t('inv.addBatchHint')}{selected ? ` ${t('inv.addBatchUntracked')}: ${gap}${selected.unit}.` : ''}
+              </p>
+            </div>
+            );
+          })()}
 
           <div style={{ overflowX: 'auto' }}>
             <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
@@ -1149,6 +1355,24 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               </button>
             </div>
           </div>
+
+          {/* Batch-tracked item: a restock is a new delivery, so it opens a new
+              lot. Capture the roast + received dates for it. */}
+          {restockingItem.track_lots && (
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginTop: '18px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#16a085', fontWeight: 600, flex: '1 1 100%' }}>
+                <Icon icon="lucide:layers" />{t('inv.restockNewBatch')}
+              </div>
+              <div style={{ flex: '1 1 180px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.madeDate')}</label>
+                <input type="date" value={restockingItem.madeDate} onChange={e => setRestockingItem({ ...restockingItem, madeDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              </div>
+              <div style={{ flex: '1 1 180px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.receivedDate')}</label>
+                <input type="date" value={restockingItem.receivedDate} onChange={e => setRestockingItem({ ...restockingItem, receivedDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1233,7 +1457,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               {lowItems.map(item => (
                 <button
                   key={item.id}
-                  onClick={() => { returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paymentSource: 'caja' }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }}
+                  onClick={() => { returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paymentSource: 'caja', madeDate: todayStr(), receivedDate: todayStr() }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }}
                   title={t('inv.restock')}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'var(--bg-surface)', border: '1px solid rgba(231, 76, 60, 0.3)', borderRadius: '20px', cursor: 'pointer', color: 'var(--text-main)', fontWeight: 'bold', fontSize: '0.9rem' }}
                 >
@@ -1323,7 +1547,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                           <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); setHistoryModalItem(item.name); fetchHistoryLogs(); }} style={menuItemStyle}>
                             <Icon icon="lucide:history" style={{ fontSize: '1.15rem', color: '#8e44ad' }} />{t('inv.btnHistory')}
                           </button>
-                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paymentSource: 'caja' }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }} style={menuItemStyle}>
+                          <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setRestockingItem({ ...item, qtyBought: '', totalPaid: '', paymentSource: 'caja', madeDate: todayStr(), receivedDate: todayStr() }); setEditingItem(null); setAuditingItem(null); setActiveView('list'); }} style={menuItemStyle}>
                             <Icon icon="lucide:package-plus" style={{ fontSize: '1.15rem', color: '#27ae60' }} />{t('inv.restock')}
                           </button>
                           <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); returnToItemId.current = item.id; setAuditingItem({ ...item, actualCount: item.current_stock, reason: 'waste' }); setEditingItem(null); setRestockingItem(null); setActiveView('list'); }} style={menuItemStyle}>
