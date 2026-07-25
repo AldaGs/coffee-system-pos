@@ -191,3 +191,71 @@ db.version(15).stores({
   fiscal_profiles: 'id, rfc'
 });
 
+// --- V16: ROAST / PRODUCTION LOT TRACEABILITY ---
+// inventory_lots: one row per received/produced batch of a lot-tracked item
+//   (roasted coffee, in-house syrup, prepped food). Holds a made_date
+//   (roast/production) and a received_date (arrival) — they differ when roasting
+//   is outsourced and the bags land a few days after the roast. The link key is
+//   item_name (inventory.name is UNIQUE), matching inventory_logs, so lots
+//   round-trip local<->cloud without an id-type mismatch. Client-generated UUID
+//   ids keep local and cloud rows identical. In cloud mode this is an offline
+//   mirror written best-effort alongside the Supabase insert; in local ('guest')
+//   mode it is the source of truth and migrates up on upgrade. Mirrors the cloud
+//   public.inventory_lots (migration 035). See components/admin/InventoryTab.jsx.
+db.version(16).stores({
+  sales: '++id, status, created_at, local_id',
+  menu: 'id',
+  syncQueue: '++id, local_id',
+  active_tickets: 'id, table_id',
+  inventory: 'id, name',
+  inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+  updateQueue: '++id, type, local_id',
+  tip_payouts: '++id, created_at, local_id',
+  tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id',
+  expenses: 'id, timestamp, cashierId',
+  shift_state: 'key',
+  app_local: 'key',
+  menu_local: 'id, type',
+  customers: 'phone',
+  nag_state: 'key',
+  vendors: 'id, sort_order',
+  vendor_payouts: '++id, vendor_id, created_at, local_id',
+  floor_plan: 'id, zone, sort_order',
+  tables: 'id, floor_id, zone, number',
+  fiscal_profiles: 'id, rfc',
+  inventory_lots: 'id, item_name, made_date, created_at, local_id'
+});
+
+// --- V17: FIFO LOT DRAW-DOWN ---
+// lot_consumptions: one row per lot a sale drew from (lot_id -> sales,
+//   ticket_id -> lots), written when a lot-tracked item sells and checkout
+//   consumes the oldest roast lot first. deduction_local_id ties each row back
+//   to the inventory_logs.local_id that caused the draw-down. Offline-first like
+//   inventory_lots: always mirrored to Dexie, pushed to Supabase best-effort when
+//   online. Mirrors the cloud public.lot_consumptions (migration 036). See
+//   src/services/checkoutService.js and components/admin/InventoryTab.jsx.
+db.version(17).stores({
+  sales: '++id, status, created_at, local_id',
+  menu: 'id',
+  syncQueue: '++id, local_id',
+  active_tickets: 'id, table_id',
+  inventory: 'id, name',
+  inventory_logs: '++id, item_name, created_at, ticket_id, local_id',
+  updateQueue: '++id, type, local_id',
+  tip_payouts: '++id, created_at, local_id',
+  tip_events: '++id, event_type, created_at, sale_local_id, payout_local_id, local_id',
+  expenses: 'id, timestamp, cashierId',
+  shift_state: 'key',
+  app_local: 'key',
+  menu_local: 'id, type',
+  customers: 'phone',
+  nag_state: 'key',
+  vendors: 'id, sort_order',
+  vendor_payouts: '++id, vendor_id, created_at, local_id',
+  floor_plan: 'id, zone, sort_order',
+  tables: 'id, floor_id, zone, number',
+  fiscal_profiles: 'id, rfc',
+  inventory_lots: 'id, item_name, made_date, created_at, local_id',
+  lot_consumptions: 'id, lot_id, item_name, ticket_id, deduction_local_id, created_at, local_id'
+});
+

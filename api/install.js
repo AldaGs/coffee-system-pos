@@ -1329,6 +1329,62 @@ export default async function handler(req, res) {
     $$ LANGUAGE plpgsql SECURITY DEFINER;
 
     -- ==========================================
+    -- ROAST / PRODUCTION LOT TRACEABILITY (migration 035). A "lot" is one
+    -- received/produced batch of a lot-tracked item, carrying a made_date
+    -- (roast/production) and a received_date (arrival) which differ when
+    -- roasting is outsourced. inventory.track_lots flags participating items;
+    -- it is set true automatically when an item is a Transform target. Link key
+    -- is item_name (inventory.name is UNIQUE) so rows round-trip local<->cloud.
+    -- ==========================================
+    ALTER TABLE public.inventory
+      ADD COLUMN IF NOT EXISTS track_lots boolean NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS public.inventory_lots (
+      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      item_name     text NOT NULL,
+      lot_code      text,
+      made_date     date,
+      received_date date,
+      qty_received  numeric NOT NULL DEFAULT 0,
+      qty_remaining numeric NOT NULL DEFAULT 0,
+      unit          text,
+      unit_cost     numeric DEFAULT 0,
+      source_name   text,
+      notes         text,
+      local_id      uuid UNIQUE,
+      created_at    timestamptz DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS inventory_lots_item_made_idx
+      ON public.inventory_lots (item_name, made_date);
+    ALTER TABLE public.inventory_lots ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Authenticated can access inventory_lots" ON public.inventory_lots;
+    CREATE POLICY "Authenticated can access inventory_lots" ON public.inventory_lots
+      FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+    -- ==========================================
+    -- FIFO LOT DRAW-DOWN (migration 036). One row per lot a sale drew from:
+    -- lot_id -> the sales that consumed it, ticket_id -> the lot(s) it used.
+    -- Additive; stock stays owned by inventory.current_stock.
+    -- ==========================================
+    CREATE TABLE IF NOT EXISTS public.lot_consumptions (
+      id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      lot_id             uuid,
+      lot_code           text,
+      item_name          text,
+      qty                numeric NOT NULL DEFAULT 0,
+      ticket_id          text,
+      deduction_local_id uuid,
+      created_at         timestamptz DEFAULT now(),
+      local_id           uuid UNIQUE
+    );
+    CREATE INDEX IF NOT EXISTS lot_consumptions_lot_idx    ON public.lot_consumptions (lot_id);
+    CREATE INDEX IF NOT EXISTS lot_consumptions_ticket_idx ON public.lot_consumptions (ticket_id);
+    ALTER TABLE public.lot_consumptions ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Authenticated can access lot_consumptions" ON public.lot_consumptions;
+    CREATE POLICY "Authenticated can access lot_consumptions" ON public.lot_consumptions
+      FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+    -- ==========================================
     -- APP USERS: unified allowlist for who may sign into this tinypos.
     -- NOTE: this block deliberately avoids ALL references to the auth schema
     -- (no FK to auth.users, no trigger on auth.users, no backfill SELECT
@@ -1477,7 +1533,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (true);
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '1.1', now())
+    VALUES ('schema_version', '1.3', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

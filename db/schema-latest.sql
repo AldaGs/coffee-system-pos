@@ -1352,6 +1352,55 @@
     GRANT EXECUTE ON FUNCTION public.claim_or_bootstrap_app_user() TO authenticated;
 
     -- ==========================================
+    -- ROAST / PRODUCTION LOT TRACEABILITY (migration 035).
+    -- ==========================================
+    ALTER TABLE public.inventory
+      ADD COLUMN IF NOT EXISTS track_lots boolean NOT NULL DEFAULT false;
+
+    CREATE TABLE IF NOT EXISTS public.inventory_lots (
+      id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      item_name     text NOT NULL,
+      lot_code      text,
+      made_date     date,
+      received_date date,
+      qty_received  numeric NOT NULL DEFAULT 0,
+      qty_remaining numeric NOT NULL DEFAULT 0,
+      unit          text,
+      unit_cost     numeric DEFAULT 0,
+      source_name   text,
+      notes         text,
+      local_id      uuid UNIQUE,
+      created_at    timestamptz DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS inventory_lots_item_made_idx
+      ON public.inventory_lots (item_name, made_date);
+    ALTER TABLE public.inventory_lots ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Authenticated can access inventory_lots" ON public.inventory_lots;
+    CREATE POLICY "Authenticated can access inventory_lots" ON public.inventory_lots
+      FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+    -- ==========================================
+    -- FIFO LOT DRAW-DOWN (migration 036).
+    -- ==========================================
+    CREATE TABLE IF NOT EXISTS public.lot_consumptions (
+      id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      lot_id             uuid,
+      lot_code           text,
+      item_name          text,
+      qty                numeric NOT NULL DEFAULT 0,
+      ticket_id          text,
+      deduction_local_id uuid,
+      created_at         timestamptz DEFAULT now(),
+      local_id           uuid UNIQUE
+    );
+    CREATE INDEX IF NOT EXISTS lot_consumptions_lot_idx    ON public.lot_consumptions (lot_id);
+    CREATE INDEX IF NOT EXISTS lot_consumptions_ticket_idx ON public.lot_consumptions (ticket_id);
+    ALTER TABLE public.lot_consumptions ENABLE ROW LEVEL SECURITY;
+    DROP POLICY IF EXISTS "Authenticated can access lot_consumptions" ON public.lot_consumptions;
+    CREATE POLICY "Authenticated can access lot_consumptions" ON public.lot_consumptions
+      FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+    -- ==========================================
     -- SCHEMA META — version stamp the install just landed.
     -- When the JS APP_SCHEMA_VERSION differs from value here the General
     -- Settings tab surfaces "Update available." Bump this literal AND

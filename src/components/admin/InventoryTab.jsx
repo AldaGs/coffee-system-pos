@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -36,6 +36,42 @@ async function persistInventoryLog(log) {
   if (isLocalMode()) { await db.inventory_logs.add(log); return; }
   const { error } = await supabase.from('inventory_logs').insert([log]);
   if (error) throw error;
+}
+
+// Local date (yyyy-mm-dd) for the <input type="date"> defaults — NOT UTC, so the
+// picker never shows "yesterday" for an evening roast.
+function todayStr() {
+  const d = new Date();
+  const off = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - off).toISOString().slice(0, 10);
+}
+
+// A lot is one received/produced batch of a lot-tracked item (roasted coffee,
+// in-house syrup, prepped food). Offline-first: always mirror to Dexie; in cloud
+// mode also push to Supabase, keeping the local row if the push fails so nothing
+// is lost (a later fetch reconciles). Same id in both stores (client UUID).
+async function persistLot(lot) {
+  await db.inventory_lots.put(lot);
+  if (!isLocalMode()) {
+    try {
+      const { error } = await supabase.from('inventory_lots').insert([lot]);
+      if (error) throw error;
+    } catch (e) {
+      console.warn('inventory_lots cloud insert failed (kept local):', e?.message);
+    }
+  }
+}
+
+// Human-readable batch code: L-<made date>-<letter>, the letter distinguishing
+// multiple lots of the same item roasted/made on the same day (A, B, C…).
+async function nextLotCode(itemName, madeDate) {
+  let sameDay = 0;
+  try {
+    sameDay = await db.inventory_lots
+      .where('item_name').equals(itemName)
+      .filter(l => l.made_date === madeDate).count();
+  } catch { /* index/store may be mid-upgrade — fall back to suffix A */ }
+  return `L-${madeDate}-${String.fromCharCode(65 + (sameDay % 26))}`;
 }
 
 async function persistInventoryExpense(expense) {
@@ -107,7 +143,58 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   const [activeView, setActiveView] = useState('list'); // 'list', 'add', 'transform'
 
   const [newItem, setNewItem] = useState({ name: '', current_stock: '', unit: 'g', total_cost: '', paymentSource: 'caja' });
-  const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja' });
+  const [transformForm, setTransformForm] = useState({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja', madeDate: todayStr(), receivedDate: todayStr() });
+
+  // --- LOT / BATCH REGISTRY STATE ---
+  const [lots, setLots] = useState([]);
+  const [lotFilterItem, setLotFilterItem] = useState('');
+  // Which lot row is expanded to its sale draw-downs, and the loaded rows for it.
+  const [expandedLotId, setExpandedLotId] = useState(null);
+  const [lotConsumptions, setLotConsumptions] = useState([]);
+
+  // The batch report: which sales drew from a given lot (the sale -> roast link).
+  const fetchLotConsumptions = async (lot) => {
+    const sortLocal = (rows) => [...rows].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    try {
+      if (isLocalMode()) {
+        setLotConsumptions(sortLocal(await db.lot_consumptions.where('lot_id').equals(lot.id).toArray()));
+        return;
+      }
+      const { data, error } = await supabase.from('lot_consumptions').select('*').eq('lot_id', lot.id).order('created_at', { ascending: false });
+      if (error) throw error;
+      setLotConsumptions(data || []);
+    } catch (err) {
+      console.error('Failed to load lot draw-downs:', err);
+      try { setLotConsumptions(sortLocal(await db.lot_consumptions.where('lot_id').equals(lot.id).toArray())); } catch { setLotConsumptions([]); }
+    }
+  };
+
+  const toggleLotExpand = (lot) => {
+    if (expandedLotId === lot.id) { setExpandedLotId(null); setLotConsumptions([]); return; }
+    setExpandedLotId(lot.id);
+    setLotConsumptions([]);
+    fetchLotConsumptions(lot);
+  };
+
+  // Load the batch registry for the Lots view. Cloud is the source of truth when
+  // reachable (and is mirrored into Dexie for offline reads); otherwise fall back
+  // to the local mirror so lots created on this device still show.
+  const fetchLots = async () => {
+    const sortLocal = (rows) => [...rows].sort((a, b) => String(b.made_date || '').localeCompare(String(a.made_date || '')));
+    try {
+      if (isLocalMode()) {
+        setLots(sortLocal(await db.inventory_lots.toArray()));
+        return;
+      }
+      const { data, error } = await supabase.from('inventory_lots').select('*').order('made_date', { ascending: false });
+      if (error) throw error;
+      setLots(data || []);
+      try { await db.inventory_lots.bulkPut(data || []); } catch { /* mirror best-effort */ }
+    } catch (err) {
+      console.error('Failed to load lots:', err);
+      try { setLots(sortLocal(await db.inventory_lots.toArray())); } catch { /* ignore */ }
+    }
+  };
   const [editingItem, setEditingItem] = useState(null);
 
   // --- NEW: AUDIT STATE ---
@@ -120,6 +207,12 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
   // Which row's actions menu (kebab) is open. Only one at a time.
   const [menuOpenId, setMenuOpenId] = useState(null);
+  // Screen-space anchor for the row actions menu. The menu renders position:fixed
+  // off these coords so it escapes the list card's `overflow:hidden` and the
+  // `.admin-section` overflow trap (overflow-x:auto forces overflow-y:auto),
+  // either of which clips an absolutely-positioned dropdown — badly when there
+  // are only a couple of rows and no scroll room below.
+  const [menuAnchor, setMenuAnchor] = useState(null);
 
   // Auto-scroll between the row-triggered editor panels (edit/restock/audit),
   // which render above the list, and the list row itself. The scroll container
@@ -333,8 +426,38 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
         catch (e) { console.error('Failed to log transform cost expense:', e); }
       }
 
+      // Register this batch as a lot and flag the target item as lot-tracked.
+      // Best-effort and isolated in its own try/catch AFTER the core transform
+      // (stock deduction) has committed, so a device that updated the app but
+      // hasn't applied schema 1.2 yet still roasts normally — it just doesn't
+      // get the lot until the schema banner is applied.
+      try {
+        const madeDate = transformForm.madeDate || todayStr();
+        const receivedDate = transformForm.receivedDate || madeDate;
+        const lot = {
+          id: crypto.randomUUID(),
+          item_name: targetItemPayload.name,
+          lot_code: await nextLotCode(targetItemPayload.name, madeDate),
+          made_date: madeDate,
+          received_date: receivedDate,
+          qty_received: finalYieldQty,
+          qty_remaining: finalYieldQty,
+          unit: sourceItem.unit,
+          unit_cost: finalUnitCost,
+          source_name: sourceItem.name,
+          notes: null,
+          local_id: crypto.randomUUID(),
+          created_at: new Date().toISOString()
+        };
+        await persistLot(lot);
+        const trackUpdated = await persistInventory({ track_lots: true }, targetRow.id);
+        setInventoryItems(prev => prev.map(i => i.id === targetRow.id ? { ...i, ...trackUpdated, track_lots: true } : i));
+      } catch (e) {
+        console.warn('Lot registry update skipped (schema 1.2 not applied?):', e?.message);
+      }
+
       setActiveView('list');
-      setTransformForm({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja' });
+      setTransformForm({ sourceItemId: '', amountUsed: '', yieldQty: '', targetItemName: '', operationalCost: '', paymentSource: 'caja', madeDate: todayStr(), receivedDate: todayStr() });
 
       const successMsg = existingTarget
         ? `${t('inv.added')} ${finalYieldQty}g ${t('inv.to')} ${existingTarget.name}. ${t('inv.newTotal')} ${finalStockForTarget}g ${t('inv.at')} ${formatMillicentsForDisplay(finalUnitCost)}/g.`
@@ -576,6 +699,19 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             <Icon icon={activeView === 'deleted' ? 'lucide:x' : 'lucide:trash-2'} />
             {activeView === 'deleted' ? t('inv.btnCancel') : t('inv.btnDeleted')}
           </button>
+          <button
+            onClick={() => {
+              const newView = activeView === 'lots' ? 'list' : 'lots';
+              setActiveView(newView);
+              setEditingItem(null);
+              setAuditingItem(null);
+              if (newView === 'lots') fetchLots();
+            }}
+            style={{ padding: '12px 20px', background: activeView === 'lots' ? '#95a5a6' : '#16a085', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(22, 160, 133, 0.2)' }}
+          >
+            <Icon icon={activeView === 'lots' ? 'lucide:x' : 'lucide:layers'} />
+            {activeView === 'lots' ? t('inv.btnCancel') : t('inv.btnLots')}
+          </button>
         </div>
       </div>
 
@@ -625,7 +761,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             <Icon icon="lucide:flame" />
             {t('inv.roastTitle')}
           </h3>
-          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1.3fr 2fr auto', gap: '16px', alignItems: 'flex-end' }}>
+          <div className="admin-form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px', alignItems: 'flex-end' }}>
             <div style={{ minWidth: '150px' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.rawMaterial')}</label>
               <select value={transformForm.sourceItemId} onChange={e => setTransformForm({ ...transformForm, sourceItemId: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
@@ -654,6 +790,14 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               </select>
             </div>
             <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.madeDate')}</label>
+              <input type="date" value={transformForm.madeDate} onChange={e => setTransformForm({ ...transformForm, madeDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.receivedDate')}</label>
+              <input type="date" value={transformForm.receivedDate} onChange={e => setTransformForm({ ...transformForm, receivedDate: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
+            </div>
+            <div>
               <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.targetItem')}</label>
               <input
                 type="text"
@@ -671,6 +815,95 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
           </div>
         </div>
       )}
+
+      {activeView === 'lots' && (() => {
+        const lotItemNames = [...new Set(lots.map(l => l.item_name))].sort();
+        const shown = lots.filter(l => !lotFilterItem || l.item_name === lotFilterItem);
+        return (
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', marginBottom: '24px', border: '1px solid var(--border)', boxShadow: '0 10px 20px rgba(0,0,0,0.05)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '12px' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#16a085' }}>
+              <Icon icon="lucide:layers" />
+              {t('inv.lotsTitle')}
+            </h3>
+            <div style={{ width: '250px' }}>
+              <select value={lotFilterItem} onChange={e => setLotFilterItem(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}>
+                <option value="">{t('inv.filterAll')}</option>
+                {lotItemNames.map(name => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </div>
+          </div>
+          <p style={{ margin: '0 0 20px', fontSize: '0.88rem', color: 'var(--text-muted)' }}>{t('inv.lotsSubtitle')}</p>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', minWidth: '820px' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thLotCode')}</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.itemName')}</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thMadeDate')}</th>
+                  <th style={{ textAlign: 'left', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thReceivedDate')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thReceivedQty')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thSold')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thRemaining')}</th>
+                  <th style={{ textAlign: 'right', padding: '12px', borderBottom: '2px solid var(--border)' }}>{t('inv.thUnitCost')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((lot, idx) => {
+                  const sold = Math.max(0, (Number(lot.qty_received) || 0) - (Number(lot.qty_remaining) || 0));
+                  const isOpen = expandedLotId === lot.id;
+                  return (
+                  <Fragment key={lot.id || lot.local_id || idx}>
+                  <tr onClick={() => toggleLotExpand(lot)} className="hover-row" style={{ borderBottom: isOpen ? 'none' : '1px solid var(--border)', cursor: 'pointer' }}>
+                    <td style={{ padding: '12px', fontWeight: 'bold', fontFamily: 'monospace' }}>
+                      <Icon icon={isOpen ? 'lucide:chevron-down' : 'lucide:chevron-right'} style={{ verticalAlign: 'middle', marginRight: '6px', color: 'var(--text-muted)' }} />
+                      {lot.lot_code || '—'}
+                    </td>
+                    <td style={{ padding: '12px' }}>{lot.item_name}</td>
+                    <td style={{ padding: '12px', color: 'var(--text-muted)' }}>{lot.made_date || '—'}</td>
+                    <td style={{ padding: '12px', color: 'var(--text-muted)' }}>{lot.received_date || '—'}</td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>{lot.qty_received}{lot.unit}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', color: 'var(--text-muted)' }}>{sold}{lot.unit}</td>
+                    <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold' }}>{lot.qty_remaining}{lot.unit}</td>
+                    <td style={{ padding: '12px', textAlign: 'right' }}>{formatMillicentsForDisplay(lot.unit_cost || 0)}/{lot.unit}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td colSpan={8} style={{ padding: '0 12px 16px 34px', background: 'rgba(22, 160, 133, 0.04)' }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '12px 0 6px' }}>{t('inv.drawdownTitle')}</div>
+                        {lotConsumptions.length === 0 ? (
+                          <div style={{ padding: '8px 0 4px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('inv.drawdownEmpty')}</div>
+                        ) : (
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <tbody>
+                              {lotConsumptions.map((c, i) => (
+                                <tr key={c.id || c.local_id || i}>
+                                  <td style={{ padding: '5px 0', color: 'var(--text-muted)', fontSize: '0.88rem', width: '190px' }}>{c.created_at ? new Date(c.created_at).toLocaleString() : '—'}</td>
+                                  <td style={{ padding: '5px 0', fontSize: '0.88rem' }}>{t('inv.drawdownTicket')} {c.ticket_id || '—'}</td>
+                                  <td style={{ padding: '5px 0', textAlign: 'right', fontWeight: 'bold', fontSize: '0.88rem' }}>{c.qty}{lot.unit}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                  );
+                })}
+                {shown.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('inv.lotsEmpty')}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        );
+      })()}
 
       {activeView === 'deleted' && (() => {
         const deletedItemNames = [...new Set(historyLogs.map(l => l.item_name))].filter(name => !inventoryItems.find(i => i.name === name));
@@ -1041,7 +1274,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             </tr>
           </thead>
           <tbody>
-            {sortedItems.map((item, idx) => (
+            {sortedItems.map((item) => (
               <tr
                 key={item.id}
                 ref={(el) => {
@@ -1064,7 +1297,12 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                 <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
                   <div style={{ position: 'relative', display: 'inline-block' }}>
                     <button
-                      onClick={() => setMenuOpenId(menuOpenId === item.id ? null : item.id)}
+                      onClick={(e) => {
+                        if (menuOpenId === item.id) { setMenuOpenId(null); return; }
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setMenuAnchor({ top: r.top, bottom: r.bottom, right: window.innerWidth - r.right });
+                        setMenuOpenId(item.id);
+                      }}
                       title={t('inv.thActions')}
                       aria-haspopup="menu"
                       aria-expanded={menuOpenId === item.id}
@@ -1073,11 +1311,15 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                       <Icon icon="lucide:more-vertical" style={{ fontSize: '1.2rem' }} />
                     </button>
 
-                    {menuOpenId === item.id && (
+                    {menuOpenId === item.id && menuAnchor && (() => {
+                      // Flip upward when there isn't room for the ~5-item menu below.
+                      const MENU_H = 260;
+                      const openUp = menuAnchor.bottom + MENU_H > window.innerHeight;
+                      return (
                       <>
                         {/* click-away backdrop */}
                         <div onClick={() => setMenuOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-                        <div role="menu" style={{ position: 'absolute', ...(sortedItems.length > 3 && idx >= sortedItems.length - 2 ? { bottom: 'calc(100% + 6px)' } : { top: 'calc(100% + 6px)' }), right: 0, zIndex: 41, minWidth: '180px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 12px 30px rgba(0,0,0,0.18)', overflow: 'hidden', padding: '6px' }}>
+                        <div role="menu" style={{ position: 'fixed', ...(openUp ? { bottom: window.innerHeight - menuAnchor.top + 6 } : { top: menuAnchor.bottom + 6 }), right: menuAnchor.right, zIndex: 41, minWidth: '180px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 12px 30px rgba(0,0,0,0.18)', overflow: 'hidden', padding: '6px' }}>
                           <button role="menuitem" className="inv-menu-item" onClick={() => { setMenuOpenId(null); setHistoryModalItem(item.name); fetchHistoryLogs(); }} style={menuItemStyle}>
                             <Icon icon="lucide:history" style={{ fontSize: '1.15rem', color: '#8e44ad' }} />{t('inv.btnHistory')}
                           </button>
@@ -1095,7 +1337,8 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                           </button>
                         </div>
                       </>
-                    )}
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>

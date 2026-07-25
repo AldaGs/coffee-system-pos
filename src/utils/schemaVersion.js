@@ -17,6 +17,19 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.3 — FIFO lot draw-down: the `lot_consumptions` table (migration 036) records
+//       which roast/production lot each sale drew from (lot_id -> sales,
+//       ticket_id -> lots). When a lot-tracked item sells, checkout consumes the
+//       oldest lot first and decrements inventory_lots.qty_remaining. This is the
+//       sale -> roast link behind the batch report. Additive: stock stays owned
+//       by inventory.current_stock / deduct_inventory_log.
+// 1.2 — roast / production lot traceability: the `inventory_lots` registry plus
+//       the `inventory.track_lots` flag (migration 035). Each lot is one
+//       received/produced batch of a lot-tracked item (roasted coffee, in-house
+//       syrup, prepped food), carrying a made_date (roast/production) and a
+//       received_date (arrival) which differ when roasting is outsourced.
+//       track_lots is set true automatically when an item is a Transform target.
+//       Additive: no change to stock counts or the deduction path.
 // 1.1 — idempotent inventory deduction: the `inventory_deductions_applied` dedup
 //       table plus `deduct_inventory_log(local_id, item_id, qty)` (migration 034).
 //       Binds each stock decrement to the inventory_logs.local_id it came from and
@@ -67,4 +80,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.1';
+export const APP_SCHEMA_VERSION = '1.3';

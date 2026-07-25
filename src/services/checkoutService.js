@@ -82,6 +82,80 @@ export const validateStockLocally = async ({ activeTicket, recipes }) => {
   return null;
 };
 
+// FIFO roast/production lot draw-down — the sale -> roast link (schema >= 1.3).
+//
+// Runs once, AFTER the stock deduction loop has fully succeeded, driven by the
+// same inventoryLogsToPush array that already aggregates every sale deduction
+// (item_name + qty + ticket_id + local_id). For each lot-tracked item sold, it
+// consumes the oldest roast lot first (FIFO by made_date), decrements
+// inventory_lots.qty_remaining and writes a lot_consumptions row per lot touched.
+//
+// Deliberately additive and best-effort: it NEVER throws into checkout (the
+// caller wraps it in its own try/catch too), so a missing schema, an empty lot
+// registry, or a cloud hiccup can't block or reverse a sale. Stock counts stay
+// owned by inventory.current_stock / deduct_inventory_log; this only attributes
+// which roast the bags came from. If a lot-tracked item outruns its lots (stock
+// that predates lot tracking), the remainder is simply left unattributed.
+//
+// Lots are read from Dexie (the offline-first mirror), so on a single-register
+// setup — the roaster's own shop — this is exact. Multi-device installs where
+// lots were created on another device that hasn't synced into this Dexie yet may
+// under-attribute; stock is still correct.
+async function applyLotConsumption(logs, inventory, isOnline) {
+  for (const log of logs) {
+    if (log.deduction_type !== 'sale') continue;
+    let toConsume = Number(log.qty_deducted) || 0;
+    if (toConsume <= 0) continue;
+
+    const invItem = inventory.find(i => i.name === log.item_name);
+    if (!invItem || !invItem.track_lots) continue;
+
+    // This item's lots with stock left, oldest roast first (made_date, then
+    // created_at as a stable tiebreak for two lots roasted the same day).
+    const lots = (await db.inventory_lots.where('item_name').equals(log.item_name).toArray())
+      .filter(l => (Number(l.qty_remaining) || 0) > 0)
+      .sort((a, b) =>
+        String(a.made_date || '').localeCompare(String(b.made_date || '')) ||
+        String(a.created_at || '').localeCompare(String(b.created_at || '')));
+
+    for (const lot of lots) {
+      if (toConsume <= 0) break;
+      const take = Math.min(Number(lot.qty_remaining) || 0, toConsume);
+      if (take <= 0) continue;
+      const newRemaining = Math.max(0, Number((lot.qty_remaining - take).toFixed(6)));
+
+      const consumption = {
+        id: crypto.randomUUID(),
+        lot_id: lot.id,
+        lot_code: lot.lot_code || null,
+        item_name: log.item_name,
+        qty: take,
+        ticket_id: log.ticket_id,
+        deduction_local_id: log.local_id,
+        created_at: log.created_at,
+        local_id: crypto.randomUUID(),
+      };
+
+      await db.lot_consumptions.put(consumption);
+      await db.inventory_lots.update(lot.id, { qty_remaining: newRemaining });
+      lot.qty_remaining = newRemaining;
+
+      if (isOnline) {
+        try {
+          const { error: cErr } = await supabase.from('lot_consumptions').insert([consumption]);
+          if (cErr) throw cErr;
+          const { error: uErr } = await supabase.from('inventory_lots').update({ qty_remaining: newRemaining }).eq('id', lot.id);
+          if (uErr) throw uErr;
+        } catch (e) {
+          console.warn('lot consumption cloud write failed (kept local):', e?.message);
+        }
+      }
+
+      toConsume -= take;
+    }
+  }
+}
+
 export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0, loyaltySettings = null }) => {
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;
@@ -301,6 +375,15 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
       }
     }
 
+    // --- FIFO ROAST/LOT DRAW-DOWN (additive, best-effort) ---
+    // Attribute each lot-tracked bag sold to the roast it came from. Isolated so
+    // a lot/schema issue can never disturb the sale or its stock deduction.
+    try {
+      await applyLotConsumption(inventoryLogsToPush, currentInventory, isOnline);
+    } catch (e) {
+      console.warn('lot consumption skipped:', e?.message);
+    }
+
     // --- CLOUD SYNC ATTEMPT ---
     if (!isOnline) throw new Error("Device is offline");
 
@@ -314,15 +397,38 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     }
 
   } catch (error) {
-    console.warn("Cloud sync deferred:", error.message);
-    const { id: _UNUSED, ...safeOfflineSale } = finalizedSale;
+    const msg = error?.message || '';
 
+    // Distinguish two very different failures that both land here:
+    //  - A DEDUCTION failure — insufficient stock, or the deduct_inventory_log
+    //    RPC erroring (missing function, permission, bad signature). Stock was
+    //    NOT decremented and sync replay does NOT re-run the deduct RPC, so this
+    //    can't be quietly deferred: it must reach the cashier, or the sale looks
+    //    successful while inventory (and roast-lot) tracking silently drift.
+    //  - A benign cloud/offline sync deferral (the sales/inventory_logs upserts
+    //    failing because the link is down). The offline syncQueue + PendingSyncCard
+    //    resolve these, so they stay quiet as before.
+    const isDeductionFailure = msg.includes('Insufficient stock') || msg.includes('RPC error deducting');
+    if (isDeductionFailure) {
+      console.error('Checkout deduction failed (stock NOT updated):', msg);
+    } else {
+      console.warn('Cloud sync deferred:', msg);
+    }
+
+    const { id: _UNUSED, ...safeOfflineSale } = finalizedSale;
     await db.syncQueue.add(safeOfflineSale);
     if (inventoryLogsToPush.length > 0) {
       await db.inventory_logs.bulkPut(inventoryLogsToPush);
     }
-    // If it was a stock error, we should probably re-throw to alert the UI
-    if (error.message.includes("Insufficient stock")) throw error;
+
+    if (isDeductionFailure) {
+      // Insufficient stock already reads clearly; wrap the technical RPC errors
+      // in an actionable message while preserving the detail for the console.
+      if (msg.includes('Insufficient stock')) throw error;
+      const wrapped = new Error(`Inventory was NOT deducted for this sale — ${msg}`);
+      wrapped.cause = error;
+      throw wrapped;
+    }
   }
 
   // Local ('guest') mode loyalty: the cloud trg_award_loyalty trigger doesn't

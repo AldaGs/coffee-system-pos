@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -392,15 +392,21 @@ CREATE TABLE IF NOT EXISTS public.fiscal_profiles (
 -- Enable RLS
 ALTER TABLE public.fiscal_profiles ENABLE ROW LEVEL SECURITY;
 
--- Allow read/write for authenticated users (the POS clients)
+-- Allow read/write for authenticated users (the POS clients).
+-- DROP-then-CREATE (Postgres has no CREATE POLICY IF NOT EXISTS) so re-running
+-- this delta on a DB where fiscal_profiles was already partially applied does
+-- not abort with "policy ... already exists".
+DROP POLICY IF EXISTS "Enable all for authenticated users" ON public.fiscal_profiles;
 CREATE POLICY "Enable all for authenticated users" ON public.fiscal_profiles
   FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
 
 -- Allow public inserts and selects for the CFDI web portal
 -- We restrict select by ID or RFC to prevent dumping the whole table
+DROP POLICY IF EXISTS "Enable insert for anon" ON public.fiscal_profiles;
 CREATE POLICY "Enable insert for anon" ON public.fiscal_profiles
   FOR INSERT WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Enable select for anon by rfc or id" ON public.fiscal_profiles;
 CREATE POLICY "Enable select for anon by rfc or id" ON public.fiscal_profiles
   FOR SELECT USING (true);
 
@@ -524,6 +530,70 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 ${stamp('1.1')}`,
+  },
+  {
+    // 1.2 — roast / production lot traceability (migration 035): the
+    // inventory_lots registry plus inventory.track_lots. Each lot is one
+    // received/produced batch carrying a made_date (roast/production) and a
+    // received_date (arrival), which differ when roasting is outsourced.
+    // track_lots flags participating items; set true when an item is a
+    // Transform target. Additive — no change to stock/deduction logic.
+    version: '1.2',
+    sql: `
+ALTER TABLE public.inventory
+  ADD COLUMN IF NOT EXISTS track_lots boolean NOT NULL DEFAULT false;
+
+CREATE TABLE IF NOT EXISTS public.inventory_lots (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_name     text NOT NULL,
+  lot_code      text,
+  made_date     date,
+  received_date date,
+  qty_received  numeric NOT NULL DEFAULT 0,
+  qty_remaining numeric NOT NULL DEFAULT 0,
+  unit          text,
+  unit_cost     numeric DEFAULT 0,
+  source_name   text,
+  notes         text,
+  local_id      uuid UNIQUE,
+  created_at    timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS inventory_lots_item_made_idx
+  ON public.inventory_lots (item_name, made_date);
+ALTER TABLE public.inventory_lots ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated can access inventory_lots" ON public.inventory_lots;
+CREATE POLICY "Authenticated can access inventory_lots" ON public.inventory_lots
+  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+${stamp('1.2')}`,
+  },
+  {
+    // 1.3 — FIFO lot draw-down (migration 036): the lot_consumptions table
+    // recording which lot each sale drew from (lot_id -> sales, ticket_id ->
+    // lots). Checkout consumes the oldest roast lot first and decrements
+    // inventory_lots.qty_remaining. Additive — stock stays owned by
+    // inventory.current_stock / deduct_inventory_log.
+    version: '1.3',
+    sql: `
+CREATE TABLE IF NOT EXISTS public.lot_consumptions (
+  id                 uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  lot_id             uuid,
+  lot_code           text,
+  item_name          text,
+  qty                numeric NOT NULL DEFAULT 0,
+  ticket_id          text,
+  deduction_local_id uuid,
+  created_at         timestamptz DEFAULT now(),
+  local_id           uuid UNIQUE
+);
+CREATE INDEX IF NOT EXISTS lot_consumptions_lot_idx    ON public.lot_consumptions (lot_id);
+CREATE INDEX IF NOT EXISTS lot_consumptions_ticket_idx ON public.lot_consumptions (ticket_id);
+ALTER TABLE public.lot_consumptions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Authenticated can access lot_consumptions" ON public.lot_consumptions;
+CREATE POLICY "Authenticated can access lot_consumptions" ON public.lot_consumptions
+  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+${stamp('1.3')}`,
   },
 ];
 
