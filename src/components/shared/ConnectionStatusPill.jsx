@@ -15,7 +15,11 @@ const VARIANTS = {
   online:   { fg: '#27ae60', bg: 'rgba(39,174,96,0.12)',  border: 'rgba(39,174,96,0.30)',  icon: 'lucide:cloud',       spin: false },
 };
 
-export default function ConnectionStatusPill({ onClick, hideWhenHealthy = true, style }) {
+// `iconOnly` renders a compact circular chip (just the status icon) instead of
+// the full text pill. The wording still reaches the cashier via the tooltip,
+// the aria-label, and the sync modal that opens on tap — it just no longer
+// overlaps the register's top section on narrow layouts.
+export default function ConnectionStatusPill({ onClick, hideWhenHealthy = true, iconOnly = false, style }) {
   const { t } = useTranslation();
   const { state, pending } = useConnectionStatus();
 
@@ -32,6 +36,43 @@ export default function ConnectionStatusPill({ onClick, hideWhenHealthy = true, 
     // offline / degraded — append the backlog count when there is one.
     label = t(state === 'offline' ? 'conn.offline' : 'conn.degraded');
     if (pending > 0) label += t('conn.pendingSuffix').replace('{count}', pending);
+  }
+
+  if (iconOnly) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        aria-live="polite"
+        aria-label={label}
+        title={label}
+        style={{
+          position: 'relative',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: '34px', height: '34px', padding: 0, borderRadius: '999px',
+          background: v.bg, color: v.fg, border: `1px solid ${v.border}`,
+          cursor: onClick ? 'pointer' : 'default',
+          ...style,
+        }}
+      >
+        <Icon icon={v.icon} className={v.spin ? 'spin' : ''} style={{ fontSize: '1.1rem' }} />
+        {pending > 0 && state !== 'online' && (
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute', top: '-4px', right: '-4px',
+              minWidth: '16px', height: '16px', padding: '0 4px',
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              borderRadius: '999px', background: v.fg, color: '#fff',
+              fontSize: '0.62rem', fontWeight: 800, lineHeight: 1,
+              boxShadow: '0 0 0 2px var(--bg, #fff)',
+            }}
+          >
+            {pending > 99 ? '99+' : pending}
+          </span>
+        )}
+      </button>
+    );
   }
 
   return (

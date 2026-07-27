@@ -985,7 +985,7 @@ function Register() {
             link and create duplicates. */}
         <div style={{ position: 'fixed', top: '10px', right: '10px', zIndex: 1200, pointerEvents: 'none' }}>
           <div style={{ pointerEvents: 'auto' }}>
-            <ConnectionStatusPill onClick={() => setIsSyncModalOpen(true)} />
+            <ConnectionStatusPill iconOnly onClick={() => setIsSyncModalOpen(true)} />
           </div>
         </div>
         {/* Issue 8: Out of date banner */}
