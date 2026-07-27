@@ -13,6 +13,7 @@ import UpgradeGuide from './components/UpgradeGuide';
 import UpgradeNagModal from './components/UpgradeNagModal';
 import MigrationScreen from './components/MigrationScreen';
 import PublicCFDI from './components/PublicCFDI';
+import AuthorizeHub from './components/AuthorizeHub';
 import { supabase } from './supabaseClient';
 import { getMode, setMode, MODE_LOCAL, isUpgradePending, clearUpgradePending } from './utils/appMode';
 import UpdateNotification from './components/shared/UpdateNotification';
@@ -447,6 +448,14 @@ export default function App() {
     !hostname.endsWith('.vercel.app') &&
     hostname !== 'tinypos.app' &&
     hostname !== 'www.tinypos.app';
+
+  // --- SUITE SSO HUB ---
+  // Sibling apps (tinykds / tinybooks / tinylogistics) redirect here to log in
+  // once for the whole suite. Runs before the setup/session gates so a device
+  // that only needs to mint a hand-off never touches the POS pipeline.
+  if (typeof window !== 'undefined' && window.location.pathname === '/authorize') {
+    return <AuthorizeHub />;
+  }
 
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/cfdi/')) {
     const ticketId = window.location.pathname.split('/cfdi/')[1];
