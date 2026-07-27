@@ -103,9 +103,13 @@ export default function AuthorizeHub() {
       return;
     }
     if (!supabase) {
-      // tinypos isn't set up in this browser yet — it's the source of truth, so
-      // the user must connect it here first, then the consumer can inherit.
-      setStatus('hub_unconfigured');
+      // tinypos isn't set up in THIS browser. It's the source of truth for
+      // modifying the DB, but a device without tinypos should still be able to
+      // connect the app directly. Bounce back with a flag so the consumer falls
+      // back to its own setup/login. (returnUrl is already allowlist-checked, so
+      // this is not an open redirect.)
+      setStatus('redirecting');
+      window.location.replace(`${returnUrl.origin}${returnUrl.pathname}#hub_unavailable=1`);
       return;
     }
     supabase.auth.getSession().then(({ data }) => {
@@ -149,21 +153,6 @@ export default function AuthorizeHub() {
         <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.95rem' }}>
           El destino de acceso no está autorizado.
         </p>
-      </div>
-    );
-  }
-
-  if (status === 'hub_unconfigured') {
-    return shell(
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🧩</div>
-        <h2 style={{ margin: '0 0 8px', color: 'var(--text-main)', fontSize: '1.4rem', fontWeight: 800 }}>Configura tinypos primero</h2>
-        <p style={{ color: 'var(--text-muted)', margin: '0 0 20px', fontSize: '0.95rem' }}>
-          tinypos es la base de la suite. Conéctalo en este navegador y las demás apps heredarán la conexión y el acceso.
-        </p>
-        <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px', background: '#f28b05', color: 'white', borderRadius: 12, fontWeight: 'bold', textDecoration: 'none' }}>
-          <Icon icon="lucide:arrow-right" /> Abrir tinypos
-        </a>
       </div>
     );
   }
