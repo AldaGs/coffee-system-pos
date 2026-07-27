@@ -19,11 +19,25 @@ import { supabase } from '../supabaseClient';
 // (comma-separated) at build time; localhost is allowed for dev.
 const ALLOWED_RETURN_ORIGINS = (
   import.meta.env.VITE_SUITE_ORIGINS ||
-  'https://tinylogistics.online,https://tinybooks.online'
+  'https://tinylogistics.online,https://tinybook.online'
 )
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);
+
+// Normalize an origin to protocol + apex host (strip a leading `www.`) so that
+// both apex and www. variants of an allowed domain match a single allowlist
+// entry — the sites are served from www., but entries are written apex-only.
+function originKey(raw) {
+  try {
+    const u = new URL(raw);
+    return `${u.protocol}//${u.hostname.replace(/^www\./, '')}`;
+  } catch {
+    return null;
+  }
+}
+
+const ALLOWED_KEYS = ALLOWED_RETURN_ORIGINS.map(originKey).filter(Boolean);
 
 function safeReturnUrl(raw) {
   if (!raw) return null;
@@ -31,7 +45,7 @@ function safeReturnUrl(raw) {
     const u = new URL(raw);
     const isLocalhost = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
     if (u.protocol !== 'https:' && !isLocalhost) return null;
-    if (!isLocalhost && !ALLOWED_RETURN_ORIGINS.includes(u.origin)) return null;
+    if (!isLocalhost && !ALLOWED_KEYS.includes(originKey(u.origin))) return null;
     return u;
   } catch {
     return null;
