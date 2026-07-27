@@ -8,10 +8,13 @@ import { supabase } from '../supabaseClient';
 // sends the user here:  https://tinypos.app/authorize?return=<its-url>
 //
 // If tinypos already has a Supabase session on THIS device we hand it straight
-// back; otherwise we show a login form and hand off on success. Tokens are
-// returned in the URL *fragment* (never the query string) so they are never
-// sent to a server or written to server logs, and the consumer strips them
-// from the URL immediately (see hubAuth.js:consumeHubCallback).
+// back; otherwise we show a login form and hand off on success. We hand back
+// BOTH the session tokens AND the Supabase connection (project url + anon key)
+// so the consumer inherits everything from tinypos and never needs its own
+// setup/login — tinypos is the single source of truth. Everything travels in
+// the URL *fragment* (never the query string) so it is never sent to a server
+// or written to server logs, and the consumer strips it immediately
+// (see hubAuth.js). The anon key is a publishable client key, safe to pass.
 //
 // SECURITY: the `return` origin MUST be on the allowlist below. Without this
 // check the endpoint would be an open redirect that leaks a live session to
@@ -39,6 +42,15 @@ function originKey(raw) {
 
 const ALLOWED_KEYS = ALLOWED_RETURN_ORIGINS.map(originKey).filter(Boolean);
 
+// The hub's own Supabase connection — the same values the tinypos client reads
+// (SetupScreen writes them to localStorage; env is the fallback). Handed to
+// consumers so they talk to the exact project tinypos is on.
+function hubConnection() {
+  const url = localStorage.getItem('tinypos_supabase_url') || import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = localStorage.getItem('tinypos_supabase_anon_key') || import.meta.env.VITE_SUPABASE_ANON_KEY;
+  return url && anonKey ? { url, anonKey } : null;
+}
+
 function safeReturnUrl(raw) {
   if (!raw) return null;
   try {
@@ -57,12 +69,16 @@ function handOff(returnUrl, session) {
   // supabase `detectSessionInUrl` can adopt this natively too (belt-and-braces
   // with hubAuth.js:consumeHubCallback). No `type` field → not treated as an
   // invite/recovery link by apps that special-case those (e.g. tinylogistics).
+  const conn = hubConnection();
   const frag = new URLSearchParams({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
     expires_in: String(session.expires_in ?? 3600),
     expires_at: String(session.expires_at ?? ''),
     token_type: session.token_type || 'bearer',
+    // Connection pair so the consumer inherits tinypos's project (hub wins,
+    // overwriting any stale local connection — keeps session + project matched).
+    ...(conn ? { supabase_url: conn.url, supabase_anon_key: conn.anonKey } : {}),
   });
   // replace() so the hub page isn't left in the consumer's back-history.
   window.location.replace(`${returnUrl.origin}${returnUrl.pathname}#${frag.toString()}`);
@@ -82,8 +98,14 @@ export default function AuthorizeHub() {
   );
 
   useEffect(() => {
-    if (!supabase || !returnUrl) {
+    if (!returnUrl) {
       setStatus('denied');
+      return;
+    }
+    if (!supabase) {
+      // tinypos isn't set up in this browser yet — it's the source of truth, so
+      // the user must connect it here first, then the consumer can inherit.
+      setStatus('hub_unconfigured');
       return;
     }
     supabase.auth.getSession().then(({ data }) => {
@@ -127,6 +149,21 @@ export default function AuthorizeHub() {
         <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: '0.95rem' }}>
           El destino de acceso no está autorizado.
         </p>
+      </div>
+    );
+  }
+
+  if (status === 'hub_unconfigured') {
+    return shell(
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🧩</div>
+        <h2 style={{ margin: '0 0 8px', color: 'var(--text-main)', fontSize: '1.4rem', fontWeight: 800 }}>Configura tinypos primero</h2>
+        <p style={{ color: 'var(--text-muted)', margin: '0 0 20px', fontSize: '0.95rem' }}>
+          tinypos es la base de la suite. Conéctalo en este navegador y las demás apps heredarán la conexión y el acceso.
+        </p>
+        <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 20px', background: '#f28b05', color: 'white', borderRadius: 12, fontWeight: 'bold', textDecoration: 'none' }}>
+          <Icon icon="lucide:arrow-right" /> Abrir tinypos
+        </a>
       </div>
     );
   }
