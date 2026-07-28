@@ -163,7 +163,16 @@ function Admin() {
   const [editingItemId, setEditingItemId] = useState(null);
   const [timeFilter, setTimeFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
+  const [newRule, setNewRule] = useState({
+    name: '',
+    kind: 'standard',
+    type: 'percentage', value: '', targetType: 'cart', targetValue: '',
+    bogoItem: '', buyQty: 2, payQty: 1,
+    requiredItems: [], minSubtotal: '',
+    days: [], startDate: '', endDate: '',
+    priority: 0, allowStack: false,
+    usage: 'recurring',
+  });
   // Expenses are sourced from Dexie now — fetchAndMergeExpenses pulls every
   // device's rows down on mount and useLiveQuery keeps the view fresh.
   const expensesLive = useLiveQuery(() => db.expenses.toArray(), []);
