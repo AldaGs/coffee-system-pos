@@ -63,6 +63,12 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     if (newRule.startTime) conditions.startTime = newRule.startTime;
     if (newRule.endTime) conditions.endTime = newRule.endTime;
 
+    // Usage caps, omitted when unset.
+    const caps = {};
+    if (newRule.maxRedemptions) caps.maxRedemptions = Math.max(1, parseInt(newRule.maxRedemptions, 10) || 0);
+    if (newRule.maxPerDay) caps.maxPerDay = Math.max(1, parseInt(newRule.maxPerDay, 10) || 0);
+    if (newRule.maxBudget) caps.maxBudget = toCents(newRule.maxBudget);
+
     handleAddDiscountRule({
       id: Date.now(),
       name: newRule.name,
@@ -70,6 +76,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
       trigger: newRule.trigger || 'auto',
       ...reward,
       ...(Object.keys(conditions).length ? { conditions } : {}),
+      ...(Object.keys(caps).length ? { caps } : {}),
       priority: parseInt(newRule.priority, 10) || 0,
       allowStack: !!newRule.allowStack,
       usage: newRule.usage || 'recurring',
@@ -78,7 +85,8 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     setNewRule({
       name: '', trigger: 'auto', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
       bogoItem: '', buyQty: 2, payQty: 1, requiredItems: [], minSubtotal: '',
-      days: [], startDate: '', endDate: '', startTime: '', endTime: '', priority: 0, allowStack: false, usage: 'recurring',
+      days: [], startDate: '', endDate: '', startTime: '', endTime: '',
+      maxRedemptions: '', maxPerDay: '', maxBudget: '', priority: 0, allowStack: false, usage: 'recurring',
     });
     showAlert(t('disc.alertSuccess'), t('disc.alertSuccessDesc'));
   };
@@ -288,6 +296,26 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
               </div>
             </div>
 
+            {/* LIMITS (usage caps & budget) */}
+            <div style={sectionStyle}>
+              <h4 style={sectionTitleStyle}><Icon icon="lucide:gauge" /> {t('disc.limitsTitle')}</h4>
+              <p style={{ margin: '-6px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('disc.limitsHint')}</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={labelStyle}>{t('disc.maxRedemptions')}</label>
+                  <input type="number" min="1" placeholder="∞" value={newRule.maxRedemptions} onChange={(e) => patch({ maxRedemptions: e.target.value })} style={inputStyle} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={labelStyle}>{t('disc.maxPerDay')}</label>
+                  <input type="number" min="1" placeholder="∞" value={newRule.maxPerDay} onChange={(e) => patch({ maxPerDay: e.target.value })} style={inputStyle} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={labelStyle}>{t('disc.maxBudget')}</label>
+                <input type="number" min="0" step="0.01" placeholder={t('disc.minSubtotalPlaceholder')} value={newRule.maxBudget} onChange={(e) => patch({ maxBudget: e.target.value })} style={inputStyle} />
+              </div>
+            </div>
+
             {/* COMBINATION + RECURRENCE */}
             <div style={sectionStyle}>
               <h4 style={sectionTitleStyle}><Icon icon="lucide:layers" /> {t('disc.combinationTitle')}</h4>
@@ -368,6 +396,12 @@ function ruleBadges(rule, t) {
   }
   if (rule.trigger === 'manual') badges.push({ icon: 'lucide:hand', text: t('disc.badgeManual') });
   if (rule.usage === 'once') badges.push({ icon: 'lucide:ticket', text: t('disc.badgeOnce') });
+  if (rule.caps) {
+    const c = rule.caps;
+    if (c.maxRedemptions) badges.push({ icon: 'lucide:hash', text: `${rule.redemptions || 0}/${c.maxRedemptions}` });
+    if (c.maxPerDay) badges.push({ icon: 'lucide:calendar-check', text: `${c.maxPerDay}/${t('disc.capPerDay')}` });
+    if (c.maxBudget) badges.push({ icon: 'lucide:piggy-bank', text: `${formatForDisplay(rule.spent || 0)} / ${formatForDisplay(c.maxBudget)}` });
+  }
   if (rule.allowStack) badges.push({ icon: 'lucide:layers', text: t('disc.badgeStack') });
   if (rule.priority) badges.push({ icon: 'lucide:flag', text: `${t('disc.badgePriority')} ${rule.priority}` });
   return badges;
@@ -375,7 +409,11 @@ function ruleBadges(rule, t) {
 
 function RuleCard({ rule, t, onToggle, onDelete }) {
   const isBogo = rule.kind === 'buyXgetY';
-  const consumed = rule.usage === 'once' && rule.consumedAt;
+  const capReached = rule.caps && (
+    (rule.caps.maxRedemptions && (rule.redemptions || 0) >= rule.caps.maxRedemptions) ||
+    (rule.caps.maxBudget && (rule.spent || 0) >= rule.caps.maxBudget)
+  );
+  const consumed = (rule.usage === 'once' && rule.consumedAt) || capReached;
 
   const rewardLabel = isBogo
     ? `${rule.buyQty}×${rule.payQty}`

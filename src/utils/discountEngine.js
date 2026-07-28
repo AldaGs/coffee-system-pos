@@ -32,6 +32,10 @@
  *     // Recurrence
  *     usage: 'recurring' | 'once',         // 'once' = single-use coupon
  *     consumedAt,                          // ISO set once a single-use rule redeems
+ *     // Caps (optional). Enforced against the runtime counters below, which
+ *     // checkout bumps for any rule that has caps or is single-use.
+ *     caps: { maxRedemptions, maxPerDay, maxBudget },  // maxBudget in cents
+ *     redemptions, spent, dayCount, dayKey,            // runtime usage counters
  *   }
  *
  * All money is in integer cents, matching the rest of the POS. The per-unit
@@ -48,8 +52,8 @@ function unitCostCents(item) {
   return cost;
 }
 
-/** Local-time 'YYYY-MM-DD' key for date-window comparisons. */
-function dayKey(d) {
+/** Local-time 'YYYY-MM-DD' key for date-window comparisons and per-day caps. */
+export function dayKey(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -105,6 +109,20 @@ function conditionsMet(rule, items, cartSubtotal) {
         .reduce((sum, it) => sum + (it.qty || 1), 0);
       if (have < (req.minQty || 1)) return false;
     }
+  }
+  return true;
+}
+
+/** Redemption / budget / per-day cap gate, checked against runtime counters. */
+function capsAllow(rule, now) {
+  const caps = rule.caps;
+  if (!caps) return true;
+  if (caps.maxRedemptions && (rule.redemptions || 0) >= caps.maxRedemptions) return false;
+  if (caps.maxBudget && (rule.spent || 0) >= caps.maxBudget) return false;
+  if (caps.maxPerDay) {
+    // The stored dayCount only counts toward today's cap if it's from today.
+    const todayCount = rule.dayKey === dayKey(now) ? (rule.dayCount || 0) : 0;
+    if (todayCount >= caps.maxPerDay) return false;
   }
   return true;
 }
@@ -210,6 +228,7 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
     if (!rule.isActive) return;
     if (rule.trigger === 'manual' && !activated.has(rule.id)) return;
     if (rule.usage === 'once' && rule.consumedAt) return;
+    if (!capsAllow(rule, now)) return;
     if (!scheduleAllows(rule, now)) return;
     if (!conditionsMet(rule, items, cartSubtotal)) return;
     const res = computeRuleAmount(rule, items, cartSubtotal);

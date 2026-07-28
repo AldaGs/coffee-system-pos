@@ -1,6 +1,6 @@
 // src/tests/discountEngine.test.js
 import { describe, it, expect } from 'vitest';
-import { evaluateDiscounts } from '../utils/discountEngine';
+import { evaluateDiscounts, dayKey } from '../utils/discountEngine';
 
 // Helper: build a ticket item. Prices are in cents (whole numbers), which
 // normalizeMenuPrice passes through unchanged.
@@ -268,6 +268,30 @@ describe('Discount Engine', () => {
       const auto = { id: 8, name: 'Auto', isActive: true, type: 'percentage', value: 5, targetType: 'cart' };
       const res = evaluateDiscounts({ rules: [auto], ticket: t, cartSubtotal: 5000, now: TUESDAY });
       expect(res.autoDiscountAmount).toBe(250);
+    });
+  });
+
+  describe('usage caps & budget', () => {
+    const base = { id: 9, name: 'Capped', isActive: true, type: 'flat', value: 500, targetType: 'cart' };
+    const t = ticket(item('Latte', 5000));
+    const run = (rule, now = TUESDAY) => evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 5000, now });
+
+    it('applies while under the total-redemptions cap', () => {
+      expect(run({ ...base, caps: { maxRedemptions: 10 }, redemptions: 3 }).autoDiscountAmount).toBe(500);
+    });
+    it('stops at the total-redemptions cap', () => {
+      expect(run({ ...base, caps: { maxRedemptions: 10 }, redemptions: 10 }).autoDiscountAmount).toBe(0);
+    });
+    it('stops at the budget cap', () => {
+      expect(run({ ...base, caps: { maxBudget: 5000 }, spent: 5000 }).autoDiscountAmount).toBe(0);
+      expect(run({ ...base, caps: { maxBudget: 5000 }, spent: 4000 }).autoDiscountAmount).toBe(500);
+    });
+    it('enforces the per-day cap only against today’s count', () => {
+      const today = dayKey(TUESDAY);
+      // 5 uses today, cap 5 -> blocked
+      expect(run({ ...base, caps: { maxPerDay: 5 }, dayCount: 5, dayKey: today }).autoDiscountAmount).toBe(0);
+      // 5 uses but from a prior day -> today's count resets to 0 -> allowed
+      expect(run({ ...base, caps: { maxPerDay: 5 }, dayCount: 5, dayKey: '2000-01-01' }).autoDiscountAmount).toBe(500);
     });
   });
 
