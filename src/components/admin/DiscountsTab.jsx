@@ -78,6 +78,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
       ...reward,
       ...(Object.keys(conditions).length ? { conditions } : {}),
       ...(Object.keys(caps).length ? { caps } : {}),
+      ...(newRule.maxDiscount ? { maxDiscount: toCents(newRule.maxDiscount) } : {}),
       priority: parseInt(newRule.priority, 10) || 0,
       allowStack: !!newRule.allowStack,
       usage: newRule.usage || 'recurring',
@@ -87,7 +88,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
       name: '', trigger: 'auto', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
       bogoItem: '', buyQty: 2, payQty: 1, requiredItems: [], minSubtotal: '', customer: 'any',
       days: [], startDate: '', endDate: '', startTime: '', endTime: '',
-      maxRedemptions: '', maxPerDay: '', maxBudget: '', priority: 0, allowStack: false, usage: 'recurring',
+      maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '', priority: 0, allowStack: false, usage: 'recurring',
     });
     showAlert(t('disc.alertSuccess'), t('disc.alertSuccessDesc'));
   };
@@ -324,6 +325,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 <label style={labelStyle}>{t('disc.maxBudget')}</label>
                 <input type="number" min="0" step="0.01" placeholder={t('disc.minSubtotalPlaceholder')} value={newRule.maxBudget} onChange={(e) => patch({ maxBudget: e.target.value })} style={inputStyle} />
               </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={labelStyle}>{t('disc.maxDiscount')}</label>
+                <input type="number" min="0" step="0.01" placeholder={t('disc.minSubtotalPlaceholder')} value={newRule.maxDiscount} onChange={(e) => patch({ maxDiscount: e.target.value })} style={inputStyle} />
+              </div>
             </div>
 
             {/* COMBINATION + RECURRENCE */}
@@ -414,6 +419,7 @@ function ruleBadges(rule, t) {
     if (c.maxPerDay) badges.push({ icon: 'lucide:calendar-check', text: `${c.maxPerDay}/${t('disc.capPerDay')}` });
     if (c.maxBudget) badges.push({ icon: 'lucide:piggy-bank', text: `${formatForDisplay(rule.spent || 0)} / ${formatForDisplay(c.maxBudget)}` });
   }
+  if (rule.maxDiscount) badges.push({ icon: 'lucide:arrow-down-to-line', text: `${t('disc.capMax')} ${formatForDisplay(rule.maxDiscount)}` });
   if (rule.allowStack) badges.push({ icon: 'lucide:layers', text: t('disc.badgeStack') });
   if (rule.priority) badges.push({ icon: 'lucide:flag', text: `${t('disc.badgePriority')} ${rule.priority}` });
   return badges;

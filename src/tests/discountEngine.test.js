@@ -317,6 +317,26 @@ describe('Discount Engine', () => {
     });
   });
 
+  describe('per-rule max discount cap', () => {
+    it('caps a percentage discount at maxDiscount', () => {
+      // 20% of 100000 = 20000, capped at 5000 ("20% off, up to $50")
+      const rules = [{ id: 1, name: '20% up to $50', isActive: true, type: 'percentage', value: 20, targetType: 'cart', maxDiscount: 5000 }];
+      const res = evaluateDiscounts({ rules, ticket: ticket(item('Cake', 100000)), cartSubtotal: 100000, now: TUESDAY });
+      expect(res.autoDiscountAmount).toBe(5000);
+    });
+    it('leaves a discount below the cap untouched', () => {
+      const rules = [{ id: 1, name: 'x', isActive: true, type: 'percentage', value: 20, targetType: 'cart', maxDiscount: 5000 }];
+      const res = evaluateDiscounts({ rules, ticket: ticket(item('Latte', 10000)), cartSubtotal: 10000, now: TUESDAY });
+      expect(res.autoDiscountAmount).toBe(2000);
+    });
+    it('scales the item breakdown down with the cap', () => {
+      const rules = [{ id: 1, name: 'x', isActive: true, type: 'percentage', value: 50, targetType: 'item', targetValue: 'Cake', maxDiscount: 1000 }];
+      const res = evaluateDiscounts({ rules, ticket: ticket(item('Cake', 10000, 1, 'u1')), cartSubtotal: 10000, now: TUESDAY });
+      expect(res.autoDiscountAmount).toBe(1000);
+      expect(res.autoDiscountByItemUid).toEqual({ u1: 1000 });
+    });
+  });
+
   describe('subtotal clamp', () => {
     it('never discounts more than the subtotal and scales the breakdown', () => {
       const rules = [{ id: 1, name: 'Huge', isActive: true, type: 'flat', value: 99999, targetType: 'cart' }];

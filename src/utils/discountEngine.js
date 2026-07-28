@@ -28,6 +28,8 @@
  *       startTime, endTime,                 // 'HH:MM' happy-hour window
  *       customer: 'any'|'member'|'nonmember', // keyed off ticket.loyalty_phone
  *     },
+ *     maxDiscount,                         // cents: cap on this rule's discount
+ *                                          //   per application ("20% off up to $50")
  *     // Combination
  *     priority,                            // higher wins; absent -> 0
  *     allowStack,                          // stack beneath a higher rule; -> false
@@ -125,6 +127,16 @@ function customerMatches(rule, ticket) {
   if (!target || target === 'any') return true;
   const isMember = !!ticket.loyalty_phone;
   return target === 'member' ? isMember : !isMember;
+}
+
+/** Scale a rule's computed discount (and its breakdown) down to rule.maxDiscount. */
+function applyMaxDiscount(rule, res) {
+  const max = rule.maxDiscount;
+  if (!max || res.amount <= max) return res;
+  const scale = max / res.amount;
+  const byUid = {};
+  Object.entries(res.byUid).forEach(([uid, c]) => { byUid[uid] = Math.round(c * scale); });
+  return { amount: max, cart: Math.round(res.cart * scale), byUid };
 }
 
 /** Redemption / budget / per-day cap gate, checked against runtime counters. */
@@ -246,7 +258,7 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
     if (!customerMatches(rule, ticket)) return;
     if (!scheduleAllows(rule, now)) return;
     if (!conditionsMet(rule, items, cartSubtotal)) return;
-    const res = computeRuleAmount(rule, items, cartSubtotal);
+    const res = applyMaxDiscount(rule, computeRuleAmount(rule, items, cartSubtotal));
     if (res.amount > 0) qualifying.push({ rule, ...res });
   });
   if (qualifying.length === 0) return empty;

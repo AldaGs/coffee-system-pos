@@ -171,7 +171,7 @@ function Admin() {
     bogoItem: '', buyQty: 2, payQty: 1,
     requiredItems: [], minSubtotal: '', customer: 'any',
     days: [], startDate: '', endDate: '', startTime: '', endTime: '',
-    maxRedemptions: '', maxPerDay: '', maxBudget: '',
+    maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '',
     priority: 0, allowStack: false,
     usage: 'recurring',
   });

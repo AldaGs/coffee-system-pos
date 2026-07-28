@@ -629,7 +629,9 @@ export const translations = {
     "disc.maxRedemptions": "Max total uses",
     "disc.maxPerDay": "Max uses per day",
     "disc.maxBudget": "Max total budget ($)",
+    "disc.maxDiscount": "Max discount per use ($)",
     "disc.capPerDay": "day",
+    "disc.capMax": "up to",
     "disc.requiresLabel": "Requires",
     "disc.alertBogoDesc": "Choose an item and valid buy/pay quantities (pay must be less than buy).",
 
@@ -2049,7 +2051,9 @@ export const translations = {
     "disc.maxRedemptions": "Usos totales máx.",
     "disc.maxPerDay": "Usos por día máx.",
     "disc.maxBudget": "Presupuesto total máx. ($)",
+    "disc.maxDiscount": "Descuento máx. por uso ($)",
     "disc.capPerDay": "día",
+    "disc.capMax": "hasta",
     "disc.requiresLabel": "Requiere",
     "disc.alertBogoDesc": "Elige un artículo y cantidades válidas (paga debe ser menor que compra).",
 
