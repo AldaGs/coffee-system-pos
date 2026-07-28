@@ -1,16 +1,29 @@
+import { useState } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 
 function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, activeTicket, menuData, handleToggleManualRule, isAdvancedMode }) {
   const { t } = useTranslation();
+  const [codeInput, setCodeInput] = useState('');
+  const [codeError, setCodeError] = useState(false);
 
   if (!isDiscountModalOpen) return null;
 
-  // Attended presets: cashier-applied rules (e.g. "Cyclist 10%") the till
-  // observes and toggles. Only shown in advanced mode.
-  const presetRules = isAdvancedMode
-    ? (menuData?.discountRules || []).filter(r => r.trigger === 'manual' && r.isActive && !(r.usage === 'once' && r.consumedAt))
-    : [];
+  const allRules = isAdvancedMode ? (menuData?.discountRules || []) : [];
+  const isLive = (r) => r.isActive && !(r.usage === 'once' && r.consumedAt);
+  // Attended presets: tap-to-apply cashier rules (e.g. "Cyclist 10%"). Coupon
+  // rules (those with a code) are entered by code below, not shown as chips.
+  const presetRules = allRules.filter(r => r.trigger === 'manual' && !r.code && isLive(r));
   const activatedIds = activeTicket?.activatedManualRuleIds || [];
+
+  const applyCode = () => {
+    const entered = codeInput.trim().toLowerCase();
+    if (!entered) return;
+    const match = allRules.find(r => r.code && r.code.toLowerCase() === entered && isLive(r));
+    if (!match) { setCodeError(true); return; }
+    if (!activatedIds.includes(match.id)) handleToggleManualRule(match);
+    setCodeInput('');
+    setCodeError(false);
+  };
 
   return (
     <div className="modal-overlay" style={{ zIndex: 100 }}>
@@ -38,6 +51,30 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {isAdvancedMode && (
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: '900', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>{t('discModal.couponTitle')}</div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                type="text"
+                value={codeInput}
+                onChange={(e) => { setCodeInput(e.target.value); setCodeError(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') applyCode(); }}
+                placeholder={t('discModal.couponPlaceholder')}
+                style={{ flex: 1, padding: '12px', borderRadius: '8px', border: `2px solid ${codeError ? '#e74c3c' : 'var(--border)'}`, background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold', textTransform: 'uppercase' }}
+              />
+              <button onClick={applyCode} style={{ padding: '12px 18px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>{t('discModal.couponApply')}</button>
+            </div>
+            {codeError && <div style={{ color: '#e74c3c', fontSize: '0.8rem', marginTop: '6px', fontWeight: 'bold' }}>{t('discModal.couponInvalid')}</div>}
+            {activatedIds.map(id => allRules.find(r => r.id === id && r.code)).filter(Boolean).map(r => (
+              <div key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', marginTop: '8px', marginRight: '8px', padding: '6px 10px', borderRadius: '999px', background: '#8e44ad', color: 'white', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                {r.name}
+                <button onClick={() => handleToggleManualRule(r)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>✕</button>
+              </div>
+            ))}
           </div>
         )}
 

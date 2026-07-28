@@ -12,6 +12,9 @@
  *     trigger: 'auto' | 'manual',         // absent -> 'auto'; 'manual' = cashier
  *                                          //   taps it on (bike/student/senior),
  *                                          //   evaluated only when activated
+ *     code,                                // coupon code; a rule with a code never
+ *                                          //   auto-fires — the code must be entered
+ *                                          //   (activated) like a manual rule
  *     // Reward
  *     kind: 'standard' | 'buyXgetY' | 'comboPrice',  // absent -> 'standard'
  *     type: 'percentage' | 'flat',        // standard
@@ -295,7 +298,8 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
   const qualifying = [];
   rules.forEach(rule => {
     if (!rule.isActive) return;
-    if (rule.trigger === 'manual' && !activated.has(rule.id)) return;
+    // Attended presets and coupon-coded rules only participate once activated.
+    if ((rule.trigger === 'manual' || rule.code) && !activated.has(rule.id)) return;
     if (rule.usage === 'once' && rule.consumedAt) return;
     if (!capsAllow(rule, now)) return;
     if (!customerMatches(rule, ticket)) return;

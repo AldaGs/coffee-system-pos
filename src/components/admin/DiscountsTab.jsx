@@ -90,6 +90,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
       name: newRule.name,
       isActive: true,
       trigger: newRule.trigger || 'auto',
+      ...(newRule.code && newRule.code.trim() ? { code: newRule.code.trim() } : {}),
       ...reward,
       ...(Object.keys(conditions).length ? { conditions } : {}),
       ...(Object.keys(caps).length ? { caps } : {}),
@@ -100,7 +101,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     });
 
     setNewRule({
-      name: '', trigger: 'auto', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
+      name: '', trigger: 'auto', code: '', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
       bogoItem: '', buyQty: 2, payQty: 1, comboItems: [], comboPrice: '', requiredItems: [], minSubtotal: '', customer: 'any',
       days: [], startDate: '', endDate: '', startTime: '', endTime: '',
       maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '', priority: 0, allowStack: false, usage: 'recurring',
@@ -144,6 +145,13 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 ))}
               </div>
               {newRule.trigger === 'manual' && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.triggerManualHint')}</span>}
+            </div>
+
+            {/* Coupon code (optional) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '6px' }}><Icon icon="lucide:tag" /> {t('disc.codeLabel')}</label>
+              <input type="text" placeholder={t('disc.codePlaceholder')} value={newRule.code} onChange={(e) => patch({ code: e.target.value })} style={{ ...inputStyle, textTransform: 'uppercase' }} />
+              {newRule.code && newRule.code.trim() && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.codeHint')}</span>}
             </div>
 
             {/* Reward kind selector */}
@@ -454,7 +462,8 @@ function ruleBadges(rule, t) {
   }
   if (cond.customer === 'member') badges.push({ icon: 'lucide:heart-handshake', text: t('disc.badgeMembers') });
   if (cond.customer === 'nonmember') badges.push({ icon: 'lucide:user-plus', text: t('disc.badgeNonmembers') });
-  if (rule.trigger === 'manual') badges.push({ icon: 'lucide:hand', text: t('disc.badgeManual') });
+  if (rule.code) badges.push({ icon: 'lucide:tag', text: rule.code });
+  else if (rule.trigger === 'manual') badges.push({ icon: 'lucide:hand', text: t('disc.badgeManual') });
   if (rule.usage === 'once') badges.push({ icon: 'lucide:ticket', text: t('disc.badgeOnce') });
   if (rule.caps) {
     const c = rule.caps;

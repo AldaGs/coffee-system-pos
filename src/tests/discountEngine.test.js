@@ -362,6 +362,17 @@ describe('Discount Engine', () => {
     });
   });
 
+  describe('coupon codes', () => {
+    const rule = { id: 3, name: 'SAVE10', isActive: true, code: 'SAVE10', type: 'percentage', value: 10, targetType: 'cart' };
+    const t = ticket(item('Latte', 5000));
+    it('does not apply until the code is entered (activated)', () => {
+      expect(evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 5000, now: TUESDAY }).autoDiscountAmount).toBe(0);
+    });
+    it('applies once activated', () => {
+      expect(evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 5000, now: TUESDAY, activatedRuleIds: [3] }).autoDiscountAmount).toBe(500);
+    });
+  });
+
   describe('subtotal clamp', () => {
     it('never discounts more than the subtotal and scales the breakdown', () => {
       const rules = [{ id: 1, name: 'Huge', isActive: true, type: 'flat', value: 99999, targetType: 'cart' }];

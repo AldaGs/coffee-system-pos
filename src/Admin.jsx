@@ -166,6 +166,7 @@ function Admin() {
   const [newRule, setNewRule] = useState({
     name: '',
     trigger: 'auto',
+    code: '',
     kind: 'standard',
     type: 'percentage', value: '', targetType: 'cart', targetValue: '',
     bogoItem: '', buyQty: 2, payQty: 1,
