@@ -21,6 +21,7 @@ import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
 import { getOrderedVisibleCategories } from './utils/categoryUtils';
 import { toCents, formatForDisplay, normalizeMenuPrice } from './utils/moneyUtils';
+import { evaluateDiscounts } from './utils/discountEngine';
 import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
@@ -584,56 +585,28 @@ function Register() {
     return total + itemTotal;
   }, 0) : 0;
 
+  // Auto-discounts are evaluated by the pure engine (src/utils/discountEngine.js)
+  // which handles scheduling, bundle conditions, buy-X-get-Y deals, priority
+  // stacking, and clamping. Only runs in advanced mode.
   let autoDiscountAmount = 0;
   let autoDiscountCart = 0;
-  const autoDiscountByItemUid = {};
+  let autoDiscountByItemUid = {};
   let activeAutoRuleName = "";
+  let autoDiscountRuleNames = [];
+  let appliedDiscountRuleIds = [];
 
   if (posSettings?.isAdvancedMode) {
-    const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
-    if (activeRules.length > 0 && cartSubtotal > 0) {
-      activeRules.forEach(rule => {
-        // FOR CART LEVEL RULES
-        if (rule.targetType === 'cart') {
-          const ruleValue = rule.type === 'percentage'
-            ? cartSubtotal * (rule.value / 100)
-            : normalizeMenuPrice(rule.value); // <-- Add normalizeMenuPrice here
-
-          autoDiscountAmount += ruleValue;
-          autoDiscountCart += ruleValue;
-          activeAutoRuleName = rule.name;
-        }
-        // FOR ITEM LEVEL RULES
-        else if (rule.targetType === 'item') {
-          activeTicket.items.forEach(item => {
-            if (item.name === rule.targetValue) {
-              const qty = item.qty || 1;
-              let itemCost = item.basePrice; // Already in cents
-              item.selectedModifiers.forEach(mod => { itemCost += mod.price; }); // Already in cents
-
-              const ruleValue = rule.type === 'percentage'
-                ? itemCost * qty * (rule.value / 100)
-                : normalizeMenuPrice(rule.value) * qty; // <-- Add normalizeMenuPrice here
-
-              autoDiscountAmount += ruleValue;
-              autoDiscountByItemUid[item.uniqueId] = (autoDiscountByItemUid[item.uniqueId] || 0) + ruleValue;
-              activeAutoRuleName = rule.name;
-            }
-          });
-        }
-      });
-    }
-  }
-
-  const autoUnclamped = autoDiscountAmount;
-  autoDiscountAmount = Math.max(0, Math.min(autoDiscountAmount, cartSubtotal));
-  // If global clamp reduced the total, scale the breakdown proportionally so the parts still sum.
-  if (autoUnclamped > autoDiscountAmount && autoUnclamped > 0) {
-    const scale = autoDiscountAmount / autoUnclamped;
-    autoDiscountCart = Math.round(autoDiscountCart * scale);
-    Object.keys(autoDiscountByItemUid).forEach(uid => {
-      autoDiscountByItemUid[uid] = Math.round(autoDiscountByItemUid[uid] * scale);
+    const evalResult = evaluateDiscounts({
+      rules: menuData?.discountRules || [],
+      ticket: activeTicket,
+      cartSubtotal,
     });
+    autoDiscountAmount = evalResult.autoDiscountAmount;
+    autoDiscountCart = evalResult.autoDiscountCart;
+    autoDiscountByItemUid = evalResult.autoDiscountByItemUid;
+    autoDiscountRuleNames = evalResult.appliedRuleNames;
+    appliedDiscountRuleIds = evalResult.appliedRuleIds;
+    activeAutoRuleName = evalResult.appliedRuleNames[0] || "";
   }
 
   let manualDiscountAmount = 0;
@@ -655,6 +628,8 @@ function Register() {
   const enrichedActiveTicket = activeTicket ? {
     ...activeTicket,
     autoDiscountRuleName: activeAutoRuleName || null,
+    autoDiscountRuleNames: autoDiscountRuleNames.length ? autoDiscountRuleNames : null,
+    appliedDiscountRuleIds: appliedDiscountRuleIds.length ? appliedDiscountRuleIds : null,
     autoDiscountAmount: autoDiscountAmount || 0,
     manualDiscountAmount: manualDiscountAmount || 0
   } : null;
