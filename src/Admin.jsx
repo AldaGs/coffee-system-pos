@@ -26,6 +26,7 @@ import { useTranslation } from './hooks/useTranslation';
 import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 import { isLocalMode } from './utils/appMode';
 import { isCloudReachable } from './utils/network';
+import { useConnectionStatus } from './hooks/useConnectionStatus';
 import { useUpgradeNagStore } from './store/useUpgradeNagStore';
 
 import AnalyticsTab from './components/admin/AnalyticsTab';
@@ -59,7 +60,7 @@ function Admin() {
   const { showAlert, showConfirm } = useDialog();
   const { updateTheme } = useTheme();
   // --- ZUSTAND GLOBAL STORE ---
-  const { menuData, setMenuData, recipes, setRecipes } = useMenuStore();
+  const { menuData, setMenuData, recipes, setRecipes, lastSyncedAt } = useMenuStore();
   const { t } = useTranslation();
   // Local ('guest') mode: the device was already unlocked by LocalAuthGate, so
   // there is no separate cloud account login — start authenticated and skip the
@@ -100,6 +101,19 @@ function Admin() {
   const [adminPinInput, setAdminPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // Cloud reconciliation state for the local-first boot. The dashboard paints
+  // from the cached menuData immediately; this tracks the background refresh so
+  // the UI can tell the user whether what they're looking at is server-fresh:
+  //   'local'    — no cloud in this install; nothing to verify.
+  //   'checking' — cache is on screen, a background refresh is in flight.
+  //   'ok'       — the refresh confirmed against the server.
+  //   'stale'    — the refresh failed/timed out (degraded or dead link); the
+  //                screen is last-known cached data. Drives the warning banner.
+  const [cloudSync, setCloudSync] = useState(isLocalMode() ? 'local' : 'idle');
+  // Reactive connectivity — its `reachable` flag flips true the moment the
+  // circuit breaker closes (the heartbeat probes recovery in the background),
+  // which we use to auto-clear the stale banner without a user action.
+  const { reachable } = useConnectionStatus();
   // Initial tab honors `?tab=<key>` so flows that land us on /admin from
   // elsewhere (notably the Devices OAuth round-trip) can deep-link to the
   // tab the user was just on. The param is scrubbed from the URL in a
@@ -294,6 +308,19 @@ function Admin() {
         if (settings?.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...settings.loyaltySettings }));
       };
 
+      // LOCAL-FIRST PAINT. useMenuStore hydrated menuData from localStorage on
+      // boot, so we can seed the settings forms and drop the loading gate BEFORE
+      // any cloud round-trip. On a slow/half-open link the old code sat on the
+      // BootScreen for the full request deadline (~5s) even though this cached
+      // copy was already in hand; now the dashboard is interactive immediately
+      // and the cloud refresh below just reconciles underneath it.
+      const cached = useMenuStore.getState().menuData;
+      if (cached) {
+        applySettingsForms(cached);
+        setIsLoading(false);
+      }
+      if (!local) setCloudSync('checking');
+
       // 1. Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
       //    Cashiers, posSettings, receiptSettings, loyaltySettings ride on
       //    shop_settings.menu_data and are merged so the in-memory `menuData`
@@ -314,9 +341,13 @@ function Admin() {
         applySettingsForms(settings);
         const firstCategory = menu.categoryOrder?.[0];
         if (firstCategory) setNewItemForm(prev => ({ ...prev, category: firstCategory }));
+        if (!local) setCloudSync('ok');
       } catch (error) {
         console.warn('Admin menu/settings refresh failed; using cached menu.', error?.message);
         applySettingsForms(useMenuStore.getState().menuData || {});
+        // Couldn't verify against the DB (timeout / breaker open / offline).
+        // Flag stale so the banner explains the screen is last-known data.
+        if (!local) setCloudSync('stale');
       }
 
       // 2. Vendor registry (both modes via the dispatcher). Tolerate a missing
@@ -410,6 +441,43 @@ function Admin() {
       console.error('Failed to reload menu after write error:', err.message);
     }
   };
+
+  // Manual "Retry" from the stale-data banner: re-attempt the cloud reconcile
+  // without a full page reload, updating cloudSync so the banner clears on
+  // success or stays (with feedback) on continued failure.
+  const recheckCloud = async () => {
+    if (isLocalMode()) return;
+    setCloudSync('checking');
+    try {
+      const [menu, settingsRes] = await Promise.all([
+        loadMenu(),
+        supabase.from('shop_settings').select('menu_data').eq('id', 1).single()
+      ]);
+      if (settingsRes.error) throw settingsRes.error;
+      const settings = settingsRes.data?.menu_data || {};
+      setMenuData({ ...settings, ...menu });
+      if (settings?.receiptSettings) setReceiptForm(prev => ({ ...prev, ...settings.receiptSettings }));
+      if (settings?.posSettings) setGeneralSettings(prev => ({ ...prev, ...settings.posSettings }));
+      if (settings?.loyaltySettings) setLoyaltyForm(prev => ({ ...prev, ...settings.loyaltySettings }));
+      setCloudSync('ok');
+    } catch (err) {
+      console.warn('Cloud recheck failed; still on cached data.', err?.message);
+      setCloudSync('stale');
+    }
+  };
+
+  // Auto-clear the stale banner when the breaker closes. The heartbeat probes
+  // for recovery in the background, so `reachable` flips true on its own; when
+  // it does while we're showing stale data, silently re-reconcile so the banner
+  // disappears and the tabs refresh to server-fresh numbers — no user tap.
+  useEffect(() => {
+    if (cloudSync === 'stale' && reachable) {
+      recheckCloud();
+    }
+    // recheckCloud is stable enough for this guard; re-running only on the
+    // reachable/cloudSync transition is what we want.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reachable, cloudSync]);
 
   // Optimistic-write helper: applies `optimisticMenu` locally, runs the typed
   // writer(s), and on failure shows an alert + re-fetches to roll back.
@@ -1868,6 +1936,53 @@ function Admin() {
           </button>
           <h2 style={{ margin: 0, fontSize: '1.4rem', fontWeight: '800', color: 'var(--text-main)' }}>{t('admin.title')}</h2>
         </div>
+
+        {/* Stale-data warning. The dashboard is rendered from the local cache
+            (local-first); this appears only when the background reconcile with
+            the server timed out or failed, so the user knows the numbers on
+            screen are last-known and edits are queued locally, not lost. */}
+        {(cloudSync === 'stale' || cloudSync === 'checking') && !isLocalMode() && (
+          <div
+            role="status"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '12px',
+              padding: '12px 16px', marginBottom: '20px', borderRadius: '12px',
+              background: 'rgba(230,126,34,0.12)', border: '1px solid rgba(230,126,34,0.35)',
+              color: 'var(--text-main)',
+            }}
+          >
+            <Icon
+              icon={cloudSync === 'checking' ? 'lucide:refresh-cw' : 'lucide:cloud-off'}
+              className={cloudSync === 'checking' ? 'spin' : ''}
+              style={{ fontSize: '1.4rem', color: '#e67e22', flexShrink: 0 }}
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 800 }}>
+                {cloudSync === 'checking' ? t('admin.staleChecking') : t('admin.staleTitle')}
+              </div>
+              {cloudSync === 'stale' && (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  {t('admin.staleDesc').replace(
+                    '{time}',
+                    lastSyncedAt ? new Date(lastSyncedAt).toLocaleString() : t('admin.staleNever')
+                  )}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={recheckCloud}
+              disabled={cloudSync === 'checking'}
+              style={{
+                flexShrink: 0, padding: '8px 14px', borderRadius: '9999px',
+                border: '1px solid rgba(230,126,34,0.5)', background: 'transparent',
+                color: '#e67e22', fontWeight: 700, cursor: cloudSync === 'checking' ? 'default' : 'pointer',
+                opacity: cloudSync === 'checking' ? 0.6 : 1,
+              }}
+            >
+              {cloudSync === 'checking' ? t('admin.staleChecking') : t('admin.staleRetry')}
+            </button>
+          </div>
+        )}
 
         {isSaving && (
           <div style={{ position: 'fixed', top: 20, right: 20, background: '#27ae60', color: 'white', padding: '12px 24px', borderRadius: '12px', fontWeight: 'bold', zIndex: 100, boxShadow: '0 10px 25px rgba(39, 174, 96, 0.4)', display: 'flex', alignItems: 'center', gap: '10px', animation: 'slideInRight 0.3s ease' }}>

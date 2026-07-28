@@ -3,6 +3,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { Icon } from '@iconify/react';
 import { getRole } from '../../utils/cashierRoles';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
+import ConnectionStatusPill from '../shared/ConnectionStatusPill';
 
 // RegisterActionBar — the shared system toolbar that sits in the top-right of
 // the menu header: offline/sync badge, cashier chip, and the Gasto / Corte /
@@ -28,7 +29,6 @@ function RegisterActionBar({
 
   const {
     posSettings, activeCashier,
-    isCurrentlyOffline, totalOfflineRecords,
     shiftOrders, shiftExpenses, tickets,
     showAlert, showConfirm, requirePin,
     setIsLocked, navigate,
@@ -42,12 +42,10 @@ function RegisterActionBar({
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 
-      {(isCurrentlyOffline || totalOfflineRecords > 0) && (
-        <button onClick={() => setIsSyncModalOpen(true)} className={`pop-in ${isCurrentlyOffline ? 'status-badge-offline' : 'status-badge-syncing'}`} style={{ padding: '8px 12px', background: isCurrentlyOffline ? '#e74c3c' : '#f39c12', color: 'white', border: 'none', borderRadius: '9999px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Icon icon={isCurrentlyOffline ? "lucide:wifi-off" : "lucide:upload-cloud"} style={{ fontSize: '1.2rem' }} />
-          {totalOfflineRecords > 0 && (<span style={{ background: 'white', color: 'black', padding: '2px 8px', borderRadius: '12px', fontSize: '0.85rem' }}>{totalOfflineRecords}</span>)}
-        </button>
-      )}
+      {/* Single connectivity indicator, docked in the toolbar row so it flows as
+          a flex sibling of the hamburger instead of floating over it. Hidden
+          while online + fully synced; tap opens the sync status modal. */}
+      <ConnectionStatusPill iconOnly onClick={() => setIsSyncModalOpen(true)} />
 
       <button className="mobile-hamburger desktop-hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>☰</button>
 

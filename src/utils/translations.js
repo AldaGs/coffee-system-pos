@@ -4,6 +4,11 @@ export const translations = {
     // --- Admin General ---
     "admin.title": "Admin Dashboard",
     "admin.loading": "Loading Admin...",
+    "admin.staleTitle": "Couldn't reach the server",
+    "admin.staleDesc": "Showing data last synced {time}. Edits save on this device and upload when the connection returns.",
+    "admin.staleNever": "not yet synced on this device",
+    "admin.staleRetry": "Retry",
+    "admin.staleChecking": "Checking…",
     "admin.saving": "Saving to Cloud...",
     "admin.signOut": "Sign Out",
     "admin.backToReg": "Back to Register",
@@ -1353,6 +1358,11 @@ export const translations = {
     // --- Admin General ---
     "admin.title": "Panel de Administración",
     "admin.loading": "Cargando Admin...",
+    "admin.staleTitle": "No se pudo conectar con el servidor",
+    "admin.staleDesc": "Mostrando datos sincronizados por última vez {time}. Los cambios se guardan en este dispositivo y se suben cuando regrese la conexión.",
+    "admin.staleNever": "aún sin sincronizar en este dispositivo",
+    "admin.staleRetry": "Reintentar",
+    "admin.staleChecking": "Comprobando…",
     "admin.saving": "Guardando en la nube...",
     "admin.signOut": "Cerrar Sesión",
     "admin.backToReg": "Volver a la Caja",
