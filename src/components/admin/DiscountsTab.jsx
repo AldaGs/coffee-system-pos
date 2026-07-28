@@ -97,6 +97,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
       ...(newRule.maxDiscount ? { maxDiscount: toCents(newRule.maxDiscount) } : {}),
       priority: parseInt(newRule.priority, 10) || 0,
       allowStack: !!newRule.allowStack,
+      ...(newRule.requireApproval ? { requireApproval: true } : {}),
       usage: newRule.usage || 'recurring',
     });
 
@@ -104,7 +105,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
       name: '', trigger: 'auto', code: '', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
       bogoItem: '', buyQty: 2, payQty: 1, comboItems: [], comboPrice: '', requiredItems: [], minSubtotal: '', customer: 'any',
       days: [], startDate: '', endDate: '', startTime: '', endTime: '',
-      maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '', priority: 0, allowStack: false, usage: 'recurring',
+      maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '', priority: 0, allowStack: false, requireApproval: false, usage: 'recurring',
     });
     showAlert(t('disc.alertSuccess'), t('disc.alertSuccessDesc'));
   };
@@ -394,6 +395,11 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 <input type="checkbox" checked={!!newRule.allowStack} onChange={(e) => patch({ allowStack: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }} />
                 {t('disc.allowStack')}
               </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>
+                <input type="checkbox" checked={!!newRule.requireApproval} onChange={(e) => patch({ requireApproval: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }} />
+                {t('disc.requireApproval')}
+              </label>
+              {newRule.requireApproval && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.requireApprovalHint')}</span>}
 
               <h4 style={{ ...sectionTitleStyle, marginTop: '6px' }}><Icon icon="lucide:repeat" /> {t('disc.recurrenceTitle')}</h4>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -473,6 +479,7 @@ function ruleBadges(rule, t) {
   }
   if (rule.maxDiscount) badges.push({ icon: 'lucide:arrow-down-to-line', text: `${t('disc.capMax')} ${formatForDisplay(rule.maxDiscount)}` });
   if (rule.allowStack) badges.push({ icon: 'lucide:layers', text: t('disc.badgeStack') });
+  if (rule.requireApproval) badges.push({ icon: 'lucide:shield-check', text: t('disc.badgeApproval') });
   if (rule.priority) badges.push({ icon: 'lucide:flag', text: `${t('disc.badgePriority')} ${rule.priority}` });
   return badges;
 }

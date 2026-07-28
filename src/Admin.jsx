@@ -174,7 +174,7 @@ function Admin() {
     requiredItems: [], minSubtotal: '', customer: 'any',
     days: [], startDate: '', endDate: '', startTime: '', endTime: '',
     maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '',
-    priority: 0, allowStack: false,
+    priority: 0, allowStack: false, requireApproval: false,
     usage: 'recurring',
   });
   // Expenses are sourced from Dexie now — fetchAndMergeExpenses pulls every

@@ -17,6 +17,7 @@ import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
 import { logActivity } from './services/activityService';
 import { consumePendingAuthorizer } from './utils/overrideAuthorizer';
+import { gateRegisterAction } from './utils/actionGate';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
 import { getOrderedVisibleCategories } from './utils/categoryUtils';
@@ -303,16 +304,33 @@ function Register() {
     if (!activeTicket) return;
     const current = activeTicket.activatedManualRuleIds || [];
     const isOn = current.includes(rule.id);
-    const next = isOn ? current.filter(id => id !== rule.id) : [...current, rule.id];
-    await db.active_tickets.update(activeTicket.id, { activatedManualRuleIds: next });
-    if (!isOn) {
-      logActivity(
-        'Discount Applied',
-        `Promo "${rule.name}" was applied to ticket: ${activeTicket.name}`,
-        null,
-        consumePendingAuthorizer()
-      );
+
+    const applyToggle = async (authorizer) => {
+      const next = isOn ? current.filter(id => id !== rule.id) : [...current, rule.id];
+      await db.active_tickets.update(activeTicket.id, { activatedManualRuleIds: next });
+      if (!isOn) {
+        logActivity(
+          'Discount Applied',
+          `Promo "${rule.name}" was applied to ticket: ${activeTicket.name}`,
+          null,
+          authorizer || consumePendingAuthorizer()
+        );
+      }
+    };
+
+    // Removing never needs approval; applying an approval-gated rule goes
+    // through the manager-override PIN gate first.
+    if (!isOn && rule.requireApproval) {
+      gateRegisterAction({
+        posSettings,
+        activeCashier,
+        requirePin,
+        title: t('disc.approvalTitle'),
+        run: (authorizer) => applyToggle(authorizer),
+      });
+      return;
     }
+    applyToggle();
   };
 
   // --- OFFLINE SYNC QUEUES & MODAL ---
