@@ -573,6 +573,11 @@ export const translations = {
     "disc.btnDelete": "Delete",
     "disc.confirmDelete": "Delete Rule",
     "disc.confirmDeleteDesc": "Are you sure you want to delete this discount rule?",
+    "disc.triggerLabel": "How is it applied?",
+    "disc.triggerAuto": "Automatic",
+    "disc.triggerManual": "Cashier-applied",
+    "disc.triggerManualHint": "Won't apply on its own — the cashier taps it on the ticket (e.g. arrived by bike, student ID).",
+    "disc.badgeManual": "Cashier-applied",
     "disc.rewardKind": "Reward Type",
     "disc.kindStandard": "Percentage / Flat",
     "disc.kindBogo": "Buy X, Get Y (2x1, 3x2)",
@@ -1079,6 +1084,7 @@ export const translations = {
 
     // --- Discount Modal (Register) ---
     "discModal.title": "Apply Discount",
+    "discModal.presetsTitle": "Cashier promos",
     "discModal.perc": "% Percentage",
     "discModal.flat": "$ Flat Amount",
     "discModal.labelPerc": "Discount Percentage (%)",
@@ -1975,6 +1981,11 @@ export const translations = {
     "disc.btnDelete": "Eliminar",
     "disc.confirmDelete": "Eliminar Regla",
     "disc.confirmDeleteDesc": "¿Estás seguro de que deseas eliminar esta regla de descuento?",
+    "disc.triggerLabel": "¿Cómo se aplica?",
+    "disc.triggerAuto": "Automático",
+    "disc.triggerManual": "Aplicado por cajero",
+    "disc.triggerManualHint": "No se aplica solo — el cajero lo activa en el ticket (ej. llegó en bici, credencial de estudiante).",
+    "disc.badgeManual": "Aplicado por cajero",
     "disc.rewardKind": "Tipo de Recompensa",
     "disc.kindStandard": "Porcentaje / Monto Fijo",
     "disc.kindBogo": "Compra X, Lleva Y (2x1, 3x2)",
@@ -2481,6 +2492,7 @@ export const translations = {
 
     // --- Discount Modal (Register) ---
     "discModal.title": "Aplicar Descuento",
+    "discModal.presetsTitle": "Promos de cajero",
     "discModal.perc": "% Porcentaje",
     "discModal.flat": "$ Monto Fijo",
     "discModal.labelPerc": "Porcentaje de Descuento (%)",

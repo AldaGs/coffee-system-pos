@@ -165,6 +165,7 @@ function Admin() {
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [newRule, setNewRule] = useState({
     name: '',
+    trigger: 'auto',
     kind: 'standard',
     type: 'percentage', value: '', targetType: 'cart', targetValue: '',
     bogoItem: '', buyQty: 2, payQty: 1,

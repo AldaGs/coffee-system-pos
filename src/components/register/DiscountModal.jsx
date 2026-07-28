@@ -1,9 +1,16 @@
 import { useTranslation } from '../../hooks/useTranslation';
 
-function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, activeTicket }) {
+function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, activeTicket, menuData, handleToggleManualRule, isAdvancedMode }) {
   const { t } = useTranslation();
 
   if (!isDiscountModalOpen) return null;
+
+  // Attended presets: cashier-applied rules (e.g. "Cyclist 10%") the till
+  // observes and toggles. Only shown in advanced mode.
+  const presetRules = isAdvancedMode
+    ? (menuData?.discountRules || []).filter(r => r.trigger === 'manual' && r.isActive && !(r.usage === 'once' && r.consumedAt))
+    : [];
+  const activatedIds = activeTicket?.activatedManualRuleIds || [];
 
   return (
     <div className="modal-overlay" style={{ zIndex: 100 }}>
@@ -12,6 +19,27 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
           <h2 style={{ margin: 0, color: '#8e44ad' }}>{t('discModal.title')}</h2>
           <button onClick={() => setIsDiscountModalOpen(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
         </div>
+
+        {presetRules.length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: '900', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>{t('discModal.presetsTitle')}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {presetRules.map(rule => {
+                const on = activatedIds.includes(rule.id);
+                const amountLabel = rule.kind === 'buyXgetY'
+                  ? `${rule.buyQty}×${rule.payQty}`
+                  : (rule.type === 'percentage' ? `${rule.value}%` : null);
+                return (
+                  <button key={rule.id} onClick={() => handleToggleManualRule(rule)}
+                    style={{ padding: '10px 14px', borderRadius: '999px', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px', border: `2px solid ${on ? '#8e44ad' : 'var(--border)'}`, background: on ? '#8e44ad' : 'var(--bg-main)', color: on ? 'white' : 'var(--text-main)' }}>
+                    {on && <span aria-hidden="true">✓</span>}
+                    {rule.name}{amountLabel ? ` · ${amountLabel}` : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
           <button 

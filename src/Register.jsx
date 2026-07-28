@@ -296,6 +296,25 @@ function Register() {
     setIsDiscountModalOpen(false);
   };
 
+  // Toggle an attended ("cashier-applied") preset promo onto the active ticket.
+  // The engine only evaluates a manual-trigger rule while its id sits in the
+  // ticket's activatedManualRuleIds, so this is all it takes to apply/remove one.
+  const handleToggleManualRule = async (rule) => {
+    if (!activeTicket) return;
+    const current = activeTicket.activatedManualRuleIds || [];
+    const isOn = current.includes(rule.id);
+    const next = isOn ? current.filter(id => id !== rule.id) : [...current, rule.id];
+    await db.active_tickets.update(activeTicket.id, { activatedManualRuleIds: next });
+    if (!isOn) {
+      logActivity(
+        'Discount Applied',
+        `Promo "${rule.name}" was applied to ticket: ${activeTicket.name}`,
+        null,
+        consumePendingAuthorizer()
+      );
+    }
+  };
+
   // --- OFFLINE SYNC QUEUES & MODAL ---
   const syncQueue = useLiveQuery(() => db.syncQueue.toArray(), []) || [];
 
@@ -601,6 +620,7 @@ function Register() {
       rules: menuData?.discountRules || [],
       ticket: activeTicket,
       cartSubtotal,
+      activatedRuleIds: activeTicket?.activatedManualRuleIds || [],
     });
     autoDiscountAmount = evalResult.autoDiscountAmount;
     autoDiscountCart = evalResult.autoDiscountCart;
@@ -1074,7 +1094,7 @@ function Register() {
 
         <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 
-        <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
+        <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} menuData={menuData} handleToggleManualRule={handleToggleManualRule} isAdvancedMode={posSettings?.isAdvancedMode} />
 
         {/* Hidden TicketImage for PNG Capture */}
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>

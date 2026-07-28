@@ -67,6 +67,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
       id: Date.now(),
       name: newRule.name,
       isActive: true,
+      trigger: newRule.trigger || 'auto',
       ...reward,
       ...(Object.keys(conditions).length ? { conditions } : {}),
       priority: parseInt(newRule.priority, 10) || 0,
@@ -75,7 +76,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     });
 
     setNewRule({
-      name: '', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
+      name: '', trigger: 'auto', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
       bogoItem: '', buyQty: 2, payQty: 1, requiredItems: [], minSubtotal: '',
       days: [], startDate: '', endDate: '', startTime: '', endTime: '', priority: 0, allowStack: false, usage: 'recurring',
     });
@@ -104,6 +105,20 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
               <label style={labelStyle}>{t('disc.labelName')}</label>
               <input type="text" placeholder={t('disc.placeholderName')} value={newRule.name}
                 onChange={(e) => patch({ name: e.target.value })} style={inputStyle} />
+            </div>
+
+            {/* Trigger: automatic vs cashier-applied */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={labelStyle}>{t('disc.triggerLabel')}</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {[{ v: 'auto', label: t('disc.triggerAuto'), icon: 'lucide:zap' }, { v: 'manual', label: t('disc.triggerManual'), icon: 'lucide:hand' }].map(opt => (
+                  <button key={opt.v} onClick={() => patch({ trigger: opt.v })}
+                    style={{ flex: 1, padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${(newRule.trigger || 'auto') === opt.v ? 'var(--brand-color)' : 'var(--border)'}`, background: (newRule.trigger || 'auto') === opt.v ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: (newRule.trigger || 'auto') === opt.v ? 'var(--brand-color)' : 'var(--text-main)' }}>
+                    <Icon icon={opt.icon} /> {opt.label}
+                  </button>
+                ))}
+              </div>
+              {newRule.trigger === 'manual' && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.triggerManualHint')}</span>}
             </div>
 
             {/* Reward kind selector */}
@@ -351,6 +366,7 @@ function ruleBadges(rule, t) {
   if (cond.minSubtotal) {
     badges.push({ icon: 'lucide:receipt', text: `≥ ${formatForDisplay(cond.minSubtotal)}` });
   }
+  if (rule.trigger === 'manual') badges.push({ icon: 'lucide:hand', text: t('disc.badgeManual') });
   if (rule.usage === 'once') badges.push({ icon: 'lucide:ticket', text: t('disc.badgeOnce') });
   if (rule.allowStack) badges.push({ icon: 'lucide:layers', text: t('disc.badgeStack') });
   if (rule.priority) badges.push({ icon: 'lucide:flag', text: `${t('disc.badgePriority')} ${rule.priority}` });

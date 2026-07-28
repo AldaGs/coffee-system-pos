@@ -246,6 +246,31 @@ describe('Discount Engine', () => {
     });
   });
 
+  describe('attended (manual-trigger) presets', () => {
+    const rule = { id: 7, name: 'Cyclist 10%', isActive: true, trigger: 'manual', type: 'percentage', value: 10, targetType: 'cart' };
+    const t = ticket(item('Latte', 5000));
+
+    it('does not fire on its own', () => {
+      const res = evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 5000, now: TUESDAY });
+      expect(res.autoDiscountAmount).toBe(0);
+    });
+    it('fires once the cashier activates it', () => {
+      const res = evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 5000, now: TUESDAY, activatedRuleIds: [7] });
+      expect(res.autoDiscountAmount).toBe(500);
+      expect(res.appliedRuleNames).toEqual(['Cyclist 10%']);
+    });
+    it('still respects its own conditions when activated', () => {
+      const conditioned = { ...rule, conditions: { days: [2] } };
+      expect(evaluateDiscounts({ rules: [conditioned], ticket: t, cartSubtotal: 5000, now: MONDAY, activatedRuleIds: [7] }).autoDiscountAmount).toBe(0);
+      expect(evaluateDiscounts({ rules: [conditioned], ticket: t, cartSubtotal: 5000, now: TUESDAY, activatedRuleIds: [7] }).autoDiscountAmount).toBe(500);
+    });
+    it('an auto rule is unaffected by activation state', () => {
+      const auto = { id: 8, name: 'Auto', isActive: true, type: 'percentage', value: 5, targetType: 'cart' };
+      const res = evaluateDiscounts({ rules: [auto], ticket: t, cartSubtotal: 5000, now: TUESDAY });
+      expect(res.autoDiscountAmount).toBe(250);
+    });
+  });
+
   describe('subtotal clamp', () => {
     it('never discounts more than the subtotal and scales the breakdown', () => {
       const rules = [{ id: 1, name: 'Huge', isActive: true, type: 'flat', value: 99999, targetType: 'cart' }];

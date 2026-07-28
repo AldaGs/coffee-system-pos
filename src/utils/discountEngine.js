@@ -9,6 +9,9 @@
  *
  *   {
  *     id, name, isActive,
+ *     trigger: 'auto' | 'manual',         // absent -> 'auto'; 'manual' = cashier
+ *                                          //   taps it on (bike/student/senior),
+ *                                          //   evaluated only when activated
  *     // Reward
  *     kind: 'standard' | 'buyXgetY',      // absent -> 'standard'
  *     type: 'percentage' | 'flat',        // standard
@@ -182,7 +185,7 @@ function computeRuleAmount(rule, items, cartSubtotal) {
  *   autoDiscountByItemUid:Object, appliedRuleNames:string[], appliedRuleIds:Array
  * }}
  */
-export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date() }) {
+export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(), activatedRuleIds = [] }) {
   const empty = {
     autoDiscountAmount: 0,
     autoDiscountCart: 0,
@@ -196,12 +199,16 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
   if (!(cartSubtotal > 0)) return empty;
 
   const items = ticket.items;
+  // Attended ("manual" trigger) rules never fire on their own — they only
+  // participate once the cashier has toggled them onto this ticket.
+  const activated = new Set(activatedRuleIds);
 
   // 1. Keep rules that are active, un-consumed, scheduled, conditioned, and
   //    actually produce a discount.
   const qualifying = [];
   rules.forEach(rule => {
     if (!rule.isActive) return;
+    if (rule.trigger === 'manual' && !activated.has(rule.id)) return;
     if (rule.usage === 'once' && rule.consumedAt) return;
     if (!scheduleAllows(rule, now)) return;
     if (!conditionsMet(rule, items, cartSubtotal)) return;
