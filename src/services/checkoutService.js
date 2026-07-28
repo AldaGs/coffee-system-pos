@@ -213,6 +213,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
       autoRuleName: activeTicket.autoDiscountRuleName || null,
       autoRuleNames: activeTicket.autoDiscountRuleNames
         || (activeTicket.autoDiscountRuleName ? [activeTicket.autoDiscountRuleName] : null),
+      autoBreakdown: activeTicket.appliedDiscountBreakdown || null,
       autoDiscountAmount: activeTicket.autoDiscountAmount || 0,
       manualDiscountAmount: activeTicket.manualDiscountAmount || 0
     } : null, // Discount info for re-sharing

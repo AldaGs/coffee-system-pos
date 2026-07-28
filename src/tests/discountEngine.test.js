@@ -12,6 +12,8 @@ const ticket = (...items) => ({ items });
 // A fixed Tuesday for schedule tests (2026-07-28 is a Tuesday; getDay() === 2).
 const TUESDAY = new Date(2026, 6, 28, 10, 0, 0);
 const MONDAY = new Date(2026, 6, 27, 10, 0, 0);
+// Fixed clock helper: same Tuesday at HH:MM.
+const at = (h, m = 0) => new Date(2026, 6, 28, h, m, 0);
 
 describe('Discount Engine', () => {
   describe('legacy standard rules (backward compatibility)', () => {
@@ -76,6 +78,59 @@ describe('Discount Engine', () => {
     it('does not apply after the window', () => {
       const res = evaluateDiscounts({ rules, ticket: ticket(item('Latte', 5000)), cartSubtotal: 5000, now: new Date(2026, 7, 1, 10, 0, 0) });
       expect(res.autoDiscountAmount).toBe(0);
+    });
+  });
+
+  describe('time-of-day (happy hour)', () => {
+    const rules = [{
+      id: 1, name: 'Happy Hour', isActive: true, type: 'percentage', value: 20, targetType: 'cart',
+      conditions: { startTime: '15:00', endTime: '17:00' },
+    }];
+    const run = (now) => evaluateDiscounts({ rules, ticket: ticket(item('Latte', 5000)), cartSubtotal: 5000, now });
+
+    it('applies inside the window', () => {
+      expect(run(at(16, 0)).autoDiscountAmount).toBe(1000);
+      expect(run(at(15, 0)).autoDiscountAmount).toBe(1000); // inclusive start
+      expect(run(at(17, 0)).autoDiscountAmount).toBe(1000); // inclusive end
+    });
+    it('does not apply before or after the window', () => {
+      expect(run(at(14, 59)).autoDiscountAmount).toBe(0);
+      expect(run(at(17, 1)).autoDiscountAmount).toBe(0);
+    });
+    it('handles an overnight window that wraps past midnight', () => {
+      const overnight = [{ id: 1, name: 'Late', isActive: true, type: 'percentage', value: 10, targetType: 'cart', conditions: { startTime: '22:00', endTime: '02:00' } }];
+      const runOn = (now) => evaluateDiscounts({ rules: overnight, ticket: ticket(item('Latte', 5000)), cartSubtotal: 5000, now });
+      expect(runOn(at(23, 0)).autoDiscountAmount).toBe(500);
+      expect(runOn(at(1, 0)).autoDiscountAmount).toBe(500);
+      expect(runOn(at(12, 0)).autoDiscountAmount).toBe(0);
+    });
+    it('combines with a day-of-week gate', () => {
+      const dayAndTime = [{ id: 1, name: 'Tue HH', isActive: true, type: 'percentage', value: 20, targetType: 'cart', conditions: { days: [2], startTime: '15:00', endTime: '17:00' } }];
+      expect(evaluateDiscounts({ rules: dayAndTime, ticket: ticket(item('Latte', 5000)), cartSubtotal: 5000, now: at(16) }).autoDiscountAmount).toBe(1000);
+      expect(evaluateDiscounts({ rules: dayAndTime, ticket: ticket(item('Latte', 5000)), cartSubtotal: 5000, now: new Date(2026, 6, 27, 16, 0, 0) }).autoDiscountAmount).toBe(0); // Monday
+    });
+  });
+
+  describe('per-rule breakdown (reporting)', () => {
+    it('returns each applied rule with its amount', () => {
+      const rules = [
+        { id: 1, name: 'Top', isActive: true, type: 'percentage', value: 20, targetType: 'cart', priority: 5 },
+        { id: 2, name: 'Stack', isActive: true, type: 'percentage', value: 10, targetType: 'cart', priority: 1, allowStack: true },
+      ];
+      const res = evaluateDiscounts({ rules, ticket: ticket(item('Latte', 10000)), cartSubtotal: 10000, now: TUESDAY });
+      expect(res.appliedRules).toEqual([
+        { id: 1, name: 'Top', amount: 2000 },
+        { id: 2, name: 'Stack', amount: 1000 },
+      ]);
+    });
+    it('scales the breakdown on clamp so it still sums to the total', () => {
+      const rules = [
+        { id: 1, name: 'A', isActive: true, type: 'flat', value: 4000, targetType: 'cart', priority: 2, allowStack: true },
+        { id: 2, name: 'B', isActive: true, type: 'flat', value: 4000, targetType: 'cart', priority: 1, allowStack: true },
+      ];
+      const res = evaluateDiscounts({ rules, ticket: ticket(item('Latte', 5000)), cartSubtotal: 5000, now: TUESDAY });
+      expect(res.autoDiscountAmount).toBe(5000);
+      expect(res.appliedRules.reduce((s, r) => s + r.amount, 0)).toBe(5000);
     });
   });
 

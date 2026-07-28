@@ -60,6 +60,8 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     if ((newRule.days || []).length) conditions.days = newRule.days;
     if (newRule.startDate) conditions.startDate = newRule.startDate;
     if (newRule.endDate) conditions.endDate = newRule.endDate;
+    if (newRule.startTime) conditions.startTime = newRule.startTime;
+    if (newRule.endTime) conditions.endTime = newRule.endTime;
 
     handleAddDiscountRule({
       id: Date.now(),
@@ -75,7 +77,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     setNewRule({
       name: '', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
       bogoItem: '', buyQty: 2, payQty: 1, requiredItems: [], minSubtotal: '',
-      days: [], startDate: '', endDate: '', priority: 0, allowStack: false, usage: 'recurring',
+      days: [], startDate: '', endDate: '', startTime: '', endTime: '', priority: 0, allowStack: false, usage: 'recurring',
     });
     showAlert(t('disc.alertSuccess'), t('disc.alertSuccessDesc'));
   };
@@ -259,6 +261,16 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                   <input type="date" value={newRule.endDate} onChange={(e) => patch({ endDate: e.target.value })} style={inputStyle} />
                 </div>
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={labelStyle}>{t('disc.timeFrom')}</label>
+                  <input type="time" value={newRule.startTime} onChange={(e) => patch({ startTime: e.target.value })} style={inputStyle} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={labelStyle}>{t('disc.timeTo')}</label>
+                  <input type="time" value={newRule.endTime} onChange={(e) => patch({ endTime: e.target.value })} style={inputStyle} />
+                </div>
+              </div>
             </div>
 
             {/* COMBINATION + RECURRENCE */}
@@ -329,6 +341,9 @@ function ruleBadges(rule, t) {
   }
   if (cond.startDate || cond.endDate) {
     badges.push({ icon: 'lucide:calendar-range', text: `${cond.startDate || '…'} → ${cond.endDate || '…'}` });
+  }
+  if (cond.startTime || cond.endTime) {
+    badges.push({ icon: 'lucide:clock', text: `${cond.startTime || '…'} – ${cond.endTime || '…'}` });
   }
   if (Array.isArray(cond.requiredItems) && cond.requiredItems.length) {
     badges.push({ icon: 'lucide:shopping-basket', text: `${t('disc.requiresLabel')} ${cond.requiredItems.map(r => (r.minQty > 1 ? `${r.minQty}× ${r.name}` : r.name)).join(' + ')}` });

@@ -53,7 +53,15 @@ function dayKey(d) {
   return `${y}-${m}-${day}`;
 }
 
-/** Day-of-week + date-range gate. */
+/** Parse a 'HH:MM' string into minutes-since-midnight, or null if unset/invalid. */
+function timeToMinutes(str) {
+  if (!str || typeof str !== 'string') return null;
+  const [h, m] = str.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return h * 60 + m;
+}
+
+/** Day-of-week + date-range + time-of-day (happy hour) gate. */
 function scheduleAllows(rule, now) {
   const cond = rule.conditions;
   if (!cond) return true;
@@ -63,6 +71,22 @@ function scheduleAllows(rule, now) {
   const today = dayKey(now);
   if (cond.startDate && today < cond.startDate) return false;
   if (cond.endDate && today > cond.endDate) return false;
+
+  // Time-of-day window. A window that ends before it starts (e.g. 22:00–02:00)
+  // wraps past midnight.
+  const start = timeToMinutes(cond.startTime);
+  const end = timeToMinutes(cond.endTime);
+  if (start !== null || end !== null) {
+    const mins = now.getHours() * 60 + now.getMinutes();
+    if (start !== null && end !== null) {
+      const inWindow = start <= end ? (mins >= start && mins <= end) : (mins >= start || mins <= end);
+      if (!inWindow) return false;
+    } else if (start !== null && mins < start) {
+      return false;
+    } else if (end !== null && mins > end) {
+      return false;
+    }
+  }
   return true;
 }
 
@@ -165,6 +189,7 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
     autoDiscountByItemUid: {},
     appliedRuleNames: [],
     appliedRuleIds: [],
+    appliedRules: [],
   };
   if (!ticket || !Array.isArray(ticket.items) || ticket.items.length === 0) return empty;
   if (!Array.isArray(rules) || rules.length === 0) return empty;
@@ -195,6 +220,8 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
   const autoDiscountByItemUid = {};
   const appliedRuleNames = [];
   const appliedRuleIds = [];
+  // Per-rule amounts kept for promo-performance reporting (persisted on the sale).
+  const appliedRules = [];
   selected.forEach(q => {
     autoDiscountAmount += q.amount;
     autoDiscountCart += q.cart;
@@ -203,9 +230,10 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
     });
     if (q.rule.name) appliedRuleNames.push(q.rule.name);
     appliedRuleIds.push(q.rule.id);
+    appliedRules.push({ id: q.rule.id, name: q.rule.name || '', amount: q.amount });
   });
 
-  // 4. Clamp to subtotal and scale the breakdown so the parts still sum.
+  // 4. Clamp to subtotal and scale every breakdown so the parts still sum.
   const unclamped = autoDiscountAmount;
   autoDiscountAmount = Math.max(0, Math.min(autoDiscountAmount, cartSubtotal));
   if (unclamped > autoDiscountAmount && unclamped > 0) {
@@ -214,7 +242,11 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
     Object.keys(autoDiscountByItemUid).forEach(uid => {
       autoDiscountByItemUid[uid] = Math.round(autoDiscountByItemUid[uid] * scale);
     });
+    appliedRules.forEach(r => { r.amount = Math.round(r.amount * scale); });
+    // Absorb any rounding drift into the first rule so the breakdown sums exactly.
+    const drift = autoDiscountAmount - appliedRules.reduce((s, r) => s + r.amount, 0);
+    if (drift !== 0 && appliedRules.length) appliedRules[0].amount += drift;
   }
 
-  return { autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, appliedRuleNames, appliedRuleIds };
+  return { autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, appliedRuleNames, appliedRuleIds, appliedRules };
 }

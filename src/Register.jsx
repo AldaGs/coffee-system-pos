@@ -594,6 +594,7 @@ function Register() {
   let activeAutoRuleName = "";
   let autoDiscountRuleNames = [];
   let appliedDiscountRuleIds = [];
+  let appliedDiscountBreakdown = [];
 
   if (posSettings?.isAdvancedMode) {
     const evalResult = evaluateDiscounts({
@@ -606,6 +607,7 @@ function Register() {
     autoDiscountByItemUid = evalResult.autoDiscountByItemUid;
     autoDiscountRuleNames = evalResult.appliedRuleNames;
     appliedDiscountRuleIds = evalResult.appliedRuleIds;
+    appliedDiscountBreakdown = evalResult.appliedRules;
     activeAutoRuleName = evalResult.appliedRuleNames[0] || "";
   }
 
@@ -630,6 +632,7 @@ function Register() {
     autoDiscountRuleName: activeAutoRuleName || null,
     autoDiscountRuleNames: autoDiscountRuleNames.length ? autoDiscountRuleNames : null,
     appliedDiscountRuleIds: appliedDiscountRuleIds.length ? appliedDiscountRuleIds : null,
+    appliedDiscountBreakdown: appliedDiscountBreakdown.length ? appliedDiscountBreakdown : null,
     autoDiscountAmount: autoDiscountAmount || 0,
     manualDiscountAmount: manualDiscountAmount || 0
   } : null;

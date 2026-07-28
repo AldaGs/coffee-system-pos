@@ -188,6 +188,42 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     ).sort((a, b) => b[1].sales - a[1].sales);
   }, [filteredSales, t]);
 
+  // Promo performance: how often each discount rule fired and how much money it
+  // gave away, so promos can be judged on ROI. Auto discounts prefer the
+  // per-rule autoBreakdown persisted at checkout; older sales fall back to the
+  // rule name(s) + the single auto total. Manual discounts get their own bucket.
+  const promoPerformance = useMemo(() => {
+    const byRule = {};
+    let manualTotal = 0;
+    let manualCount = 0;
+    filteredSales.forEach(sale => {
+      if (sale.status === 'refunded') return;
+      const d = sale.discount;
+      if (!d) return;
+      const breakdown = Array.isArray(d.autoBreakdown) ? d.autoBreakdown : null;
+      if (breakdown && breakdown.length) {
+        breakdown.forEach(r => {
+          const name = r.name || t('analytics.promoUnnamed');
+          if (!byRule[name]) byRule[name] = { count: 0, amount: 0 };
+          byRule[name].count += 1;
+          byRule[name].amount += r.amount || 0;
+        });
+      } else {
+        const names = d.autoRuleNames || (d.autoRuleName ? [d.autoRuleName] : []);
+        if (names.length) {
+          const name = names.filter(Boolean).join(', ') || t('analytics.promoUnnamed');
+          if (!byRule[name]) byRule[name] = { count: 0, amount: 0 };
+          byRule[name].count += 1;
+          byRule[name].amount += d.autoDiscountAmount || 0;
+        }
+      }
+      if ((d.manualDiscountAmount || 0) > 0) { manualTotal += d.manualDiscountAmount; manualCount += 1; }
+    });
+    const rules = Object.entries(byRule).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.amount - a.amount);
+    const totalGiven = rules.reduce((s, r) => s + r.amount, 0) + manualTotal;
+    return { rules, manualTotal, manualCount, totalGiven };
+  }, [filteredSales, t]);
+
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px' }}>
@@ -501,6 +537,45 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* PROMO PERFORMANCE */}
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '6px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
+            <Icon icon="lucide:badge-percent" style={{ color: '#8e44ad' }} />
+            {t('analytics.promoTitle')}
+          </h3>
+          <p style={{ margin: '0 0 20px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('analytics.promoSubtitle')}</p>
+          {(promoPerformance.rules.length === 0 && promoPerformance.manualTotal === 0) ? (
+            <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noPromoData')}</p>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', marginBottom: '16px', background: 'rgba(142, 68, 173, 0.06)', borderRadius: '16px', border: '1px solid rgba(142, 68, 173, 0.2)' }}>
+                <span style={{ fontWeight: '800', color: 'var(--text-main)' }}>{t('analytics.promoTotalGiven')}</span>
+                <span style={{ fontSize: '1.3rem', fontWeight: '900', color: '#8e44ad' }}>-{formatForDisplay(promoPerformance.totalGiven)}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {promoPerformance.rules.map((r) => (
+                  <div key={r.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{r.name}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.count} {t('analytics.promoRedemptions')}</span>
+                    </div>
+                    <span style={{ fontWeight: '800', color: '#8e44ad' }}>-{formatForDisplay(r.amount)}</span>
+                  </div>
+                ))}
+                {promoPerformance.manualTotal > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px dashed var(--border)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('analytics.promoManual')}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{promoPerformance.manualCount} {t('analytics.promoRedemptions')}</span>
+                    </div>
+                    <span style={{ fontWeight: '800', color: '#e74c3c' }}>-{formatForDisplay(promoPerformance.manualTotal)}</span>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>

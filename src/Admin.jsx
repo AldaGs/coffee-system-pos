@@ -169,7 +169,7 @@ function Admin() {
     type: 'percentage', value: '', targetType: 'cart', targetValue: '',
     bogoItem: '', buyQty: 2, payQty: 1,
     requiredItems: [], minSubtotal: '',
-    days: [], startDate: '', endDate: '',
+    days: [], startDate: '', endDate: '', startTime: '', endTime: '',
     priority: 0, allowStack: false,
     usage: 'recurring',
   });
