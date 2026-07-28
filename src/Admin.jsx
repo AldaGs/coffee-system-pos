@@ -169,6 +169,7 @@ function Admin() {
     kind: 'standard',
     type: 'percentage', value: '', targetType: 'cart', targetValue: '',
     bogoItem: '', buyQty: 2, payQty: 1,
+    comboItems: [], comboPrice: '',
     requiredItems: [], minSubtotal: '', customer: 'any',
     days: [], startDate: '', endDate: '', startTime: '', endTime: '',
     maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '',

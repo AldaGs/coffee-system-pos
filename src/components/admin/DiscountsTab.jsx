@@ -19,6 +19,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
 
   const patch = (fields) => setNewRule({ ...newRule, ...fields });
   const isBogo = newRule.kind === 'buyXgetY';
+  const isCombo = newRule.kind === 'comboPrice';
 
   // --- required-items editor helpers ---
   const addRequiredItem = () => patch({ requiredItems: [...(newRule.requiredItems || []), { name: '', minQty: 1 }] });
@@ -27,6 +28,14 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     patch({ requiredItems: next });
   };
   const removeRequiredItem = (idx) => patch({ requiredItems: (newRule.requiredItems || []).filter((_, i) => i !== idx) });
+
+  // --- combo-items editor helpers ---
+  const addComboItem = () => patch({ comboItems: [...(newRule.comboItems || []), { name: '', qty: 1 }] });
+  const updateComboItem = (idx, field, value) => {
+    const next = (newRule.comboItems || []).map((r, i) => i === idx ? { ...r, [field]: value } : r);
+    patch({ comboItems: next });
+  };
+  const removeComboItem = (idx) => patch({ comboItems: (newRule.comboItems || []).filter((_, i) => i !== idx) });
 
   const toggleDay = (d) => {
     const days = newRule.days || [];
@@ -44,6 +53,12 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
         return showAlert(t('disc.alertError'), t('disc.alertBogoDesc'));
       }
       reward = { kind: 'buyXgetY', bogoItem: newRule.bogoItem, buyQty, payQty };
+    } else if (isCombo) {
+      const comboItems = (newRule.comboItems || []).filter(c => c.name).map(c => ({ name: c.name, qty: Math.max(1, parseInt(c.qty, 10) || 1) }));
+      if (comboItems.length < 1 || !newRule.comboPrice) {
+        return showAlert(t('disc.alertError'), t('disc.alertComboDesc'));
+      }
+      reward = { kind: 'comboPrice', comboItems, comboPrice: toCents(newRule.comboPrice) };
     } else {
       if (!newRule.value || (newRule.targetType === 'item' && !newRule.targetValue)) {
         return showAlert(t('disc.alertError'), t('disc.alertErrorDesc'));
@@ -86,7 +101,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
 
     setNewRule({
       name: '', trigger: 'auto', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
-      bogoItem: '', buyQty: 2, payQty: 1, requiredItems: [], minSubtotal: '', customer: 'any',
+      bogoItem: '', buyQty: 2, payQty: 1, comboItems: [], comboPrice: '', requiredItems: [], minSubtotal: '', customer: 'any',
       days: [], startDate: '', endDate: '', startTime: '', endTime: '',
       maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '', priority: 0, allowStack: false, usage: 'recurring',
     });
@@ -134,10 +149,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
             {/* Reward kind selector */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={labelStyle}>{t('disc.rewardKind')}</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                {[{ k: 'standard', label: t('disc.kindStandard'), icon: 'lucide:percent' }, { k: 'buyXgetY', label: t('disc.kindBogo'), icon: 'lucide:gift' }].map(opt => (
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                {[{ k: 'standard', label: t('disc.kindStandard'), icon: 'lucide:percent' }, { k: 'buyXgetY', label: t('disc.kindBogo'), icon: 'lucide:gift' }, { k: 'comboPrice', label: t('disc.kindCombo'), icon: 'lucide:package' }].map(opt => (
                   <button key={opt.k} onClick={() => patch({ kind: opt.k })}
-                    style={{ flex: 1, padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--border)'}`, background: newRule.kind === opt.k ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--text-main)' }}>
+                    style={{ flex: '1 1 30%', minWidth: '96px', padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--border)'}`, background: newRule.kind === opt.k ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--text-main)' }}>
                     <Icon icon={opt.icon} /> {opt.label}
                   </button>
                 ))}
@@ -225,6 +240,34 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                   {Math.max(0, (parseInt(newRule.buyQty, 10) || 0) - (parseInt(newRule.payQty, 10) || 0))} {t('disc.bogoHintFree')}
                 </p>
+              </div>
+            )}
+
+            {/* Combo price reward fields */}
+            {isCombo && (
+              <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={labelStyle}>{t('disc.comboItems')}</label>
+                  {(newRule.comboItems || []).map((c, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <select value={c.name} onChange={(e) => updateComboItem(idx, 'name', e.target.value)} style={{ ...inputStyle, flex: 1, padding: '10px', cursor: 'pointer' }}>
+                        <option value="">{t('disc.selectItemPlaceholder')}</option>
+                        {allItems.map(item => <option key={item.id} value={item.name}>{item.name}</option>)}
+                      </select>
+                      <input type="number" min="1" title={t('disc.minQtyShort')} value={c.qty} onChange={(e) => updateComboItem(idx, 'qty', e.target.value)} style={{ ...inputStyle, width: '64px', padding: '10px', textAlign: 'center' }} />
+                      <button onClick={() => removeComboItem(idx)} style={{ background: 'rgba(231, 76, 60, 0.08)', color: '#e74c3c', border: 'none', borderRadius: '10px', width: '38px', height: '38px', cursor: 'pointer', flexShrink: 0 }}>
+                        <Icon icon="lucide:x" />
+                      </button>
+                    </div>
+                  ))}
+                  <button onClick={addComboItem} style={{ padding: '10px', borderRadius: '10px', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--brand-color)', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                    <Icon icon="lucide:plus" /> {t('disc.addComboItem')}
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={labelStyle}>{t('disc.comboPrice')}</label>
+                  <input type="number" min="0" step="0.01" placeholder={t('disc.minSubtotalPlaceholder')} value={newRule.comboPrice} onChange={(e) => patch({ comboPrice: e.target.value })} style={{ ...inputStyle, fontWeight: '900' }} />
+                </div>
               </div>
             )}
 
@@ -433,13 +476,18 @@ function RuleCard({ rule, t, onToggle, onDelete }) {
   );
   const consumed = (rule.usage === 'once' && rule.consumedAt) || capReached;
 
+  const isCombo = rule.kind === 'comboPrice';
   const rewardLabel = isBogo
     ? `${rule.buyQty}×${rule.payQty}`
-    : (rule.type === 'percentage' ? `${rule.value}% ${t('disc.off')}` : `${formatForDisplay(rule.value)} ${t('disc.off')}`);
+    : isCombo
+      ? formatForDisplay(rule.comboPrice)
+      : (rule.type === 'percentage' ? `${rule.value}% ${t('disc.off')}` : `${formatForDisplay(rule.value)} ${t('disc.off')}`);
   const targetLabel = isBogo
     ? rule.bogoItem
-    : (rule.targetType === 'cart' ? t('disc.entireOrder') : `${t('disc.itemLabel')} ${rule.targetValue}`);
-  const icon = isBogo ? 'lucide:gift' : (rule.type === 'percentage' ? 'lucide:percent' : 'lucide:banknote');
+    : isCombo
+      ? (rule.comboItems || []).map(c => (c.qty > 1 ? `${c.qty}× ${c.name}` : c.name)).join(' + ')
+      : (rule.targetType === 'cart' ? t('disc.entireOrder') : `${t('disc.itemLabel')} ${rule.targetValue}`);
+  const icon = isBogo ? 'lucide:gift' : isCombo ? 'lucide:package' : (rule.type === 'percentage' ? 'lucide:percent' : 'lucide:banknote');
   const badges = ruleBadges(rule, t);
 
   return (

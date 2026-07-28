@@ -317,6 +317,31 @@ describe('Discount Engine', () => {
     });
   });
 
+  describe('fixed combo pricing', () => {
+    // Croissant ($40) + Coffee ($60) = $100 normal, combo price $85 -> $15 off.
+    const rule = { id: 1, name: 'Combo $85', isActive: true, kind: 'comboPrice', comboItems: [{ name: 'Croissant', qty: 1 }, { name: 'Coffee', qty: 1 }], comboPrice: 8500 };
+
+    it('discounts a complete combo down to the fixed price', () => {
+      const t = ticket(item('Croissant', 4000, 1, 'u1'), item('Coffee', 6000, 1, 'u2'));
+      const res = evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 10000, now: TUESDAY });
+      expect(res.autoDiscountAmount).toBe(1500);
+    });
+    it('does nothing when the set is incomplete', () => {
+      const t = ticket(item('Croissant', 4000, 1, 'u1'));
+      expect(evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 4000, now: TUESDAY }).autoDiscountAmount).toBe(0);
+    });
+    it('applies the combo once per complete set', () => {
+      const t = ticket(item('Croissant', 4000, 2, 'u1'), item('Coffee', 6000, 3, 'u2'));
+      // 2 complete combos -> 2 x $15 = $30 off
+      expect(evaluateDiscounts({ rules: [rule], ticket: t, cartSubtotal: 26000, now: TUESDAY }).autoDiscountAmount).toBe(3000);
+    });
+    it('never charges more than normal (combo price above normal = no discount)', () => {
+      const pricey = { ...rule, comboPrice: 20000 };
+      const t = ticket(item('Croissant', 4000, 1, 'u1'), item('Coffee', 6000, 1, 'u2'));
+      expect(evaluateDiscounts({ rules: [pricey], ticket: t, cartSubtotal: 10000, now: TUESDAY }).autoDiscountAmount).toBe(0);
+    });
+  });
+
   describe('per-rule max discount cap', () => {
     it('caps a percentage discount at maxDiscount', () => {
       // 20% of 100000 = 20000, capped at 5000 ("20% off, up to $50")

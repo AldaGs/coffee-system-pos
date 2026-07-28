@@ -13,12 +13,14 @@
  *                                          //   taps it on (bike/student/senior),
  *                                          //   evaluated only when activated
  *     // Reward
- *     kind: 'standard' | 'buyXgetY',      // absent -> 'standard'
+ *     kind: 'standard' | 'buyXgetY' | 'comboPrice',  // absent -> 'standard'
  *     type: 'percentage' | 'flat',        // standard
  *     value,                               // pct number, or cents (flat)
  *     targetType: 'cart' | 'item',         // standard
  *     targetValue,                         // item name (targetType='item')
  *     bogoItem, buyQty, payQty,            // buyXgetY (2x1 -> buy 2 pay 1)
+ *     comboItems: [{ name, qty }],         // comboPrice: the set that forms a combo
+ *     comboPrice,                          // comboPrice: fixed cents for one combo
  *     // Conditions (all optional, ANDed; absent -> always qualifies)
  *     conditions: {
  *       requiredItems: [{ name, minQty }],
@@ -187,6 +189,47 @@ function computeRuleAmount(rule, items, cartSubtotal) {
         byUid[units[i].uid] = (byUid[units[i].uid] || 0) + units[i].cost;
       }
     }
+    return { amount, byUid, cart };
+  }
+
+  if (rule.kind === 'comboPrice') {
+    const comboItems = Array.isArray(rule.comboItems) ? rule.comboItems : [];
+    const comboPrice = rule.comboPrice || 0;
+    if (comboItems.length === 0) return { amount, byUid, cart };
+
+    // Gather each required item's units (cheapest first) so the combos consume
+    // the cheapest qualifying units.
+    const unitsByName = {};
+    comboItems.forEach(ci => {
+      if (unitsByName[ci.name]) return;
+      const units = [];
+      items.forEach(it => {
+        if (it.name === ci.name) {
+          const c = unitCostCents(it);
+          for (let i = 0; i < (it.qty || 1); i++) units.push({ uid: it.uniqueId, cost: c });
+        }
+      });
+      units.sort((a, b) => a.cost - b.cost);
+      unitsByName[ci.name] = units;
+    });
+
+    // How many complete combos the cart can form.
+    let combos = Infinity;
+    comboItems.forEach(ci => {
+      combos = Math.min(combos, Math.floor((unitsByName[ci.name]?.length || 0) / (ci.qty || 1)));
+    });
+    if (!Number.isFinite(combos) || combos <= 0) return { amount, byUid, cart };
+
+    // Normal price of the units the combos consume, then discount to the fixed price.
+    let normalTotal = 0;
+    const consumed = [];
+    comboItems.forEach(ci => {
+      unitsByName[ci.name].slice(0, combos * (ci.qty || 1)).forEach(u => { normalTotal += u.cost; consumed.push(u); });
+    });
+    const discount = normalTotal - combos * comboPrice;
+    if (discount <= 0) return { amount, byUid, cart };
+    consumed.forEach(u => { byUid[u.uid] = (byUid[u.uid] || 0) + Math.round((u.cost / normalTotal) * discount); });
+    amount = discount;
     return { amount, byUid, cart };
   }
 
