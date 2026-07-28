@@ -1,9 +1,35 @@
 import { processCheckout, validateStockLocally } from '../services/checkoutService';
 import { attemptBackgroundSync } from '../services/syncService';
 import { logActivity } from '../services/activityService';
+import { updateDiscountRule } from '../api/menu';
 import { useCartStore } from '../store/useCartStore';
 import { useMenuStore } from '../store/useMenuStore';
 import { db } from '../db';
+
+// Single-use ("once") discount rules deactivate themselves after they apply to
+// one completed sale. We flip the store optimistically so the register stops
+// re-applying them immediately, then persist (cloud or local, per app mode).
+// Known limitation: offline, two registers could each redeem the same coupon
+// before sync reconciles.
+const consumeSingleUseDiscounts = async (ticket) => {
+  const ids = ticket?.appliedDiscountRuleIds;
+  if (!Array.isArray(ids) || ids.length === 0) return;
+  const store = useMenuStore.getState();
+  const rules = store.menuData?.discountRules || [];
+  const toConsume = rules.filter(r => ids.includes(r.id) && r.usage === 'once' && !r.consumedAt && r._id);
+  if (toConsume.length === 0) return;
+
+  const consumedAt = new Date().toISOString();
+  const consumedIds = new Set(toConsume.map(r => r.id));
+  store.setMenuData({
+    ...store.menuData,
+    discountRules: rules.map(r => consumedIds.has(r.id) ? { ...r, isActive: false, consumedAt } : r),
+  });
+  await Promise.all(toConsume.map(r =>
+    updateDiscountRule(r._id, { ...r, isActive: false, consumedAt })
+      .catch(err => console.error('Failed to consume single-use discount rule:', err))
+  ));
+};
 
 /**
  * Hook to manage the checkout lifecycle.
@@ -81,6 +107,7 @@ export const useCheckout = (posState) => {
       loyaltySettings
     })
       .then(() => {
+        consumeSingleUseDiscounts(activeTicket);
         attemptBackgroundSync();
         logActivity('sale', null, {
           amount: cartTotal,
