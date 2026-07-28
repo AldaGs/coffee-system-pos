@@ -25,6 +25,8 @@
  *       minSubtotal,                        // cents
  *       days: [0..6],                       // day-of-week (Sun=0); empty = any
  *       startDate, endDate,                 // 'YYYY-MM-DD' window
+ *       startTime, endTime,                 // 'HH:MM' happy-hour window
+ *       customer: 'any'|'member'|'nonmember', // keyed off ticket.loyalty_phone
  *     },
  *     // Combination
  *     priority,                            // higher wins; absent -> 0
@@ -111,6 +113,18 @@ function conditionsMet(rule, items, cartSubtotal) {
     }
   }
   return true;
+}
+
+/**
+ * Loyalty / customer gate. Membership is simply whether the loyalty flow has
+ * identified the customer on this ticket (loyalty_phone attached), so this reuses
+ * the Loyalty tab's identification rather than defining its own customer model.
+ */
+function customerMatches(rule, ticket) {
+  const target = rule.conditions?.customer;
+  if (!target || target === 'any') return true;
+  const isMember = !!ticket.loyalty_phone;
+  return target === 'member' ? isMember : !isMember;
 }
 
 /** Redemption / budget / per-day cap gate, checked against runtime counters. */
@@ -229,6 +243,7 @@ export function evaluateDiscounts({ rules, ticket, cartSubtotal, now = new Date(
     if (rule.trigger === 'manual' && !activated.has(rule.id)) return;
     if (rule.usage === 'once' && rule.consumedAt) return;
     if (!capsAllow(rule, now)) return;
+    if (!customerMatches(rule, ticket)) return;
     if (!scheduleAllows(rule, now)) return;
     if (!conditionsMet(rule, items, cartSubtotal)) return;
     const res = computeRuleAmount(rule, items, cartSubtotal);

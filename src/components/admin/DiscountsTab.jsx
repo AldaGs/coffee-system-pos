@@ -57,6 +57,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     const reqItems = (newRule.requiredItems || []).filter(r => r.name).map(r => ({ name: r.name, minQty: Math.max(1, parseInt(r.minQty, 10) || 1) }));
     if (reqItems.length) conditions.requiredItems = reqItems;
     if (newRule.minSubtotal) conditions.minSubtotal = toCents(newRule.minSubtotal);
+    if (newRule.customer && newRule.customer !== 'any') conditions.customer = newRule.customer;
     if ((newRule.days || []).length) conditions.days = newRule.days;
     if (newRule.startDate) conditions.startDate = newRule.startDate;
     if (newRule.endDate) conditions.endDate = newRule.endDate;
@@ -84,7 +85,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
 
     setNewRule({
       name: '', trigger: 'auto', kind: 'standard', type: 'percentage', value: '', targetType: 'cart', targetValue: '',
-      bogoItem: '', buyQty: 2, payQty: 1, requiredItems: [], minSubtotal: '',
+      bogoItem: '', buyQty: 2, payQty: 1, requiredItems: [], minSubtotal: '', customer: 'any',
       days: [], startDate: '', endDate: '', startTime: '', endTime: '',
       maxRedemptions: '', maxPerDay: '', maxBudget: '', priority: 0, allowStack: false, usage: 'recurring',
     });
@@ -254,6 +255,15 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 <label style={labelStyle}>{t('disc.minSubtotal')}</label>
                 <input type="number" min="0" step="0.01" placeholder={t('disc.minSubtotalPlaceholder')} value={newRule.minSubtotal} onChange={(e) => patch({ minSubtotal: e.target.value })} style={inputStyle} />
               </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: '6px' }}><Icon icon="lucide:heart-handshake" /> {t('disc.customerLabel')}</label>
+                <select value={newRule.customer || 'any'} onChange={(e) => patch({ customer: e.target.value })} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="any">{t('disc.customerAny')}</option>
+                  <option value="member">{t('disc.customerMember')}</option>
+                  <option value="nonmember">{t('disc.customerNonmember')}</option>
+                </select>
+              </div>
             </div>
 
             {/* SCHEDULE */}
@@ -394,6 +404,8 @@ function ruleBadges(rule, t) {
   if (cond.minSubtotal) {
     badges.push({ icon: 'lucide:receipt', text: `≥ ${formatForDisplay(cond.minSubtotal)}` });
   }
+  if (cond.customer === 'member') badges.push({ icon: 'lucide:heart-handshake', text: t('disc.badgeMembers') });
+  if (cond.customer === 'nonmember') badges.push({ icon: 'lucide:user-plus', text: t('disc.badgeNonmembers') });
   if (rule.trigger === 'manual') badges.push({ icon: 'lucide:hand', text: t('disc.badgeManual') });
   if (rule.usage === 'once') badges.push({ icon: 'lucide:ticket', text: t('disc.badgeOnce') });
   if (rule.caps) {

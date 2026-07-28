@@ -295,6 +295,28 @@ describe('Discount Engine', () => {
     });
   });
 
+  describe('loyalty / customer targeting', () => {
+    const items = [item('Latte', 5000)];
+    const member = { items, loyalty_phone: '5551234' };
+    const guest = { items };
+
+    it('members-only applies only when a loyalty phone is attached', () => {
+      const rules = [{ id: 1, name: 'Member 15%', isActive: true, type: 'percentage', value: 15, targetType: 'cart', conditions: { customer: 'member' } }];
+      expect(evaluateDiscounts({ rules, ticket: member, cartSubtotal: 5000, now: TUESDAY }).autoDiscountAmount).toBe(750);
+      expect(evaluateDiscounts({ rules, ticket: guest, cartSubtotal: 5000, now: TUESDAY }).autoDiscountAmount).toBe(0);
+    });
+    it('non-members-only applies only without a loyalty phone', () => {
+      const rules = [{ id: 1, name: 'Welcome 10%', isActive: true, type: 'percentage', value: 10, targetType: 'cart', conditions: { customer: 'nonmember' } }];
+      expect(evaluateDiscounts({ rules, ticket: guest, cartSubtotal: 5000, now: TUESDAY }).autoDiscountAmount).toBe(500);
+      expect(evaluateDiscounts({ rules, ticket: member, cartSubtotal: 5000, now: TUESDAY }).autoDiscountAmount).toBe(0);
+    });
+    it("'any' (or unset) ignores membership", () => {
+      const rules = [{ id: 1, name: 'All', isActive: true, type: 'percentage', value: 5, targetType: 'cart', conditions: { customer: 'any' } }];
+      expect(evaluateDiscounts({ rules, ticket: member, cartSubtotal: 5000, now: TUESDAY }).autoDiscountAmount).toBe(250);
+      expect(evaluateDiscounts({ rules, ticket: guest, cartSubtotal: 5000, now: TUESDAY }).autoDiscountAmount).toBe(250);
+    });
+  });
+
   describe('subtotal clamp', () => {
     it('never discounts more than the subtotal and scales the breakdown', () => {
       const rules = [{ id: 1, name: 'Huge', isActive: true, type: 'flat', value: 99999, targetType: 'cart' }];
