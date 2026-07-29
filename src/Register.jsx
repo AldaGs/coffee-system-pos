@@ -727,7 +727,7 @@ function Register() {
 
   const { handleProcessCorte } = useShiftCorte(hookDeps);
   const { handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);
-  const { handleCheckLoyalty, handleRedeemReward, handleDetachLoyalty } = useLoyalty(hookDeps);
+  const { handleCheckLoyalty, handleRedeemReward, handleDetachLoyalty, handleAttachCustomer } = useLoyalty(hookDeps);
 
   // --- THEME INJECTION LOGIC ---
   useEffect(() => {
@@ -941,7 +941,7 @@ function Register() {
     autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
     handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
     handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
-    handleRedeemReward, handleDetachLoyalty, setLoyaltyModal, loyaltyModal,
+    handleRedeemReward, handleDetachLoyalty, handleAttachCustomer, setLoyaltyModal, loyaltyModal,
     pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket,
     handleSendToKds
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1098,7 +1098,7 @@ function Register() {
           setTipPercentage={setTipPercentage}
         />
 
-        <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleRedeemReward={handleRedeemReward} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
+        <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleAttachCustomer={handleAttachCustomer} handleRedeemReward={handleRedeemReward} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
 
         <FlyingReceipt successTicket={successTicket} />
 

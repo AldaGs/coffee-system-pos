@@ -177,9 +177,10 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   const isOnline = !isLocalMode() && isCloudReachable();
 
   // Loyalty accrual: if a phone is attached to this ticket AND the loyalty program
-  // qualifies the cart, record the phone + stars on the sale row. A server-side
-  // trigger (trg_award_loyalty) will increment customers.visits exactly once on INSERT.
-  // Retries via upsert(onConflict: local_id) do NOT re-fire the trigger.
+  // qualifies the cart, award stars on the sale row. A server-side trigger
+  // (trg_award_loyalty) increments customers.visits exactly once on INSERT and
+  // short-circuits when no stars move, so it's a no-op for the non-stamp case
+  // below. Retries via upsert(onConflict: local_id) do NOT re-fire the trigger.
   const loyaltyPhone = activeTicket?.loyalty_phone || null;
   const loyaltyActive = loyaltySettings?.isActive === true || loyaltySettings?.isActive === "true";
   const loyaltyStars = (loyaltyPhone && loyaltyActive)
@@ -221,7 +222,11 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     order_name: activeTicket.name || null,
     ticket_id: String(activeTicket.id),
     local_id: localId,
-    loyalty_phone: (loyaltyStars > 0 || loyaltyRedeemed > 0) ? loyaltyPhone : null,
+    // Attribute the sale to whoever is identified on the ticket — including a
+    // member captured only for a membership-gated discount (stars = 0). The
+    // stamp audit keys off the star columns, not this field, so a zero-star
+    // attribution doesn't read as a loyalty visit.
+    loyalty_phone: loyaltyPhone,
     loyalty_stars_awarded: loyaltyStars,
     loyalty_stars_redeemed: loyaltyRedeemed,
     loyalty_program_type: (loyaltyStars > 0 || loyaltyRedeemed > 0) ? (loyaltySettings?.programType || 'multiple') : null
@@ -437,7 +442,10 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   // Local ('guest') mode loyalty: the cloud trg_award_loyalty trigger doesn't
   // run here, so replicate its effect against the Dexie `customers` store —
   // keyed by phone, same shape that migrates to the cloud table on upgrade.
-  if (isLocalMode() && currentSale.loyalty_phone) {
+  // Mirror the trigger's short-circuit: only touch the store when stars move,
+  // so a zero-star member attribution doesn't run a redundant visit rewrite
+  // (capture already recorded the customer via handleAttachCustomer).
+  if (isLocalMode() && currentSale.loyalty_phone && (loyaltyStars > 0 || loyaltyRedeemed > 0)) {
     try {
       const phone = currentSale.loyalty_phone;
       const existing = await db.customers.get(phone);

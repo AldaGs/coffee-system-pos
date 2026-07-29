@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
+import { cleanPhone, isValidPhone } from '../utils/customerCapture';
 
 export const computeStarsForTicket = (ticket, loyaltySettings) => {
   if (!ticket || !loyaltySettings) return 0;
@@ -23,7 +24,7 @@ export const useLoyalty = (posState) => {
     setPhoneError, showAlert, t
   } = posState;
 
-  const handleCheckLoyalty = async () => {
+  const handleCheckLoyalty = async (phoneOverride) => {
     const loyaltySettings = {
       isActive: true,
       visitsRequired: 10,
@@ -42,7 +43,7 @@ export const useLoyalty = (posState) => {
       return showAlert(t('loyalty.paused'), t('loyalty.noPromos'));
     }
 
-    const cleanPhone = loyaltyModal.phone.replace(/\D/g, '');
+    const cleanPhone = (phoneOverride ?? loyaltyModal.phone).replace(/\D/g, '');
     if (cleanPhone.length !== 10) {
       setPhoneError(true);
       setTimeout(() => setPhoneError(false), 500);
@@ -120,6 +121,59 @@ export const useLoyalty = (posState) => {
         isCompleted
       }
     }));
+  };
+
+  /**
+   * Shared capture pipeline — every input method (manual entry, QR scan, NFC
+   * tap, or the discounts-only "lite" flow) funnels here. It attaches the phone
+   * to the active ticket (which immediately drives the discounts member/
+   * non-member gate) and records the customer in the directory so they exist
+   * even when the loyalty stamp program is paused.
+   *
+   * Recording happens here rather than at checkout because the sale-time
+   * `trg_award_loyalty` trigger short-circuits at zero stars — so a member with
+   * no punch-card would never get a row. The register is authenticated, so a
+   * client-side upsert is both allowed (RLS) and immediate.
+   *
+   * @returns {Promise<boolean>} whether a valid phone was attached
+   */
+  const handleAttachCustomer = async (rawPhone) => {
+    if (!activeTicket) return false;
+    if (!isValidPhone(rawPhone)) {
+      setPhoneError(true);
+      setTimeout(() => setPhoneError(false), 500);
+      return false;
+    }
+    const phone = cleanPhone(rawPhone);
+
+    // 1. Attach to the ticket (local-first, cloud best-effort). Mirrors the
+    //    attach step in handleCheckLoyalty so both paths behave identically.
+    try {
+      await db.active_tickets.update(activeTicket.id, { loyalty_phone: phone });
+      if (!isLocalMode() && isCloudReachable()) {
+        supabase.from('active_tickets').update({ loyalty_phone: phone }).eq('id', activeTicket.id);
+      }
+    } catch (err) {
+      console.warn('Could not attach customer phone to active ticket:', err);
+    }
+
+    // 2. Record the customer without disturbing any existing visit count.
+    //    ignoreDuplicates -> INSERT ... ON CONFLICT DO NOTHING, so a returning
+    //    customer's stamps are never reset to zero.
+    try {
+      if (isLocalMode()) {
+        const existing = await db.customers.get(phone);
+        if (!existing) await db.customers.put({ phone, visits: 0, completed_at: null });
+      } else if (isCloudReachable()) {
+        supabase.from('customers')
+          .upsert({ phone, visits: 0 }, { onConflict: 'phone', ignoreDuplicates: true })
+          .then(({ error }) => { if (error) console.warn('Customer record upsert failed:', error.message); });
+      }
+    } catch (err) {
+      console.warn('Could not record customer:', err);
+    }
+
+    return true;
   };
 
   const handleRedeemReward = async () => {
@@ -200,5 +254,5 @@ export const useLoyalty = (posState) => {
     }
   };
 
-  return { handleCheckLoyalty, handleRedeemReward, handleDetachLoyalty };
+  return { handleCheckLoyalty, handleRedeemReward, handleDetachLoyalty, handleAttachCustomer };
 };

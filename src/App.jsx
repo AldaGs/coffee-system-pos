@@ -13,6 +13,7 @@ import UpgradeGuide from './components/UpgradeGuide';
 import UpgradeNagModal from './components/UpgradeNagModal';
 import MigrationScreen from './components/MigrationScreen';
 import PublicCFDI from './components/PublicCFDI';
+import PublicEnroll from './components/PublicEnroll';
 import AuthorizeHub from './components/AuthorizeHub';
 import { supabase } from './supabaseClient';
 import { getMode, setMode, MODE_LOCAL, isUpgradePending, clearUpgradePending } from './utils/appMode';
@@ -460,6 +461,12 @@ export default function App() {
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/cfdi/')) {
     const ticketId = window.location.pathname.split('/cfdi/')[1];
     return <PublicCFDI ticketId={ticketId} />;
+  }
+
+  // Public, backend-free loyalty enrollment — customers mint their personal QR
+  // card. Bypasses the auth/setup gates like the other customer-facing pages.
+  if (typeof window !== 'undefined' && window.location.pathname === '/enroll') {
+    return <PublicEnroll />;
   }
 
   if (typeof window !== 'undefined' && (window.location.pathname === '/menu' || window.location.pathname === '/menu/tv' || isCustomDomain)) {
