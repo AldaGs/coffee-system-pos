@@ -117,10 +117,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('disc.subtitle')}</p>
       </div>
 
-      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
+      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 350px), 1fr))', gap: '32px', alignItems: 'flex-start' }}>
 
         {/* CREATE RULE SECTION */}
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
+        <div style={{ minWidth: 0, background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
           <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
             <Icon icon="lucide:ticket-plus" style={{ color: 'var(--brand-color)' }} />
             {t('disc.createTitle')}
@@ -137,10 +137,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
             {/* Trigger: automatic vs cashier-applied */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={labelStyle}>{t('disc.triggerLabel')}</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {[{ v: 'auto', label: t('disc.triggerAuto'), icon: 'lucide:zap' }, { v: 'manual', label: t('disc.triggerManual'), icon: 'lucide:hand' }].map(opt => (
                   <button key={opt.v} onClick={() => patch({ trigger: opt.v })}
-                    style={{ flex: 1, padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${(newRule.trigger || 'auto') === opt.v ? 'var(--brand-color)' : 'var(--border)'}`, background: (newRule.trigger || 'auto') === opt.v ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: (newRule.trigger || 'auto') === opt.v ? 'var(--brand-color)' : 'var(--text-main)' }}>
+                    style={{ flex: '1 1 45%', minWidth: 0, padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${(newRule.trigger || 'auto') === opt.v ? 'var(--brand-color)' : 'var(--border)'}`, background: (newRule.trigger || 'auto') === opt.v ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: (newRule.trigger || 'auto') === opt.v ? 'var(--brand-color)' : 'var(--text-main)' }}>
                     <Icon icon={opt.icon} /> {opt.label}
                   </button>
                 ))}
@@ -161,7 +161,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {[{ k: 'standard', label: t('disc.kindStandard'), icon: 'lucide:percent' }, { k: 'buyXgetY', label: t('disc.kindBogo'), icon: 'lucide:gift' }, { k: 'comboPrice', label: t('disc.kindCombo'), icon: 'lucide:package' }].map(opt => (
                   <button key={opt.k} onClick={() => patch({ kind: opt.k })}
-                    style={{ flex: '1 1 30%', minWidth: '96px', padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--border)'}`, background: newRule.kind === opt.k ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--text-main)' }}>
+                    style={{ flex: '1 1 45%', minWidth: 0, padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--border)'}`, background: newRule.kind === opt.k ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: newRule.kind === opt.k ? 'var(--brand-color)' : 'var(--text-main)' }}>
                     <Icon icon={opt.icon} /> {opt.label}
                   </button>
                 ))}
@@ -227,10 +227,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={labelStyle}>{t('disc.bogoPresets')}</label>
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     {[{ b: 2, p: 1, l: '2x1' }, { b: 3, p: 2, l: '3x2' }].map(preset => (
                       <button key={preset.l} onClick={() => patch({ buyQty: preset.b, payQty: preset.p })}
-                        style={{ flex: 1, padding: '10px', borderRadius: '10px', fontWeight: '900', cursor: 'pointer', border: `2px solid ${newRule.buyQty == preset.b && newRule.payQty == preset.p ? 'var(--brand-color)' : 'var(--border)'}`, background: newRule.buyQty == preset.b && newRule.payQty == preset.p ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: 'var(--text-main)' }}>
+                        style={{ flex: '1 1 45%', minWidth: 0, padding: '10px', borderRadius: '10px', fontWeight: '900', cursor: 'pointer', border: `2px solid ${newRule.buyQty == preset.b && newRule.payQty == preset.p ? 'var(--brand-color)' : 'var(--border)'}`, background: newRule.buyQty == preset.b && newRule.payQty == preset.p ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: 'var(--text-main)' }}>
                         {preset.l}
                       </button>
                     ))}
@@ -402,10 +402,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
               {newRule.requireApproval && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.requireApprovalHint')}</span>}
 
               <h4 style={{ ...sectionTitleStyle, marginTop: '6px' }}><Icon icon="lucide:repeat" /> {t('disc.recurrenceTitle')}</h4>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {[{ v: 'recurring', label: t('disc.recurring'), icon: 'lucide:infinity' }, { v: 'once', label: t('disc.once'), icon: 'lucide:ticket' }].map(opt => (
                   <button key={opt.v} onClick={() => patch({ usage: opt.v })}
-                    style={{ flex: 1, padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${(newRule.usage || 'recurring') === opt.v ? 'var(--brand-color)' : 'var(--border)'}`, background: (newRule.usage || 'recurring') === opt.v ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: (newRule.usage || 'recurring') === opt.v ? 'var(--brand-color)' : 'var(--text-main)' }}>
+                    style={{ flex: '1 1 45%', minWidth: 0, padding: '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', border: `2px solid ${(newRule.usage || 'recurring') === opt.v ? 'var(--brand-color)' : 'var(--border)'}`, background: (newRule.usage || 'recurring') === opt.v ? 'rgba(52, 152, 219, 0.08)' : 'var(--bg-main)', color: (newRule.usage || 'recurring') === opt.v ? 'var(--brand-color)' : 'var(--text-main)' }}>
                     <Icon icon={opt.icon} /> {opt.label}
                   </button>
                 ))}
@@ -422,7 +422,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
         </div>
 
         {/* ACTIVE RULES LIST */}
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
+        <div style={{ minWidth: 0, background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
           <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
             <Icon icon="lucide:tags" style={{ color: 'var(--brand-color)' }} />
             {t('disc.activeTitle')}
