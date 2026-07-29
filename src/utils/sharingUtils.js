@@ -178,7 +178,8 @@ export const printRawReceipt = async (ticket, total, options = {}) => {
     pushText("--------------------------------\n");
 
     if (rawSubtotal > total) {
-      const autoRuleName = ticket.autoDiscountRuleName || ticket.discount?.autoRuleName;
+      const autoRuleName = (ticket.autoDiscountRuleNames || ticket.discount?.autoRuleNames)?.filter(Boolean).join(', ')
+        || ticket.autoDiscountRuleName || ticket.discount?.autoRuleName;
       let autoAmt = ticket.autoDiscountAmount ?? ticket.discount?.autoDiscountAmount ?? 0;
       let manualAmt = ticket.manualDiscountAmount ?? ticket.discount?.manualDiscountAmount ?? 0;
 
@@ -316,7 +317,8 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
   message += `--------------------------\n`;
 
   if (rawSubtotal > total) {
-    const autoRuleName = ticket.autoDiscountRuleName || ticket.discount?.autoRuleName;
+    const autoRuleName = (ticket.autoDiscountRuleNames || ticket.discount?.autoRuleNames)?.filter(Boolean).join(', ')
+      || ticket.autoDiscountRuleName || ticket.discount?.autoRuleName;
     let autoAmt = ticket.autoDiscountAmount ?? ticket.discount?.autoDiscountAmount ?? 0;
     let manualAmt = ticket.manualDiscountAmount ?? ticket.discount?.manualDiscountAmount ?? 0;
 

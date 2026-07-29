@@ -163,7 +163,20 @@ function Admin() {
   const [editingItemId, setEditingItemId] = useState(null);
   const [timeFilter, setTimeFilter] = useState('all');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [newRule, setNewRule] = useState({ name: '', type: 'percentage', value: '', targetType: 'cart', targetValue: '' });
+  const [newRule, setNewRule] = useState({
+    name: '',
+    trigger: 'auto',
+    code: '',
+    kind: 'standard',
+    type: 'percentage', value: '', targetType: 'cart', targetValue: '',
+    bogoItem: '', buyQty: 2, payQty: 1,
+    comboItems: [], comboPrice: '',
+    requiredItems: [], minSubtotal: '', customer: 'any',
+    days: [], startDate: '', endDate: '', startTime: '', endTime: '',
+    maxRedemptions: '', maxPerDay: '', maxBudget: '', maxDiscount: '',
+    priority: 0, allowStack: false, requireApproval: false,
+    usage: 'recurring',
+  });
   // Expenses are sourced from Dexie now — fetchAndMergeExpenses pulls every
   // device's rows down on mount and useLiveQuery keeps the view fresh.
   const expensesLive = useLiveQuery(() => db.expenses.toArray(), []);
@@ -472,6 +485,11 @@ function Admin() {
   // disappears and the tabs refresh to server-fresh numbers — no user tap.
   useEffect(() => {
     if (cloudSync === 'stale' && reachable) {
+      // Intentional external-state sync: when the breaker closes we bridge the
+      // recovered cloud data back into React state. recheckCloud sets state
+      // internally, which the set-state-in-effect rule can't see through — the
+      // guard above keeps it to the stale->reachable transition only.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       recheckCloud();
     }
     // recheckCloud is stable enough for this guard; re-running only on the

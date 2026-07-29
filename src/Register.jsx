@@ -17,10 +17,12 @@ import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
 import { logActivity } from './services/activityService';
 import { consumePendingAuthorizer } from './utils/overrideAuthorizer';
+import { gateRegisterAction } from './utils/actionGate';
 import { useTranslation } from './hooks/useTranslation';
 import { calculateExpectedCash } from './utils/posMath';
 import { getOrderedVisibleCategories } from './utils/categoryUtils';
 import { toCents, formatForDisplay, normalizeMenuPrice } from './utils/moneyUtils';
+import { evaluateDiscounts } from './utils/discountEngine';
 import SharedPinPad from './components/shared/SharedPinPad';
 
 // Modular Child Components
@@ -293,6 +295,42 @@ function Register() {
       await db.active_tickets.put(updatedItems);
     }
     setIsDiscountModalOpen(false);
+  };
+
+  // Toggle an attended ("cashier-applied") preset promo onto the active ticket.
+  // The engine only evaluates a manual-trigger rule while its id sits in the
+  // ticket's activatedManualRuleIds, so this is all it takes to apply/remove one.
+  const handleToggleManualRule = async (rule) => {
+    if (!activeTicket) return;
+    const current = activeTicket.activatedManualRuleIds || [];
+    const isOn = current.includes(rule.id);
+
+    const applyToggle = async (authorizer) => {
+      const next = isOn ? current.filter(id => id !== rule.id) : [...current, rule.id];
+      await db.active_tickets.update(activeTicket.id, { activatedManualRuleIds: next });
+      if (!isOn) {
+        logActivity(
+          'Discount Applied',
+          `Promo "${rule.name}" was applied to ticket: ${activeTicket.name}`,
+          null,
+          authorizer || consumePendingAuthorizer()
+        );
+      }
+    };
+
+    // Removing never needs approval; applying an approval-gated rule goes
+    // through the manager-override PIN gate first.
+    if (!isOn && rule.requireApproval) {
+      gateRegisterAction({
+        posSettings,
+        activeCashier,
+        requirePin,
+        title: t('disc.approvalTitle'),
+        run: (authorizer) => applyToggle(authorizer),
+      });
+      return;
+    }
+    applyToggle();
   };
 
   // --- OFFLINE SYNC QUEUES & MODAL ---
@@ -584,56 +622,31 @@ function Register() {
     return total + itemTotal;
   }, 0) : 0;
 
+  // Auto-discounts are evaluated by the pure engine (src/utils/discountEngine.js)
+  // which handles scheduling, bundle conditions, buy-X-get-Y deals, priority
+  // stacking, and clamping. Only runs in advanced mode.
   let autoDiscountAmount = 0;
   let autoDiscountCart = 0;
-  const autoDiscountByItemUid = {};
+  let autoDiscountByItemUid = {};
   let activeAutoRuleName = "";
+  let autoDiscountRuleNames = [];
+  let appliedDiscountRuleIds = [];
+  let appliedDiscountBreakdown = [];
 
   if (posSettings?.isAdvancedMode) {
-    const activeRules = menuData?.discountRules?.filter(r => r.isActive) || [];
-    if (activeRules.length > 0 && cartSubtotal > 0) {
-      activeRules.forEach(rule => {
-        // FOR CART LEVEL RULES
-        if (rule.targetType === 'cart') {
-          const ruleValue = rule.type === 'percentage'
-            ? cartSubtotal * (rule.value / 100)
-            : normalizeMenuPrice(rule.value); // <-- Add normalizeMenuPrice here
-
-          autoDiscountAmount += ruleValue;
-          autoDiscountCart += ruleValue;
-          activeAutoRuleName = rule.name;
-        }
-        // FOR ITEM LEVEL RULES
-        else if (rule.targetType === 'item') {
-          activeTicket.items.forEach(item => {
-            if (item.name === rule.targetValue) {
-              const qty = item.qty || 1;
-              let itemCost = item.basePrice; // Already in cents
-              item.selectedModifiers.forEach(mod => { itemCost += mod.price; }); // Already in cents
-
-              const ruleValue = rule.type === 'percentage'
-                ? itemCost * qty * (rule.value / 100)
-                : normalizeMenuPrice(rule.value) * qty; // <-- Add normalizeMenuPrice here
-
-              autoDiscountAmount += ruleValue;
-              autoDiscountByItemUid[item.uniqueId] = (autoDiscountByItemUid[item.uniqueId] || 0) + ruleValue;
-              activeAutoRuleName = rule.name;
-            }
-          });
-        }
-      });
-    }
-  }
-
-  const autoUnclamped = autoDiscountAmount;
-  autoDiscountAmount = Math.max(0, Math.min(autoDiscountAmount, cartSubtotal));
-  // If global clamp reduced the total, scale the breakdown proportionally so the parts still sum.
-  if (autoUnclamped > autoDiscountAmount && autoUnclamped > 0) {
-    const scale = autoDiscountAmount / autoUnclamped;
-    autoDiscountCart = Math.round(autoDiscountCart * scale);
-    Object.keys(autoDiscountByItemUid).forEach(uid => {
-      autoDiscountByItemUid[uid] = Math.round(autoDiscountByItemUid[uid] * scale);
+    const evalResult = evaluateDiscounts({
+      rules: menuData?.discountRules || [],
+      ticket: activeTicket,
+      cartSubtotal,
+      activatedRuleIds: activeTicket?.activatedManualRuleIds || [],
     });
+    autoDiscountAmount = evalResult.autoDiscountAmount;
+    autoDiscountCart = evalResult.autoDiscountCart;
+    autoDiscountByItemUid = evalResult.autoDiscountByItemUid;
+    autoDiscountRuleNames = evalResult.appliedRuleNames;
+    appliedDiscountRuleIds = evalResult.appliedRuleIds;
+    appliedDiscountBreakdown = evalResult.appliedRules;
+    activeAutoRuleName = evalResult.appliedRuleNames[0] || "";
   }
 
   let manualDiscountAmount = 0;
@@ -655,6 +668,9 @@ function Register() {
   const enrichedActiveTicket = activeTicket ? {
     ...activeTicket,
     autoDiscountRuleName: activeAutoRuleName || null,
+    autoDiscountRuleNames: autoDiscountRuleNames.length ? autoDiscountRuleNames : null,
+    appliedDiscountRuleIds: appliedDiscountRuleIds.length ? appliedDiscountRuleIds : null,
+    appliedDiscountBreakdown: appliedDiscountBreakdown.length ? appliedDiscountBreakdown : null,
     autoDiscountAmount: autoDiscountAmount || 0,
     manualDiscountAmount: manualDiscountAmount || 0
   } : null;
@@ -1096,7 +1112,7 @@ function Register() {
 
         <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
 
-        <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} />
+        <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} menuData={menuData} handleToggleManualRule={handleToggleManualRule} isAdvancedMode={posSettings?.isAdvancedMode} />
 
         {/* Hidden TicketImage for PNG Capture */}
         <div style={{ position: 'absolute', top: '-9999px', left: '-9999px', pointerEvents: 'none' }}>

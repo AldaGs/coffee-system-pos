@@ -173,7 +173,7 @@ function TicketArea({
               </div>
               {autoDiscountAmount > 0 && (
                 <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#27ae60' }}>
-                  <span>{t('ticket.auto')} {activeAutoRuleName}</span>
+                  <span>{t('ticket.auto')} {(activeTicket.autoDiscountRuleNames || [activeAutoRuleName]).filter(Boolean).join(', ')}</span>
                   <span>-{formatForDisplay(autoDiscountAmount)}</span>
                 </div>
               )}
