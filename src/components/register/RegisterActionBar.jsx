@@ -31,7 +31,7 @@ function RegisterActionBar({
     posSettings, activeCashier,
     shiftOrders, shiftExpenses, tickets,
     showAlert, showConfirm, requirePin,
-    setIsLocked, navigate,
+    setIsLocked, navigate, setIsHelpModalOpen,
   } = usePos();
 
   // strictAdminAccess: only admins see the Admin button. In permissive mode
@@ -46,6 +46,17 @@ function RegisterActionBar({
           a flex sibling of the hamburger instead of floating over it. Hidden
           while online + fully synced; tap opens the sync status modal. */}
       <ConnectionStatusPill iconOnly onClick={() => setIsSyncModalOpen(true)} />
+
+      {/* Always-visible help button (reachable in both layouts without opening
+          the mobile menu). Opens the same guide as the Admin → Help tab. */}
+      <button
+        onClick={() => setIsHelpModalOpen(true)}
+        aria-label={t('help.title')}
+        title={t('help.title')}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '38px', height: '38px', borderRadius: '9999px', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', cursor: 'pointer', flexShrink: 0 }}
+      >
+        <Icon icon="lucide:life-buoy" style={{ fontSize: '1.2rem' }} />
+      </button>
 
       <button className="mobile-hamburger desktop-hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>☰</button>
 

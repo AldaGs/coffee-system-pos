@@ -48,6 +48,7 @@ import CfdiTab from './components/admin/CfdiTab';
 import ActivityTab from './components/admin/ActivityTab';
 import TipsTab from './components/admin/TipsTab';
 import DevicesTab from './components/admin/DevicesTab';
+import HelpTab from './components/admin/HelpTab';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
@@ -1885,6 +1886,8 @@ function Admin() {
             { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
             { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true, cloudOnly: true },
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
+            // Help is always reachable — never gated by Advanced/Cloud mode.
+            { id: 'help', icon: 'lucide:life-buoy', label: t('admin.help') },
           ].filter(tab => !(tab.cloudOnly && isLocalMode())).map(tab => {
             const isLocked = tab.advancedOnly && generalSettings.isAdvancedMode !== true;
             return (
@@ -2199,6 +2202,10 @@ function Admin() {
           />
         )}
         {/* --------------------------------- */}
+
+        {activeTab === 'help' && (
+          <HelpTab />
+        )}
 
         <EditDrinkModal editingDrink={editingDrink} setEditingDrink={setEditingDrink} menuData={menuData} toggleModifierForDrink={toggleModifierForDrink} />
       </main>

@@ -52,6 +52,7 @@ import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
+import HelpModal from './components/shared/HelpModal';
 import DiscountModal from './components/register/DiscountModal';
 import TicketImage from './components/register/TicketImage';
 import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
@@ -341,6 +342,7 @@ function Register() {
     return saved ? JSON.parse(saved) : [];
   });
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue));
@@ -943,7 +945,7 @@ function Register() {
     handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
     handleRedeemReward, handleDetachLoyalty, handleAttachCustomer, setLoyaltyModal, loyaltyModal,
     pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket,
-    handleSendToKds
+    handleSendToKds, setIsHelpModalOpen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
     cartTotal, enrichedActiveTicket, menuData, posSettings, activeCashier,
@@ -1111,6 +1113,8 @@ function Register() {
         <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
 
         <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
+
+        <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
 
         <DiscountModal isDiscountModalOpen={isDiscountModalOpen} setIsDiscountModalOpen={setIsDiscountModalOpen} discountForm={discountForm} setDiscountForm={setDiscountForm} handleApplyDiscount={handleApplyDiscount} handleRemoveDiscount={handleRemoveDiscount} activeTicket={activeTicket} menuData={menuData} handleToggleManualRule={handleToggleManualRule} isAdvancedMode={posSettings?.isAdvancedMode} />
 
