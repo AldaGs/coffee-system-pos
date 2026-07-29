@@ -5,6 +5,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { supabase } from '../../supabaseClient';
 import { computeStarsForTicket } from '../../hooks/useLoyalty';
 import { isCloudReachable } from '../../utils/network';
+import { needsCustomerCapture, isLoyaltyActive } from '../../utils/customerCapture';
 
 const formatPhone = (p) => (p || '').replace(/(\d{2})(\d{4})(\d{4})/, '$1 $2 $3');
 
@@ -17,8 +18,10 @@ function CustomerStrip() {
   } = usePos();
 
   const loyaltySettings = menuData?.loyaltySettings;
-  const isLoyaltyActive = loyaltySettings?.isActive === true || loyaltySettings?.isActive === "true";
+  const loyaltyActive = isLoyaltyActive(loyaltySettings);
   const isAdvanced = posSettings?.isAdvancedMode === true;
+  // Surface capture whenever stamps are on OR a live discount targets members.
+  const captureNeeded = needsCustomerCapture(loyaltySettings, menuData?.discountRules);
 
   const phone = activeTicket?.loyalty_phone || null;
   const pending = activeTicket?.loyalty_stars_pending || 0;
@@ -28,7 +31,10 @@ function CustomerStrip() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!phone) { setCurrentVisits(null); setCompletedAt(null); return; }
+    // Stamp progress is only meaningful while the loyalty program is running;
+    // in discounts-only mode the chip stays a plain identified-customer badge.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!phone || !loyaltyActive) { setCurrentVisits(null); setCompletedAt(null); return; }
     (async () => {
       try {
         if (!isCloudReachable()) return;
@@ -43,9 +49,9 @@ function CustomerStrip() {
       }
     })();
     return () => { cancelled = true; };
-  }, [phone]);
+  }, [phone, loyaltyActive]);
 
-  if (!activeTicket || !isLoyaltyActive || !isAdvanced) return null;
+  if (!activeTicket || !isAdvanced || !captureNeeded) return null;
 
   const openModal = () => {
     setLoyaltyModal({ isOpen: true, step: 'phone', phone: phone || '', data: null });
