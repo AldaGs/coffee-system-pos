@@ -163,7 +163,6 @@ function DevicesTab({ showAlert, showConfirm }) {
     // post-OAuth. The cascading-render warning is acceptable here because the
     // state updates only happen once per round-trip. `provisionDevice` is a
     // stable closure on this render — running on mount is exactly what we want.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     provisionDevice(pat, pending);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

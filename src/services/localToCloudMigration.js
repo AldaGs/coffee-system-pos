@@ -196,7 +196,7 @@ export async function migrateLocalToCloud(onProgress = noop) {
     // Sales accumulated in the offline queue during local use.
     const pendingSales = await db.syncQueue.toArray();
     if (pendingSales.length) {
-      const clean = pendingSales.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
+      const clean = pendingSales.map(({ id: _UNUSED, ...rest }) => rest);
       const { error } = await supabase.from('sales').upsert(clean, { onConflict: 'local_id' });
       if (error) throw error;
       await db.syncQueue.clear();
@@ -205,7 +205,7 @@ export async function migrateLocalToCloud(onProgress = noop) {
     // Inventory logs (audit/restock/sale trail).
     const logs = await db.inventory_logs.toArray();
     if (logs.length) {
-      const clean = logs.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
+      const clean = logs.map(({ id: _UNUSED, ...rest }) => rest);
       const { error } = await supabase.from('inventory_logs').upsert(clean, { onConflict: 'local_id' });
       if (error) throw error;
       await db.inventory_logs.clear();

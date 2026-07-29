@@ -473,7 +473,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         groups: Object.fromEntries(Object.entries(p.groups || {}).filter(([g]) => !gids.has(g))),
         nodes: (p.nodes || []).map(n => {
           if (!gids.has(n.groupId)) return n;
-          const { groupId, ...rest } = n; // eslint-disable-line no-unused-vars
+          const { groupId, ...rest } = n;
           return rest;
         }),
       } : p),

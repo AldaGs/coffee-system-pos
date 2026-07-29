@@ -9,6 +9,21 @@ import { buildCfdiUrl } from '../../utils/cfdiUrl';
 const TicketImage = ({ id, ticket, receiptSettings, total }) => {
   const { t } = useTranslation();
 
+  // --- CFDI QR code on the receipt image ---
+  // Hooks must run before any early return, so keep them at the top; ticketId
+  // uses optional chaining and the effect guards internally, so a null ticket
+  // is safe here.
+  const qrCanvasRef = useRef(null);
+  const ticketId = ticket?.local_id || ticket?.id;
+  useEffect(() => {
+    if (!qrCanvasRef.current || !receiptSettings?.showCfdiQr || !ticketId) return;
+    const cfdiUrl = buildCfdiUrl(ticketId);
+    QRCode.toCanvas(qrCanvasRef.current, cfdiUrl, {
+      width: 120, margin: 1, errorCorrectionLevel: 'L',
+      color: { dark: '#111', light: '#ffffff' },
+    }).catch(console.error);
+  }, [receiptSettings?.showCfdiQr, ticketId]);
+
   if (!ticket) return null;
 
   let rawSubtotal = 0;
@@ -26,18 +41,6 @@ const TicketImage = ({ id, ticket, receiptSettings, total }) => {
   const taxInfo = receiptSettings?.enableTaxBreakdown
     ? calculateItemizedTaxBreakdown(ticket.items, total, receiptSettings.taxRate || 16)
     : null;
-
-  // --- CFDI QR code on the receipt image ---
-  const qrCanvasRef = useRef(null);
-  const ticketId = ticket?.local_id || ticket?.id;
-  useEffect(() => {
-    if (!qrCanvasRef.current || !receiptSettings?.showCfdiQr || !ticketId) return;
-    const cfdiUrl = buildCfdiUrl(ticketId);
-    QRCode.toCanvas(qrCanvasRef.current, cfdiUrl, {
-      width: 120, margin: 1, errorCorrectionLevel: 'L',
-      color: { dark: '#111', light: '#ffffff' },
-    }).catch(console.error);
-  }, [receiptSettings?.showCfdiQr, ticketId]);
 
   return (
     <div id={id || "ticket-image-container"} style={{ width: '300px', background: 'white', padding: '20px', color: 'black', fontFamily: 'Courier New, Courier, monospace', fontSize: '14px', lineHeight: '1.2' }}>

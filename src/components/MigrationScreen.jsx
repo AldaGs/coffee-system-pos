@@ -43,7 +43,6 @@ export default function MigrationScreen({ onDone }) {
     if (startedRef.current) return;
     startedRef.current = true;
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

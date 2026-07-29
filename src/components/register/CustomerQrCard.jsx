@@ -14,7 +14,6 @@ function CustomerQrCard({ phone, compact = false }) {
   const [dataUrl, setDataUrl] = useState(null);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!phone) { setDataUrl(null); return; }
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const payload = `${origin}/enroll?c=${phone}`;

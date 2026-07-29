@@ -301,7 +301,6 @@ function Admin() {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsLoading(false);
       return;
     }
@@ -490,7 +489,6 @@ function Admin() {
       // recovered cloud data back into React state. recheckCloud sets state
       // internally, which the set-state-in-effect rule can't see through — the
       // guard above keeps it to the stale->reachable transition only.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       recheckCloud();
     }
     // recheckCloud is stable enough for this guard; re-running only on the

@@ -85,7 +85,7 @@ function MenuShareCard({ menuData }) {
     } finally {
       setUploading(false);
     }
-  }, [projectRef, anonKey, missingCreds, supabaseUrl, linkedDomain]);
+  }, [projectRef, anonKey, missingCreds, supabaseUrl]);
 
   // On mount (and whenever creds change), upload the config.
   useEffect(() => {
