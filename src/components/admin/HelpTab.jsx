@@ -32,7 +32,7 @@ function Badge({ kind, label }) {
   );
 }
 
-function HelpSection({ section, badgeLabels, doLabel, isOpen, onToggle }) {
+function HelpSection({ section, badgeLabels, doLabel, fieldsLabel, isOpen, onToggle }) {
   return (
     <div
       style={{
@@ -63,6 +63,23 @@ function HelpSection({ section, badgeLabels, doLabel, isOpen, onToggle }) {
         <div style={{ padding: '0 16px 18px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <p style={{ margin: 0, color: 'var(--text-main)', lineHeight: 1.55 }}>{section.what}</p>
           <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: 1.55, fontSize: '0.92rem' }}>{section.how}</p>
+
+          {section.fields && section.fields.length > 0 && (
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                {fieldsLabel}
+              </div>
+              <dl style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {section.fields.map((f, i) => (
+                  <div key={i} style={{ borderLeft: '3px solid var(--brand-color)', paddingLeft: '12px' }}>
+                    <dt style={{ fontWeight: 700, color: 'var(--text-main)', fontSize: '0.95rem' }}>{f.name}</dt>
+                    <dd style={{ margin: '2px 0 0', color: 'var(--text-muted)', lineHeight: 1.5, fontSize: '0.9rem' }}>{f.desc}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+
           <div>
             <div style={{ fontWeight: 700, fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-muted)', marginBottom: '8px' }}>
               {doLabel}
@@ -101,6 +118,7 @@ function HelpTab() {
       const hay = [
         s.title, s.what, s.how,
         ...(s.do || []).flatMap((d) => [d.action, d.steps]),
+        ...(s.fields || []).flatMap((f) => [f.name, f.desc]),
       ].join(' ').toLowerCase();
       return hay.includes(q);
     });
@@ -157,6 +175,7 @@ function HelpTab() {
                 section={section}
                 badgeLabels={badgeLabels}
                 doLabel={t('help.doLabel')}
+                fieldsLabel={t('help.fieldsLabel')}
                 isOpen={openId === section.id}
                 onToggle={() => toggle(section.id)}
               />
