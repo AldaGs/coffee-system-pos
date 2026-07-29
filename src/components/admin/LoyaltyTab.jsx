@@ -39,10 +39,15 @@ function LoyaltyTab({ loyaltyForm, setLoyaltyForm, menuData, saveSettingsToCloud
     const fetchEvents = async () => {
       setIsLoadingEvents(true);
       try {
+        // A stamp event is a sale that actually moved stars — not merely one
+        // with a phone attached. Since members can now be identified for a
+        // discount with stamps paused (loyalty_phone set, zero stars), filter
+        // on the star columns so those attributions don't read as visits here.
         let query = supabase
           .from('sales')
           .select('id, created_at, total_amount, loyalty_phone, loyalty_stars_awarded, loyalty_stars_redeemed, cashier_name')
           .not('loyalty_phone', 'is', null)
+          .or('loyalty_stars_awarded.gt.0,loyalty_stars_redeemed.gt.0')
           .order('created_at', { ascending: false })
           .limit(500);
 

@@ -123,9 +123,11 @@ function conditionsMet(rule, items, cartSubtotal) {
 }
 
 /**
- * Loyalty / customer gate. Membership is simply whether the loyalty flow has
- * identified the customer on this ticket (loyalty_phone attached), so this reuses
- * the Loyalty tab's identification rather than defining its own customer model.
+ * Loyalty / customer gate. Membership is simply whether a customer has been
+ * identified on this ticket (loyalty_phone attached) — via the loyalty stamp
+ * flow or, when stamps are paused, the standalone capture flow that exists to
+ * drive exactly this gate. Either way it reuses the ticket attachment rather
+ * than defining its own customer model.
  */
 function customerMatches(rule, ticket) {
   const target = rule.conditions?.customer;
