@@ -43,6 +43,8 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
       setLoading(false);
     }
   }
+  // Load once on mount; reload is also called imperatively after mutations.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { reload(); }, []);
 
   async function handleCreate() {
@@ -91,7 +93,6 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
   // (kind defaults to 'designed' empty), so the user can see and retry/delete.
   async function handleUpload(file) {
     if (!file) return;
-    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
     const stem = file.name.replace(/\.[^.]+$/, '') || 'Menú';
     let menu;
     try {

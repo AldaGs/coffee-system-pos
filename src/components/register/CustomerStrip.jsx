@@ -33,7 +33,6 @@ function CustomerStrip() {
     let cancelled = false;
     // Stamp progress is only meaningful while the loyalty program is running;
     // in discounts-only mode the chip stays a plain identified-customer badge.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!phone || !loyaltyActive) { setCurrentVisits(null); setCompletedAt(null); return; }
     (async () => {
       try {

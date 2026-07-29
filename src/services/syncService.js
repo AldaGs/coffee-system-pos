@@ -32,7 +32,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
       let synced = 0;
       for (const chunk of chunkArray(pendingSales)) {
         // Strip the local Dexie ID from the payload; keep it to delete on success.
-        const cleanSales = chunk.map(({ id: _UNUSED, ...rest }) => rest); // eslint-disable-line no-unused-vars
+        const cleanSales = chunk.map(({ id: _UNUSED, ...rest }) => rest);
         const { ok, authError } = await runSyncChunk(
           () => supabase.from('sales').upsert(cleanSales, { onConflict: 'local_id' })
         );

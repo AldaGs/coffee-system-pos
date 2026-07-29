@@ -20,6 +20,8 @@ function TablesTab({ showAlert, showConfirm }) {
     catch (err) { showAlert?.('Error', err.message); }
     finally { setLoading(false); }
   }
+  // Load once on mount; reload is also called imperatively after mutations.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { reload(); }, []);
 
   async function handleCreate() {

@@ -7,6 +7,10 @@ import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 import { recordTipPayout } from '../../services/tipsService';
 
+// Stable empty-array fallback so a still-loading useLiveQuery doesn't hand a
+// fresh [] to downstream useMemo deps on every render.
+const EMPTY = [];
+
 // Tips ledger admin surface.
 // Top:    outstanding liability balance (Accrued - Paid out).
 // Middle: form to record a payout to staff.
@@ -15,9 +19,9 @@ function TipsTab({ activeCashierName = null }) {
   const { t } = useTranslation();
   const { showAlert } = useDialog();
 
-  const allSales = useLiveQuery(() => db.sales.toArray(), []) || [];
-  const payouts = useLiveQuery(() => db.tip_payouts.orderBy('created_at').reverse().toArray(), []) || [];
-  const events = useLiveQuery(() => db.tip_events.orderBy('created_at').reverse().toArray(), []) || [];
+  const allSales = useLiveQuery(() => db.sales.toArray(), []) ?? EMPTY;
+  const payouts = useLiveQuery(() => db.tip_payouts.orderBy('created_at').reverse().toArray(), []) ?? EMPTY;
+  const events = useLiveQuery(() => db.tip_events.orderBy('created_at').reverse().toArray(), []) ?? EMPTY;
 
   const [form, setForm] = useState({ amount: '', method: 'cash', recipient: '', note: '' });
   const [saving, setSaving] = useState(false);

@@ -38,6 +38,8 @@ function MenuHistoryPanel({ onAfterRestore }) {
     }
   };
 
+  // Load once on mount; reload is also called imperatively after mutations.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { reload(); }, []);
 
   const handleManual = async () => {

@@ -20,6 +20,8 @@ export default function AssetPicker({ menuId, onPick, onClose }) {
     try { setAssets(await listCanvasAssets(menuId)); }
     finally { setLoading(false); }
   }
+  // Reload whenever the target menu changes; reload is stable for these purposes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { reload(); }, [menuId]);
 
   async function handleFiles(files) {
