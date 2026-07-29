@@ -485,6 +485,11 @@ function Admin() {
   // disappears and the tabs refresh to server-fresh numbers — no user tap.
   useEffect(() => {
     if (cloudSync === 'stale' && reachable) {
+      // Intentional external-state sync: when the breaker closes we bridge the
+      // recovered cloud data back into React state. recheckCloud sets state
+      // internally, which the set-state-in-effect rule can't see through — the
+      // guard above keeps it to the stale->reachable transition only.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       recheckCloud();
     }
     // recheckCloud is stable enough for this guard; re-running only on the
