@@ -267,9 +267,19 @@ function Register() {
   const [discountForm, setDiscountForm] = useState({ type: 'percentage', value: '' });
 
   const handleApplyDiscount = async () => {
+    // The manual amount field is optional: cashier presets and coupon codes
+    // apply themselves on tap, so an empty field just means "I'm done here".
+    // Treat Apply as Done and close without flagging an invalid amount.
+    const raw = String(discountForm.value ?? '').trim();
+    if (raw === '') {
+      setIsDiscountModalOpen(false);
+      setDiscountForm({ type: 'percentage', value: '' });
+      return;
+    }
+
     const val = discountForm.type === 'percentage'
-      ? parseFloat(discountForm.value)
-      : toCents(discountForm.value);
+      ? parseFloat(raw)
+      : toCents(raw);
 
     if (isNaN(val) || val <= 0) return showAlert(t('discount.invalidTitle'), t('discount.invalidDesc'));
 
