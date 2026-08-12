@@ -90,10 +90,20 @@ export const useCheckout = (posState) => {
     // feedback; the actual checkout (Dexie write + inventory deduction +
     // cloud sync) runs in the background, and any pending cloud work is
     // surfaced via PendingSyncCard / the offline syncQueue.
+    const autoDiscountAmount = activeTicket?.autoDiscountAmount || 0;
+    const manualDiscountAmount = activeTicket?.manualDiscountAmount || 0;
     const ticketSnapshot = {
       name: activeTicket?.name,
       items: activeTicket?.items,
       total: cartTotal,
+      // Carry the discount breakdown so the success flyout can show the
+      // subtotal → discounts → total the cashier just charged, instead of
+      // implying the un-discounted subtotal was collected.
+      subtotal: cartTotal + autoDiscountAmount + manualDiscountAmount,
+      autoDiscountAmount,
+      manualDiscountAmount,
+      autoDiscountRuleNames: activeTicket?.autoDiscountRuleNames || null,
+      discount: activeTicket?.discount || null,
     };
     const itemsCount = (activeTicket?.items || []).reduce((s, it) => s + (it.qty || 1), 0);
     const isSplit = paymentsArray.length > 1;
@@ -104,6 +114,11 @@ export const useCheckout = (posState) => {
         name: ticketSnapshot.name,
         items: ticketSnapshot.items,
         total: ticketSnapshot.total,
+        subtotal: ticketSnapshot.subtotal,
+        autoDiscountAmount: ticketSnapshot.autoDiscountAmount,
+        manualDiscountAmount: ticketSnapshot.manualDiscountAmount,
+        autoDiscountRuleNames: ticketSnapshot.autoDiscountRuleNames,
+        discount: ticketSnapshot.discount,
         method: masterMethodString
       });
       setTimeout(() => setSuccessTicket(null), 2500);
