@@ -520,6 +520,26 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
 
             <div className="mobile-flex-stack" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
               <div style={{ textAlign: 'inherit' }}>
+                {(() => {
+                  const autoAmt = order.discount?.autoDiscountAmount || 0;
+                  const manualAmt = order.discount?.manualDiscountAmount || 0;
+                  const totalDisc = autoAmt + manualAmt;
+                  if (totalDisc <= 0) return null;
+                  const manualLabel = order.discount?.type === 'percentage'
+                    ? `${t('ticket.discount')} (${order.discount.value}%)`
+                    : t('ticket.discount');
+                  return (
+                    <>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'inherit' }}>
+                        {t('ticket.subtotal')}: {formatForDisplay((order.total_amount || 0) + totalDisc)}
+                      </div>
+                      <div style={{ color: '#27ae60', fontWeight: '700', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'inherit', gap: '4px' }}>
+                        <Icon icon="lucide:tag" style={{ fontSize: '0.85rem' }} />
+                        {manualAmt > 0 ? manualLabel : t('ticket.discount')} -{formatForDisplay(totalDisc)}
+                      </div>
+                    </>
+                  );
+                })()}
                 <div style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)', textDecoration: order.status === 'refunded' ? 'line-through' : 'none', letterSpacing: '-1px' }}>
                   {formatForDisplay(order.total_amount || 0)}
                 </div>
