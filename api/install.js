@@ -17,10 +17,17 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  // 2. We now expect a PAT (Personal Access Token) and the Project Ref.
+  // 2. We now expect the Management token and the Project Ref.
   //    fromVersion is optional — when present and recognized we apply only the
   //    delta; when absent/unknown we run the full schema.
-  const { accessToken, projectRef, fromVersion } = req.body;
+  //
+  //    The token comes from the HttpOnly `tinypos_mgmt_token` cookie set by
+  //    /api/auth/callback (kept out of the URL and out of JS). We still accept
+  //    it in the body as a fallback for any transitional caller.
+  const { projectRef, fromVersion } = req.body;
+  const cookie = req.headers.cookie || '';
+  const cookieMatch = cookie.match(/(?:^|;\s*)tinypos_mgmt_token=([^;]+)/);
+  const accessToken = cookieMatch ? decodeURIComponent(cookieMatch[1]) : req.body.accessToken;
 
   if (!accessToken || !projectRef) {
     return res.status(400).json({ error: 'Missing accessToken or projectRef. Please provide both.' });

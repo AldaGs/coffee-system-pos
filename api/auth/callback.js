@@ -38,9 +38,33 @@ export default async function handler(req, res) {
       return res.status(400).send(`Error exchanging token: ${tokenData.error_description || tokenData.error}`);
     }
 
-    // 4. Success! Redirect the user back to the front-end Setup Screen,
-    // passing the new secure token in the URL so the React app can use it.
-    res.redirect(302, `/?setup_token=${tokenData.access_token}`);
+    // 4. Success! Hand the Management token to the front-end WITHOUT putting it
+    // in the URL. Previously we redirected to `/?setup_token=<token>`, which
+    // leaked the token into browser history, the `Referer` header of any
+    // resource loaded before the SPA stripped it, and every access log that
+    // records the request path. Instead we set it as an HttpOnly cookie the
+    // browser attaches automatically to our same-origin /api proxies, and
+    // redirect to a clean URL carrying only a non-secret marker so the SPA
+    // knows OAuth just completed. JS never reads the raw token.
+    const isLocalhost = req.headers.host.includes('localhost');
+    const cookieParts = [
+      `tinypos_mgmt_token=${tokenData.access_token}`,
+      'HttpOnly',
+      'Path=/',
+      'SameSite=Lax',
+      // Short-lived: only needs to survive the setup/device/schema flow that
+      // immediately follows. The token itself is short-lived server-side too.
+      'Max-Age=1800',
+    ];
+    // `Secure` can't be sent over http, which the local dev server uses.
+    if (!isLocalhost) cookieParts.push('Secure');
+    res.setHeader('Set-Cookie', cookieParts.join('; '));
+
+    // `state` echoes back what each flow sent (setup/devices/schema); the SPA
+    // routes off its own sessionStorage flags, so the marker only needs to
+    // signal "OAuth done". We forward state anyway for clarity/debuggability.
+    const state = typeof req.query.state === 'string' ? req.query.state : '1';
+    res.redirect(302, `/?oauth=${encodeURIComponent(state)}`);
 
   } catch (error) {
     console.error("Callback failed:", error);

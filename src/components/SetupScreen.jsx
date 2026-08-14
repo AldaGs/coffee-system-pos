@@ -3,11 +3,22 @@ import { Icon } from '@iconify/react';
 import { createClient } from '@supabase/supabase-js';
 import { isUpgradePending } from '../utils/appMode';
 
+// Burn-after-reading: drop the HttpOnly Management-token cookie the moment a
+// setup flow finishes (success or failure) instead of waiting for its Max-Age.
+// Fire-and-forget — the token is short-lived and invisible to JS regardless.
+function clearMgmtToken() {
+  try { fetch('/api/supabase?op=clear', { method: 'POST' }).catch(() => {}); } catch { /* noop */ }
+}
+
 export default function SetupScreen({ initialMode, onBack, onComplete, onShowGuide }) {
   const isConnectingExisting = initialMode === 'connect';
 
-  // State for Holy Grail OAuth Flow
-  const [setupToken, setSetupToken] = useState(null);
+  // State for Holy Grail OAuth Flow.
+  // We no longer hold the raw Management token in JS — it lives in an HttpOnly
+  // cookie set by /api/auth/callback and rides along automatically on our
+  // same-origin /api calls. `authorized` is just the boolean "OAuth completed"
+  // signal that used to be inferred from the token's presence.
+  const [authorized, setAuthorized] = useState(false);
   const [projects, setProjects] = useState([]);
   const [selectedProject, setSelectedProject] = useState('');
 
@@ -60,16 +71,17 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
   const [loadingStep, setLoadingStep] = useState('');
   const [customAlert, setCustomAlert] = useState({ show: false, message: '', type: '' });
 
-  // 1. Check for the OAuth Token on boot
+  // 1. Detect the OAuth return on boot. The token is in an HttpOnly cookie;
+  //    all we get in the URL is the non-secret `?oauth=` marker.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('setup_token');
+    const returned = params.get('oauth');
 
-    if (token) {
-      setTimeout(() => setSetupToken(token), 0);
-      // Strip the token from the URL so it doesn't linger
+    if (returned) {
+      setTimeout(() => setAuthorized(true), 0);
+      // Strip the marker from the URL so it doesn't linger.
       window.history.replaceState({}, document.title, "/");
-      fetchProjects(token);
+      fetchProjects();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -79,15 +91,14 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
     setTimeout(() => setCustomAlert({ show: false, message: '', type: '' }), 4000);
   };
 
-  // 2. Fetch User's Projects using the Management API
-  const fetchProjects = async (token) => {
+  // 2. Fetch User's Projects using the Management API. The token rides along as
+  //    the HttpOnly cookie on this same-origin request — no header needed.
+  const fetchProjects = async () => {
     setLoading(true);
     setLoadingStep('Buscando tus proyectos...');
     try {
       // CHANGED: We now call our own backend proxy instead of api.supabase.com
-      const res = await fetch('/api/get-projects', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch('/api/get-projects');
 
       const data = await res.json();
       console.log("Supabase API Response:", data);
@@ -101,7 +112,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       // if it fails (scope/permião), we fall back to project-count heuristics.
       let orgList = [];
       try {
-        const orgRes = await fetch('/api/get-orgs', { headers: { Authorization: `Bearer ${token}` } });
+        const orgRes = await fetch('/api/get-orgs');
         if (orgRes.ok) {
           orgList = await orgRes.json();
           setOrgs(orgList);
@@ -130,7 +141,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
     try {
       const res = await fetch('/api/create-project', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${setupToken}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ organizationId: selectedOrg, name: projectName, region }),
       });
       const data = await res.json().catch(() => ({}));
@@ -148,9 +159,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         await new Promise(r => setTimeout(r, 6000));
         let status = '';
         try {
-          const sRes = await fetch(`/api/get-project-status?ref=${encodeURIComponent(ref)}`, {
-            headers: { Authorization: `Bearer ${setupToken}` },
-          });
+          const sRes = await fetch(`/api/get-project-status?ref=${encodeURIComponent(ref)}`);
           const sData = await sRes.json().catch(() => ({}));
           status = sData?.status || '';
         } catch { /* transient — keep polling */ }
@@ -186,9 +195,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       // --- STEP A: Fetch the Anon Key for the selected project ---
       setLoadingStep('Obteniendo credenciales seguras...');
 
-      const keysRes = await fetch(`/api/get-keys?projectRef=${selectedProject}`, {
-        headers: { Authorization: `Bearer ${setupToken}` }
-      });
+      const keysRes = await fetch(`/api/get-keys?projectRef=${selectedProject}`);
 
       const keysData = await keysRes.json();
       console.log("Respuesta de API Keys:", keysData); // <--- NUEVO SNITCH
@@ -1579,10 +1586,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
       const sqlRes = await fetch(`/api/run-sql?projectRef=${selectedProject}`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${setupToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: schemaQuery }),
       });
 
@@ -1637,6 +1641,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       console.error(err);
       showAlert(err.message, 'error');
     } finally {
+      clearMgmtToken();
       setLoading(false);
       setLoadingStep('');
     }
@@ -1654,10 +1659,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
     try {
       // We reuse the exact same proxy we built for the installation!
-      const keysRes = await fetch(`/api/get-keys?projectRef=${selectedProject}`, {
-        headers: { Authorization: `Bearer ${setupToken}` }
-      });
-      
+      const keysRes = await fetch(`/api/get-keys?projectRef=${selectedProject}`);
+
       const keysData = await keysRes.json();
       if (!keysRes.ok) throw new Error("No se pudieron obtener las credenciales");
       
@@ -1679,6 +1682,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
       console.error(err);
       showAlert(err.message, 'error');
     } finally {
+      clearMgmtToken();
       setLoading(false);
       setLoadingStep('');
     }
@@ -2040,7 +2044,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
               </div>
 
               {/* --- SCENARIO A: PRE-OAUTH (both modes need the token) --- */}
-              {!setupToken && (
+              {!authorized && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   <div style={{
                     background: 'var(--bg-main)',
@@ -2118,7 +2122,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
               )}
 
               {/* --- SCENARIO B: POST-OAUTH — install (new) OR link (connect) --- */}
-              {setupToken && (
+              {authorized && (
                 <form
                   onSubmit={isConnectingExisting ? handleStandardConnect : handleHolyGrailInstall}
                   style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}

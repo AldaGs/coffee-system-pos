@@ -6,12 +6,19 @@ import PendingSyncCard from './PendingSyncCard';
 const DEVICE_EMAIL_DOMAIN = 'device.tinypos.com';
 
 // Session-scoped keys for the burn-after-reading OAuth round-trip.
-// `pat` holds the short-lived Supabase Management API token; `pending` holds
-// the form values the user typed before being sent to Supabase to authorize.
-// Both are cleared as soon as the device has been provisioned (or on failure).
-const SS_PAT = 'tinypos_devices_pat';
+// The Management token no longer passes through JS — it lives in an HttpOnly
+// cookie set by /api/auth/callback and rides along on our /api calls. `pending`
+// holds the form values the user typed before being sent to Supabase; `done`
+// is the "OAuth completed, resume provisioning" signal App.jsx sets on return.
+// Both are cleared as soon as the device is provisioned (or on failure).
 const SS_PENDING = 'tinypos_pending_device';
 const SS_OAUTH_FLAG = 'tinypos_devices_oauth_pending';
+const SS_OAUTH_DONE = 'tinypos_devices_oauth_done';
+
+// Fire-and-forget burn of the HttpOnly Management-token cookie once we're done.
+function clearMgmtToken() {
+  try { fetch('/api/supabase?op=clear', { method: 'POST' }).catch(() => {}); } catch { /* noop */ }
+}
 
 // Scope: only what's needed to read the project's api keys. Compare with the
 // install flow which additionally needs database read/write.
@@ -66,17 +73,19 @@ function DevicesTab({ showAlert, showConfirm }) {
   // re-runs effects (StrictMode dev double-invoke, fast refresh, etc.).
   const resumedRef = useRef(false);
 
-  // ---- Core: trade PAT → service_role → user, then burn -------------------
-  const provisionDevice = async (pat, pending) => {
+  // ---- Core: trade token → service_role → user, then burn -----------------
+  const provisionDevice = async (pending) => {
     setError('');
     setSubmitting(true);
     setSubmitStep('provisioning');
 
     const cleanup = () => {
       try {
-        sessionStorage.removeItem(SS_PAT);
+        sessionStorage.removeItem(SS_OAUTH_DONE);
         sessionStorage.removeItem(SS_PENDING);
       } catch { /* noop */ }
+      // Drop the Management-token cookie now that we're finished with it.
+      clearMgmtToken();
     };
 
     try {
@@ -86,10 +95,9 @@ function DevicesTab({ showAlert, showConfirm }) {
         throw new Error(t('devices.errorMissingProject'));
       }
 
-      // 1. Fetch the project's API keys with the short-lived PAT.
-      const keysRes = await fetch(`/api/get-keys?projectRef=${encodeURIComponent(projectRef)}`, {
-        headers: { Authorization: `Bearer ${pat}` },
-      });
+      // 1. Fetch the project's API keys. The short-lived Management token rides
+      //    along as the HttpOnly cookie on this same-origin request.
+      const keysRes = await fetch(`/api/get-keys?projectRef=${encodeURIComponent(projectRef)}`);
       if (keysRes.status === 401 || keysRes.status === 403) {
         throw new Error(t('devices.errorAuthExpired'));
       }
@@ -139,23 +147,24 @@ function DevicesTab({ showAlert, showConfirm }) {
   };
 
   // ---- Post-OAuth resume ---------------------------------------------------
-  // If the user just came back from Supabase OAuth, App.jsx has already moved
-  // the token into sessionStorage and stripped it from the URL. Here we
-  // detect the pending state, fetch the service_role, mint the device, and
-  // wipe everything.
+  // If the user just came back from Supabase OAuth, App.jsx has set the
+  // `done` flag and stripped the marker from the URL; the token itself is in
+  // the HttpOnly cookie. Here we detect the pending state, fetch the
+  // service_role, mint the device, and wipe everything.
   useEffect(() => {
     if (resumedRef.current) return;
-    const pat = typeof window !== 'undefined' ? sessionStorage.getItem(SS_PAT) : null;
+    const done = typeof window !== 'undefined' ? sessionStorage.getItem(SS_OAUTH_DONE) === '1' : false;
     const pendingRaw = typeof window !== 'undefined' ? sessionStorage.getItem(SS_PENDING) : null;
-    if (!pat || !pendingRaw) return;
+    if (!done || !pendingRaw) return;
     resumedRef.current = true;
 
     let pending;
     try {
       pending = JSON.parse(pendingRaw);
     } catch {
-      sessionStorage.removeItem(SS_PAT);
+      sessionStorage.removeItem(SS_OAUTH_DONE);
       sessionStorage.removeItem(SS_PENDING);
+      clearMgmtToken();
       return;
     }
 
@@ -163,7 +172,7 @@ function DevicesTab({ showAlert, showConfirm }) {
     // post-OAuth. The cascading-render warning is acceptable here because the
     // state updates only happen once per round-trip. `provisionDevice` is a
     // stable closure on this render — running on mount is exactly what we want.
-    provisionDevice(pat, pending);
+    provisionDevice(pending);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -197,8 +206,9 @@ function DevicesTab({ showAlert, showConfirm }) {
 
     // Stash the form values so we can resume after the OAuth round-trip.
     // sessionStorage is tab-scoped and cleared on close — acceptable for a
-    // short-lived hand-off. The PAT itself only lands in sessionStorage on
-    // return and is wiped the moment provisioning completes.
+    // short-lived hand-off. The Management token never lands in sessionStorage
+    // anymore; it stays in the HttpOnly cookie and is burned once provisioning
+    // completes.
     try {
       sessionStorage.setItem(SS_PENDING, JSON.stringify({
         deviceName: deviceName.trim(),
