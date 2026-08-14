@@ -17,10 +17,16 @@ import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
 import { getBusinessProfile } from '../../utils/businessProfile';
 
 // Session keys used by the schema-update OAuth round-trip. Mirror the
-// burn-after-reading pattern from DevicesTab — the PAT only exists between
-// callback and install-POST, then it's wiped.
+// burn-after-reading pattern from DevicesTab — the Management token stays in an
+// HttpOnly cookie (never in JS); `done` is the "OAuth completed, run install"
+// signal App.jsx sets on return, wiped once the install POST finishes.
 const SS_SCHEMA_OAUTH_FLAG = 'tinypos_schema_oauth_pending';
-const SS_SCHEMA_PAT = 'tinypos_schema_pat';
+const SS_SCHEMA_OAUTH_DONE = 'tinypos_schema_oauth_done';
+
+// Fire-and-forget burn of the HttpOnly Management-token cookie once we're done.
+function clearMgmtToken() {
+  try { fetch('/api/supabase?op=clear', { method: 'POST' }).catch(() => {}); } catch { /* noop */ }
+}
 // The DB version at click time, stashed before the OAuth redirect so the
 // post-callback install POST can request just the delta (the async
 // fetchSchemaVersion may not have re-resolved by the time the resume effect
@@ -112,20 +118,26 @@ function GeneralSettingsTab({
     return () => clearTimeout(timer);
   }, []);
 
-  // Post-OAuth resume: if we just came back with a PAT in sessionStorage,
-  // POST it (plus projectRef) to /api/install which runs the latest SQL.
+  // Post-OAuth resume: if we just came back from OAuth (App.jsx set the `done`
+  // flag), POST projectRef to /api/install, which reads the Management token
+  // from the HttpOnly cookie and runs the latest SQL.
   useEffect(() => {
     if (schemaResumedRef.current) return;
-    const pat = typeof window !== 'undefined' ? sessionStorage.getItem(SS_SCHEMA_PAT) : null;
-    if (!pat) return;
+    const done = typeof window !== 'undefined' ? sessionStorage.getItem(SS_SCHEMA_OAUTH_DONE) === '1' : false;
+    if (!done) return;
     schemaResumedRef.current = true;
+
+    const finishCleanup = () => {
+      try { sessionStorage.removeItem(SS_SCHEMA_OAUTH_DONE); } catch { /* noop */ }
+      try { sessionStorage.removeItem(SS_SCHEMA_FROM); } catch { /* noop */ }
+      clearMgmtToken();
+    };
 
     const supabaseUrl = typeof window !== 'undefined' ? localStorage.getItem('tinypos_supabase_url') : null;
     const projectRef = projectRefFromUrl(supabaseUrl);
     if (!projectRef) {
       setTimeout(() => setSchemaUpdateError(t('settings.schemaUpdateMissingProject')), 0);
-      try { sessionStorage.removeItem(SS_SCHEMA_PAT); } catch { /* noop */ }
-      try { sessionStorage.removeItem(SS_SCHEMA_FROM); } catch { /* noop */ }
+      finishCleanup();
       return;
     }
 
@@ -139,7 +151,7 @@ function GeneralSettingsTab({
         const res = await fetch('/api/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessToken: pat, projectRef, fromVersion }),
+          body: JSON.stringify({ projectRef, fromVersion }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || data?.success === false) {
@@ -150,8 +162,7 @@ function GeneralSettingsTab({
       } catch (err) {
         setSchemaUpdateError(err.message);
       } finally {
-        try { sessionStorage.removeItem(SS_SCHEMA_PAT); } catch { /* noop */ }
-        try { sessionStorage.removeItem(SS_SCHEMA_FROM); } catch { /* noop */ }
+        finishCleanup();
         setSchemaUpdating(false);
       }
     })();

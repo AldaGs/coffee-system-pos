@@ -14,6 +14,27 @@ import crypto from 'crypto';
 
 const ALLOWED_REGIONS = new Set(['us-east-1', 'us-west-1']);
 
+// The Management token arrives as an HttpOnly cookie set by /api/auth/callback
+// (so it never rides in the URL). Parse it out here; we still accept a bearer
+// Authorization header as a fallback for any transitional caller.
+function tokenFromRequest(req) {
+  const cookie = req.headers.cookie || '';
+  const m = cookie.match(/(?:^|;\s*)tinypos_mgmt_token=([^;]+)/);
+  if (m) return decodeURIComponent(m[1]);
+  const auth = req.headers.authorization || '';
+  const bearer = auth.match(/^Bearer\s+(.+)$/i);
+  return bearer ? bearer[1] : null;
+}
+
+// Expire the token cookie. Attributes (Path, SameSite, Secure) must match the
+// ones used to set it or the browser won't overwrite it.
+function clearTokenCookie(req, res) {
+  const isLocalhost = (req.headers.host || '').includes('localhost');
+  const parts = ['tinypos_mgmt_token=', 'HttpOnly', 'Path=/', 'SameSite=Lax', 'Max-Age=0'];
+  if (!isLocalhost) parts.push('Secure');
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
 // Strong random DB password: 24 url-safe chars, guaranteed to satisfy Supabase's
 // complexity (mixed case + digits). No ambiguous/SQL-hostile characters.
 function generateDbPassword() {
@@ -130,6 +151,18 @@ const OPS = {
       );
     },
   },
+
+  // POST /api/supabase?op=clear — burn-after-reading: the client calls this
+  // when a setup/device/schema flow finishes so the Management token cookie is
+  // dropped immediately instead of lingering until Max-Age. Needs no token.
+  clear: {
+    method: 'POST',
+    needsToken: false,
+    handle: (req, res) => {
+      clearTokenCookie(req, res);
+      return res.status(200).json({ cleared: true });
+    },
+  },
 };
 
 export default async function handler(req, res) {
@@ -137,8 +170,13 @@ export default async function handler(req, res) {
   if (!op) return res.status(400).json({ error: 'Unknown or missing op' });
   if (req.method !== op.method) return res.status(405).send('Method Not Allowed');
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader) return res.status(401).send('Missing Authorization header');
+  // Ops default to requiring a token; `clear` opts out.
+  let authHeader;
+  if (op.needsToken !== false) {
+    const token = tokenFromRequest(req);
+    if (!token) return res.status(401).send('Missing Management token');
+    authHeader = `Bearer ${token}`;
+  }
 
   try {
     return await op.handle(req, res, authHeader);

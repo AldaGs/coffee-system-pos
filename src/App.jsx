@@ -59,17 +59,22 @@ function MainApp() {
     // burn-after-reading model, so any leftover key is wiped.
     try { localStorage.removeItem('tinypos_supabase_service_role'); } catch { /* noop */ }
 
+    // The Management token no longer travels in the URL — it's in an HttpOnly
+    // cookie set by /api/auth/callback. The callback appends `?oauth=<state>`
+    // purely as a "just came back from OAuth" marker; the raw token is never
+    // exposed to JS. We route off our own sessionStorage flags as before.
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('setup_token');
-    if (!token) return null;
+    if (!params.get('oauth')) return null;
 
     const devicesFlow = sessionStorage.getItem('tinypos_devices_oauth_pending') === '1';
     if (devicesFlow) {
       try {
-        sessionStorage.setItem('tinypos_devices_pat', token);
+        // Signal the Devices tab to resume provisioning (the token itself rides
+        // along as the HttpOnly cookie on its /api calls — never touched here).
+        sessionStorage.setItem('tinypos_devices_oauth_done', '1');
         sessionStorage.removeItem('tinypos_devices_oauth_pending');
       } catch { /* noop */ }
-      // Strip the token from the URL and route the user back to the Devices
+      // Strip the marker from the URL and route the user back to the Devices
       // tab so the post-OAuth resume effect there fires immediately and the
       // success modal appears without a manual click. BrowserRouter reads
       // window.location on its first paint, so replaceState is enough — no
@@ -81,7 +86,7 @@ function MainApp() {
     const schemaFlow = sessionStorage.getItem('tinypos_schema_oauth_pending') === '1';
     if (schemaFlow) {
       try {
-        sessionStorage.setItem('tinypos_schema_pat', token);
+        sessionStorage.setItem('tinypos_schema_oauth_done', '1');
         sessionStorage.removeItem('tinypos_schema_oauth_pending');
       } catch { /* noop */ }
       // Land on General Settings, with a hint to kick off the install POST.
