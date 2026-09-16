@@ -163,7 +163,7 @@ function CheckoutModal({
               const residual = cartTotal - sumNet;
               if (residual !== 0) {
                 for (let i = rows.length - 1; i >= 0; i--) {
-                  if (!paidProductIds.includes(rows[i].item.id)) {
+                  if (!paidProductIds.includes(rows[i].item.uniqueId)) {
                     rows[i].itemNet = Math.max(0, rows[i].itemNet + residual);
                     break;
                   }
@@ -176,12 +176,12 @@ function CheckoutModal({
                 <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>{t('check.prodSubtitle')}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '300px', overflowY: 'auto', padding: '4px' }}>
                   {rows.map(({ item, itemGross, itemDiscount, itemNet }) => {
-                    const isPaid = paidProductIds.includes(item.id);
+                    const isPaid = paidProductIds.includes(item.uniqueId);
                     const itemTip = Math.round(itemNet * tipPct / 100);
                     const finalItemTotal = itemNet + itemTip;
 
                     return (
-                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '12px', background: isPaid ? 'rgba(0,0,0,0.05)' : 'var(--bg-main)', opacity: isPaid ? 0.6 : 1, borderRadius: '8px', border: '1px solid var(--border)' }}>
+                      <div key={item.uniqueId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '12px', background: isPaid ? 'rgba(0,0,0,0.05)' : 'var(--bg-main)', opacity: isPaid ? 0.6 : 1, borderRadius: '8px', border: '1px solid var(--border)' }}>
                         <div style={{ flex: '1 1 140px', minWidth: 0, overflowWrap: 'anywhere' }}>
                           <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '1.1rem' }}>{item.name}</div>
                           {itemDiscount > 0 && (
@@ -196,9 +196,9 @@ function CheckoutModal({
                           <span>{t('check.prodPaid')}</span>
                         ) : (
                           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end', flex: '1 1 auto' }}>
-                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Cash', [item.id])} style={{ padding: '8px 10px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{t('check.cash')}</button>
-                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Card', [item.id])} style={{ padding: '8px 10px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{t('check.card')}</button>
-                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Transfer', [item.id])} style={{ padding: '8px 10px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{t('check.transfer')}</button>
+                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Cash', [item.uniqueId])} style={{ padding: '8px 10px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{t('check.cash')}</button>
+                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Card', [item.uniqueId])} style={{ padding: '8px 10px', background: '#2980b9', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{t('check.card')}</button>
+                            <button onClick={() => handlePartialPayment(finalItemTotal, 'Transfer', [item.uniqueId])} style={{ padding: '8px 10px', background: '#8e44ad', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>{t('check.transfer')}</button>
                           </div>
                         )}
                       </div>

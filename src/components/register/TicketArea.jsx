@@ -127,19 +127,28 @@ function TicketArea({
                   <li className="empty-cart">{t('ticket.empty')}</li>
                 )
               ) : (
-                activeTicket.items.map(item => (
-                  <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                activeTicket.items.map(item => {
+                  // A line already covered by a saved per-product split stays in
+                  // the ticket (the total still includes it) but is flagged and
+                  // locked so it can't be removed out from under the payment.
+                  const isPaidLine = (activeTicket.savedPaidProductIds || []).includes(item.uniqueId);
+                  return (
+                  <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start', opacity: isPaidLine ? 0.6 : 1 }}>
                     <div className="item-row">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                         <button
-                          onClick={() => setQtyEditItem(item)}
+                          onClick={() => { if (!isPaidLine) setQtyEditItem(item); }}
+                          disabled={isPaidLine}
                           title="Editar cantidad"
-                          style={{ background: 'var(--bg-surface)', border: '2px solid var(--brand-color)', borderRadius: '6px', padding: '2px 8px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', cursor: 'pointer', minWidth: '36px', textAlign: 'center', flexShrink: 0 }}
+                          style={{ background: 'var(--bg-surface)', border: '2px solid var(--brand-color)', borderRadius: '6px', padding: '2px 8px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-main)', minWidth: '36px', textAlign: 'center', flexShrink: 0, cursor: isPaidLine ? 'not-allowed' : 'pointer' }}
                         >
                           {item.qty || 1} x
                         </button>
                         <div>
                           <span>{item.emoji || '•'} {item.name}</span>
+                          {isPaidLine && (
+                            <span style={{ marginLeft: '8px', fontSize: '0.75rem', fontWeight: 'bold', color: '#27ae60', border: '1px solid #27ae60', borderRadius: '4px', padding: '1px 6px', whiteSpace: 'nowrap' }}>✓ {t('check.prodPaid')}</span>
+                          )}
                           {item.loyaltyOriginalPrice ? (
                             <span style={{ marginLeft: '10px' }}>
                               <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)', marginRight: '6px' }}>
@@ -152,7 +161,9 @@ function TicketArea({
                           )}
                         </div>
                       </div>
-                      <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
+                      {!isPaidLine && (
+                        <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
+                      )}
                     </div>
                     {item.selectedModifiers.map(mod => (
                       <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>
@@ -161,7 +172,8 @@ function TicketArea({
                       </div>
                     ))}
                   </li>
-                ))
+                  );
+                })
               )}
             </ul>
 

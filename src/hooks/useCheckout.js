@@ -160,10 +160,31 @@ export const useCheckout = (posState) => {
     return true;
   };
 
+  // Paid lines are tracked by item.uniqueId (per-line) rather than item.id
+  // (per-menu-product), so two lines of the same product stay independent.
+  // Tickets saved before that change stored product ids: claim one matching
+  // line each, in order, so an in-flight split isn't silently reopened.
+  const migratePaidIds = (savedIds, items) => {
+    const uniqueIds = new Set(items.map(i => i.uniqueId));
+    const claimed = new Set();
+    return savedIds.reduce((acc, savedId) => {
+      if (uniqueIds.has(savedId)) {
+        acc.push(savedId);
+        return acc;
+      }
+      const match = items.find(i => i.id === savedId && !claimed.has(i.uniqueId));
+      if (match) {
+        claimed.add(match.uniqueId);
+        acc.push(match.uniqueId);
+      }
+      return acc;
+    }, []);
+  };
+
   const handleOpenCheckout = () => {
     if (!activeTicket) return;
     setSplitPayments(activeTicket.savedSplitPayments || []);
-    setPaidProductIds(activeTicket.savedPaidProductIds || []);
+    setPaidProductIds(migratePaidIds(activeTicket.savedPaidProductIds || [], activeTicket.items || []));
     setSplitMode(activeTicket.savedSplitMode || 'full');
     setNWays(activeTicket.savedNWays || 2);
     setIsCheckoutModalOpen(true);
