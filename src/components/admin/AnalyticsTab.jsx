@@ -93,7 +93,10 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
     const costByJoinKey = new Map();
     inventoryLogs.forEach(log => {
-      if (log.deduction_type !== 'sale') return;
+      // 'refund_return' carries a negative qty and the refunded sale's
+      // ticket_id, so it lands in the same bucket and nets the returned stock's
+      // cost back out of that ticket's COGS (matches cogsMath.js).
+      if (log.deduction_type !== 'sale' && log.deduction_type !== 'refund_return') return;
       const hasLogTicket = log.ticket_id !== undefined && log.ticket_id !== null && log.ticket_id !== '';
       let joinKey = null;
       if (hasLogTicket && relevantTicketIds.has(String(log.ticket_id))) {

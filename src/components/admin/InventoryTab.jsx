@@ -8,6 +8,7 @@ import { toCents, toMillicents, fromMillicents, formatForDisplay, formatMillicen
 import { isLocalMode } from '../../utils/appMode';
 import { isCloudReachable } from '../../utils/network';
 import { useUpgradeNagStore } from '../../store/useUpgradeNagStore';
+import { consumeLotsFIFO, returnToNewestLot, canReachCloud } from '../../services/inventoryService';
 
 // --- Mode-aware persistence helpers ---------------------------------------
 // In cloud mode each write goes to Supabase and the returned row (with its
@@ -70,47 +71,20 @@ async function registerLot({ itemName, qty, unit, unitCost, madeDate, receivedDa
   return lot;
 }
 
-// Reduce a lot-tracked item's lots by `qty`, oldest roast first (FIFO). Used by
-// Audit when a loss/waste is logged, so lot remainders stay truthful — a lost
-// bag comes off the oldest roast. Returns the amount that couldn't be attributed
-// (lots ran dry — stock that predates lot tracking). Best-effort on the cloud.
+// Audit reconciliation against the lot registry. Both directions delegate to the
+// shared helpers in inventoryService so the FIFO order and the Dexie/cloud write
+// rules match what a sale does — they used to be a second, drifting copy here.
+// A loss comes off the oldest roast; a found surplus tops up the newest lot, so
+// sum(lot remaining) keeps tracking the audited stock. Returns the amount that
+// couldn't be attributed (stock predating lot tracking) — not an error.
 async function drawDownLotsFIFO(itemName, qty) {
-  let toConsume = qty;
-  const lots = (await db.inventory_lots.where('item_name').equals(itemName).toArray())
-    .filter(l => (Number(l.qty_remaining) || 0) > 0)
-    .sort((a, b) =>
-      String(a.made_date || '').localeCompare(String(b.made_date || '')) ||
-      String(a.created_at || '').localeCompare(String(b.created_at || '')));
-  for (const lot of lots) {
-    if (toConsume <= 0) break;
-    const take = Math.min(Number(lot.qty_remaining) || 0, toConsume);
-    const newRemaining = Math.max(0, Number((lot.qty_remaining - take).toFixed(6)));
-    await db.inventory_lots.update(lot.id, { qty_remaining: newRemaining });
-    if (!isLocalMode()) {
-      try { await supabase.from('inventory_lots').update({ qty_remaining: newRemaining }).eq('id', lot.id); }
-      catch (e) { console.warn('lot draw-down cloud update failed (kept local):', e?.message); }
-    }
-    toConsume -= take;
-  }
-  return toConsume;
+  return consumeLotsFIFO(itemName, qty);
 }
 
-// Add `qty` back to the newest lot (or open one if none). Used by Audit when a
-// surplus is found — the roast is unknown, so it lands on the most recent lot,
-// keeping sum(lot remaining) == stock.
 async function topUpNewestLot(itemName, qty, unit, unitCost) {
-  const lots = (await db.inventory_lots.where('item_name').equals(itemName).toArray())
-    .sort((a, b) =>
-      String(b.made_date || '').localeCompare(String(a.made_date || '')) ||
-      String(b.created_at || '').localeCompare(String(a.created_at || '')));
-  const newest = lots[0];
-  if (!newest) { await registerLot({ itemName, qty, unit, unitCost, madeDate: todayStr() }); return; }
-  const newRemaining = Number(((Number(newest.qty_remaining) || 0) + qty).toFixed(6));
-  await db.inventory_lots.update(newest.id, { qty_remaining: newRemaining });
-  if (!isLocalMode()) {
-    try { await supabase.from('inventory_lots').update({ qty_remaining: newRemaining }).eq('id', newest.id); }
-    catch (e) { console.warn('lot top-up cloud update failed (kept local):', e?.message); }
-  }
+  const landed = await returnToNewestLot(itemName, qty);
+  // No lots at all yet: open one so the surplus is still traceable.
+  if (!landed) await registerLot({ itemName, qty, unit, unitCost, madeDate: todayStr() });
 }
 
 // A lot is one received/produced batch of a lot-tracked item (roasted coffee,
@@ -118,14 +92,19 @@ async function topUpNewestLot(itemName, qty, unit, unitCost) {
 // mode also push to Supabase, keeping the local row if the push fails so nothing
 // is lost (a later fetch reconciles). Same id in both stores (client UUID).
 async function persistLot(lot) {
-  await db.inventory_lots.put(lot);
-  if (!isLocalMode()) {
-    try {
-      const { error } = await supabase.from('inventory_lots').insert([lot]);
-      if (error) throw error;
-    } catch (e) {
-      console.warn('inventory_lots cloud insert failed (kept local):', e?.message);
-    }
+  // Mark it pending until the cloud copy lands. In local ('guest') mode there is
+  // no cloud, so nothing is ever pending. Offline in cloud mode the flag is what
+  // lets syncService push the lot later — without it, lots created offline never
+  // reached the cloud at all.
+  const pending = !isLocalMode();
+  await db.inventory_lots.put({ ...lot, pending_sync: pending });
+  if (!canReachCloud()) return;
+  try {
+    const { error } = await supabase.from('inventory_lots').insert([lot]);
+    if (error) throw error;
+    await db.inventory_lots.update(lot.id, { pending_sync: false });
+  } catch (e) {
+    console.warn('inventory_lots cloud insert deferred (kept local):', e?.message);
   }
 }
 
@@ -760,8 +739,29 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
       if (!isLocalMode()) await supabase.from('inventory').delete().eq('id', id);
       await db.inventory.delete(id);
 
+      // inventory_logs and inventory_lots link by NAME, not id. Leaving the old
+      // rows under the bare name means a later item created with the same name
+      // silently inherits this one's history (and its lots, which the FIFO sale
+      // draw-down would then consume). Tombstone them first so the name is free.
+      const tombstone = `${name} (eliminado ${new Date().toISOString().slice(0, 10)})`;
+      try {
+        const oldLogs = await db.inventory_logs.where('item_name').equals(name).toArray();
+        await Promise.all(oldLogs.map(l => db.inventory_logs.update(l.id, { item_name: tombstone })));
+        const oldLots = await db.inventory_lots.where('item_name').equals(name).toArray();
+        await Promise.all(oldLots.map(l => db.inventory_lots.update(l.id, { item_name: tombstone, pending_sync: true })));
+        if (canReachCloud()) {
+          await supabase.from('inventory_logs').update({ item_name: tombstone }).eq('item_name', name);
+          await supabase.from('inventory_lots').update({ item_name: tombstone }).eq('item_name', name);
+          await supabase.from('lot_consumptions').update({ item_name: tombstone }).eq('item_name', name);
+        }
+        const oldCons = await db.lot_consumptions.where('item_name').equals(name).toArray();
+        await Promise.all(oldCons.map(c => db.lot_consumptions.update(c.id, { item_name: tombstone })));
+      } catch (e) {
+        console.warn('History tombstone skipped:', e?.message);
+      }
+
       await persistInventoryLog({
-        item_name: name,
+        item_name: tombstone,
         qty_deducted: item?.current_stock ?? 0,
         deduction_type: 'removed',
         created_at: new Date().toISOString(),
@@ -1157,6 +1157,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                   if (log.deduction_type === 'transform_out') actionLabel = t('inv.logTransformOut');
                   if (log.deduction_type === 'transform_in') actionLabel = t('inv.logTransformIn');
                   if (log.deduction_type === 'removed') actionLabel = t('inv.logRemoved');
+                  if (log.deduction_type === 'refund_return') actionLabel = t('inv.logRefundReturn');
+                  if (log.deduction_type === 'checkout_rollback') actionLabel = t('inv.logRollback');
+                  if (log.deduction_type === 'unresolved_target') actionLabel = t('inv.logUnresolved');
                   if (log.deduction_type === 'waste' || log.deduction_type === 'audit_correction') {
                     actionLabel = isPositive ? t('inv.logAuditGain') : t('inv.logAuditLoss');
                   }
@@ -1229,6 +1232,9 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                     if (log.deduction_type === 'transform_out') actionLabel = t('inv.logTransformOut');
                     if (log.deduction_type === 'transform_in') actionLabel = t('inv.logTransformIn');
                     if (log.deduction_type === 'removed') actionLabel = t('inv.logRemoved');
+                  if (log.deduction_type === 'refund_return') actionLabel = t('inv.logRefundReturn');
+                  if (log.deduction_type === 'checkout_rollback') actionLabel = t('inv.logRollback');
+                  if (log.deduction_type === 'unresolved_target') actionLabel = t('inv.logUnresolved');
                     if (log.deduction_type === 'waste' || log.deduction_type === 'audit_correction') {
                       actionLabel = isPositive ? t('inv.logAuditGain') : t('inv.logAuditLoss');
                     }

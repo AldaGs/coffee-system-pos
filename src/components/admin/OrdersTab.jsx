@@ -14,10 +14,14 @@ import { recordTipRefund } from '../../services/tipsService';
 import { logActivity } from '../../services/activityService';
 import { isCloudReachable } from '../../utils/network';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
+import { buildDeductionPlan } from '../../utils/inventoryMath';
+import { restoreInventory } from '../../services/inventoryService';
+import { useMenuStore } from '../../store/useMenuStore';
 import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
+  const { recipes } = useMenuStore();
   const { showAlert, showPrompt, showConfirm } = useDialog();
   const [sharingOrder, setSharingOrder] = useState(null);
 
@@ -43,6 +47,13 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   // 'none' = staff keeps tip, 'proportional' = tip * (refund/total), 'full' = refund entire remaining tip.
   // Full refunds default to 'full' (no service was rendered); partials default to 'none'.
   const [tipRefundMode, setTipRefundMode] = useState('full');
+  // Which refunded lines go back INTO stock. A sealed product handed back over
+  // the counter — a bottle of water, a soda can, a bag of beans, merch — is
+  // resellable and should return to inventory. A prepared drink or plate is not:
+  // the milk and the shot are gone whether or not the customer paid. Only the
+  // operator knows which case it is, so they pick per line and nothing moves by
+  // default. Keyed by the line's index in order.items, same key as refundItems.
+  const [restockItems, setRestockItems] = useState({});
 
   // --- CFDI MODAL STATE ---
   const [cfdiModal, setCfdiModal] = useState({ isOpen: false, order: null });
@@ -64,6 +75,54 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   // Cents selected to refund right now across all lines (mode 'items').
   const selectedItemsRefundCents = (order) =>
     (order?.items || []).reduce((s, line, idx) => s + lineUnitCents(line) * (Number(refundItems[idx]) || 0), 0);
+
+  // A line can only go back into stock if it is inventory-backed at all. Fee
+  // lines ("Envio") and untracked products have nothing to return.
+  const isStockBacked = (line) =>
+    (line.inventoryMode === 'standard' && line.linkedWarehouseId) ||
+    (line.inventoryMode === 'recipe' && line.linkedRecipeId);
+
+  // Default suggestion, which the operator can always override: a standard
+  // (warehouse-linked) line is a sealed product — a bottle, a can, a bag of
+  // beans, merch — so it goes back on the shelf. A recipe line was made to
+  // order, so its ingredients are already consumed and it does not.
+  const defaultRestock = (line) => line.inventoryMode === 'standard' && !!line.linkedWarehouseId;
+
+  // Lines being refunded right now, with the qty for each: per-line in 'items'
+  // mode, every remaining unit on a full refund. A custom-amount refund carries
+  // no line information, so it can't move stock.
+  const refundedLinesFor = (order, mode) => {
+    if (!Array.isArray(order?.items)) return [];
+    if (mode === 'items') {
+      return order.items
+        .map((line, idx) => ({ line, idx, qty: Number(refundItems[idx]) || 0 }))
+        .filter(e => e.qty > 0);
+    }
+    if (mode === 'all') {
+      return order.items
+        .map((line, idx) => ({ line, idx, qty: lineRefundableQty(order, idx, line) }))
+        .filter(e => e.qty > 0);
+    }
+    return [];
+  };
+
+  // Lines the operator could send back to stock for the current refund shape.
+  const restockCandidates = (order, mode) => refundedLinesFor(order, mode).filter(e => isStockBacked(e.line));
+
+  // Turn the ticked lines into concrete stock movements, reusing the very same
+  // resolver checkout deducts with — so a refund puts back exactly what the sale
+  // took out, modifiers and recipe ingredients included.
+  const buildRestockMovements = async (order, mode) => {
+    const picked = restockCandidates(order, mode).filter(e => restockItems[e.idx]);
+    if (picked.length === 0) return [];
+    const inventory = await db.inventory.toArray();
+    const { deductions } = buildDeductionPlan({
+      items: picked.map(e => ({ ...e.line, qty: e.qty })),
+      recipes,
+      inventory,
+    });
+    return deductions.map(d => ({ id: d.id, name: d.name, qty: d.qty }));
+  };
 
   const handleProcessRefund = async () => {
     const { order } = refundModal;
@@ -182,8 +241,35 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
         original_cashier: order.cashier_name || null
       }, consumePendingAuthorizer());
 
+      // --- STOCK RETURN (only the lines the operator ticked) ---
+      // Runs after the refund itself has been recorded: a stock failure must
+      // never leave the customer un-refunded. restoreInventory is idempotent per
+      // movement, writes its own 'refund_return' inventory_logs rows, and queues
+      // the cloud half when offline, exactly like a sale deduction.
+      let restockMsg = '';
+      try {
+        const movements = await buildRestockMovements(order, refundMode);
+        if (movements.length > 0) {
+          const { restored, failed } = await restoreInventory({
+            movements,
+            deductionType: 'refund_return',
+            ticketId: order.ticket_id || null,
+          });
+          if (restored.length > 0) {
+            restockMsg = `\n${t('orders.restockDone')}: ${restored.map(r => `${r.name} (+${r.qty})`).join(', ')}`;
+          }
+          if (failed.length > 0) {
+            restockMsg += `\n${t('orders.restockFailed')}: ${failed.map(f => f.name).join(', ')}`;
+          }
+        }
+      } catch (e) {
+        console.error('Refund stock return failed:', e);
+        restockMsg = `\n${t('orders.restockFailed')}`;
+      }
+
       setRefundModal({ isOpen: false, order: null });
-      showAlert(t('toast.success'), t('toast.success'));
+      setRestockItems({});
+      showAlert(t('toast.success'), `${t('orders.refundDone')}${restockMsg}`);
     } catch (err) {
       if (!isCloudReachable()) {
          // The cloud path above timed out or the breaker tripped mid-write on a
@@ -614,6 +700,12 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
                       setRefundItems({});
                       // Sensible default: full refund -> return tip; partial -> keep tip with staff.
                       setTipRefundMode('full');
+                      // Pre-tick the resellable lines (sealed products), leave
+                      // made-to-order lines unticked. The operator confirms or
+                      // changes it per line before confirming the refund.
+                      setRestockItems(Object.fromEntries(
+                        (order.items || []).map((line, idx) => [idx, defaultRestock(line)])
+                      ));
                       setRefundModal({ isOpen: true, order: order });
                     },
                   });
@@ -779,6 +871,52 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
               )}
             </div>
 
+            {/* --- BACK INTO STOCK? --- */}
+            {/* A refunded latte's milk and shot are gone; a refunded bottle of
+                water goes back on the shelf. Only the operator knows which, so
+                every inventory-backed line is listed with a suggested default
+                and nothing moves unless it is ticked. Custom-amount refunds
+                carry no line information and so never appear here. */}
+            {restockCandidates(refundModal.order, refundMode).length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text-muted)' }}>
+                  {t('orders.restockLabel')}
+                </label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
+                  {restockCandidates(refundModal.order, refundMode).map(({ line, idx, qty }) => {
+                    const checked = !!restockItems[idx];
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => setRestockItems({ ...restockItems, [idx]: !checked })}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '12px', width: '100%',
+                          padding: '10px 12px', borderRadius: '10px', textAlign: 'left',
+                          border: `2px solid ${checked ? 'var(--brand-color)' : 'var(--border)'}`,
+                          background: checked ? 'rgba(52, 152, 219, 0.05)' : 'transparent',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Icon
+                          icon={checked ? 'lucide:check-square' : 'lucide:square'}
+                          style={{ fontSize: '1.2rem', color: checked ? 'var(--brand-color)' : 'var(--text-muted)', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 'bold', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {line.emoji ? `${line.emoji} ` : ''}{line.name} × {qty}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {line.inventoryMode === 'recipe' ? t('orders.restockHintRecipe') : t('orders.restockHintStandard')}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{ margin: '8px 0 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('orders.restockHelp')}</p>
+              </div>
+            )}
+
             {((Number(refundModal.order.tip_amount) || 0) - (Number(refundModal.order.tip_refunded) || 0)) > 0 && (
               <div style={{ marginBottom: '24px' }}>
                 <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: 'var(--text-muted)' }}>
@@ -818,7 +956,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
             )}
 
             <div className="modal-actions">
-              <button onClick={() => setRefundModal({ isOpen: false, order: null })} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
+              <button onClick={() => { setRefundModal({ isOpen: false, order: null }); setRestockItems({}); }} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
               <button onClick={handleProcessRefund} className="btn-confirm" style={{ flex: 2, background: 'var(--brand-color)', color: 'white' }}>{t('orders.btnConfirmRefund')}</button>
             </div>
           </div>

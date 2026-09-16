@@ -109,19 +109,39 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
           continue;
         }
 
-        if (cleanLog.deduction_type === 'sale') {
+        if (cleanLog.deduction_type === 'sale' || cleanLog.deduction_type === 'refund_return' || cleanLog.deduction_type === 'checkout_rollback') {
           const itemId = nameToId.get(cleanLog.item_name);
-          if (itemId) {
+          if (!itemId) {
+            // No cloud inventory row with this name (renamed or deleted since
+            // the sale). Deleting the log here would drop the movement on the
+            // floor and drift the cloud count forever, so keep it queued and
+            // make the mismatch loud — renaming the item back, or recreating it,
+            // lets the next run apply it.
+            console.error(`Inventory log kept: no cloud inventory item named "${cleanLog.item_name}"`);
+            continue;
+          }
+          {
             // Idempotent deduction keyed on this log's local_id: if the online
             // checkout (or an earlier replay) already applied it — including the
             // "committed but timed out" case that requeued the sale — the server
             // has claimed the id and this call decrements nothing. Prevents the
             // slow-link double-count. Requires schema >= 1.1 (deduct_inventory_log).
-            const { error: rpcErr } = await supabase.rpc('deduct_inventory_log', {
-              p_local_id: cleanLog.local_id,
-              p_item_id: Number(itemId),
-              p_qty: Number(cleanLog.qty_deducted)
-            });
+            // A negative qty_deducted is stock coming BACK (a refund return or
+            // a rolled-back checkout, same convention restock/added use), so it
+            // routes to the restock RPC instead. Both claim the log's local_id
+            // exactly once, so replaying either is a no-op.
+            const qty = Number(cleanLog.qty_deducted);
+            const { error: rpcErr } = qty < 0
+              ? await supabase.rpc('restock_inventory_log', {
+                  p_local_id: cleanLog.local_id,
+                  p_item_id: Number(itemId),
+                  p_qty: Math.abs(qty)
+                })
+              : await supabase.rpc('deduct_inventory_log', {
+                  p_local_id: cleanLog.local_id,
+                  p_item_id: Number(itemId),
+                  p_qty: qty
+                });
             if (rpcErr) {
               console.error("RPC deduct failed:", rpcErr);
               if (rpcErr.status === 400 || rpcErr.status === 401) hasAuthError = true;
@@ -134,6 +154,41 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
         processed++;
       }
       if (processed > 0) console.log(`☁️ Synced ${processed} inventory logs.`);
+    }
+
+    // 3b. Sync Lots + Lot Consumptions.
+    // These were previously best-effort-only: a lot created or drawn down while
+    // offline lived in Dexie forever and the cloud registry drifted. Rows whose
+    // cloud write didn't land carry pending_sync, and are pushed here with the
+    // same upsert-on-local_id idempotency the other ledgers use.
+    try {
+      const pendingLots = (await db.inventory_lots.toArray()).filter(l => l.pending_sync);
+      for (const lot of pendingLots) {
+        const { pending_sync: _UNUSED, ...cloudRow } = lot;
+        const { error } = await supabase.from('inventory_lots').upsert([cloudRow], { onConflict: 'id' });
+        if (error) {
+          if (error.status === 400 || error.status === 401) hasAuthError = true;
+          break;
+        }
+        await db.inventory_lots.update(lot.id, { pending_sync: false });
+      }
+
+      const pendingConsumptions = (await db.lot_consumptions.toArray()).filter(c => c.pending_sync);
+      for (const row of pendingConsumptions) {
+        const { pending_sync: _UNUSED, ...cloudRow } = row;
+        const { error } = await supabase.from('lot_consumptions').upsert([cloudRow], { onConflict: 'id' });
+        if (error) {
+          if (error.status === 400 || error.status === 401) hasAuthError = true;
+          break;
+        }
+        await db.lot_consumptions.update(row.id, { pending_sync: false });
+      }
+
+      const lotCount = pendingLots.length + pendingConsumptions.length;
+      if (lotCount > 0) console.log(`☁️ Pushed ${lotCount} pending lot rows.`);
+    } catch (err) {
+      // Lots are traceability, not stock: never let them block the rest of sync.
+      console.warn('Lot sync skipped:', err?.message);
     }
 
     // 4. Sync Updates (Refunds, Loyalty, Deletions)

@@ -53,12 +53,22 @@ export function computeCogsAndWastage({
       log.deduction_type === 'added' ||
       log.deduction_type === 'removed' ||
       log.deduction_type === 'transform_in' ||
-      log.deduction_type === 'transform_out'
+      log.deduction_type === 'transform_out' ||
+      // Stock that never moved (a broken inventory link) has no cost impact —
+      // it's a bookkeeping marker for the Inventory history, not a movement.
+      log.deduction_type === 'unresolved_target' ||
+      // A rolled-back checkout is a deduction and its exact reversal; the sale
+      // it belonged to failed, so neither side should reach COGS or wastage.
+      log.deduction_type === 'checkout_rollback'
     ) return;
 
     const matchedItem = (inventoryItems || []).find(i => i.name === log.item_name);
     const fallbackCost = matchedItem ? matchedItem.unit_cost : 0;
-    const isSale = log.deduction_type === 'sale';
+    // A refund return is the sale's mirror image: its qty_deducted is negative,
+    // so folding it into the same ticket-matched bucket as the sale subtracts
+    // the returned stock's cost back out of COGS. Treating it as wastage instead
+    // would both overstate COGS and credit the shop with negative waste.
+    const isSale = log.deduction_type === 'sale' || log.deduction_type === 'refund_return';
     const hasCost = log.unit_cost !== undefined && log.unit_cost !== null && (isSale || log.unit_cost > 0);
     const rawCost = hasCost ? log.unit_cost : fallbackCost;
     const unitCost = normalizeUnitCostToMillicents(rawCost);

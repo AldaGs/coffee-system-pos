@@ -1022,7 +1022,7 @@ export default async function handler(req, res) {
       SELECT data INTO v_data FROM public.menu_items WHERE id = p_item_id;
       IF v_data IS NULL THEN RETURN true; END IF;
       v_mode := COALESCE(v_data->>'inventoryMode', 'none');
-      IF v_mode = 'warehouse' THEN
+      IF v_mode IN ('warehouse', 'standard') THEN
         BEGIN v_short_id := NULLIF(v_data->>'linkedWarehouseId','')::bigint;
         EXCEPTION WHEN OTHERS THEN RETURN true; END;
         IF v_short_id IS NULL THEN RETURN true; END IF;
@@ -1304,12 +1304,57 @@ export default async function handler(req, res) {
     CREATE POLICY "Authenticated can access inventory_deductions_applied" ON public.inventory_deductions_applied
       FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
+    DROP FUNCTION IF EXISTS public.deduct_inventory_log(uuid, bigint, numeric);
+
     CREATE OR REPLACE FUNCTION public.deduct_inventory_log(p_local_id uuid, p_item_id bigint, p_qty numeric)
     RETURNS TABLE (
       out_id bigint,
       out_name text,
       out_current_stock numeric,
-      out_applied boolean
+      out_applied boolean,
+      out_found boolean
+    ) AS $$
+    DECLARE
+      v_rows integer;
+      v_exists boolean;
+    BEGIN
+      SELECT EXISTS (SELECT 1 FROM public.inventory WHERE id = p_item_id) INTO v_exists;
+      IF NOT v_exists THEN
+        RETURN QUERY SELECT p_item_id, NULL::text, NULL::numeric, false, false;
+        RETURN;
+      END IF;
+
+      INSERT INTO public.inventory_deductions_applied (local_id)
+      VALUES (p_local_id)
+      ON CONFLICT (local_id) DO NOTHING;
+      GET DIAGNOSTICS v_rows = ROW_COUNT;
+
+      IF v_rows = 0 THEN
+        RETURN QUERY
+          SELECT inv.id, inv.name, inv.current_stock, false, true
+          FROM public.inventory AS inv
+          WHERE inv.id = p_item_id;
+        RETURN;
+      END IF;
+
+      RETURN QUERY
+        UPDATE public.inventory AS inv
+        SET current_stock = inv.current_stock - p_qty
+        WHERE inv.id = p_item_id AND inv.current_stock >= p_qty
+        RETURNING inv.id, inv.name, inv.current_stock, true, true;
+    END;
+    $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+    -- Mirror image of the deduction, for stock coming BACK (refund return, rolled
+    -- back checkout). Same dedup table, same claim-once rule, so a replayed queue
+    -- entry or a double tap can never inflate stock (migration 037).
+    CREATE OR REPLACE FUNCTION public.restock_inventory_log(p_local_id uuid, p_item_id bigint, p_qty numeric)
+    RETURNS TABLE (
+      out_id bigint,
+      out_name text,
+      out_current_stock numeric,
+      out_applied boolean,
+      out_found boolean
     ) AS $$
     DECLARE
       v_rows integer;
@@ -1321,7 +1366,7 @@ export default async function handler(req, res) {
 
       IF v_rows = 0 THEN
         RETURN QUERY
-          SELECT inv.id, inv.name, inv.current_stock, false
+          SELECT inv.id, inv.name, inv.current_stock, false, true
           FROM public.inventory AS inv
           WHERE inv.id = p_item_id;
         RETURN;
@@ -1329,9 +1374,13 @@ export default async function handler(req, res) {
 
       RETURN QUERY
         UPDATE public.inventory AS inv
-        SET current_stock = inv.current_stock - p_qty
-        WHERE inv.id = p_item_id AND inv.current_stock >= p_qty
-        RETURNING inv.id, inv.name, inv.current_stock, true;
+        SET current_stock = inv.current_stock + p_qty
+        WHERE inv.id = p_item_id
+        RETURNING inv.id, inv.name, inv.current_stock, true, true;
+
+      IF NOT FOUND THEN
+        RETURN QUERY SELECT p_item_id, NULL::text, NULL::numeric, false, false;
+      END IF;
     END;
     $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -1540,7 +1589,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (true);
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '1.3', now())
+    VALUES ('schema_version', '1.4', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

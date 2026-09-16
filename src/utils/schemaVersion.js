@@ -17,6 +17,15 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.4 — stock returns, and the availability check that never fired (migration
+//       037). menu_item_available() tested inventoryMode = 'warehouse' but the
+//       app only ever writes 'standard', so the warehouse branch was dead and a
+//       stock-linked item stayed "available" on the public menu at zero stock;
+//       it now accepts both spellings. Adds restock_inventory_log(), the
+//       idempotent mirror of deduct_inventory_log, used when stock comes BACK
+//       (a refund return, a rolled-back checkout) so a replay can't inflate
+//       stock. deduct_inventory_log() gains out_found, so a missing item id is
+//       no longer reported to the cashier as "insufficient stock".
 // 1.3 — FIFO lot draw-down: the `lot_consumptions` table (migration 036) records
 //       which roast/production lot each sale drew from (lot_id -> sales,
 //       ticket_id -> lots). When a lot-tracked item sells, checkout consumes the
@@ -80,4 +89,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.3';
+export const APP_SCHEMA_VERSION = '1.4';

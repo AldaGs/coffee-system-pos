@@ -234,6 +234,12 @@ db.version(16).stores({
 //   inventory_lots: always mirrored to Dexie, pushed to Supabase best-effort when
 //   online. Mirrors the cloud public.lot_consumptions (migration 036). See
 //   src/services/checkoutService.js and components/admin/InventoryTab.jsx.
+//
+//   Rows also carry a `pending_sync` flag when their cloud write didn't land
+//   (offline, or a failed push). It is deliberately NOT indexed — IndexedDB
+//   can't index booleans — so syncService filters it in memory; the backlog is
+//   small by construction. Dexie stores are schemaless per row, so no version
+//   bump is needed to start writing it.
 db.version(17).stores({
   sales: '++id, status, created_at, local_id',
   menu: 'id',
