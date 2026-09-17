@@ -60,6 +60,7 @@ import { fetchAndMergeSales } from './services/salesSync';
 import { fetchAndMergeExpenses } from './services/expenseSync';
 import { fetchActiveTickets } from './services/ticketSync';
 import { createRealtimeChannel } from './utils/realtime';
+import { isCloudReachable } from './utils/network';
 import { fromCents } from './utils/moneyUtils';
 import { getBusinessProfile, getCachedBusinessType } from './utils/businessProfile';
 
@@ -187,6 +188,38 @@ function Register() {
     return cleanup;
   }, []);
 
+  // --- REALTIME INVENTORY (multi-device stock truth) ------------------------
+  // Boot refreshes db.inventory once; this keeps it live for the rest of the
+  // shift, so a sale, restock or audit on another station lands here instead of
+  // this register slowly drifting away from the real count. Cloud mode only.
+  useEffect(() => {
+    if (isLocalMode()) return;
+    const { cleanup } = createRealtimeChannel(
+      'register-inventory',
+      { event: '*', schema: 'public', table: 'inventory' },
+      async (payload) => {
+        const { eventType, new: newRow, old: oldRow } = payload;
+        if (eventType === 'DELETE') {
+          if (oldRow?.id != null) await db.inventory.delete(oldRow.id);
+        } else if (newRow?.id != null) {
+          await db.inventory.put(newRow);
+        }
+      },
+      {
+        // Degraded link: fall back to a full re-pull rather than churning
+        // handshakes, same shape as the active_tickets channel above.
+        poll: async () => {
+          if (!isCloudReachable()) return;
+          try {
+            const { data } = await supabase.from('inventory').select('*');
+            if (data) await db.inventory.bulkPut(data);
+          } catch { /* next tick */ }
+        },
+      },
+    );
+    return cleanup;
+  }, []);
+
   // --- MENU FETCH & OFFLINE CACHE ENGINE ---
   useEffect(() => {
     const fetchMenuAndRecipes = async () => {
@@ -243,6 +276,19 @@ function Register() {
           // 5. Pull down expenses from every device so shift calc covers the
           // whole shop, not just this terminal's local writes.
           await fetchAndMergeExpenses();
+
+          // 6. Refresh the local stock mirror from the cloud.
+          // db.inventory was previously only ever repopulated by the Admin tab,
+          // so a register-only device decremented its copy on every sale and
+          // never saw anyone else's — the mirror drifted down forever and the
+          // pre-flight stock check started rejecting sales the server would
+          // have accepted. The cloud row is the source of truth; overwrite.
+          try {
+            const { data: invData } = await supabase.from('inventory').select('*');
+            if (invData) await db.inventory.bulkPut(invData);
+          } catch (e) {
+            console.warn('Inventory refresh failed; using local mirror.', e.message);
+          }
         }
 
         setIsLoading(false);

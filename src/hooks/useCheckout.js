@@ -143,7 +143,19 @@ export const useCheckout = (posState) => {
       tipAmount,
       loyaltySettings
     })
-      .then(() => {
+      .then((result) => {
+        // The sale went through, but one or more lines pointed at an inventory
+        // item that no longer exists, so stock did NOT move for them. Silent
+        // drift here is how counts quietly go wrong, so tell the cashier.
+        const unresolved = result?.unresolvedTargets || [];
+        if (unresolved.length > 0) {
+          const names = [...new Set(unresolved.map(u => u.lineName || u.target))].join(', ');
+          showAlert(
+            t ? t('register.stockNotMovedTitle') : 'Inventory not updated',
+            (t ? t('register.stockNotMovedDesc') : 'The sale was saved, but stock was not deducted for: {{items}}. Check the inventory links for these products.')
+              .replace('{{items}}', names)
+          );
+        }
         recordRuleUsage(activeTicket);
         attemptBackgroundSync();
         logActivity('sale', null, {

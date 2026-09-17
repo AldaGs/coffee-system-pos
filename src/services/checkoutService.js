@@ -6,74 +6,19 @@ import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
 import { useUpgradeNagStore } from '../store/useUpgradeNagStore';
 import { calculateItemizedTaxBreakdown } from '../utils/posMath';
+import { buildDeductionPlan, aggregateDeductions, describeUnresolved } from '../utils/inventoryMath';
+import { restoreInventory, consumeLotsFIFO, setLotRemaining } from './inventoryService';
 
-// Pre-flight stock check against local Dexie inventory. Mirrors the deduction
-// logic in processCheckout but only reads — used to surface "insufficient
-// stock" before the success flyout animates in. Online RPC is still the
-// source of truth and will throw later if local state is stale.
+// Pre-flight stock check against local Dexie inventory. Shares buildDeductionPlan
+// with the real deduction below, so the check can no longer disagree with what
+// checkout actually consumes. Online RPC is still the source of truth and will
+// throw later if local state is stale.
 export const validateStockLocally = async ({ activeTicket, recipes }) => {
   if (!activeTicket?.items?.length) return null;
   const inventory = await db.inventory.toArray();
-  const usage = new Map(); // id -> qty needed
+  const { deductions } = buildDeductionPlan({ items: activeTicket.items, recipes, inventory });
 
-  const need = (id, qty) => {
-    if (!id || !(qty > 0)) return;
-    usage.set(String(id), (usage.get(String(id)) || 0) + qty);
-  };
-  const findByNameId = (id, name) =>
-    (id && inventory.find(inv => String(inv.id) === String(id)))
-    || (name && inventory.find(inv => inv.name === name))
-    || null;
-
-  for (const item of activeTicket.items) {
-    const itemQty = item.qty || 1;
-
-    if (item.inventoryMode === "standard" && item.linkedWarehouseId) {
-      need(item.linkedWarehouseId, itemQty);
-      if (item.selectedModifiers?.length) {
-        for (const mod of item.selectedModifiers) {
-          const hasDeduct = mod.deductionTargetId || mod.deductionTarget;
-          const hasSub = mod.substitutionTargetId || mod.substitutionTarget;
-          if (hasDeduct && !hasSub) {
-            const modItem = findByNameId(mod.deductionTargetId, mod.deductionTarget);
-            if (modItem) need(modItem.id, itemQty);
-          }
-        }
-      }
-    } else if (item.inventoryMode === "recipe" && item.linkedRecipeId) {
-      const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
-      if (!recipe?.ingredients) continue;
-      let cartBOM = recipe.ingredients.map(ing => ({
-        id: ing.id,
-        item_name: ing.name,
-        qty: (parseFloat(ing.qty) || 0) * itemQty
-      }));
-      if (item.selectedModifiers?.length) {
-        item.selectedModifiers.forEach(mod => {
-          const hasDeduct = mod.deductionTargetId || mod.deductionTarget;
-          const hasSub = mod.substitutionTargetId || mod.substitutionTarget;
-          if (hasDeduct && hasSub) {
-            const baseIndex = mod.substitutionTargetId
-              ? cartBOM.findIndex(ing => String(ing.id) === String(mod.substitutionTargetId))
-              : cartBOM.findIndex(ing => ing.item_name === mod.substitutionTarget);
-            if (baseIndex !== -1) {
-              const baseQty = cartBOM[baseIndex].qty;
-              cartBOM.splice(baseIndex, 1);
-              cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: baseQty });
-            }
-          } else if (hasDeduct && !hasSub) {
-            cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: 1 });
-          }
-        });
-      }
-      for (const ing of cartBOM) {
-        const whItem = findByNameId(ing.id, ing.item_name);
-        if (whItem) need(whItem.id, ing.qty);
-      }
-    }
-  }
-
-  for (const [id, qty] of usage) {
+  for (const [id, qty] of aggregateDeductions(deductions)) {
     const inv = inventory.find(i => String(i.id) === id);
     if (inv && (inv.current_stock ?? 0) < qty) {
       return `Insufficient stock for ${inv.name}`;
@@ -104,26 +49,17 @@ export const validateStockLocally = async ({ activeTicket, recipes }) => {
 async function applyLotConsumption(logs, inventory, isOnline) {
   for (const log of logs) {
     if (log.deduction_type !== 'sale') continue;
-    let toConsume = Number(log.qty_deducted) || 0;
+    const toConsume = Number(log.qty_deducted) || 0;
     if (toConsume <= 0) continue;
 
     const invItem = inventory.find(i => i.name === log.item_name);
     if (!invItem || !invItem.track_lots) continue;
 
-    // This item's lots with stock left, oldest roast first (made_date, then
-    // created_at as a stable tiebreak for two lots roasted the same day).
-    const lots = (await db.inventory_lots.where('item_name').equals(log.item_name).toArray())
-      .filter(l => (Number(l.qty_remaining) || 0) > 0)
-      .sort((a, b) =>
-        String(a.made_date || '').localeCompare(String(b.made_date || '')) ||
-        String(a.created_at || '').localeCompare(String(b.created_at || '')));
-
-    for (const lot of lots) {
-      if (toConsume <= 0) break;
-      const take = Math.min(Number(lot.qty_remaining) || 0, toConsume);
-      if (take <= 0) continue;
-      const newRemaining = Math.max(0, Number((lot.qty_remaining - take).toFixed(6)));
-
+    // consumeLotsFIFO owns the ordering and the Dexie/cloud write rules (shared
+    // with the Audit reconciliation in InventoryTab); we only record which lot
+    // each bag came from. A lot update that can't reach the cloud is flagged
+    // pending_sync in there and pushed by the background sync later.
+    await consumeLotsFIFO(log.item_name, toConsume, async (lot, take) => {
       const consumption = {
         id: crypto.randomUUID(),
         lot_id: lot.id,
@@ -134,25 +70,50 @@ async function applyLotConsumption(logs, inventory, isOnline) {
         deduction_local_id: log.local_id,
         created_at: log.created_at,
         local_id: crypto.randomUUID(),
+        pending_sync: true,
       };
 
       await db.lot_consumptions.put(consumption);
-      await db.inventory_lots.update(lot.id, { qty_remaining: newRemaining });
-      lot.qty_remaining = newRemaining;
 
       if (isOnline) {
         try {
-          const { error: cErr } = await supabase.from('lot_consumptions').insert([consumption]);
+          const { pending_sync: _UNUSED, ...cloudRow } = consumption;
+          const { error: cErr } = await supabase.from('lot_consumptions').insert([cloudRow]);
           if (cErr) throw cErr;
-          const { error: uErr } = await supabase.from('inventory_lots').update({ qty_remaining: newRemaining }).eq('id', lot.id);
-          if (uErr) throw uErr;
+          await db.lot_consumptions.update(consumption.id, { pending_sync: false });
         } catch (e) {
-          console.warn('lot consumption cloud write failed (kept local):', e?.message);
+          console.warn('lot consumption cloud write deferred (kept local):', e?.message);
         }
       }
+    });
+  }
+}
 
-      toConsume -= take;
+// Undo the deductions this checkout already applied, when a later one fails.
+// Without this, a ticket that dies partway through (item 3 out of stock) left
+// items 1-2 permanently deducted for a sale that errored out.
+async function rollbackDeductions(logs, ticketId) {
+  if (!logs.length) return;
+  try {
+    // Reverse each applied log's stock, and take the returned units back off the
+    // lots they were attributed to, so lot remainders match the restored stock.
+    for (const log of logs) {
+      const rows = await db.lot_consumptions.where('deduction_local_id').equals(log.local_id).toArray();
+      for (const row of rows) {
+        const lot = await db.inventory_lots.get(row.lot_id);
+        if (lot) await setLotRemaining(lot.id, Number(((Number(lot.qty_remaining) || 0) + (Number(row.qty) || 0)).toFixed(6)));
+        await db.lot_consumptions.delete(row.id);
+      }
     }
+    await restoreInventory({
+      movements: logs.map(l => ({ name: l.item_name, qty: l.qty_deducted })),
+      deductionType: 'checkout_rollback',
+      ticketId,
+      restoreLots: false,
+    });
+  } catch (e) {
+    // A failed rollback must not mask the original checkout error.
+    console.error('Deduction rollback failed — stock may be short by the partial deduction:', e?.message);
   }
 }
 
@@ -235,6 +196,10 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   // --- PREPARE THE DATA ---
   const finalizedSale = { ...currentSale, created_at: new Date().toISOString(), status: 'completed' };
   const inventoryLogsToPush = [];
+  // Ticket lines whose inventory target couldn't be resolved. Collected during
+  // the deduction and handed back to the caller so the cashier is told the sale
+  // went through but stock did NOT move for these.
+  let unresolvedTargets = [];
 
   try {
     // Immediately save to local Dexie
@@ -244,143 +209,78 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     const currentInventory = await db.inventory.toArray();
     const timestamp = finalizedSale.created_at;
 
-    // --- HYBRID INVENTORY DEDUCTION ENGINE ---
-    for (const item of activeTicket.items) {
-      const itemQty = item.qty || 1;
+    // --- INVENTORY DEDUCTION ENGINE ---
+    // buildDeductionPlan resolves the whole ticket (standard items, recipe BOMs,
+    // modifier additions and substitutions) into a flat list of real inventory
+    // rows to decrement. It is the same function the pre-flight check ran, so
+    // what was validated is exactly what is deducted.
+    const { deductions, unresolved } = buildDeductionPlan({
+      items: activeTicket.items,
+      recipes,
+      inventory: currentInventory,
+    });
 
-      // ==========================================
-      // A. STANDARD ITEMS (Make-to-Stock)
-      // ==========================================
-      if (item.inventoryMode === "standard" && item.linkedWarehouseId) {
-        const warehouseItem = currentInventory.find(inv => String(inv.id) === String(item.linkedWarehouseId));
+    // A line that points at an inventory item which no longer exists (stale
+    // linkedWarehouseId after a re-link, renamed recipe ingredient, orphaned
+    // substitution) used to fall through silently — the item sold and stock
+    // never moved, with nothing to show for it. The sale still completes (the
+    // customer paid; blocking here would strand the ticket), but it is recorded
+    // and surfaced to the cashier so the drift is visible the day it happens.
+    if (unresolved.length > 0) {
+      unresolvedTargets = unresolved;
+      console.error('Inventory targets not found — stock NOT moved for:', describeUnresolved(unresolved));
+      try {
+        // Only columns that exist on the cloud inventory_logs table — an extra
+        // key would make the sync upsert fail and jam the whole queue behind it.
+        // The detail rides in item_name, which is what the history view shows.
+        await db.inventory_logs.add({
+          item_name: describeUnresolved(unresolved).slice(0, 300),
+          qty_deducted: 0,
+          deduction_type: 'unresolved_target',
+          created_at: timestamp,
+          ticket_id: String(activeTicket.id),
+          unit_cost: 0,
+          local_id: crypto.randomUUID(),
+        });
+      } catch (e) { console.warn('unresolved-target log skipped:', e?.message); }
+    }
 
-        if (warehouseItem) {
-          // Generate the log's local_id up front and bind the deduction to it, so
-          // if this sale later times out and is requeued the replay reuses the
-          // same id and the server dedups instead of decrementing a second time.
-          const whLogId = crypto.randomUUID();
-          // ONLINE ATOMIC DEDUCTION (idempotent per log; needs schema >= 1.1)
-          if (isOnline) {
-            const { data, error } = await supabase.rpc('deduct_inventory_log', { p_local_id: whLogId, p_item_id: Number(warehouseItem.id), p_qty: itemQty });
-            if (error) throw new Error(`RPC error deducting ${warehouseItem.name}: ${error.message}`);
-            if (!data || data.length === 0) throw new Error(`Insufficient stock for ${warehouseItem.name}`);
-          }
+    for (const d of deductions) {
+      // Generate the log's local_id up front and bind the deduction to it, so
+      // if this sale later times out and is requeued the replay reuses the same
+      // id and the server dedups instead of decrementing a second time.
+      const logId = crypto.randomUUID();
 
-          inventoryLogsToPush.push({
-            item_name: warehouseItem.name,
-            qty_deducted: itemQty,
-            deduction_type: "sale",
-            created_at: timestamp,
-            ticket_id: String(activeTicket.id),
-            unit_cost: warehouseItem.unit_cost || 0,
-            local_id: whLogId
-          });
-
-          const newStock = warehouseItem.current_stock - itemQty;
-          await db.inventory.update(warehouseItem.id, { current_stock: newStock });
-          warehouseItem.current_stock = newStock;
-        }
-
-        // Process Modifiers on Standard Items
-        if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-          for (const mod of item.selectedModifiers) {
-            const hasDeductTarget = mod.deductionTargetId || mod.deductionTarget;
-            const hasSubTarget = mod.substitutionTargetId || mod.substitutionTarget;
-            if (hasDeductTarget && !hasSubTarget) {
-              const modItem = (mod.deductionTargetId && currentInventory.find(inv => String(inv.id) === String(mod.deductionTargetId)))
-                || (mod.deductionTarget && currentInventory.find(inv => inv.name === mod.deductionTarget));
-
-              if (modItem) {
-                const modLogId = crypto.randomUUID();
-                if (isOnline) {
-                  const { data, error } = await supabase.rpc('deduct_inventory_log', { p_local_id: modLogId, p_item_id: Number(modItem.id), p_qty: itemQty });
-                  if (error) throw new Error(`RPC error deducting modifier ${modItem.name}: ${error.message}`);
-                  if (!data || data.length === 0) throw new Error(`Insufficient stock for modifier ${modItem.name}`);
-                }
-
-                inventoryLogsToPush.push({
-                  item_name: modItem.name,
-                  qty_deducted: itemQty,
-                  deduction_type: "sale",
-                  created_at: timestamp,
-                  ticket_id: String(activeTicket.id),
-                  unit_cost: modItem.unit_cost || 0,
-                  local_id: modLogId
-                });
-
-                const newModStock = modItem.current_stock - itemQty;
-                await db.inventory.update(modItem.id, { current_stock: newModStock });
-                modItem.current_stock = newModStock;
-              }
-            }
-          }
+      if (isOnline) {
+        const { data, error } = await supabase.rpc('deduct_inventory_log', {
+          p_local_id: logId,
+          p_item_id: Number(d.id),
+          p_qty: d.qty,
+        });
+        if (error) throw new Error(`RPC error deducting ${d.name}: ${error.message}`);
+        if (!data || data.length === 0) throw new Error(`Insufficient stock for ${d.name}`);
+        // out_found distinguishes "no such item" from "not enough stock" (schema
+        // >= 1.4). Older servers don't return the column; undefined means the
+        // row came back the old way and the deduction landed.
+        if (data[0]?.out_found === false) {
+          throw new Error(`RPC error deducting ${d.name}: item no longer exists in inventory`);
         }
       }
 
-      // ==========================================
-      // B. RECIPE ITEMS (Make-to-Order)
-      // ==========================================
-      else if (item.inventoryMode === "recipe" && item.linkedRecipeId) {
-        const recipe = recipes.find(r => String(r.id) === String(item.linkedRecipeId));
+      inventoryLogsToPush.push({
+        item_name: d.name,
+        qty_deducted: d.qty,
+        deduction_type: 'sale',
+        created_at: timestamp,
+        ticket_id: String(activeTicket.id),
+        unit_cost: d.unit_cost,
+        local_id: logId,
+      });
 
-        if (recipe && recipe.ingredients) {
-          let cartBOM = recipe.ingredients.map(ing => ({
-            id: ing.id, // Prefer ID
-            item_name: ing.name,
-            qty: (parseFloat(ing.qty) || 0) * itemQty
-          }));
-
-          // Process Modifier Substitutions/Additions
-          if (item.selectedModifiers && item.selectedModifiers.length > 0) {
-            item.selectedModifiers.forEach(mod => {
-              const hasDeductTarget = mod.deductionTargetId || mod.deductionTarget;
-              const hasSubTarget = mod.substitutionTargetId || mod.substitutionTarget;
-              if (hasDeductTarget && hasSubTarget) {
-                const baseIndex = mod.substitutionTargetId
-                  ? cartBOM.findIndex(ing => String(ing.id) === String(mod.substitutionTargetId))
-                  : cartBOM.findIndex(ing => ing.item_name === mod.substitutionTarget);
-                if (baseIndex !== -1) {
-                  const baseQty = cartBOM[baseIndex].qty;
-                  cartBOM.splice(baseIndex, 1);
-                  cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: baseQty });
-                }
-              } else if (hasDeductTarget && !hasSubTarget) {
-                cartBOM.push({ id: mod.deductionTargetId || null, item_name: mod.deductionTarget, qty: 1 });
-              }
-            });
-          }
-
-          for (const ing of cartBOM) {
-            if (ing.qty > 0) {
-              const whItem = currentInventory.find(inv => String(inv.id) === String(ing.id))
-                || currentInventory.find(inv => inv.name === ing.item_name);
-
-              if (whItem) {
-                const ingLogId = crypto.randomUUID();
-                if (isOnline) {
-                  const { data, error } = await supabase.rpc('deduct_inventory_log', { p_local_id: ingLogId, p_item_id: Number(whItem.id), p_qty: ing.qty });
-                  if (error) throw new Error(`RPC error deducting ingredient ${whItem.name}: ${error.message}`);
-                  if (!data || data.length === 0) throw new Error(`Insufficient stock for ingredient ${whItem.name}`);
-                }
-
-                inventoryLogsToPush.push({
-                  item_name: whItem.name,
-                  qty_deducted: ing.qty,
-                  deduction_type: "sale",
-                  created_at: timestamp,
-                  ticket_id: String(activeTicket.id),
-                  unit_cost: whItem.unit_cost || 0,
-                  local_id: ingLogId
-                });
-
-                const newStock = whItem.current_stock - ing.qty;
-                await db.inventory.update(whItem.id, { current_stock: newStock });
-                whItem.current_stock = newStock;
-              }
-            }
-          }
-        }
-      }
+      const invRow = currentInventory.find(i => String(i.id) === String(d.id));
+      const newStock = (Number(invRow?.current_stock) || 0) - d.qty;
+      await db.inventory.update(d.id, { current_stock: newStock });
+      if (invRow) invRow.current_stock = newStock;
     }
 
     // --- FIFO ROAST/LOT DRAW-DOWN (additive, best-effort) ---
@@ -418,11 +318,19 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     //    resolve these, so they stay quiet as before.
     const isDeductionFailure = msg.includes('Insufficient stock') || msg.includes('RPC error deducting');
     if (isDeductionFailure) {
-      console.error('Checkout deduction failed (stock NOT updated):', msg);
+      console.error('Checkout deduction failed:', msg);
+      // The deduction loop dies on the FIRST failure, so anything already in
+      // inventoryLogsToPush was decremented for a sale that is now failing.
+      // Put it back before surfacing the error, and don't queue those logs (the
+      // rollback wrote its own reversal rows).
+      await rollbackDeductions(inventoryLogsToPush, activeTicket.id);
+      inventoryLogsToPush.length = 0;
     } else {
       console.warn('Cloud sync deferred:', msg);
     }
 
+    // The sale is queued either way: the money was taken, so the sale row is
+    // real regardless of what inventory did. Only the stock movement is undone.
     const { id: _UNUSED, ...safeOfflineSale } = finalizedSale;
     await db.syncQueue.add(safeOfflineSale);
     if (inventoryLogsToPush.length > 0) {
@@ -482,6 +390,6 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   // cloud mode (recordEvent short-circuits), so it's safe to call unconditionally.
   useUpgradeNagStore.getState().trigger('sales_completed');
 
-  return { localAnalyticsRecord: finalizedSale, masterMethodString };
+  return { localAnalyticsRecord: finalizedSale, masterMethodString, unresolvedTargets };
 };
 
