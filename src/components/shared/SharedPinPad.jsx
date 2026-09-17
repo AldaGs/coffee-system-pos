@@ -148,11 +148,13 @@ export default function SharedPinPad({
 
   // --- LAYOUT ROUTER ---
   if (variant === 'modal') {
-    return <div className="modal-overlay" style={{ zIndex: 1000 }}>{content}</div>;
+    // safe center + overflow: on short viewports the pad scrolls instead of
+    // getting its top and bottom clipped by the centering.
+    return <div className="modal-overlay" style={{ zIndex: 1000, alignItems: 'safe center', overflowY: 'auto', padding: '24px' }}>{content}</div>;
   }
 
   return (
-    <div style={{ height:'100dvh', width: '100vw', display: 'flex', backgroundColor: 'var(--bg-surface)', justifyContent: 'center', alignItems: 'center', fontFamily: 'system-ui', color: 'var(--text-main)', textAlign: 'center', padding: '32px'}}>
+    <div style={{ height:'100dvh', width: '100vw', display: 'flex', backgroundColor: 'var(--bg-surface)', justifyContent: 'center', alignItems: 'safe center', overflowY: 'auto', fontFamily: 'system-ui', color: 'var(--text-main)', textAlign: 'center', padding: '32px'}}>
       {content}
     </div>
   );
