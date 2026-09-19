@@ -125,15 +125,12 @@ export const useCheckout = (posState) => {
     }
 
     resetCheckoutState();
-    clearCurrentTicket();
-    // Layouts can override the post-checkout destination (e.g. orders mode
-    // wants to land back on the tickets list instead of auto-jumping into
-    // whatever ticket clearCurrentTicket happened to select next).
-    if (onAfterCheckout) onAfterCheckout();
 
     // Fire-and-forget the heavy work. processCheckout already falls back to
     // the offline syncQueue on cloud failures, and reports a failed stock
     // deduction as result.deductionError (the sale is still recorded).
+    // The ticket is cleared only once the sale is durable in Dexie (onSaved,
+    // a few ms in) — clearing first meant a crash or early throw lost both.
     processCheckout({
       activeTicket,
       cartTotal,
@@ -141,7 +138,14 @@ export const useCheckout = (posState) => {
       activeCashier,
       recipes,
       tipAmount,
-      loyaltySettings
+      loyaltySettings,
+      onSaved: () => {
+        clearCurrentTicket();
+        // Layouts can override the post-checkout destination (e.g. orders mode
+        // wants to land back on the tickets list instead of auto-jumping into
+        // whatever ticket clearCurrentTicket happened to select next).
+        if (onAfterCheckout) onAfterCheckout();
+      },
     })
       .then((result) => {
         // The sale went through, but one or more lines pointed at an inventory

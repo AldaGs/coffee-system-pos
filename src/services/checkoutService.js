@@ -117,7 +117,12 @@ async function rollbackDeductions(logs, ticketId) {
   }
 }
 
-export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0, loyaltySettings = null }) => {
+export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, activeCashier, recipes, tipAmount = 0, loyaltySettings = null, onSaved = null }) => {
+  // onSaved fires once the sale is durable in Dexie (sales, or syncQueue if that
+  // write failed). The caller clears the ticket only then, so a crash or throw
+  // before this point leaves the ticket open to retry instead of losing both.
+  let saved = false;
+  const markSaved = () => { if (!saved) { saved = true; onSaved?.(); } };
   // Determine the master string for backwards compatibility
   const isSplit = paymentsArray.length > 1;
   const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
@@ -207,6 +212,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   try {
     // Immediately save to local Dexie
     await db.sales.add(finalizedSale);
+    markSaved();
 
     // Fetch local inventory for instant offline deduction
     const currentInventory = await db.inventory.toArray();
@@ -336,6 +342,7 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
     // real regardless of what inventory did. Only the stock movement is undone.
     const { id: _UNUSED, ...safeOfflineSale } = finalizedSale;
     await db.syncQueue.add(safeOfflineSale);
+    markSaved();
     if (inventoryLogsToPush.length > 0) {
       await db.inventory_logs.bulkPut(inventoryLogsToPush);
     }
