@@ -33,6 +33,7 @@ import AnalyticsTab from './components/admin/AnalyticsTab';
 import OrdersTab from './components/admin/OrdersTab';
 import MenuEditorTab from './components/admin/MenuEditorTab';
 import MenusTab from './components/admin/MenusTab';
+import PublicMenusLocked from './components/admin/PublicMenusLocked';
 import ModifierLibraryTab from './components/admin/ModifierLibraryTab';
 import ReceiptSettingsTab from './components/admin/ReceiptSettingsTab';
 import LoyaltyTab from './components/admin/LoyaltyTab';
@@ -1912,7 +1913,9 @@ function Admin() {
             { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
             // Help is always reachable — never gated by Advanced/Cloud mode.
             { id: 'help', icon: 'lucide:life-buoy', label: t('admin.help') },
-          ].filter(tab => !(tab.cloudOnly && isLocalMode())).map(tab => {
+          // Public Menus stays visible in local mode (locked, with the upgrade
+          // offer) because that's where owners go looking for it.
+          ].filter(tab => !(tab.cloudOnly && isLocalMode() && tab.id !== 'menus')).map(tab => {
             const isLocked = tab.advancedOnly && generalSettings.isAdvancedMode !== true;
             return (
               <button
@@ -2140,7 +2143,8 @@ function Admin() {
           />
         )}
 
-        {activeTab === 'menus' && (
+        {activeTab === 'menus' && isLocalMode() && <PublicMenusLocked />}
+        {activeTab === 'menus' && !isLocalMode() && (
           <MenusTab showAlert={showAlert} showConfirm={showConfirm} menuData={menuData} onSetItemPublicFields={handleSetItemPublicFields} />
         )}
 

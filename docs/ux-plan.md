@@ -46,7 +46,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
 
 ## Phase 4: Local mode and Public Menus
 
-- [ ] **10. Show Public Menus locked in local mode** instead of hiding it: the tab opens a
+- [x] **10. Show Public Menus locked in local mode** instead of hiding it: the tab opens a
   card "You need cloud backup to publish your menu" with the existing upgrade action
   ("Crear respaldo gratis"). Files: `Admin.jsx` (cloudOnly filter), small locked-state
   component reusing the Settings upgrade handler.
