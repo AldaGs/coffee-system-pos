@@ -10,6 +10,9 @@ function PinChallengeModal({ challenge, setChallenge, activeCashier, showAlert }
   const { t } = useTranslation();
   const [pinAttempt, setPinAttempt] = useState('');
   const [shake, setShake] = useState(false);
+  // Server-side PIN lockout (migration 044), so this pad freezes too instead
+  // of insisting the PIN is wrong.
+  const pinLockoutUntil = useMenuStore(state => state.pinLockoutUntil);
   const attempts = useRef(0);
 
   if (!challenge.isOpen) return null;
@@ -64,6 +67,8 @@ function PinChallengeModal({ challenge, setChallenge, activeCashier, showAlert }
       onCancel={close}
       submitText={t('pin.btnVerify')}
       submitIcon="lucide:check-circle"
+      lockoutUntil={pinLockoutUntil}
+      lockoutText={t('pin.tooManyAttempts')}
     />
   );
 }

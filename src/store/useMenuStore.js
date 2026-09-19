@@ -16,6 +16,14 @@ const safeJsonParse = (key, fallback) => {
 };
 
 export const useMenuStore = create((set, get) => ({
+  // Epoch ms until which the server's PIN limiter is refusing attempts, or
+  // null when nothing is running. Set by verifyPin from the server's
+  // retry_after so the pad can show a real countdown instead of letting a
+  // cashier hammer a PIN that is actually correct. Per-device and advisory:
+  // the limit itself is enforced in the database (migration 044).
+  pinLockoutUntil: null,
+  clearPinLockout: () => set({ pinLockoutUntil: null }),
+
 
   // 1. Instantly and safely load the offline cache on boot!
   menuData: safeJsonParse('tinypos_cached_menu', null),
@@ -89,11 +97,35 @@ export const useMenuStore = create((set, get) => ({
     }
 
     try {
-      const { data, error } = await supabase.rpc('verify_pin', { p_cashier_id: cashierId, p_pin: pin });
-      if (error) throw error;
+      // verify_pin_status returns { ok, locked, retry_after }. On a project
+      // still on schema < 1.6 the function doesn't exist (PostgREST answers
+      // PGRST202 / 42883), so fall back to the boolean verify_pin — the same
+      // call this used to make.
+      let ok = false;
+      const { data, error } = await supabase.rpc('verify_pin_status', {
+        p_cashier_id: cashierId, p_pin: pin,
+      });
+
+      if (error && (error.code === 'PGRST202' || error.code === '42883')) {
+        const legacy = await supabase.rpc('verify_pin', { p_cashier_id: cashierId, p_pin: pin });
+        if (legacy.error) throw legacy.error;
+        ok = !!legacy.data;
+      } else if (error) {
+        throw error;
+      } else {
+        ok = !!data?.ok;
+        // A lockout is the server refusing to answer, not a verdict on the
+        // PIN. Record when it lifts so the pad can say so.
+        if (data?.locked) {
+          set({ pinLockoutUntil: Date.now() + (Number(data.retry_after) || 0) * 1000 });
+        } else if (get().pinLockoutUntil) {
+          set({ pinLockoutUntil: null });
+        }
+      }
+
       // Remember a good PIN so the register still opens if the link degrades.
-      if (data) await cacheCloudPinVerification(cashierId, pin);
-      return data;
+      if (ok) await cacheCloudPinVerification(cashierId, pin);
+      return ok;
     } catch (err) {
       // The RPC failed to complete (timeout, or the breaker tripped mid-call).
       // Fall back to the offline cache rather than hard-failing on a flaky link;

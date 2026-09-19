@@ -52,6 +52,9 @@ function PublicCFDI({ ticketId }) {
   const [constanciaState, setConstanciaState] = useState({ status: 'idle', message: '' });
   // The month's Factura Global row, if this ticket's period is already closed.
   const [globalPeriod, setGlobalPeriod] = useState(null);
+  // Seconds left on a server throttle (too many unresolved ticket lookups).
+  // Counts down so the customer knows to wait rather than giving up.
+  const [retryIn, setRetryIn] = useState(0);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -117,12 +120,16 @@ function PublicCFDI({ ticketId }) {
         if (rpcError) throw rpcError;
 
         if (!data?.found) {
-          // rate_limited: the server is throttling misses (someone sweeping
-          // ticket references), not saying this ticket is wrong. Tell the
-          // customer to retry instead of sending them to the counter.
-          setError(data?.rate_limited
-            ? "Demasiadas consultas en este momento. Espera un minuto e intenta de nuevo."
-            : "Ticket no encontrado.");
+          // rate_limited: the server is throttling unresolved lookups (someone
+          // sweeping ticket references), not saying this ticket is wrong. Show
+          // a countdown so the customer waits instead of walking to the
+          // counter convinced their receipt is broken.
+          if (data?.rate_limited) {
+            setRetryIn(Number(data.retry_after) || 60);
+            setError("Demasiadas consultas en este momento.");
+          } else {
+            setError("Ticket no encontrado.");
+          }
           setLoading(false);
           return;
         }
@@ -140,6 +147,23 @@ function PublicCFDI({ ticketId }) {
     fetchTicket();
   }, [supabase, ticketId]);
 
+
+  // Tick the throttle countdown down to zero, then reload so the customer
+  // doesn't have to work out that they should try again themselves.
+  useEffect(() => {
+    if (retryIn <= 0) return;
+    const id = setInterval(() => {
+      setRetryIn(prev => {
+        if (prev <= 1) {
+          clearInterval(id);
+          window.location.reload();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [retryIn]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -267,9 +291,19 @@ function PublicCFDI({ ticketId }) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f5f6fa', fontFamily: 'system-ui' }}>
         <div style={{ background: 'white', padding: '40px', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', textAlign: 'center' }}>
-          <Icon icon="lucide:alert-circle" style={{ fontSize: '3rem', color: '#e74c3c', marginBottom: '10px' }} />
-          <h2 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>Error</h2>
+          <Icon
+            icon={retryIn > 0 ? 'lucide:timer' : 'lucide:alert-circle'}
+            style={{ fontSize: '3rem', color: retryIn > 0 ? '#f39c12' : '#e74c3c', marginBottom: '10px' }}
+          />
+          <h2 style={{ margin: '0 0 10px 0', color: '#2c3e50' }}>
+            {retryIn > 0 ? 'Un momento' : 'Error'}
+          </h2>
           <p style={{ color: '#7f8c8d' }}>{error}</p>
+          {retryIn > 0 && (
+            <p style={{ color: '#2c3e50', fontWeight: 700, margin: '12px 0 0 0' }}>
+              Reintentando en {retryIn}s…
+            </p>
+          )}
         </div>
       </div>
     );

@@ -1226,6 +1226,7 @@ export const translations = {
     "pin.required": "REQUIRED",
     "pin.btnCancel": "CANCEL",
     "pin.btnVerify": "Verify [Enter]",
+    "pin.tooManyAttempts": "Too many attempts. Try again in",
 
     // --- Connection status pill ---
     "conn.offline": "Offline — saved on device",
@@ -2749,6 +2750,7 @@ export const translations = {
     "pin.required": "REQUERIDO",
     "pin.btnCancel": "CANCELAR",
     "pin.btnVerify": "Verificar [Enter]",
+    "pin.tooManyAttempts": "Demasiados intentos. Intenta de nuevo en",
 
     // --- Connection status pill ---
     "conn.offline": "Sin conexión — guardado en el dispositivo",

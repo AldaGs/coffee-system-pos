@@ -20,8 +20,27 @@ export default function SharedPinPad({
   onSubmit,
   onCancel,
   submitText,
-  submitIcon = 'lucide:log-in'
+  submitIcon = 'lucide:log-in',
+  lockoutUntil = null,   // epoch ms; while in the future the pad is frozen
+  lockoutText,           // e.g. "Demasiados intentos. Intenta de nuevo en"
 }) {
+
+  // --- SERVER LOCKOUT COUNTDOWN ---
+  // The database refuses PIN attempts after too many wrong ones (migration
+  // 044). Without this the pad would keep saying "wrong PIN" at a cashier
+  // whose PIN is right, so freeze the pad and show the time remaining.
+  const [secondsLeft, setSecondsLeft] = useState(() =>
+    lockoutUntil ? Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000)) : 0);
+
+  useEffect(() => {
+    if (!lockoutUntil) { setSecondsLeft(0); return; }
+    const tick = () => setSecondsLeft(Math.max(0, Math.ceil((lockoutUntil - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lockoutUntil]);
+
+  const cooling = secondsLeft > 0;
 
   const [isVerifying, setIsVerifying] = useState(false);
   const verifyingRef = useRef(false);
@@ -40,17 +59,17 @@ export default function SharedPinPad({
 
   // --- AUTO-VERIFY: trigger as soon as the 4th digit lands ---
   useEffect(() => {
-    if (pin.length === 4 && !error && !verifyingRef.current) {
+    if (pin.length === 4 && !error && !verifyingRef.current && !cooling) {
       // Defer one tick so we don't setState inside a render commit.
       const timer = setTimeout(() => { handleSubmit(); }, 0);
       return () => clearTimeout(timer);
     }
-  }, [pin, error, handleSubmit]);
+  }, [pin, error, handleSubmit, cooling]);
 
   // --- UNIVERSAL KEYBOARD LISTENER (also gated by isVerifying) ---
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (isVerifying) return; // hard lockdown
+      if (isVerifying || cooling) return; // hard lockdown
       if (e.key >= '0' && e.key <= '9') {
         if (setError) setError(false);
         setPin(prev => prev.length < 4 ? prev + e.key : prev);
@@ -67,10 +86,10 @@ export default function SharedPinPad({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pin, onCancel, setPin, setError, isVerifying, handleSubmit]);
+  }, [pin, onCancel, setPin, setError, isVerifying, cooling, handleSubmit]);
 
   // Single guard for every interactive control inside the pad.
-  const lockedOut = isVerifying;
+  const lockedOut = isVerifying || cooling;
 
   const pushDigit = (d) => {
     if (lockedOut) return;
@@ -82,7 +101,9 @@ export default function SharedPinPad({
     setPin(prev => prev.slice(0, -1));
   };
   const cancel = () => {
-    if (lockedOut) return;
+    // Cancel stays live during a cooldown: staff must be able to back out of
+    // a frozen pad rather than wait it out.
+    if (isVerifying) return;
     onCancel?.();
   };
 
@@ -108,6 +129,16 @@ export default function SharedPinPad({
       <h2 style={{ margin: '0 0 8px 0', fontSize: 'clamp(1.3rem, 3.2vh, 1.8rem)', fontWeight: '900' }}>{title}</h2>
       <p style={{ color: 'var(--text-muted)', marginBottom: 'clamp(14px, 3vh, 32px)', fontSize: 'clamp(0.85rem, 1.9vh, 1rem)' }}>{subtitle}</p>
 
+      {cooling && (
+        <div
+          role="status"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: 'rgba(231, 76, 60, 0.1)', color: '#c0392b', border: '1px solid rgba(231, 76, 60, 0.35)', borderRadius: '12px', padding: '10px 14px', marginBottom: 'clamp(12px, 2.5vh, 20px)', fontSize: 'clamp(0.8rem, 1.8vh, 0.95rem)', fontWeight: 700 }}
+        >
+          <Icon icon="lucide:timer" style={{ fontSize: '1.1rem', flexShrink: 0 }} />
+          <span>{lockoutText} {secondsLeft}s</span>
+        </div>
+      )}
+
       <div style={{
         fontSize: 'clamp(1.7rem, 4vh, 2.5rem)', letterSpacing: '16px', marginBottom: 'clamp(14px, 3vh, 32px)', fontWeight: 'bold', minHeight: 'clamp(54px, 8vh, 80px)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'var(--bg-main)', borderRadius: '20px', border: `2px solid ${error ? '#e74c3c' : 'var(--border)'}`, color: error ? '#e74c3c' : 'var(--text-main)',
@@ -131,8 +162,8 @@ export default function SharedPinPad({
 
       <button
         onClick={handleSubmit}
-        disabled={pin.length !== 4 || isVerifying}
-        style={{ width: '100%', padding: 'clamp(12px, 2.2vh, 20px)', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '20px', cursor: (pin.length !== 4 || isVerifying) ? 'not-allowed' : 'pointer', fontWeight: '900', fontSize: 'clamp(1rem, 2.4vh, 1.3rem)', boxShadow: pin.length === 4 ? '0 10px 25px rgba(52, 152, 219, 0.3)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', opacity: pin.length === 4 ? 1 : 0.5, transition: 'all 0.3s' }}
+        disabled={pin.length !== 4 || isVerifying || cooling}
+        style={{ width: '100%', padding: 'clamp(12px, 2.2vh, 20px)', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '20px', cursor: (pin.length !== 4 || isVerifying || cooling) ? 'not-allowed' : 'pointer', fontWeight: '900', fontSize: 'clamp(1rem, 2.4vh, 1.3rem)', boxShadow: pin.length === 4 ? '0 10px 25px rgba(52, 152, 219, 0.3)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', opacity: pin.length === 4 ? 1 : 0.5, transition: 'all 0.3s' }}
       >
         {isVerifying ? (
           <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px', borderColor: 'white', borderBottomColor: 'transparent' }} />
