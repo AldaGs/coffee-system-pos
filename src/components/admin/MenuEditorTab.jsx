@@ -8,6 +8,7 @@ import AssetLibraryModal from './AssetLibraryModal';
 import MenuHistoryPanel from './MenuHistoryPanel';
 import { MAX_SOURCE_BYTES } from '../../api/menuImages';
 import { isLocalMode } from '../../utils/appMode';
+import { isMenuItemSoldOut } from '../../utils/inventoryMath';
 
 // Full public URL → storage path ("assets/<hash>.webp"). Lets us match an
 // item's image_url back to the storage object so we know which assets are used.
@@ -587,6 +588,14 @@ function MenuEditorTab({
                                     <span style={{ color: '#e67e22', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>{t('menu.badgeStandard')}</span>
                                   ) : (
                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}>{t('menu.badgeUntracked')}</span>
+                                  )}
+                                  {isMenuItemSoldOut(item, { inventory: inventoryItems || [], recipes: recipes || [] }) && (
+                                    <span
+                                      title={isLocalMode() ? t('menu.soldOutHintLocal') : t('menu.soldOutHint')}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', color: '#c0392b', fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase' }}
+                                    >
+                                      <Icon icon="lucide:alert-circle" /> {t('menu.badgeSoldOut')}
+                                    </span>
                                   )}
                                 </div>
                               </div>

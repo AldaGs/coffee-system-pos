@@ -1,6 +1,6 @@
 // src/tests/inventoryMath.test.js
 import { describe, it, expect } from 'vitest';
-import { buildDeductionPlan, aggregateDeductions, findInventoryItem } from '../utils/inventoryMath';
+import { buildDeductionPlan, aggregateDeductions, findInventoryItem, isMenuItemSoldOut } from '../utils/inventoryMath';
 
 // A small warehouse: ids are what menu items link to, names are what recipes
 // and legacy modifier targets link by.
@@ -172,5 +172,33 @@ describe('findInventoryItem', () => {
 
   it('returns null when neither resolves', () => {
     expect(findInventoryItem(inventory, 999, 'Nada')).toBeNull();
+  });
+});
+
+describe('isMenuItemSoldOut (mirror of menu_item_available)', () => {
+  const opts = { inventory, recipes: [latteRecipe] };
+
+  it('standard item: out at zero stock, in with stock, available when unlinked or dangling', () => {
+    const empty = [...inventory, { id: 9, name: 'Galleta', current_stock: 0 }];
+    expect(isMenuItemSoldOut({ inventoryMode: 'standard', linkedWarehouseId: 9 }, { inventory: empty })).toBe(true);
+    expect(isMenuItemSoldOut({ inventoryMode: 'standard', linkedWarehouseId: '1' }, opts)).toBe(false);
+    expect(isMenuItemSoldOut({ inventoryMode: 'standard', linkedWarehouseId: '' }, opts)).toBe(false);
+    expect(isMenuItemSoldOut({ inventoryMode: 'standard', linkedWarehouseId: 404 }, opts)).toBe(false);
+  });
+
+  it('recipe item: out when any ingredient is short or missing by name', () => {
+    const latte = { inventoryMode: 'recipe', linkedRecipeId: 'r-latte' };
+    expect(isMenuItemSoldOut(latte, opts)).toBe(false);
+    const lowCoffee = inventory.map(i => i.id === 3 ? { ...i, current_stock: 10 } : i);
+    expect(isMenuItemSoldOut(latte, { inventory: lowCoffee, recipes: [latteRecipe] })).toBe(true);
+    const renamed = { id: 'r2', ingredients: [{ name: 'No existe', qty: '1' }] };
+    expect(isMenuItemSoldOut({ inventoryMode: 'recipe', linkedRecipeId: 'r2' }, { inventory, recipes: [renamed] })).toBe(true);
+  });
+
+  it('recipe item: manual ingredients and unknown recipes never block', () => {
+    const manual = { id: 'r3', ingredients: [{ name: 'No existe', qty: '5', isManual: true }] };
+    expect(isMenuItemSoldOut({ inventoryMode: 'recipe', linkedRecipeId: 'r3' }, { inventory, recipes: [manual] })).toBe(false);
+    expect(isMenuItemSoldOut({ inventoryMode: 'recipe', linkedRecipeId: 'nope' }, opts)).toBe(false);
+    expect(isMenuItemSoldOut({ inventoryMode: 'none' }, opts)).toBe(false);
   });
 });

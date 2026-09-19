@@ -147,6 +147,32 @@ export function aggregateDeductions(deductions) {
 
 // Human-readable summary of unresolved targets, for the warning the cashier and
 // the console see. Kept here so checkout and the tests phrase it identically.
+// Client mirror of the server's menu_item_available() RPC (schema >= 1.4), so
+// the Menu Editor can flag what the public menu is treating as sold out.
+// Keep the two in step: a standard item is out when its linked stock is <= 0;
+// a recipe item is out when any non-manual ingredient (matched by NAME, missing
+// = 0 stock) has less stock than the recipe uses. Unlinked or dangling links
+// count as available, exactly like the RPC.
+export function isMenuItemSoldOut(item, { inventory = [], recipes = [] } = {}) {
+  const mode = item?.inventoryMode || 'none';
+  if (mode === 'standard' || mode === 'warehouse') {
+    if (!item.linkedWarehouseId) return false;
+    const inv = inventory.find(i => String(i.id) === String(item.linkedWarehouseId));
+    return inv ? !(Number(inv.current_stock) > 0) : false;
+  }
+  if (mode === 'recipe') {
+    const recipe = recipes.find(r => r.id === item.linkedRecipeId);
+    if (!recipe) return false;
+    return (recipe.ingredients || []).some(ing => {
+      if (ing.isManual) return false;
+      const need = /^-?\d+(\.\d+)?$/.test(String(ing.qty ?? '')) ? Number(ing.qty) : 0;
+      const inv = inventory.find(i => i.name === ing.name);
+      return (Number(inv?.current_stock) || 0) < need;
+    });
+  }
+  return false;
+}
+
 export function describeUnresolved(unresolved) {
   return unresolved
     .map(u => `${u.lineName || '?'} → ${u.target || '?'} (${u.source})`)

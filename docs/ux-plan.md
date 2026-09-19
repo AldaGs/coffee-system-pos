@@ -27,7 +27,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
 - [x] **5. "Show on public menu" switch in the product form**, bound to the existing
   item `publicHidden` flag (inverted), default on. Keep the list's hide control.
   Files: `MenuEditorTab.jsx`, `EditDrinkModal.jsx` if the edit path is separate.
-- [ ] **6. "Sold out: hidden from public menu" badge** in the Menu Editor list, computed
+- [x] **6. "Sold out: hidden from public menu" badge** in the Menu Editor list, computed
   client-side with the same rules as `menu_item_available` (standard: linked stock ≤ 0;
   recipe: any non-manual ingredient short). Pure helper + small test.
   Files: new helper in `utils/inventoryMath.js`, `MenuEditorTab.jsx`, test.
