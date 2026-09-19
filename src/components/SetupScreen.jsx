@@ -1417,6 +1417,11 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             SET current_stock = inv.current_stock - p_qty
             WHERE inv.id = p_item_id AND inv.current_stock >= p_qty
             RETURNING inv.id, inv.name, inv.current_stock, true, true;
+          -- Insufficient stock: release the claim so a later replay (after a
+          -- restock) can still apply this deduction instead of it being lost.
+          IF NOT FOUND THEN
+            DELETE FROM public.inventory_deductions_applied WHERE local_id = p_local_id;
+          END IF;
         END;
         $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -1628,7 +1633,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "Authenticated can read schema_meta" ON public.schema_meta
           FOR SELECT TO authenticated USING (true);
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '1.4', now())
+        VALUES ('schema_version', '1.5', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

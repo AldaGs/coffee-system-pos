@@ -17,6 +17,9 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.5 — deduct_inventory_log releases its dedup claim on insufficient stock
+//       (migration 038), so an offline sale replayed against short cloud stock
+//       stays queued and applies after a restock instead of being lost.
 // 1.4 — stock returns, and the availability check that never fired (migration
 //       037). menu_item_available() tested inventoryMode = 'warehouse' but the
 //       app only ever writes 'standard', so the warehouse branch was dead and a
@@ -89,4 +92,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.4';
+export const APP_SCHEMA_VERSION = '1.5';

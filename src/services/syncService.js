@@ -131,7 +131,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
             // routes to the restock RPC instead. Both claim the log's local_id
             // exactly once, so replaying either is a no-op.
             const qty = Number(cleanLog.qty_deducted);
-            const { error: rpcErr } = qty < 0
+            const { data: rpcData, error: rpcErr } = qty < 0
               ? await supabase.rpc('restock_inventory_log', {
                   p_local_id: cleanLog.local_id,
                   p_item_id: Number(itemId),
@@ -145,6 +145,14 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
             if (rpcErr) {
               console.error("RPC deduct failed:", rpcErr);
               if (rpcErr.status === 400 || rpcErr.status === 401) hasAuthError = true;
+              continue;
+            }
+            // No row back from a deduction = cloud stock is short of what this
+            // (offline) sale took. Nothing was decremented and, from schema 1.5,
+            // the local_id stays unclaimed — so keep the log queued; it applies
+            // once the item is restocked instead of being dropped for good.
+            if (qty >= 0 && (!rpcData || rpcData.length === 0)) {
+              console.error(`Inventory log kept: cloud stock too low to deduct ${qty} of "${cleanLog.item_name}"`);
               continue;
             }
           }
