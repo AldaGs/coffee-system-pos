@@ -98,7 +98,7 @@ function Register() {
 
   // --- ZUSTAND GLOBAL STORES ---
   const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime } = useAuthStore();
-  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, setIsLoading, getPosSettings, lastSyncedAt } = useMenuStore();
+  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, setIsLoading, getPosSettings, lastSyncedAt, pinLockoutUntil } = useMenuStore();
   const { activeTicketId, setActiveTicketId, isCheckoutModalOpen, splitMode, setSplitMode, splitPayments, nWays, setNWays, customVal, setCustomVal, paidProductIds, tipAmount, setTipAmount, tipPercentage, setTipPercentage } = useCartStore();
 
 
@@ -1041,6 +1041,8 @@ function Register() {
           }}
           submitText={t('reg.btnLogin')}
           submitIcon="lucide:log-in"
+          lockoutUntil={pinLockoutUntil}
+          lockoutText={t('pin.tooManyAttempts')}
         />
         <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
       </>

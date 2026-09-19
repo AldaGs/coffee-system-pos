@@ -22,7 +22,7 @@ function clearMgmtToken() {
 
 // Scope: only what's needed to read the project's api keys. Compare with the
 // install flow which additionally needs database read/write.
-const DEVICES_OAUTH_SCOPES = 'api_keys_read';
+// Scope now lives server-side in api/auth/start.js (flow=devices).
 
 function slugifyDeviceName(name) {
   return (name || '')
@@ -222,9 +222,9 @@ function DevicesTab({ showAlert, showConfirm }) {
     setSubmitting(true);
     setSubmitStep('authorizing');
 
-    const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
-    const redirectUri = `${window.location.origin}/api/auth/callback`;
-    window.location.href = `https://api.supabase.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=devices&scope=${encodeURIComponent(DEVICES_OAUTH_SCOPES)}`;
+    // Server-side OAuth start: random state + PKCE, and the scope for this
+    // flow (api_keys_read) is chosen there, not here.
+    window.location.href = '/api/auth/start?flow=devices';
   };
 
   const copyToClipboard = async (text, label) => {

@@ -183,10 +183,10 @@ function GeneralSettingsTab({
         // Stash the installed version so the resume POST can request just the
         // delta. '' when unknown → server falls back to the full script.
         try { sessionStorage.setItem(SS_SCHEMA_FROM, (dbVersion && dbVersion !== 'unknown') ? dbVersion : ''); } catch { /* noop */ }
-        const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
-        const redirectUri = `${window.location.origin}/api/auth/callback`;
-        const scopes = 'database_read database_write';
-        window.location.href = `https://api.supabase.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=schema&scope=${encodeURIComponent(scopes)}`;
+        // /api/auth/start mints a random state + PKCE verifier server-side
+        // (HttpOnly cookies) and redirects on to Supabase. Scopes live there,
+        // keyed by flow, so this page can't ask for more than it needs.
+        window.location.href = '/api/auth/start?flow=schema';
       }
     );
   };

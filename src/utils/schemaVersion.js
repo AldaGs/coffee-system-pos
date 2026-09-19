@@ -17,6 +17,11 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.6 — security lockdown step 1: the public CFDI portal talks to
+//       cfdi_lookup_ticket / cfdi_request_invoice instead of reading and
+//       writing sales / fiscal_profiles / active_tickets with the anon key.
+//       Also installs the CFDI base schema on first installs, which the
+//       from-scratch script had been missing.
 // 1.5 — deduct_inventory_log releases its dedup claim on insufficient stock
 //       (migration 038), so an offline sale replayed against short cloud stock
 //       stays queued and applies after a restock instead of being lost.
@@ -92,4 +97,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.5';
+export const APP_SCHEMA_VERSION = '1.6';
