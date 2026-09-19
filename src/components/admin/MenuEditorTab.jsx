@@ -30,7 +30,7 @@ function MenuEditorTab({
   handleSetItemImage, handleClearItemImage,
   assets = [], assetsLoading = false, assetsBusy = false,
   loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset,
-  vendors = [], isAdvancedMode = true
+  vendors = [], isAdvancedMode = true, onGoToTab
 }) {
   const { t } = useTranslation();
   const { showPrompt, showAlert, showConfirm } = useDialog();
@@ -342,6 +342,11 @@ function MenuEditorTab({
                         <option key={item.id} value={item.id}>{item.name} ({item.current_stock} {item.unit} {t('menu.inStock')})</option>
                       ))}
                     </select>
+                    {!inventoryItems?.length && onGoToTab && (
+                      <button type="button" onClick={() => onGoToTab('inventory')} style={createLinkStyle}>
+                        <Icon icon="lucide:plus" /> {t('menu.createInvItem')}
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -360,6 +365,11 @@ function MenuEditorTab({
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
                     </select>
+                    {!recipes?.length && onGoToTab && (
+                      <button type="button" onClick={() => onGoToTab('calculator')} style={createLinkStyle}>
+                        <Icon icon="lucide:plus" /> {t('menu.createRecipe')}
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -666,6 +676,10 @@ function MenuEditorTab({
     </div>
   );
 }
+
+// Empty-picker shortcut to the Inventory / Recipes tab (form state lives in
+// Admin, so it survives the round trip).
+const createLinkStyle = { marginTop: '10px', background: 'none', border: 'none', padding: 0, color: 'var(--brand-color)', fontWeight: 'bold', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '6px' };
 
 // Small pill marking whether a category/item is hidden from the Register
 // (POS) or from the public menu — the two are now independent toggles.

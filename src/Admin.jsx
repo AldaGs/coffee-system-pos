@@ -2063,6 +2063,7 @@ function Admin() {
         {activeTab === 'menu' && (
           <MenuEditorTab
             isAdvancedMode={generalSettings.isAdvancedMode === true}
+            onGoToTab={switchTab}
             menuData={menuData}
             newCategoryName={newCategoryName}
             setNewCategoryName={setNewCategoryName}

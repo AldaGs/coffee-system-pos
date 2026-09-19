@@ -21,7 +21,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
   hide the Standard/Recipe options and show a one-line hint:
   "Turn on Advanced Mode to track stock". Keep existing links working (read-only
   label if an item already has one). Files: `MenuEditorTab.jsx` (~L303).
-- [ ] **4. Empty-state links.** When the inventory or recipe dropdown is empty, show
+- [x] **4. Empty-state links.** When the inventory or recipe dropdown is empty, show
   "+ Create inventory item" / "+ Create recipe" that jumps to that Admin tab.
   Files: `MenuEditorTab.jsx`, `Admin.jsx` (tab switch callback).
 - [ ] **5. "Show on public menu" switch in the product form**, bound to the existing
