@@ -194,7 +194,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                           opacity: activeRecipe.isDraft ? 0.6 : 1
                         }}
                       >
-                        <Icon icon="lucide:upload-cloud" />
+                        <Icon icon="lucide:plus-circle" />
                         {t('recipe.btnPublishToMenu')}
                       </button>
                     </div>
@@ -526,7 +526,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                 onClick={submitPublishModal}
                 style={{ flex: 1, padding: '14px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '900', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               >
-                <Icon icon="lucide:upload-cloud" />
+                <Icon icon="lucide:plus-circle" />
                 {t('recipe.btnPublish')}
               </button>
             </div>

@@ -227,7 +227,7 @@ const en = [
     do: [
       { action: 'Build a recipe', steps: 'Pick ingredients and quantities; the cost per unit updates live.' },
       { action: 'Get a suggested price', steps: 'Enter a target margin to see the recommended price.' },
-      { action: 'Publish', steps: 'Attach the recipe to the menu item so its cost feeds Analytics.' },
+      { action: 'Create the product', steps: 'Tap "Create product from recipe" to add a register product linked to this recipe, so each sale deducts its ingredients and its cost feeds Analytics. (Showing it to customers is handled in Public Menus.)' },
     ],
   },
   {
@@ -628,7 +628,7 @@ const es = [
     do: [
       { action: 'Armar una receta', steps: 'Elige ingredientes y cantidades; el costo por unidad se actualiza en vivo.' },
       { action: 'Obtener un precio sugerido', steps: 'Escribe un margen objetivo para ver el precio recomendado.' },
-      { action: 'Publicar', steps: 'Adjunta la receta al artículo del menú para que su costo alimente Analíticas.' },
+      { action: 'Crear el producto', steps: 'Toca "Crear producto con esta receta" para agregar a la caja un producto vinculado a la receta, así cada venta descuenta sus ingredientes y su costo alimenta Analíticas. (Mostrarlo a los clientes se maneja en Menús Públicos.)' },
     ],
   },
   {

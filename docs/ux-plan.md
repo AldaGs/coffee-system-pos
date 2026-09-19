@@ -6,7 +6,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
 
 ## Phase 1: Labels only (no behavior change)
 
-- [ ] **1. Rename "Publish to Menu" in Recipes Builder** → "Create product from recipe" /
+- [x] **1. Rename "Publish to Menu" in Recipes Builder** → "Create product from recipe" /
   "Crear producto con esta receta" (button, modal title, success alert).
   Files: `translations.js` (`recipe.btnPublishToMenu`, `recipe.publishModalTitle`,
   `recipe.alertPublishedDesc`), Help `calculator` section.
