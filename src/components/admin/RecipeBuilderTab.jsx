@@ -171,8 +171,8 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                     </div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div style={{ padding: '14px', background: 'rgba(231, 76, 60, 0.05)', color: '#e74c3c', borderRadius: '12px', border: '1px dashed rgba(231, 76, 60, 0.3)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Icon icon="lucide:alert-circle" />
+                      <div style={{ padding: '14px', background: 'var(--bg-main)', color: 'var(--brand-color)', fontWeight: 'bold', borderRadius: '12px', border: '1px dashed var(--brand-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Icon icon="lucide:sparkles" />
                         {t('recipe.notLinked')}
                       </div>
                       <button

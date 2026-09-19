@@ -1717,7 +1717,10 @@ function Admin() {
 
       // Switch active recipe to the formalized UUID instance
       setActiveRecipe(data);
-      showAlert(t('common.success'), t('recipe.saveSuccessDesc'));
+      // A recipe nobody sells does nothing yet: point at the next step.
+      const isSold = Object.values(menuData?.categories || {}).some(items =>
+        (items || []).some(item => String(item?.linkedRecipeId) === String(data.id)));
+      showAlert(t('common.success'), t(isSold ? 'recipe.saveSuccessDesc' : 'recipe.saveSuccessNextStep'));
 
     } catch (err) {
       console.error(err);

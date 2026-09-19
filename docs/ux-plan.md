@@ -34,7 +34,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
 
 ## Phase 3: Guided next steps
 
-- [ ] **7. After saving a recipe**, if it has no product yet, show a "Next: create the
+- [x] **7. After saving a recipe**, if it has no product yet, show a "Next: create the
   product" prompt that opens the renamed modal from step 1. Files: `RecipeBuilderTab.jsx`.
 - [ ] **8. After creating a product**, success alert says where it now shows:
   "Added to the register. It is visible on your public menu." (cloud, not hidden) or
