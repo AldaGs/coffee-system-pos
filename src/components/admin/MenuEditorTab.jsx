@@ -500,7 +500,7 @@ function MenuEditorTab({
                       style={{ background: 'rgba(52, 152, 219, 0.05)', border: 'none', color: isPublicHidden ? 'var(--text-muted)' : 'var(--brand-color)', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       title={isPublicHidden ? (t('menu.titleShowCategoryPublic') || 'Show in public menu') : (t('menu.titleHideCategoryPublic') || 'Hide from public menu')}
                     >
-                      <Icon icon={isPublicHidden ? 'lucide:globe-lock' : 'lucide:globe'} style={{ fontSize: '1.1rem' }} />
+                      <Icon icon={isPublicHidden ? 'lucide:lock' : 'lucide:globe'} style={{ fontSize: '1.1rem' }} />
                     </button>
                     <button
                       onClick={() => {
@@ -604,7 +604,7 @@ function MenuEditorTab({
                                 style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: item.publicHidden ? 'var(--text-muted)' : 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                                 title={item.publicHidden ? (t('menu.titleShowItemPublic') || 'Show in public menu') : (t('menu.titleHideItemPublic') || 'Hide from public menu')}
                               >
-                                <Icon icon={item.publicHidden ? 'lucide:globe-lock' : 'lucide:globe'} />
+                                <Icon icon={item.publicHidden ? 'lucide:lock' : 'lucide:globe'} />
                               </button>
                               <button onClick={() => handleDeleteDrink(category, item.id, item.name)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.2)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                                 <Icon icon="lucide:trash-2" />
@@ -707,7 +707,7 @@ function HideBadge({ kind, t }) {
   const color = isPublic ? '#8e44ad' : 'var(--text-muted)';
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.62rem', fontWeight: 'bold', color, textTransform: 'uppercase', letterSpacing: '0.03em', background: isPublic ? 'rgba(142,68,173,0.1)' : 'rgba(0,0,0,0.05)', padding: '2px 7px', borderRadius: '999px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-      <Icon icon={isPublic ? 'lucide:globe-lock' : 'lucide:eye-off'} style={{ fontSize: '0.75rem' }} />
+      <Icon icon={isPublic ? 'lucide:lock' : 'lucide:eye-off'} style={{ fontSize: '0.75rem' }} />
       {label}
     </span>
   );

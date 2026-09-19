@@ -53,6 +53,7 @@ import link2 from '@iconify-icons/lucide/link-2';
 import listOrdered from '@iconify-icons/lucide/list-ordered';
 import listPlus from '@iconify-icons/lucide/list-plus';
 import loader2 from '@iconify-icons/lucide/loader-2';
+import eyeOff from '@iconify-icons/lucide/eye-off';
 import globe from '@iconify-icons/lucide/globe';
 import lock from '@iconify-icons/lucide/lock';
 import logIn from '@iconify-icons/lucide/log-in';
@@ -171,6 +172,7 @@ const icons = {
   'lucide:list-ordered': listOrdered,
   'lucide:list-plus': listPlus,
   'lucide:loader-2': loader2,
+  'lucide:eye-off': eyeOff,
   'lucide:globe': globe,
   'lucide:lock': lock,
   'lucide:log-in': logIn,
