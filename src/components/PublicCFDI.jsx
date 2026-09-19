@@ -117,7 +117,12 @@ function PublicCFDI({ ticketId }) {
         if (rpcError) throw rpcError;
 
         if (!data?.found) {
-          setError("Ticket no encontrado.");
+          // rate_limited: the server is throttling misses (someone sweeping
+          // ticket references), not saying this ticket is wrong. Tell the
+          // customer to retry instead of sending them to the counter.
+          setError(data?.rate_limited
+            ? "Demasiadas consultas en este momento. Espera un minuto e intenta de nuevo."
+            : "Ticket no encontrado.");
           setLoading(false);
           return;
         }
