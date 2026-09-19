@@ -10,7 +10,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
   "Crear producto con esta receta" (button, modal title, success alert).
   Files: `translations.js` (`recipe.btnPublishToMenu`, `recipe.publishModalTitle`,
   `recipe.alertPublishedDesc`), Help `calculator` section.
-- [ ] **2. Plain-language inventory strategy** in the product form:
+- [x] **2. Plain-language inventory strategy** in the product form:
   "How is this deducted from inventory?" with options "Not tracked",
   "It's a product I stock (e.g. a bag of coffee)", "It's made from a recipe (e.g. a latte)".
   Files: `translations.js` (`menu.invStrategy`, `menu.invNone/Standard/Recipe`).
