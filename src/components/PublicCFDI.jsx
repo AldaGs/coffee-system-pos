@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
-import { getCfdiPeriodWarning, getPeriodKey } from '../utils/cfdiUrl';
+import { getCfdiPeriodWarning } from '../utils/cfdiUrl';
 import { parseConstancia } from '../utils/constanciaFiscal';
 
 function decodeParam(value) {
@@ -105,62 +105,26 @@ function PublicCFDI({ ticketId }) {
     const fetchTicket = async () => {
       try {
         setLoading(true);
-        // The ticketId in the URL can be:
-        // • a UUID (sale's local_id, from OrdersTab links)
-        // • a Date.now() number string (active ticket id, from Register links)
-        // We try every relevant column until we get a hit.
+        // One RPC instead of three anon table reads. The portal runs on the
+        // public anon key (it ships inside the receipt QR), so the server
+        // resolves the reference — sales.local_id, sales.ticket_id, or an open
+        // active_tickets.id — and returns only the fields this page renders,
+        // plus the fiscal profile already attached to THIS ticket and the
+        // month's Factura Global row. See db/migrations/039_cfdi_portal_rpcs.sql.
+        const { data, error: rpcError } = await supabase
+          .rpc('cfdi_lookup_ticket', { p_ref: String(ticketId) });
 
-        const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticketId);
+        if (rpcError) throw rpcError;
 
-        let saleData = null;
-
-        // 1) If it looks like a UUID, search sales.local_id
-        if (isUUID) {
-          const { data } = await supabase
-            .from('sales')
-            .select('*, fiscal_profiles(*)')
-            .eq('local_id', ticketId)
-            .maybeSingle();
-          saleData = data;
-        }
-
-        // 2) If still nothing, try sales.ticket_id (stores the original activeTicket.id as a string)
-        if (!saleData) {
-          const { data } = await supabase
-            .from('sales')
-            .select('*, fiscal_profiles(*)')
-            .eq('ticket_id', String(ticketId))
-            .maybeSingle();
-          saleData = data;
-        }
-
-        if (saleData) {
-          setSale({ ...saleData, is_paid: true });
-          if (saleData.fiscal_profiles) {
-            setFormData(saleData.fiscal_profiles);
-          }
+        if (!data?.found) {
+          setError("Ticket no encontrado.");
           setLoading(false);
           return;
         }
 
-        // 3) Not a completed sale yet — check active_tickets (numeric id only)
-        if (!isUUID) {
-          const { data: ticketData, error: ticketError } = await supabase
-            .from('active_tickets')
-            .select('*')
-            .eq('id', ticketId)
-            .maybeSingle();
-
-          if (ticketError && ticketError.code !== 'PGRST116') throw ticketError;
-
-          if (ticketData) {
-            setSale({ ...ticketData, is_paid: false });
-            setLoading(false);
-            return;
-          }
-        }
-
-        setError("Ticket no encontrado.");
+        setSale(data.ticket);
+        setGlobalPeriod(data.global_period || null);
+        if (data.profile) setFormData(data.profile);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -171,25 +135,6 @@ function PublicCFDI({ ticketId }) {
     fetchTicket();
   }, [supabase, ticketId]);
 
-  // Once we have a paid sale, check whether its month's Factura Global has
-  // already been issued — if so the ticket can no longer be individually
-  // invoiced (it's already included in the global) and we block the form.
-  useEffect(() => {
-    if (!supabase || !sale?.is_paid || !sale?.created_at) {
-      setGlobalPeriod(null);
-      return;
-    }
-    const period = getPeriodKey(sale.created_at);
-    if (!period) return;
-    let cancelled = false;
-    supabase
-      .from('cfdi_global_periods')
-      .select('period, business_name')
-      .eq('period', period)
-      .maybeSingle()
-      .then(({ data }) => { if (!cancelled) setGlobalPeriod(data || null); });
-    return () => { cancelled = true; };
-  }, [supabase, sale?.is_paid, sale?.created_at]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -270,61 +215,41 @@ function PublicCFDI({ ticketId }) {
     setError(null);
 
     try {
-      // Upsert fiscal profile (handle unique rfc)
-      let profileId = sale.fiscal_profile_id;
-      
-      const { data: existingProfile } = await supabase
-        .from('fiscal_profiles')
-        .select('id')
-        .eq('rfc', formData.rfc)
-        .maybeSingle();
+      // One RPC instead of a client-side profile upsert plus a raw UPDATE on
+      // sales. The function re-checks server-side what this form checks here
+      // (paid, month not closed, status still editable, fields valid) and
+      // writes only fiscal_profile_id + cfdi_status on this one sale.
+      const { data, error: rpcError } = await supabase.rpc('cfdi_request_invoice', {
+        p_ref: String(ticketId),
+        p_rfc: formData.rfc,
+        p_razon_social: formData.razon_social,
+        p_regimen_fiscal: formData.regimen_fiscal,
+        p_uso_cfdi: formData.uso_cfdi,
+        p_cp: formData.cp,
+        p_email: formData.email,
+      });
 
-      if (existingProfile) {
-        // Update existing
-        const { error: updateError } = await supabase
-          .from('fiscal_profiles')
-          .update({
-            razon_social: formData.razon_social,
-            regimen_fiscal: formData.regimen_fiscal,
-            uso_cfdi: formData.uso_cfdi,
-            cp: formData.cp,
-            email: formData.email,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingProfile.id);
-        if (updateError) throw updateError;
-        profileId = existingProfile.id;
-      } else {
-        // Insert new
-        const { data: newProfile, error: insertError } = await supabase
-          .from('fiscal_profiles')
-          .insert([{
-            rfc: formData.rfc,
-            razon_social: formData.razon_social,
-            regimen_fiscal: formData.regimen_fiscal,
-            uso_cfdi: formData.uso_cfdi,
-            cp: formData.cp,
-            email: formData.email
-          }])
-          .select()
-          .single();
-        if (insertError) throw insertError;
-        profileId = newProfile.id;
+      if (rpcError) throw rpcError;
+      if (!data?.ok) {
+        // Reasons the server can refuse; each mirrors a state the UI already
+        // renders, so we surface it and let the next load re-sync.
+        const messages = {
+          not_found: 'Ticket no encontrado.',
+          not_paid: 'Este ticket aún no ha sido pagado.',
+          not_editable: 'Este ticket ya tiene una solicitud de factura en curso.',
+          global_closed: 'El mes de este ticket ya fue incluido en la Factura Global.',
+          invalid_rfc: 'RFC inválido. Verifica que tenga 12 o 13 caracteres.',
+          invalid_fields: 'Revisa tus datos fiscales.',
+        };
+        throw new Error(messages[data?.reason] || 'No se pudo registrar la solicitud.');
       }
 
-      // Update sale using the row's actual id
-      const { error: saleUpdateError } = await supabase
-        .from('sales')
-        .update({
-          fiscal_profile_id: profileId,
-          cfdi_status: 'requested'
-        })
-        .eq('id', sale.id);
-
-      if (saleUpdateError) throw saleUpdateError;
-
       setSuccess(true);
-      setSale(prev => ({ ...prev, cfdi_status: 'requested', fiscal_profile_id: profileId }));
+      setSale(prev => ({
+        ...prev,
+        cfdi_status: data.cfdi_status,
+        fiscal_profile_id: data.fiscal_profile_id,
+      }));
 
     } catch (err) {
       setError("Error al solicitar CFDI: " + err.message);
