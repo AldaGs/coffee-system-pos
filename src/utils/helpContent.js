@@ -198,6 +198,7 @@ const en = [
     do: [
       { action: 'Add or edit an item', steps: 'Open the item editor, set name/price/category, and save.' },
       { action: 'Add a photo', steps: 'Upload an image and crop it in the modal; it is optimized automatically.' },
+      { action: 'Make a product from a new recipe', steps: 'In the product form choose "Made from a recipe", tap "New recipe for this product", add the ingredients and save: you come back to the form with the recipe already linked.' },
       { action: 'Set the tax treatment', steps: 'Choose iva16, tasa0, or exento per item so checkout computes IVA correctly.' },
       { action: 'Hide a category or item', steps: 'Hide it from the register, the public menu, or both; a badge shows where it is hidden. New products show on the public menu by default: untick "Show on the public menu" in the product form to keep one off it.' },
       { action: 'Spot sold-out products', steps: 'A red "Sold out" badge marks products whose linked stock or recipe ingredients have run short; the public menu shows them as unavailable until you restock.' },
@@ -600,6 +601,7 @@ const es = [
     do: [
       { action: 'Agregar o editar un artículo', steps: 'Abre el editor, define nombre/precio/categoría y guarda.' },
       { action: 'Agregar una foto', steps: 'Sube una imagen y recórtala en el modal; se optimiza automáticamente.' },
+      { action: 'Crear un producto con una receta nueva', steps: 'En el formulario del producto elige "Se prepara con una receta", toca "Nueva receta para este producto", agrega los ingredientes y guarda: regresas al formulario con la receta ya vinculada.' },
       { action: 'Definir el impuesto', steps: 'Elige iva16, tasa0 o exento por artículo para que el cobro calcule bien el IVA.' },
       { action: 'Ocultar una categoría o artículo', steps: 'Ocúltalo de la caja, del menú público o de ambos; una etiqueta muestra dónde está oculto. Los productos nuevos aparecen en el menú público por defecto: desmarca "Mostrar en el menú público" en el formulario del producto para dejarlo fuera.' },
       { action: 'Ver productos agotados', steps: 'Una etiqueta roja "Agotado" marca los productos cuyo stock o ingredientes de receta se acabaron; el menú público los muestra como no disponibles hasta que reabastezcas.' },

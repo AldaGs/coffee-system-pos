@@ -31,7 +31,7 @@ function MenuEditorTab({
   handleSetItemImage, handleClearItemImage,
   assets = [], assetsLoading = false, assetsBusy = false,
   loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset,
-  vendors = [], isAdvancedMode = true, onGoToTab
+  vendors = [], isAdvancedMode = true, onGoToTab, onNewRecipe
 }) {
   const { t } = useTranslation();
   const { showPrompt, showAlert, showConfirm } = useDialog();
@@ -381,9 +381,9 @@ function MenuEditorTab({
                         <option key={r.id} value={r.id}>{r.name}</option>
                       ))}
                     </select>
-                    {!recipes?.length && onGoToTab && (
-                      <button type="button" onClick={() => onGoToTab('calculator')} style={createLinkStyle}>
-                        <Icon icon="lucide:plus" /> {t('menu.createRecipe')}
+                    {onNewRecipe && (
+                      <button type="button" onClick={() => onNewRecipe(newItemForm.name)} style={createLinkStyle}>
+                        <Icon icon="lucide:plus" /> {recipes?.length ? t('menu.newRecipeForProduct') : t('menu.createRecipe')}
                       </button>
                     )}
                   </div>

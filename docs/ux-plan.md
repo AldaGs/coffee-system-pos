@@ -40,7 +40,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
   "Added to the register. It is visible on your public menu." (cloud, not hidden) or
   "...Upgrade to cloud backup to publish a menu." (local). Files: `RecipeBuilderTab.jsx`,
   `MenuEditorTab.jsx`.
-- [ ] **9. Create a recipe from the product form.** In "made from a recipe", add
+- [x] **9. Create a recipe from the product form.** In "made from a recipe", add
   "+ New recipe" that opens Recipes Builder with the name prefilled and returns the link.
   Largest step; can split into 9a (navigate + prefill) and 9b (auto-link on save).
 

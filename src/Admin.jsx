@@ -142,6 +142,10 @@ function Admin() {
   const [vendors, setVendors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  // Draft id of a recipe started from the product form ("+ New recipe"). When
+  // that draft is saved, it is linked to the product being edited and the
+  // user is taken back to finish it. Any other recipe save leaves it alone.
+  const [recipeForProductId, setRecipeForProductId] = useState(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newItemForm, setNewItemForm] = useState({
     category: '',
@@ -1643,16 +1647,23 @@ function Admin() {
   };
 
   // --- ADVANCED RECIPE BUILDER LOGIC ---
-  const handleCreateDraftRecipe = () => {
+  const handleCreateDraftRecipe = (name) => {
+    const id = `draft_${Date.now()}`;
     setActiveRecipe({
-      id: `draft_${Date.now()}`,
-      name: "New Recipe Draft",
+      id,
+      name: (typeof name === 'string' && name.trim()) || "New Recipe Draft",
       linked_menu_item: "",
       target_margin: 25.0,
       custom_price: "",
       ingredients: [],
       isDraft: true
     });
+    return id;
+  };
+
+  const handleNewRecipeForProduct = (productName) => {
+    setRecipeForProductId(handleCreateDraftRecipe(productName));
+    setActiveTab('calculator');
   };
 
   const handleAddIngredient = () => {
@@ -1717,6 +1728,15 @@ function Admin() {
 
       // Switch active recipe to the formalized UUID instance
       setActiveRecipe(data);
+
+      if (recipeForProductId && recipeForProductId === activeRecipe.id) {
+        setRecipeForProductId(null);
+        setNewItemForm(prev => ({ ...prev, inventoryMode: 'recipe', linkedRecipeId: data.id, linkedWarehouseId: '' }));
+        setActiveTab('menu');
+        showAlert(t('common.success'), t('recipe.savedBackToProduct'));
+        return;
+      }
+
       // A recipe nobody sells does nothing yet: point at the next step.
       const isSold = Object.values(menuData?.categories || {}).some(items =>
         (items || []).some(item => String(item?.linkedRecipeId) === String(data.id)));
@@ -2070,6 +2090,7 @@ function Admin() {
           <MenuEditorTab
             isAdvancedMode={generalSettings.isAdvancedMode === true}
             onGoToTab={switchTab}
+            onNewRecipe={handleNewRecipeForProduct}
             menuData={menuData}
             newCategoryName={newCategoryName}
             setNewCategoryName={setNewCategoryName}
