@@ -937,7 +937,9 @@ export const translations = {
     "recipe.alertCatNotFoundTitle": "Category Not Found",
     "recipe.alertCatNotFoundDesc": "That category no longer exists.",
     "recipe.alertPublishedTitle": "Product created",
-    "recipe.alertPublishedDesc": "The product was added to the register catalog, linked to this recipe.",
+    "recipe.alertPublishedDesc": "It's now on the register and on your public menu, linked to this recipe. You can hide it from the public menu in Menu Editor.",
+    "recipe.alertPublishedCatHidden": "It's now on the register, linked to this recipe. Its category is hidden from the public menu, so customers won't see it there.",
+    "recipe.alertPublishedLocal": "It's now on the register, linked to this recipe. To publish a menu online, turn on cloud backup in General Settings.",
 
     // --- Team Tab ---
     "team.title": "Team Management",
@@ -2430,7 +2432,9 @@ export const translations = {
     "recipe.alertCatNotFoundTitle": "Categoría No Encontrada",
     "recipe.alertCatNotFoundDesc": "Esa categoría ya no existe.",
     "recipe.alertPublishedTitle": "Producto creado",
-    "recipe.alertPublishedDesc": "El producto se agregó al catálogo de la caja, vinculado a esta receta.",
+    "recipe.alertPublishedDesc": "Ya está en la caja y en tu menú público, vinculado a esta receta. Puedes ocultarlo del menú público en el Editor de menú.",
+    "recipe.alertPublishedCatHidden": "Ya está en la caja, vinculado a esta receta. Su categoría está oculta en el menú público, así que los clientes no lo verán ahí.",
+    "recipe.alertPublishedLocal": "Ya está en la caja, vinculado a esta receta. Para publicar un menú en línea, activa el respaldo en la nube en Configuración General.",
 
     // --- Team Tab ---
     "team.title": "Gestión del Equipo",

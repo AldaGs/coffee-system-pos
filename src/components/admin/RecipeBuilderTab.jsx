@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { isLocalMode } from '../../utils/appMode';
 import { toCents, fromMillicents, formatForDisplay, formatMillicentsForDisplay } from '../../utils/moneyUtils';
 
 function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, handleAddItemDirect, showAlert }) {
@@ -45,7 +46,14 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
 
     handleAddItemDirect(category, newItem);
     setPublishModal(null);
-    showAlert?.(t('recipe.alertPublishedTitle'), t('recipe.alertPublishedDesc'));
+    // Say where the new product now shows: always the register; the public
+    // menu too unless this is a local install or the category is hidden there.
+    const where = isLocalMode()
+      ? 'recipe.alertPublishedLocal'
+      : (menuData.publicHiddenCategories || []).includes(category)
+        ? 'recipe.alertPublishedCatHidden'
+        : 'recipe.alertPublishedDesc';
+    showAlert?.(t('recipe.alertPublishedTitle'), t(where));
   };
 
   const { t } = useTranslation();
