@@ -22,14 +22,26 @@ sigue cobrando y todo se sincroniza solo cuando vuelve la conexión.
 ## Paso 1 — Abrir la app por primera vez
 
 🖱️ Abre la dirección de tu TinyPOS en el navegador (Chrome o el navegador de
-la tablet). La primera vez verás la **pantalla de bienvenida / setup**.
+la tablet). La primera vez verás la **pantalla de bienvenida**. Arriba a la
+derecha puedes cambiar el idioma (Español / English).
 
-🎙️ «Esta pantalla solo aparece una vez, cuando la tienda todavía no está
-conectada a la nube.»
+🎙️ «Esta pantalla solo aparece una vez, en un dispositivo que todavía no tiene
+tienda.»
 
-💡 Si solo quieres probar el sistema sin nube, existe el **Modo Local**: todo se
-guarda en este dispositivo. Para varias cajas, reportes y respaldo necesitas la
-nube (Supabase).
+La pantalla tiene tres caminos:
+
+- **«Empezar gratis»** (botón verde): crea la tienda solo en este dispositivo,
+  sin cuenta ni nube. Es el **Modo Local**; puedes activar el respaldo en la
+  nube después, desde Configuración General.
+- **«¿Ya tienes una tienda con respaldo en la nube? Inicia sesión»**: para
+  agregar otra caja a una tienda que ya existe.
+- **«O crea tu tienda con respaldo en la nube desde el inicio»**: el camino de
+  este tutorial.
+
+🖱️ Pulsa **«O crea tu tienda con respaldo en la nube desde el inicio»**.
+
+💡 Una tienda creada solo en este dispositivo no se puede abrir desde otro. Para
+varias cajas, menús públicos y respaldo necesitas la nube (Supabase).
 
 ---
 

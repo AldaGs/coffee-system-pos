@@ -60,7 +60,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
   - note "Stores created only on this device can't be opened from another one";
   - small link "Create with cloud backup" → `new` (kept, demoted).
   Files: `LandingPage.jsx`.
-- [ ] **13. Help + scripts update** for the new first-run wording
+- [x] **13. Help + scripts update** for the new first-run wording
   (`helpContent.js` settings/overview, `scripts/01-primera-configuracion.md`).
 
 ## Verification per step
