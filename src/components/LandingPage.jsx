@@ -1,13 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
 import { translations } from '../utils/translations';
 
 // The landing page only shows on a device with no store yet, so there is no
-// saved language to read: follow the browser instead (Spanish or English).
-const lang = typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('es') ? 'es' : 'en';
-const t = (key) => translations[lang]?.[key] || translations.en?.[key] || key;
+// saved language setting: use the visitor's pick from the toggle if they made
+// one, else the browser language (Spanish or English).
+const LANG_KEY = 'tinypos_landing_lang';
+function initialLang() {
+  try {
+    const saved = localStorage.getItem(LANG_KEY);
+    if (saved === 'es' || saved === 'en') return saved;
+  } catch { /* storage blocked: fall through to the browser language */ }
+  return typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('es') ? 'es' : 'en';
+}
 
 export default function LandingPage({ onSelectMode, onShowGuide }) {
+  const [lang, setLang] = useState(initialLang);
+  const t = (key) => translations[lang]?.[key] || translations.en?.[key] || key;
+  const toggleLang = () => {
+    const next = lang === 'es' ? 'en' : 'es';
+    setLang(next);
+    try { localStorage.setItem(LANG_KEY, next); } catch { /* not persisted */ }
+  };
+
   return (
     <div style={{
       height: '100dvh',
@@ -33,15 +48,26 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
           <h1 style={{ fontSize: '1.4rem', margin: 0, color: '#0d3a66', fontWeight: '900', letterSpacing: '-0.5px' }}>tinypos</h1>
         </div>
 
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <button
+          onClick={toggleLang}
+          aria-label={t('landing.switchLangAria')}
+          style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: '999px', padding: '6px 14px', color: '#546e7a', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <Icon icon="lucide:globe" />
+          {lang === 'es' ? 'English' : 'Español'}
+        </button>
         <a
           href="https://github.com/AldaGs/coffee-system-pos"
+          aria-label={t('landing.viewSource')}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: '#546e7a', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}
         >
-          <Icon icon="mdi:github" fontSize="1.4rem" />
-          <span>{t('landing.viewSource')}</span>
+          <Icon icon="mdi:github" fontSize="1.4rem" aria-hidden />
+          <span className="landing-hide-narrow">{t('landing.viewSource')}</span>
         </a>
+        </div>
       </nav>
 
       {/* HERO SECTION */}

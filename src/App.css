@@ -1683,3 +1683,10 @@ body.dark-mode {
   padding: 40px 20px;
   color: var(--text-main);
 }
+
+/* Landing page: drop secondary nav labels on phones so the bar fits. */
+@media (max-width: 480px) {
+  .landing-hide-narrow {
+    display: none;
+  }
+}
