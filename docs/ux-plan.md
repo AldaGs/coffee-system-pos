@@ -53,7 +53,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
 
 ## Phase 5: Landing page
 
-- [ ] **11. Move landing strings to `translations.js`** (EN + ES), no layout change.
+- [x] **11. Move landing strings to `translations.js`** (EN + ES), no layout change.
 - [ ] **12. Restructure the landing page:**
   - main button "Start free" → local mode (unchanged behavior);
   - text link "Already have a cloud-backed store? Sign in" → `connect`;

@@ -1,5 +1,11 @@
 import React from 'react';
 import { Icon } from '@iconify/react';
+import { translations } from '../utils/translations';
+
+// The landing page only shows on a device with no store yet, so there is no
+// saved language to read: follow the browser instead (Spanish or English).
+const lang = typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('es') ? 'es' : 'en';
+const t = (key) => translations[lang]?.[key] || translations.en?.[key] || key;
 
 export default function LandingPage({ onSelectMode, onShowGuide }) {
   return (
@@ -34,7 +40,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
           style={{ color: '#546e7a', textDecoration: 'none', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem' }}
         >
           <Icon icon="mdi:github" fontSize="1.4rem" />
-          <span>Ver Fuente  </span>
+          <span>{t('landing.viewSource')}</span>
         </a>
       </nav>
 
@@ -42,10 +48,10 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: 'clamp(40px, 8vw, 80px) 5%', textAlign: 'center' }}>
         <div className="fade-in" style={{ maxWidth: '900px' }}>
           <h2 style={{ fontSize: 'clamp(2.4rem, 8vw, 4rem)', color: '#0d3a66', marginBottom: '24px', lineHeight: '1.05', fontWeight: '900', letterSpacing: '-1px' }}>
-            El punto de venta autónomo para <span style={{ color: 'var(--brand-color, #f28b05)' }}>pequeños negocios.</span>
+            {t('landing.heroTitle')} <span style={{ color: 'var(--brand-color, #f28b05)' }}>{t('landing.heroHighlight')}</span>
           </h2>
           <p style={{ fontSize: 'clamp(1rem, 3vw, 1.35rem)', color: '#546e7a', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px', lineHeight: '1.5' }}>
-            Sin mensualidades. Sin suscripciones en la nube. Sé dueño de tus datos, conecta tu hardware y gestiona tu negocio a tu manera.
+            {t('landing.heroSubtitle')}
           </p>
 
           {/* PRIMARY CTA: zero-infrastructure local start. */}
@@ -57,10 +63,10 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
               onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
             >
               <Icon icon="lucide:rocket" />
-              Empezar ahora — en este dispositivo
+              {t('landing.startLocal')}
             </button>
             <span style={{ fontSize: '0.95rem', color: '#94a3b8', fontWeight: '500' }}>
-              Sin cuenta, sin nube. Listo en segundos.
+              {t('landing.startLocalHint')}
             </span>
           </div>
 
@@ -72,7 +78,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0d3a66'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}
             >
-              Crear tu tienda con respaldo en la nube
+              {t('landing.createCloud')}
             </button>
 
             <button
@@ -81,7 +87,7 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0d3a66'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}
             >
-              Conectar dispositivo existente
+              {t('landing.connect')}
             </button>
           </div>
 
@@ -99,11 +105,11 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
             <div style={{ display: 'flex', flexDirection: "row", alignItems: 'center', gap: '8px', fontSize: '1.05rem', fontWeight: '600' }}>
               <Icon icon="lucide:book-open" />
               <span style={{ textDecoration: 'underline', textUnderlineOffset: '4px' }}>
-                ¿Cómo funciona la base de datos gratuita?
+                {t('landing.guideLink')}
               </span>
             </div>
             <span style={{ fontSize: '0.95rem', color: '#94a3b8', fontWeight: '500' }}>
-              Lee la guía.
+              {t('landing.guideHint')}
             </span>
           </button>
         </div>
@@ -113,38 +119,38 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
           <FeatureCard
             icon="lucide:printer"
             color="#3498db"
-            title="Hardware listo"
-            desc="Imprime directamente en impresoras térmicas de 58mm sin controladores complejos."
+            title={t('landing.featHardwareTitle')}
+            desc={t('landing.featHardwareDesc')}
           />
           <FeatureCard
             icon="lucide:database"
             color="#9b59b6"
-            title="Propiedad de los datos"
+            title={t('landing.featDataTitle')}
             desc={
               <>
-                Se conecta a tu propia instancia gratuita de <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" style={{ color: '#f28b05', fontWeight: 'bold', textDecoration: 'none' }}>Supabase</a> para un control total de tus datos.
+                {t('landing.featDataDescPre')} <a href="https://supabase.com" target="_blank" rel="noopener noreferrer" style={{ color: '#f28b05', fontWeight: 'bold', textDecoration: 'none' }}>Supabase</a> {t('landing.featDataDescPost')}
               </>
             }
           />
           <FeatureCard
             icon="lucide:zap"
             color="#f1c40f"
-            title="Funciona sin internet"
-            desc="Mantén tu fila avanzando incluso si se cae tu conexión a internet."
+            title={t('landing.featOfflineTitle')}
+            desc={t('landing.featOfflineDesc')}
           />
           <FeatureCard
             icon="lucide:calculator"
             color="#099b46"
-            title="Calculadora de recetas"
-            desc="Calcula el costo real de tus recetas antes de fijar precios. Sin cuenta, sin registros."
+            title={t('landing.featCalcTitle')}
+            desc={t('landing.featCalcDesc')}
             href="/calculator"
-            linkLabel="Probar ahora →"
+            linkLabel={t('landing.featCalcCta')}
           />
         </div>
       </main>
 
       <footer style={{ padding: '30px', textAlign: 'center', borderTop: '1px solid #f0f0f0', color: '#94a3b8', fontSize: '0.9rem' }}>
-        &copy; {new Date().getFullYear()} tinypos. Diseñado por Aldair Gonzalez Sanchez.
+        &copy; {new Date().getFullYear()} tinypos. {t('landing.footer')}
       </footer>
     </div>
   );
