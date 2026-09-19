@@ -17,7 +17,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
 
 ## Phase 2: Product form (Menu Editor)
 
-- [ ] **3. Respect Advanced Mode in the inventory strategy.** Without Advanced Mode,
+- [x] **3. Respect Advanced Mode in the inventory strategy.** Without Advanced Mode,
   hide the Standard/Recipe options and show a one-line hint:
   "Turn on Advanced Mode to track stock". Keep existing links working (read-only
   label if an item already has one). Files: `MenuEditorTab.jsx` (~L303).

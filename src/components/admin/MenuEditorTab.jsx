@@ -30,7 +30,7 @@ function MenuEditorTab({
   handleSetItemImage, handleClearItemImage,
   assets = [], assetsLoading = false, assetsBusy = false,
   loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset,
-  vendors = []
+  vendors = [], isAdvancedMode = true
 }) {
   const { t } = useTranslation();
   const { showPrompt, showAlert, showConfirm } = useDialog();
@@ -299,6 +299,17 @@ function MenuEditorTab({
                   <Icon icon="lucide:package-search" style={{ color: 'var(--brand-color)' }} />
                   {t('menu.invStrategy')}
                 </label>
+                {/* Inventory and Recipes are Advanced Mode tabs, so without it there
+                    is nothing to link to: show a hint instead of empty pickers. An
+                    item that already has a link keeps it, shown read-only. */}
+                {!isAdvancedMode && (
+                  <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Icon icon="lucide:lock" />
+                    {t('menu.invNeedsAdvanced')}
+                  </p>
+                )}
+                {(isAdvancedMode || (newItemForm.inventoryMode || 'none') !== 'none') && (
+                <fieldset disabled={!isAdvancedMode} style={{ border: 'none', padding: 0, margin: 0, minWidth: 0 }}>
                 <select
                   value={newItemForm.inventoryMode || 'none'}
                   onChange={(e) => {
@@ -360,6 +371,8 @@ function MenuEditorTab({
                       <div style={{ fontWeight: '900' }}>{recipes.find(r => r.id === newItemForm.linkedRecipeId)?.name}</div>
                     </div>
                   </div>
+                )}
+                </fieldset>
                 )}
               </div>
 

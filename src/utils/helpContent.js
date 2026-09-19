@@ -194,7 +194,7 @@ const en = [
     icon: 'lucide:coffee',
     title: 'Menu Editor',
     what: 'Create and manage the catalog: products, prices, categories, photos, and each item\'s tax treatment.',
-    how: 'Items carry a price, an optional photo (uploaded through a crop modal, converted to WebP, stored in Supabase), an IVA treatment (iva16 / tasa0 / exento), and can be tied to a recipe for costing. Categories and items can be hidden from the register and from the public menu independently, and the same photo shows in both.',
+    how: 'Items carry a price, an optional photo (uploaded through a crop modal, converted to WebP, stored in Supabase), an IVA treatment (iva16 / tasa0 / exento), and can be tied to a stocked inventory item or a recipe so each sale deducts stock (this needs Advanced Mode, which unlocks Inventory and Recipes). Categories and items can be hidden from the register and from the public menu independently, and the same photo shows in both.',
     do: [
       { action: 'Add or edit an item', steps: 'Open the item editor, set name/price/category, and save.' },
       { action: 'Add a photo', steps: 'Upload an image and crop it in the modal; it is optimized automatically.' },
@@ -595,7 +595,7 @@ const es = [
     icon: 'lucide:coffee',
     title: 'Editor de menú',
     what: 'Crea y administra el catálogo: productos, precios, categorías, fotos y el tratamiento de impuesto de cada artículo.',
-    how: 'Los artículos llevan precio, una foto opcional (subida por un modal de recorte, convertida a WebP y guardada en Supabase), un tratamiento de IVA (iva16 / tasa0 / exento) y pueden ligarse a una receta para costeo. Las categorías y los artículos se pueden ocultar de la caja y del menú público por separado, y la misma foto aparece en ambos.',
+    how: 'Los artículos llevan precio, una foto opcional (subida por un modal de recorte, convertida a WebP y guardada en Supabase), un tratamiento de IVA (iva16 / tasa0 / exento) y pueden ligarse a un artículo del inventario o a una receta para que cada venta descuente stock (requiere el Modo Avanzado, que desbloquea Inventario y Recetas). Las categorías y los artículos se pueden ocultar de la caja y del menú público por separado, y la misma foto aparece en ambos.',
     do: [
       { action: 'Agregar o editar un artículo', steps: 'Abre el editor, define nombre/precio/categoría y guarda.' },
       { action: 'Agregar una foto', steps: 'Sube una imagen y recórtala en el modal; se optimiza automáticamente.' },

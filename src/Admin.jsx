@@ -2062,6 +2062,7 @@ function Admin() {
         {/* Inside Admin.jsx */}
         {activeTab === 'menu' && (
           <MenuEditorTab
+            isAdvancedMode={generalSettings.isAdvancedMode === true}
             menuData={menuData}
             newCategoryName={newCategoryName}
             setNewCategoryName={setNewCategoryName}
