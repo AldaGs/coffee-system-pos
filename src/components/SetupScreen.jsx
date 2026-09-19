@@ -3115,14 +3115,14 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                       // can restore 'connect' vs 'new' instead of always defaulting to 'new'.
                       try { sessionStorage.setItem('tinypos_setup_mode', initialMode); } catch { /* noop */ }
 
-                      const clientId = import.meta.env.VITE_SUPABASE_MANAGEMENT_CLIENT_ID;
-                      const redirectUri = `${window.location.origin}/api/auth/callback`;
-
-                      // List the exact permissions we checked in the dashboard
-                      const requiredScopes = "api_gateway_keys_read api_keys_read database_read database_write";
-
-                      // We use encodeURIComponent to safely put the spaces into the URL
-                      window.location.href = `https://api.supabase.com/v1/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=install&scope=${encodeURIComponent(requiredScopes)}`;
+                      // /api/auth/start owns the whole handshake now: it
+                      // mints a random state and a PKCE verifier into
+                      // HttpOnly cookies, picks this flow's scopes, and
+                      // redirects on to Supabase. Without that state, a
+                      // crafted callback link could plant an attacker's
+                      // Management token in the owner's browser and have the
+                      // POS installed into the attacker's project.
+                      window.location.href = '/api/auth/start?flow=install';
                     }}
                     className="setup-cta-supabase"
                     style={{
