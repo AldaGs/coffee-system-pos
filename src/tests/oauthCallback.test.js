@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import crypto from 'crypto';
+import crypto from 'node:crypto';
+// Explicit import: src/ is linted with browser globals, where bare `process`
+// is undefined.
+import process from 'node:process';
 import handler from '../../api/auth/callback.js';
 import start from '../../api/auth/start.js';
 
