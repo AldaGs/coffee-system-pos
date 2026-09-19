@@ -152,7 +152,8 @@ const OPS = {
     },
   },
 
-  // POST /api/supabase?op=lockauth&projectRef=… — turn off public sign-ups.
+  // POST /api/supabase?op=lockauth&projectRef=… — turn off public sign-ups
+  // and turn on leaked-password checking.
   // Supabase leaves "Allow new users to sign up" ON by default, and the POS has
   // no use for it: accounts are created by the owner (setup) or by the device
   // pairing flow, both through the Management API. Left on, any stranger could
@@ -168,7 +169,13 @@ const OPS = {
       return proxy(
         res,
         `https://api.supabase.com/v1/projects/${encodeURIComponent(projectRef)}/config/auth`,
-        { method: 'PATCH', authHeader, body: { disable_signup: true } }
+        {
+          method: 'PATCH',
+          authHeader,
+          // password_hibp_enabled rejects passwords found in the Have I Been
+          // Pwned corpus (k-anonymity; only a hash prefix leaves the server).
+          body: { disable_signup: true, password_hibp_enabled: true },
+        }
       );
     },
   },
