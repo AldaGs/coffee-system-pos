@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import { buildCfdiUrl, ensureCfdiConfig } from '../../utils/cfdiUrl';
-import { readCustomDomain, persistCustomDomain } from '../../utils/customDomainSync';
+import { readCustomDomain, persistCustomDomain, backfillCustomDomain } from '../../utils/customDomainSync';
 
 function CfdiTab({ showAlert, showConfirm }) {
   const { t } = useTranslation();
@@ -22,6 +22,7 @@ function CfdiTab({ showAlert, showConfirm }) {
   const [domainStatus, setDomainStatus] = useState(null);
   const [showDomainConfig, setShowDomainConfig] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  useEffect(() => backfillCustomDomain('cfdi'), []);
 
   // --- Factura Global (closed periods) ---
   const [showGlobalConfig, setShowGlobalConfig] = useState(false);

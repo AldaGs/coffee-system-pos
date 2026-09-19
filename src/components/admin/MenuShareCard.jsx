@@ -14,7 +14,7 @@ import QRCode from 'qrcode';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { supabase } from '../../supabaseClient';
-import { readCustomDomain, persistCustomDomain, menuBaseUrl } from '../../utils/customDomainSync';
+import { readCustomDomain, persistCustomDomain, menuBaseUrl, backfillCustomDomain } from '../../utils/customDomainSync';
 
 const QR_SIZE = 180;       // rendered size in the card
 const QR_DOWNLOAD_SIZE = 1024; // larger version for the downloaded PNG
@@ -88,6 +88,8 @@ function MenuShareCard({ menuData }) {
   }, [projectRef, anonKey, missingCreds, supabaseUrl]);
 
   // On mount (and whenever creds change), upload the config.
+  useEffect(() => backfillCustomDomain('menu'), []);
+
   useEffect(() => {
     setTimeout(generateShortUrl, 0);
   }, [generateShortUrl]);

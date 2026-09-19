@@ -49,6 +49,17 @@ export function menuBaseUrl() {
 }
 
 /**
+ * Backfill: domains linked before cross-device sync live only in this device's
+ * localStorage. Push them to the synced settings once so other devices see them.
+ */
+export function backfillCustomDomain(kind) {
+  const local = localStorage.getItem(LS_KEY[kind]);
+  if (local && local !== cachedPosSettings()[POS_KEY[kind]]) {
+    persistCustomDomain(kind, local).catch(() => {});
+  }
+}
+
+/**
  * Persist (or clear, when `domain` is falsy) the custom domain for `kind` to:
  *   1. this device's localStorage (immediate local reads),
  *   2. the synced shop_settings.menu_data.posSettings (other devices),
