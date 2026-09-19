@@ -293,6 +293,21 @@ function MenuEditorTab({
                 </div>
               )}
 
+              {/* PUBLIC MENU VISIBILITY — same flag as the list's globe toggle.
+                  Local installs have no public menu, so the switch is cloud-only. */}
+              {!isLocalMode() && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px', padding: '14px 20px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                  <input
+                    type="checkbox"
+                    checked={!newItemForm.publicHidden}
+                    onChange={(e) => setNewItemForm({ ...newItemForm, publicHidden: !e.target.checked })}
+                    style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }}
+                  />
+                  <Icon icon="lucide:globe" style={{ color: 'var(--brand-color)' }} />
+                  {t('menu.showOnPublic')}
+                </label>
+              )}
+
               {/* INVENTORY TRACKING */}
               <div style={{ marginTop: '8px', background: 'var(--bg-main)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', marginBottom: '12px', color: 'var(--text-main)' }}>
@@ -612,6 +627,7 @@ function MenuEditorTab({
                                   inventoryMode: item.inventoryMode || 'none',
                                   linkedWarehouseId: item.linkedWarehouseId || '',
                                   linkedRecipeId: item.linkedRecipeId || '',
+                                  publicHidden: !!item.publicHidden,
                                   vendorId: item.vendorId || '',
                                   vendorUnitCost: item.vendorUnitCostCents ? String(fromCents(item.vendorUnitCostCents)) : ''
                                 });

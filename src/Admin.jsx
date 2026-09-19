@@ -993,6 +993,7 @@ function Admin() {
       inventoryMode: 'none',
       linkedWarehouseId: '',
       linkedRecipeId: '',
+      publicHidden: false,
       vendorId: '',
       vendorUnitCost: ''
     }));
@@ -1047,6 +1048,7 @@ function Admin() {
         inventoryMode: newItemForm.inventoryMode || 'none',
         linkedWarehouseId: newItemForm.linkedWarehouseId || '',
         linkedRecipeId: newItemForm.linkedRecipeId || '',
+        publicHidden: !!newItemForm.publicHidden,
         ...vendorFieldsForForm()
       };
 
@@ -1085,6 +1087,7 @@ function Admin() {
       inventoryMode: newItemForm.inventoryMode || 'none',
       linkedWarehouseId: newItemForm.linkedWarehouseId || '',
       linkedRecipeId: newItemForm.linkedRecipeId || '',
+      publicHidden: !!newItemForm.publicHidden,
       ...vendorFieldsForForm()
     };
     const updatedMenu = {

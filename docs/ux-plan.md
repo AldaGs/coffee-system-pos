@@ -24,7 +24,7 @@ and Help (`helpContent.js`) is updated in the same commit when behavior changes.
 - [x] **4. Empty-state links.** When the inventory or recipe dropdown is empty, show
   "+ Create inventory item" / "+ Create recipe" that jumps to that Admin tab.
   Files: `MenuEditorTab.jsx`, `Admin.jsx` (tab switch callback).
-- [ ] **5. "Show on public menu" switch in the product form**, bound to the existing
+- [x] **5. "Show on public menu" switch in the product form**, bound to the existing
   item `publicHidden` flag (inverted), default on. Keep the list's hide control.
   Files: `MenuEditorTab.jsx`, `EditDrinkModal.jsx` if the edit path is separate.
 - [ ] **6. "Sold out: hidden from public menu" badge** in the Menu Editor list, computed
