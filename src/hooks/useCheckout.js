@@ -132,8 +132,8 @@ export const useCheckout = (posState) => {
     if (onAfterCheckout) onAfterCheckout();
 
     // Fire-and-forget the heavy work. processCheckout already falls back to
-    // the offline syncQueue on cloud failures, so the only error we still
-    // need to surface synchronously to the cashier is insufficient stock.
+    // the offline syncQueue on cloud failures, and reports a failed stock
+    // deduction as result.deductionError (the sale is still recorded).
     processCheckout({
       activeTicket,
       cartTotal,
@@ -148,7 +148,15 @@ export const useCheckout = (posState) => {
         // item that no longer exists, so stock did NOT move for them. Silent
         // drift here is how counts quietly go wrong, so tell the cashier.
         const unresolved = result?.unresolvedTargets || [];
-        if (unresolved.length > 0) {
+        if (result?.deductionError) {
+          // The sale is saved and the ticket already closed — say so plainly,
+          // or "Checkout Error" reads as a failed sale and gets rung up again.
+          showAlert(
+            t ? t('register.stockFailedTitle') : 'Sale saved — inventory not updated',
+            (t ? t('register.stockFailedDesc') : 'The sale was recorded. Do not charge it again. Stock was not deducted: {{reason}}')
+              .replace('{{reason}}', result.deductionError)
+          );
+        } else if (unresolved.length > 0) {
           const names = [...new Set(unresolved.map(u => u.lineName || u.target))].join(', ');
           showAlert(
             t ? t('register.stockNotMovedTitle') : 'Inventory not updated',

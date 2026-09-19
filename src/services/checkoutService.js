@@ -200,6 +200,9 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   // the deduction and handed back to the caller so the cashier is told the sale
   // went through but stock did NOT move for these.
   let unresolvedTargets = [];
+  // Set when the stock deduction failed and was rolled back. The sale itself is
+  // still recorded (it's in syncQueue), only inventory didn't move.
+  let deductionError = null;
 
   try {
     // Immediately save to local Dexie
@@ -337,14 +340,10 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
       await db.inventory_logs.bulkPut(inventoryLogsToPush);
     }
 
-    if (isDeductionFailure) {
-      // Insufficient stock already reads clearly; wrap the technical RPC errors
-      // in an actionable message while preserving the detail for the console.
-      if (msg.includes('Insufficient stock')) throw error;
-      const wrapped = new Error(`Inventory was NOT deducted for this sale — ${msg}`);
-      wrapped.cause = error;
-      throw wrapped;
-    }
+    // Don't throw: the sale is recorded, so the tip, loyalty, discount-usage and
+    // activity records below must still run. The caller tells the cashier the
+    // sale was saved but stock didn't move (so they don't ring it up twice).
+    if (isDeductionFailure) deductionError = msg;
   }
 
   // Local ('guest') mode loyalty: the cloud trg_award_loyalty trigger doesn't
@@ -390,6 +389,6 @@ export const processCheckout = async ({ activeTicket, cartTotal, paymentsArray, 
   // cloud mode (recordEvent short-circuits), so it's safe to call unconditionally.
   useUpgradeNagStore.getState().trigger('sales_completed');
 
-  return { localAnalyticsRecord: finalizedSale, masterMethodString, unresolvedTargets };
+  return { localAnalyticsRecord: finalizedSale, masterMethodString, unresolvedTargets, deductionError };
 };
 

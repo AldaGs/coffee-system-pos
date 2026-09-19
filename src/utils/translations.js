@@ -1093,6 +1093,8 @@ export const translations = {
     "register.lowStockDesc": "The inventory for {{ingredient}} is at or below the threshold ({{qty}}).",
     "register.stockNotMovedTitle": "Inventory not updated",
     "register.stockNotMovedDesc": "The sale was saved, but stock was NOT deducted for: {{items}}. Check the inventory link for these products.",
+    "register.stockFailedTitle": "Sale saved — inventory not updated",
+    "register.stockFailedDesc": "The sale was recorded. Do not charge it again. Stock was not deducted: {{reason}}",
 
     // --- Checkout Modal ---
     "check.title": "Payment Checkout",
@@ -2575,6 +2577,8 @@ export const translations = {
     "register.lowStockDesc": "El inventario de {{ingredient}} está en o por debajo del límite ({{qty}}).",
     "register.stockNotMovedTitle": "Inventario no actualizado",
     "register.stockNotMovedDesc": "La venta se guardó, pero NO se descontó inventario de: {{items}}. Revisa el enlace de inventario de estos productos.",
+    "register.stockFailedTitle": "Venta guardada — inventario sin actualizar",
+    "register.stockFailedDesc": "La venta quedó registrada. No la cobres de nuevo. No se descontó inventario: {{reason}}",
 
     // --- Checkout Modal ---
     "check.title": "Pago de la Cuenta",
