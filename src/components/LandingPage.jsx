@@ -96,26 +96,21 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
             </span>
           </div>
 
-          {/* SECONDARY: advanced / cloud-backed setup (the original flow). */}
-          <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '28px' }}>
-            <button
-              onClick={() => onSelectMode('new')}
-              style={{ padding: '14px 28px', backgroundColor: 'white', color: '#0d3a66', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1rem', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s ease' }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0d3a66'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}
-            >
-              {t('landing.createCloud')}
-            </button>
+          {/* RETURNING USERS: sign in to a cloud-backed store. Local stores can't be
+              opened from another device, so say so right here. */}
+          <p style={{ marginTop: '28px', marginBottom: '6px', fontSize: '1.05rem', color: '#0d3a66' }}>
+            {t('landing.signInPrompt')}{' '}
+            <button onClick={() => onSelectMode('connect')} style={linkButton}>{t('landing.signIn')}</button>
+          </p>
+          <p style={{ margin: '0 auto', maxWidth: '520px', fontSize: '0.9rem', color: '#94a3b8', lineHeight: '1.4' }}>
+            {t('landing.deviceNote')}
+          </p>
 
-            <button
-              onClick={() => onSelectMode('connect')}
-              style={{ padding: '14px 28px', backgroundColor: 'white', color: '#0d3a66', border: '2px solid #e2e8f0', borderRadius: '14px', fontSize: '1rem', fontWeight: '800', cursor: 'pointer', transition: 'all 0.2s ease' }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0d3a66'; e.currentTarget.style.backgroundColor = '#f8fafc'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.backgroundColor = 'white'; }}
-            >
-              {t('landing.connect')}
-            </button>
-          </div>
+          {/* NEW STORE ON THE CLOUD FROM DAY ONE (the original setup flow), demoted:
+              local stores can upgrade later from General Settings. */}
+          <p style={{ marginTop: '18px', fontSize: '0.95rem', color: '#546e7a' }}>
+            <button onClick={() => onSelectMode('new')} style={{ ...linkButton, fontWeight: 600, color: '#546e7a' }}>{t('landing.createCloud')}</button>
+          </p>
 
           {/* --- ADD THIS SECONDARY LINK --- */}
           <button
@@ -181,6 +176,8 @@ export default function LandingPage({ onSelectMode, onShowGuide }) {
     </div>
   );
 }
+
+const linkButton = { background: 'none', border: 'none', padding: 0, color: '#0d3a66', fontWeight: 800, fontSize: 'inherit', textDecoration: 'underline', textUnderlineOffset: '4px', cursor: 'pointer' };
 
 function FeatureCard({ icon, title, desc, color, href, linkLabel }) {
   return (
