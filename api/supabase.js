@@ -152,6 +152,27 @@ const OPS = {
     },
   },
 
+  // POST /api/supabase?op=lockauth&projectRef=… — turn off public sign-ups.
+  // Supabase leaves "Allow new users to sign up" ON by default, and the POS has
+  // no use for it: accounts are created by the owner (setup) or by the device
+  // pairing flow, both through the Management API. Left on, any stranger could
+  // create an account on the project -- and until the allowlist landed in the
+  // RLS policies (migration 042), that account could read and write every
+  // table. Called right after the schema install, and non-fatal: a failure
+  // here must not fail a working install, so the client reports it instead.
+  lockauth: {
+    method: 'POST',
+    handle: (req, res, authHeader) => {
+      const { projectRef } = req.query;
+      if (!projectRef) return res.status(400).json({ error: 'Missing projectRef' });
+      return proxy(
+        res,
+        `https://api.supabase.com/v1/projects/${encodeURIComponent(projectRef)}/config/auth`,
+        { method: 'PATCH', authHeader, body: { disable_signup: true } }
+      );
+    },
+  },
+
   // POST /api/supabase?op=clear — burn-after-reading: the client calls this
   // when a setup/device/schema flow finishes so the Management token cookie is
   // dropped immediately instead of lingering until Max-Age. Needs no token.
