@@ -50,5 +50,9 @@ They are implemented and verified in this repo; point each session at the file.
 - **`ALTER DEFAULT PRIVILEGES` is already set** on `public` by tinypos migration 041. Any
   new function whose public page calls it now needs an explicit
   `GRANT EXECUTE ... TO anon`.
+- **Pin `search_path` to `public, extensions`, never bare `public`.** Supabase installs
+  pgcrypto into `extensions`; a bare `public` pin breaks every `gen_random_bytes`, `crypt`,
+  `gen_salt`, `digest` and `hmac` call at runtime. This has already caused one production
+  outage — see `tinylogistics-search-path-incident.md`.
 - **One repo per session.** These changes are per-app; mixing them makes the blast radius
   impossible to reason about.

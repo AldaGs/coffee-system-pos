@@ -1,33 +1,11 @@
 import { db } from '../db';
-import { supabase } from '../supabaseClient';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
-import { isLocalMode } from '../utils/appMode';
-import { isCloudReachable } from '../utils/network';
-
-// Mirror an active_ticket mutation to the cloud. If offline or the write fails,
-// stash the patch on db.updateQueue so attemptBackgroundSync can replay it.
-export const pushActiveTicketUpdate = (ticketId, patch) => {
-  // Local ('guest') mode: the Dexie write by the caller is authoritative and
-  // these are ephemeral — nothing to mirror or queue.
-  if (isLocalMode()) return;
-
-  const enqueue = () => db.updateQueue.add({
-    type: 'active_ticket_update',
-    ticket_id: ticketId,
-    data: patch,
-    local_id: crypto.randomUUID()
-  }).catch(err => console.error('Failed to queue active_ticket_update:', err));
-
-  // A known-slow link (breaker open) queues immediately rather than firing a
-  // cloud write per keystroke/tap that would each stall — the local Dexie write
-  // already happened, so the queued patch is pure catch-up.
-  if (!isCloudReachable()) { enqueue(); return; }
-
-  supabase.from('active_tickets').update(patch).eq('id', ticketId)
-    .then(({ error }) => { if (error) { console.warn('Cloud active_ticket update failed, queuing:', error); enqueue(); } })
-    .catch(err => { console.warn('Cloud active_ticket update threw, queuing:', err); enqueue(); });
-};
+import {
+  pushActiveTicketCreate,
+  pushActiveTicketDeletion,
+  pushActiveTicketUpdate
+} from '../services/ticketSync';
 
 // All active-ticket CRUD lives here. The hook is intentionally dumb: it
 // receives the data it needs (active cashier, device id, recipes, etc.) and
@@ -66,13 +44,7 @@ export function useTickets({
 
     await db.active_tickets.add(newTicket);
 
-    if (!isLocalMode() && isCloudReachable()) {
-      try {
-        await supabase.from('active_tickets').insert([newTicket]);
-      } catch (err) {
-        console.error('Cloud create failed:', err);
-      }
-    }
+    pushActiveTicketCreate(newTicket);
 
     setActiveTicketId(newId);
     setNextOrderNum(currentNum + 1);
@@ -126,13 +98,7 @@ export function useTickets({
 
         await db.active_tickets.update(activeTicket.id, { name: newName });
 
-        if (!isLocalMode() && isCloudReachable()) {
-          try {
-            await supabase.from('active_tickets').update({ name: newName }).eq('id', activeTicket.id);
-          } catch (err) {
-            console.error('Cloud rename failed:', err);
-          }
-        }
+        pushActiveTicketUpdate(activeTicket.id, { name: newName });
       },
       '',
       t('ticket.btnRename'),
@@ -144,13 +110,7 @@ export function useTickets({
     if (!activeTicket) return;
     const ticketIdToDelete = activeTicket.id;
     await db.active_tickets.delete(ticketIdToDelete);
-    if (!isLocalMode() && isCloudReachable()) {
-      try {
-        await supabase.from('active_tickets').delete().eq('id', ticketIdToDelete);
-      } catch (err) {
-        console.error('Cloud delete failed:', err);
-      }
-    }
+    await pushActiveTicketDeletion(ticketIdToDelete);
     const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
     if (remainingTickets.length > 0) {
       const nextVisible = remainingTickets.find(tk => posSettings.ticketVisibility === 'open' || tk.cashier_id === activeCashier?.id);

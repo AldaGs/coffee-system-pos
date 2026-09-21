@@ -52,9 +52,16 @@ All `USING (true)`: any account that can sign in to the project reads them. Repl
 `USING (public.is_app_user(auth.uid()))` — see tinypos `db/migrations/042`. Employee records
 are personal data; treat this as the priority of the two.
 
-### 3. No pinned `search_path` — **Low**
+### 3. No pinned `search_path` — **Low**, but pin it to `public, extensions`
 
 All seven functions above. See tinypos `046`.
+
+> **Correction, 2026-09-21.** This item was actioned with a bare `SET search_path TO
+> 'public'`, which broke `gen_tracking_token` (it calls `gen_random_bytes`, and pgcrypto
+> lives in the `extensions` schema) and took the tinypos register down for active-ticket
+> sync. The value is always **`public, extensions`** — that is what tinypos `046` uses.
+> Fixed by hand on the live database; still needs writing into this repo. Full incident and
+> remaining work: `tinylogistics-search-path-incident.md` in this folder.
 
 ### 4. Worth checking while you are in there
 

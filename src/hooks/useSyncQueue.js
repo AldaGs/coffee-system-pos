@@ -20,7 +20,7 @@ export function useSyncQueue({ expenseQueue, clearExpenseQueue, onAuthError, int
 
   useEffect(() => {
     const runSync = async () => {
-      const authError = await attemptBackgroundSync(queueRef.current, () => clearRef.current?.());
+      const { authError } = await attemptBackgroundSync(queueRef.current, () => clearRef.current?.());
       if (authError) {
         console.warn('Auth error detected during sync background task.');
         onAuthErrorRef.current?.();

@@ -50,7 +50,10 @@ function summarizeInventoryLog(l) {
 
 function summarizeUpdate(u) {
   const target = u.local_id || u.cloud_id || u.ticket_id || '—';
-  return `${u.type || 'update'} → ${target}`;
+  const base = `${u.type || 'update'} → ${target}`;
+  // Surface why a row isn't draining. Without this a wedged update is
+  // indistinguishable from one that simply hasn't been tried yet.
+  return u.last_error ? `${base} · ⚠ ${u.last_error}` : base;
 }
 
 function summarizeWa(w) {
@@ -180,7 +183,7 @@ export default function PendingSyncCard({ showAlert, showConfirm }) {
 
   // --- Try sync now ---
   const handleTrySync = () => lockBusy(async () => {
-    const authError = await attemptBackgroundSync(expenseQueue, () => {
+    const { authError, stuck } = await attemptBackgroundSync(expenseQueue, () => {
       localStorage.setItem(LS_EXPENSE_QUEUE, '[]');
       setExpenseQueue([]);
     });
@@ -189,6 +192,13 @@ export default function PendingSyncCard({ showAlert, showConfirm }) {
     setWaQueue(readLsQueue(LS_WA_QUEUE));
     if (authError) {
       showAlert(t('pendingSync.authErrorTitle'), t('pendingSync.authErrorDesc'));
+    } else if (stuck > 0) {
+      // Don't claim success when rows are wedged: say so, and let the per-row
+      // summaries below show the error the server actually returned.
+      showAlert(
+        t('pendingSync.stuckTitle'),
+        t('pendingSync.stuckDesc').replace('{count}', stuck)
+      );
     } else {
       showAlert(t('pendingSync.syncDoneTitle'), t('pendingSync.syncDoneDesc'));
     }
