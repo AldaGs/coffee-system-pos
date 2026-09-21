@@ -3,6 +3,7 @@ import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
 import { cleanPhone, isValidPhone } from '../utils/customerCapture';
+import { pushActiveTicketUpdate } from '../services/ticketSync';
 
 export const computeStarsForTicket = (ticket, loyaltySettings) => {
   if (!ticket || !loyaltySettings) return 0;
@@ -89,9 +90,7 @@ export const useLoyalty = (posState) => {
     if (activeTicket) {
       try {
         await db.active_tickets.update(activeTicket.id, { loyalty_phone: cleanPhone });
-        if (!isLocalMode() && isCloudReachable()) {
-          supabase.from('active_tickets').update({ loyalty_phone: cleanPhone }).eq('id', activeTicket.id);
-        }
+        pushActiveTicketUpdate(activeTicket.id, { loyalty_phone: cleanPhone });
       } catch (err) {
         console.warn("Could not attach loyalty phone to active ticket:", err);
       }
@@ -150,9 +149,7 @@ export const useLoyalty = (posState) => {
     //    attach step in handleCheckLoyalty so both paths behave identically.
     try {
       await db.active_tickets.update(activeTicket.id, { loyalty_phone: phone });
-      if (!isLocalMode() && isCloudReachable()) {
-        supabase.from('active_tickets').update({ loyalty_phone: phone }).eq('id', activeTicket.id);
-      }
+      pushActiveTicketUpdate(activeTicket.id, { loyalty_phone: phone });
     } catch (err) {
       console.warn('Could not attach customer phone to active ticket:', err);
     }
@@ -207,11 +204,7 @@ export const useLoyalty = (posState) => {
         items: updatedItems,
         loyalty_stars_pending: target
       });
-      if (!isLocalMode() && isCloudReachable()) {
-        supabase.from('active_tickets')
-          .update({ items: updatedItems, loyalty_stars_pending: target })
-          .eq('id', activeTicket.id);
-      }
+      pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, loyalty_stars_pending: target });
     } catch (err) {
       console.warn("Could not persist redemption:", err);
     }
@@ -244,11 +237,7 @@ export const useLoyalty = (posState) => {
         loyalty_stars_pending: 0,
         items
       });
-      if (!isLocalMode() && isCloudReachable()) {
-        supabase.from('active_tickets')
-          .update({ loyalty_phone: null, loyalty_stars_pending: 0, items })
-          .eq('id', activeTicket.id);
-      }
+      pushActiveTicketUpdate(activeTicket.id, { loyalty_phone: null, loyalty_stars_pending: 0, items });
     } catch (err) {
       console.warn("Could not detach loyalty from ticket:", err);
     }

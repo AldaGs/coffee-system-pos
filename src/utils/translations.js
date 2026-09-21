@@ -582,6 +582,8 @@ export const translations = {
     "pendingSync.syncDoneDesc": "Background sync ran. Whatever could be uploaded is now in the cloud.",
     "pendingSync.authErrorTitle": "Auth error during sync",
     "pendingSync.authErrorDesc": "The cloud rejected the request. Sign out and back in, then try again.",
+    "pendingSync.stuckTitle": "Some items could not be synced",
+    "pendingSync.stuckDesc": "{count} queued item(s) keep being rejected by the cloud and have stopped retrying. Nothing was lost — the reason is shown next to each one below. Send that message to support if it is not clear.",
 
     // --- Discounts Tab ---
     "disc.title": "Automated Discount Rules",
@@ -2106,6 +2108,8 @@ export const translations = {
     "pendingSync.syncDoneDesc": "La sincronización se ejecutó. Lo que se pudo subir ya está en la nube.",
     "pendingSync.authErrorTitle": "Error de autenticación al sincronizar",
     "pendingSync.authErrorDesc": "La nube rechazó la solicitud. Cierra sesión, vuelve a entrar y reintenta.",
+    "pendingSync.stuckTitle": "Algunos elementos no se pudieron sincronizar",
+    "pendingSync.stuckDesc": "La nube sigue rechazando {count} elemento(s) en cola y ya no se reintentarán. No se perdió nada: el motivo aparece junto a cada uno abajo. Envía ese mensaje a soporte si no queda claro.",
 
     // --- Discounts Tab ---
     "disc.title": "Reglas de Descuento Automáticas",

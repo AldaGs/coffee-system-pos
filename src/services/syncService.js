@@ -4,24 +4,59 @@ import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
 import { chunkArray, runSyncChunk } from '../utils/syncBatch';
 
+// How many times a single updateQueue row is retried before it is treated as
+// stuck. A row that fails this often is not going to drain on its own — it needs
+// a human (or a server-side fix) — so we stop spending a request on it every
+// interval and surface it instead. The row itself is never discarded: it holds
+// cashier-entered data, and dropping it silently is the failure mode this whole
+// change exists to remove.
+export const MAX_UPDATE_ATTEMPTS = 5;
+
+// Record a failed attempt on a queued update, keeping the payload intact.
+// Dexie stores are schemaless per row, so these fields need no version bump.
+const markUpdateFailed = async (update, error) => {
+  const attempts = (update.attempts || 0) + 1;
+  try {
+    await db.updateQueue.update(update.id, {
+      attempts,
+      last_error: `${error?.code || error?.status || 'error'}: ${error?.message || 'unknown'}`,
+      last_attempt_at: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Failed to record updateQueue failure:', err);
+  }
+  if (attempts >= MAX_UPDATE_ATTEMPTS) {
+    console.error(
+      `updateQueue row ${update.id} (${update.type}) stuck after ${attempts} attempts:`,
+      error?.message || error
+    );
+  }
+};
+
+// Returns { authError, stuck } — `stuck` is the number of queued updates that
+// have exhausted MAX_UPDATE_ATTEMPTS and will not drain without intervention.
 export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => {
   // Local ('guest') mode has no cloud project to sync to — data lives only in
   // Dexie. No-op so the interval/online listener never touch a null client.
-  if (isLocalMode() || !supabase) return false;
+  if (isLocalMode() || !supabase) return { authError: false, stuck: 0 };
 
   // Don't try if we are offline — or if the cloud is known-unreachable (a slow
   // link that already tripped the breaker). Retrying here would just stall the
   // whole sync batch behind one timeout.
-  if (!isCloudReachable()) return false;
+  if (!isCloudReachable()) return { authError: false, stuck: 0 };
 
   let hasAuthError = false;
+  let stuckUpdates = 0;
 
   try {
     // Check if we have a valid session before starting
     const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
     if (sessionErr || !session) {
       console.warn("Background sync skipped: No active session or session error.", sessionErr?.message);
-      return (sessionErr?.status === 400 || sessionErr?.status === 401);
+      return {
+        authError: (sessionErr?.status === 400 || sessionErr?.status === 401),
+        stuck: 0
+      };
     }
 
     // 1. Sync Sales (Pulling directly from Dexie). Chunked so a big backlog can't
@@ -200,9 +235,17 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     }
 
     // 4. Sync Updates (Refunds, Loyalty, Deletions)
+    //
+    // Rows drain in insertion order, which matters: an `active_ticket_upsert`
+    // queued when a ticket's INSERT failed must replay before the patches that
+    // were queued behind it.
     const pendingUpdates = await db.updateQueue.toArray();
     if (pendingUpdates.length > 0) {
       for (const update of pendingUpdates) {
+        // Already past the attempt cap: leave the row untouched (it still holds
+        // the cashier's data) and just keep it counted as stuck.
+        if ((update.attempts || 0) >= MAX_UPDATE_ATTEMPTS) { stuckUpdates++; continue; }
+
         try {
           let error = null;
           if (update.type === 'sale_update') {
@@ -231,15 +274,36 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
           } else if (update.type === 'active_ticket_update') {
             const { error: err } = await supabase.from('active_tickets').update(update.data).eq('id', update.ticket_id);
             error = err;
+          } else if (update.type === 'active_ticket_upsert') {
+            const { error: err } = await supabase
+              .from('active_tickets').upsert([update.data], { onConflict: 'id' });
+            error = err;
+          } else {
+            // Unrecognised type. Falling through with `error === null` would
+            // DELETE the row and lose whatever it was carrying, so treat it as
+            // a failure and let the attempt cap surface it instead.
+            error = { message: `unknown updateQueue type "${update.type}"` };
           }
 
           if (!error) {
             await db.updateQueue.delete(update.id);
           } else if (error.status === 400 || error.status === 401) {
             hasAuthError = true;
+          } else {
+            // Anything else (a 404 from a trigger raising inside the write, a
+            // 5xx, a stale schema cache) used to leave the row queued with no
+            // record that it had failed — so it retried every 60s forever while
+            // the Pending Sync card reported success. Count the attempts and
+            // keep the last error on the row: the data is still preserved, but
+            // a genuinely stuck row now stops burning requests and can be shown
+            // to the user with the reason attached.
+            await markUpdateFailed(update, error);
+            if ((update.attempts || 0) + 1 >= MAX_UPDATE_ATTEMPTS) stuckUpdates++;
           }
         } catch (updateErr) {
           console.error("Failed to sync update:", updateErr);
+          await markUpdateFailed(update, updateErr);
+          if ((update.attempts || 0) + 1 >= MAX_UPDATE_ATTEMPTS) stuckUpdates++;
         }
       }
     }
@@ -271,5 +335,5 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
     console.error("Global background sync error:", err);
   }
 
-  return hasAuthError;
+  return { authError: hasAuthError, stuck: stuckUpdates };
 };
