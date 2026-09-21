@@ -1,47 +1,86 @@
 # 11 · Descuentos Automáticos
 
-⏱️ 4–5 min · 👤 Administrador · 📍 Admin → **Descuentos Automáticos** · 🔒 Modo Avanzado
+⏱️ 6–7 min · 👤 Administrador · 📍 Admin → **Descuentos Automáticos** · 🔒 Modo Avanzado
 
-> Objetivo: crear reglas de descuento que se apliquen solas y configurar los
-> descuentos manuales protegidos por PIN.
+> Objetivo: crear reglas de promoción —porcentaje, monto fijo, 2x1 y combos—
+> con sus condiciones, límites y códigos, y definir la política de descuentos
+> manuales en la caja.
 
 ---
 
 ## Introducción
 
-🎙️ «Los descuentos automáticos te ahorran trabajo en la caja: defines la regla
-una vez y se aplica sola cuando se cumple la condición.»
+🎙️ «Esto no es un simple interruptor de 10%: es un motor de promociones. Defines
+la regla una vez y la caja la aplica sola cuando el ticket califica.»
 
 🖱️ Entra a **Admin → Descuentos Automáticos** (ícono de porcentaje).
 
 ---
 
-## Paso 1 — Crear una regla
+## Paso 1 — El disparador: automático o manual
 
-🖱️ Pulsa **«Nueva regla»**. Elige el tipo: **porcentaje** (ej. 10%) o **monto
-fijo** (ej. $20).
+🖱️ Pulsa **«Nueva regla»** y nómbrala.
 
-🖱️ Define la **condición** (ej. cierto producto, hora del día, monto mínimo).
-
-🎙️ «Por ejemplo: 2x1 en la hora feliz, o 10% a estudiantes.»
+🖱️ Elige el **disparador**: **Automática** (se aplica sola en cuanto el carrito
+califica) o **Manual** (la aplica el cajero, opcionalmente con un **código de
+cupón** que el cliente presenta).
 
 ---
 
-## Paso 2 — Descuentos manuales y PIN
+## Paso 2 — El beneficio
 
-🎙️ «Además de los automáticos, el cajero puede aplicar un descuento manual en la
-caja. Esa acción está protegida por PIN.»
+🖱️ Elige el tipo de beneficio:
+
+- **Estándar** — porcentaje o monto fijo, sobre todo el carrito o sobre un
+  producto específico.
+- **Compra X, llévate Y** — el clásico 2x1: defines cuántos compra y cuántos paga.
+- **Precio de combo** — un precio fijo para un conjunto de productos.
+
+---
+
+## Paso 3 — Condiciones
+
+🖱️ Define cuándo aplica: **productos requeridos** con cantidad mínima, **subtotal
+mínimo**, **tipo de cliente** (por ejemplo, solo miembros de lealtad), **días de
+la semana**, **fecha de inicio y fin** y una **ventana de hora feliz**.
+
+🎙️ «Ejemplo: 2x1 en café de filtro, de lunes a jueves, de 4 a 6 de la tarde.»
+
+---
+
+## Paso 4 — Límites y prioridad
+
+🖱️ Pon los topes: **máximo de canjes**, **máximo por día**, **presupuesto
+máximo**, **descuento máximo por ticket**.
+
+🖱️ Define la **prioridad** (qué regla gana cuando aplican varias) y si **puede
+acumularse** con otras.
+
+🖱️ Activa **requiere aprobación** si aplicarla debe pedir PIN de gerente.
+
+💡 Las reglas pueden ser recurrentes o de **un solo uso**; las de un solo uso se
+consumen al cobrar.
+
+---
+
+## Paso 5 — Descuentos manuales y PIN
+
+🎙️ «Además de las reglas, el cajero puede aplicar un descuento manual en la caja.
+Esa acción está protegida por PIN.»
 
 💡 Si activaste **Requerir Gerente para Acciones Sensibles** en General, un
-Empleado necesitará el PIN de un Gerente o Administrador para aplicar un
-descuento manual, y queda registrado quién lo autorizó.
+Empleado necesitará el PIN de un Gerente o Administrador, y queda registrado
+quién lo autorizó en el Registro de Actividad.
 
 ---
 
-## Paso 3 — Probar
+## Paso 6 — Probar y medir
 
 🖱️ Ve a la caja y arma un ticket que cumpla la condición; muestra cómo el
-descuento aparece solo.
+descuento aparece solo y con el nombre de la regla.
+
+🖱️ Regresa al panel y revisa el **reporte de desempeño de promociones** para ver
+cuánto costó cada regla.
 
 ---
 
@@ -50,7 +89,9 @@ descuento aparece solo.
 🖱️ **Guardar**.
 
 ### ✅ Checklist
-- [ ] Regla creada (tipo y condición)
+- [ ] Regla creada (disparador, beneficio y condiciones)
+- [ ] Límites, prioridad y acumulación definidos
+- [ ] Código de cupón configurado (si aplica)
 - [ ] Política de descuento manual definida
 - [ ] Probado en la caja
 

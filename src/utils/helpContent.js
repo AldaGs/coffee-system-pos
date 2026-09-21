@@ -118,7 +118,7 @@ const en = [
     icon: 'lucide:lock',
     title: 'Lock, cashiers & security',
     what: 'Lock the register between users and switch cashiers with PINs.',
-    how: 'Each cashier has a role (employee / manager / admin). Two optional toggles tighten access: "Restrict Admin Panel" hides the Admin button for non-admins, and "Require Manager for Sensitive Actions" changes who can approve refunds, voids, expenses, and manual discounts. Both are off by default. With it off, those actions ask everyone for the admin PIN; with it on, managers and admins go straight through and an Employee needs a Manager/Admin PIN, recorded in the activity log.',
+    how: 'Each cashier has a role (employee / manager / admin). Two optional toggles tighten access: "Restrict Admin Panel" hides the Admin button for non-admins, and "Require Manager for Sensitive Actions" changes who can approve refunds, voids, expenses, and manual discounts. Both are off by default. With it off, those actions ask everyone for the admin PIN; with it on, managers and admins go straight through and an Employee needs a Manager/Admin PIN, recorded in the activity log. Too many wrong PINs in a row lock the pad for a moment: the screen says it is a lockout and counts down, so a cashier whose PIN is right just waits it out.',
     do: [
       { action: 'Lock the screen', steps: 'Tap "Lock"; the next user unlocks with their PIN.' },
       { action: 'Switch cashier', steps: 'Lock, then unlock with a different cashier PIN.' },
@@ -522,7 +522,7 @@ const es = [
     icon: 'lucide:lock',
     title: 'Bloqueo, cajeros y seguridad',
     what: 'Bloquea la caja entre usuarios y cambia de cajero con PIN.',
-    how: 'Cada cajero tiene un rol (empleado / gerente / admin). Dos interruptores opcionales refuerzan el acceso: "Restringir panel de administración" oculta el botón Admin a los no administradores, y "Requerir gerente para acciones sensibles" cambia quién puede aprobar reembolsos, cancelaciones, gastos y descuentos manuales. Ambos vienen apagados. Apagado, esas acciones piden a todos el PIN de admin; encendido, gerentes y admins pasan directo y un empleado necesita PIN de gerente/admin, que queda en la bitácora.',
+    how: 'Cada cajero tiene un rol (empleado / gerente / admin). Dos interruptores opcionales refuerzan el acceso: "Restringir panel de administración" oculta el botón Admin a los no administradores, y "Requerir gerente para acciones sensibles" cambia quién puede aprobar reembolsos, cancelaciones, gastos y descuentos manuales. Ambos vienen apagados. Apagado, esas acciones piden a todos el PIN de admin; encendido, gerentes y admins pasan directo y un empleado necesita PIN de gerente/admin, que queda en la bitácora. Si se escriben varios PIN equivocados seguidos, el teclado se bloquea un momento: la pantalla avisa que es un bloqueo temporal y muestra la cuenta regresiva, así que si tu PIN es correcto solo hay que esperar.',
     do: [
       { action: 'Bloquear la pantalla', steps: 'Toca "Bloquear"; el siguiente usuario desbloquea con su PIN.' },
       { action: 'Cambiar de cajero', steps: 'Bloquea y luego desbloquea con el PIN de otro cajero.' },

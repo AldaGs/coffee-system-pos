@@ -58,6 +58,19 @@ empieza por tus productos estrella.»
 
 ---
 
+## Paso 5 — Crear el producto desde la receta
+
+🎙️ «Una receta por sí sola no se vende: hay que crear el producto que la usa.»
+
+🖱️ Si la receta todavía no tiene producto, usa **«Crear producto desde la
+receta»** (antes se llamaba «Publicar en el menú»). Al guardar, el sistema te
+dice en qué categoría del menú quedó el producto nuevo.
+
+💡 También puedes ir al revés: desde el formulario de un producto, en **Menú**,
+toca «Nueva receta para este producto».
+
+---
+
 ## Cierre
 
 🖱️ **Guardar**.
@@ -69,5 +82,6 @@ Vamos a configurar ese inventario.»
 - [ ] Producto seleccionado
 - [ ] Ingredientes con cantidad y unidad
 - [ ] Margen objetivo / precio recomendado revisado
+- [ ] Producto creado desde la receta (si no existía)
 
 ➡️ Siguiente: [06 · Inventario y El Tostador](06-tab-inventario.md)

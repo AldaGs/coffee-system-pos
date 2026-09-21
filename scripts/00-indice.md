@@ -27,6 +27,7 @@ se hace en pantalla (🖱️ acción), pensado para grabarse de corrido.
 | 17 | [Historial de Tickets](17-tab-historial.md) | Administrador |
 | 18 | [Registro de Actividad](18-tab-actividad.md) | Administrador |
 | 19 | [Flujo de la Caja Registradora](19-flujo-caja.md) | Cajero / barista |
+| 20 | [Portal CFDI (facturación)](20-tab-cfdi.md) | Administrador / contador |
 
 ## Convenciones usadas en los guiones
 

@@ -16,7 +16,7 @@
 
 [![Vitest](https://img.shields.io/badge/Tested-Vitest-yellow.svg)](https://vitest.dev/)
 
-[![Schema](https://img.shields.io/badge/Schema-v0.5-blue.svg)](db/MIGRATIONS.md)
+[![Schema](https://img.shields.io/badge/Schema-v1.6-blue.svg)](db/MIGRATIONS.md)
 
 
 
@@ -70,7 +70,11 @@ A second sign-up path (design in [`docs/local-first-mode-plan.md`](docs/local-fi
 
 - Cashier PINs are bcrypt-hashed via `pgcrypto` and verified server-side through the `verify_pin` RPC — never compared in the browser.
 
-- Inventory deductions go through the atomic `deduct_inventory` RPC to prevent race conditions across terminals.
+- Inventory deductions go through the atomic `deduct_inventory` RPC to prevent race conditions across terminals — and are **idempotent per originating log** (migrations `034`/`038`), so a timed-out retry on a slow link never double-decrements.
+
+- **Schema 1.6 lockdown** (full write-up in [`docs/SECURITY-1.6.md`](docs/SECURITY-1.6.md)): the public CFDI portal talks only to `SECURITY DEFINER` RPCs (`039`) and the blanket `anon` policies it used to need are gone (`040`); `EXECUTE` is revoked from the roles Supabase grants by default and re-granted per function (`041`); `authenticated` policies check the `app_users` allowlist instead of `USING (true)` (`042`); `cashier_pins` is unreadable by any client role (`043`); `verify_pin` and the CFDI lookup are rate-limited with a countdown the UI shows (`044`/`045`); every `SECURITY DEFINER` function pins `search_path` (`046`).
+
+- The Supabase **Management token lives in an HttpOnly cookie**, never in the URL, and the OAuth round-trip uses PKCE with a verified `state`.
 
 
 
@@ -118,7 +122,7 @@ All of these share a single Supabase project per tenant.
 
 - PIN-protected discounts (percentage or flat) via `discountRules`.
 
-- Expense logging from the POS surface.
+- Expense logging from the POS surface, tagged by **payment source** — caja chica / banco / dueño (migration `028`) — so bank- and owner-paid costs stay out of the cash-drawer corte.
 
 - Live sync status indicator; full i18n (EN/ES).
 
@@ -213,6 +217,28 @@ A full multi-menu platform layered on top of TinyPOS, served from the same deplo
 
 **Per-menu deep links + share UI** — each menu has a shareable card with a QR code and a copy-link button. The Settings tab shows a "Tu menú público" panel with the same share UI.
 
+### 🧾 CFDI Portal (Mexico)
+
+Receipts can carry a **CFDI QR** (Receipt Settings). The customer scans it and lands on a public portal ([`src/components/PublicCFDI.jsx`](src/components/PublicCFDI.jsx)) that collects their fiscal data — RFC, razón social, régimen, CP, uso CFDI — or extracts most of it from an uploaded **Constancia de Situación Fiscal PDF** ([`src/utils/constanciaFiscal.js`](src/utils/constanciaFiscal.js)). The request lands in Admin → CFDI as *Pending*; the operator issues the actual invoice in the SAT/PAC (the POS does **not** stamp CFDIs) and records the folio to mark it *Issued*. **Factura Global** periods (migration `033`) close a month so its tickets can no longer be requested individually, with a reconciliation summary before closing. The portal reaches the database only through `cfdi_lookup_ticket` / `cfdi_request_invoice` RPCs (`039`), rate-limited per ticket reference.
+
+### 🏷️ Discounts & Promotions Engine ([`src/utils/discountEngine.js`](src/utils/discountEngine.js))
+
+Rules, not a flat toggle: percentage / fixed amount, **Buy X Get Y**, and fixed **combo pricing**; automatic or cashier-applied (with optional **coupon codes**); conditions on items, minimum subtotal, customer/loyalty targeting, weekday and **happy-hour time windows**; guardrails for max redemptions, per-day uses, **budget caps**, max discount cap, priority and stacking; optional **manager approval**. Single-use rules are consumed at checkout and a promo performance report shows what each rule actually cost. Covered by [`src/tests/discountEngine.test.js`](src/tests/discountEngine.test.js).
+
+### 🔥 Roast / Production Lot Traceability
+
+Lot-tracked inventory items (roasted coffee, in-house syrups, prepped food) get a **lot per received or produced batch** (migration `035`) carrying both a `made_date` (roasted) and a `received_date` — they differ when roasting is outsourced. Checkout draws **FIFO by roast date** and writes one `lot_consumptions` row per lot touched (`036`), so any sold bag traces back to the roast it came from, and the inventory audit reconciles lots against stock.
+
+### 🌐 Custom Domains & Suite SSO
+
+- **Custom domains** for the public menu and the CFDI portal, linked from the admin panel through the Vercel Domains API ([`api/domains.js`](api/domains.js)) with guided DNS instructions, verified via a `_tinypos` TXT record and routed by [`middleware.js`](middleware.js). The link is stored in `posSettings` ([`src/utils/customDomainSync.js`](src/utils/customDomainSync.js)) so it follows the tenant across devices instead of living in one browser's localStorage.
+
+- **Suite SSO hub** at `/authorize` — TinyPOS hands the Supabase connection + session to the sibling apps (TinyLogistics, TinyKDS, TinyBooks) so a tenant configures its project once; consumers fall back to standalone when TinyPOS isn't present.
+
+### 🆘 In-app Help ([`src/utils/helpContent.js`](src/utils/helpContent.js))
+
+A bilingual (ES/EN) Help tab covering every register flow and admin tab — what it is, how it works, and step-by-step *do this* recipes, with per-field glossaries for Analytics and Inventory. The same content drives the contextual help modals. Spanish tutorial scripts for recording walkthroughs live in [`scripts/`](scripts).
+
 ### 📱 Loyalty + Receipts
 
 - Phone-number loyalty with both **recurring** and **single-use** programs (see migrations `006`–`008`). Accrual is bound to `sales` inserts via a Postgres trigger, so receipt resends never double-count.
@@ -227,7 +253,7 @@ A full multi-menu platform layered on top of TinyPOS, served from the same deplo
 
 
 
-## 🔐 Role-Based Access & Maintenance (schema `0.5`)
+## 🔐 Role-Based Access & Maintenance (schema `1.6`)
 
 Opt-in privilege gating for shops that need it; transparent for shops that don't.
 
@@ -342,7 +368,7 @@ The canonical DDL is **not** a single `install.sql` — it is kept in **three sy
 
 **Tables**
 
-`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`, `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options`, `menus`, `menu_schedules`, `menu_versions`, `vendors`, `vendor_payouts`, `floor_plan`.
+`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`, `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options`, `menus`, `menu_schedules`, `menu_versions`, `vendors`, `vendor_payouts`, `floor_plan`, `fiscal_profiles`, `cfdi_global_periods`, `inventory_lots`, `lot_consumptions`, `inventory_deductions_applied`, `auth_attempts`.
 
 
 
@@ -426,6 +452,25 @@ If you installed before the latest schema version, apply these **in order**:
 | `025_tables.sql` | `floor_plan` registry + additive `active_tickets.table_id` / `seats`; visual floor-plan / table-service support |
 | `026_inventory_reorder_point.sql` | Per-item `inventory.reorder_point`; powers reorder alerts, falls back to the legacy hardcoded threshold when 0 |
 | `027_sales_refunded_items.sql` | `sales.refunded_items` jsonb (per-line refund attribution) so settlement charges refunds to the exact line/vendor |
+| `028_expense_payment_source.sql` | `expenses.payment_source` (caja / banco / dueño); only cash actually out of the drawer hits the corte |
+| `029_menu_item_roast_and_whatsapp.sql` | Exposes per-item `roast_date` + `whatsapp_url` on the public-menu RPCs |
+| `030_public_menu_hide_split.sql` | Splits "hidden in the Register" from "hidden on the public menu" for items and categories |
+| `031_cfdi_support.sql` | `fiscal_profiles` + per-ticket CFDI status — the customer-facing factura request flow |
+| `032_cfdi_indexes.sql` | Indexes on `cfdi_status` so the Admin CFDI tab doesn't time out on large tables |
+| `033_cfdi_global_periods.sql` | `cfdi_global_periods` — records which months had their Factura Global issued and blocks individual requests for them |
+| `034_idempotent_inventory_deduction.sql` | `deduct_inventory_log(...)` + an `inventory_deductions_applied` dedup claim, so a timed-out retry can't decrement twice |
+| `035_inventory_lots.sql` | `inventory_lots` — roast/production lots with separate made vs. received dates |
+| `036_lot_consumptions.sql` | `lot_consumptions` — FIFO sale→lot draw-down, the "which roast was this?" link |
+| `037_inventory_restock_rpc_and_availability_fix.sql` | Stock-return RPC; fixes `menu_item_available()` testing an `inventoryMode` the app never writes |
+| `038_deduct_release_claim_on_short_stock.sql` | Releases the dedup claim when stock is short, so the replay retries instead of silently dropping the movement |
+| `039_cfdi_portal_rpcs.sql` | `cfdi_lookup_ticket` / `cfdi_request_invoice` `SECURITY DEFINER` RPCs — the portal stops touching tables |
+| `040_drop_cfdi_anon_policies.sql` | Drops the blanket `anon` policies from `031`/`033` (the anon key is printed in every receipt QR) |
+| `041_function_execute_grants.sql` | Revokes the `EXECUTE` Supabase grants to `anon`/`authenticated` by default; re-grants per function |
+| `042_enforce_app_users_allowlist.sql` | Replaces `USING (true)` on every POS table with an `app_users` allowlist check |
+| `043_hide_cashier_pins.sql` | Removes all client read access to `cashier_pins` (a 4-digit PIN behind a hash is nearly the PIN) |
+| `044_rate_limit_pin_and_cfdi.sql` | `auth_attempts` — rate-limits `verify_pin` and the CFDI ticket lookup |
+| `045_rate_limit_feedback.sql` | Returns *why* and *for how long* a call was refused, so a locked-out cashier sees a countdown |
+| `046_function_search_path.sql` | Pins `search_path` on the remaining `SECURITY DEFINER` functions |
 
 
 
@@ -445,23 +490,23 @@ If you installed before the latest schema version, apply these **in order**:
 
 |---|---|
 
-| `POST /api/auth/callback` | Supabase OAuth callback — exchanges code for a short-lived management token |
+| `GET  /api/auth/start` | Starts the Supabase OAuth round-trip (PKCE + a verified `state`) |
 
-| `GET  /api/get-projects` | Lists the user's Supabase projects during onboarding |
+| `POST /api/auth/callback` | OAuth callback — exchanges the code for a management token and stores it in an **HttpOnly cookie** |
 
-| `POST /api/get-keys` | Fetches the project's `anon` + `service_role` keys (burned after install) |
+| `POST /api/install` | Runs the full schema/RPC/RLS provisioning, or just the version delta ([`api/_schemaDeltas.js`](api/_schemaDeltas.js)); kept a separate function for its 60s `maxDuration` |
 
-| `POST /api/install` | Runs the full schema/RPC/RLS provisioning |
-
-| `POST /api/run-sql` | Authenticated arbitrary SQL runner used by migrations |
+| `ALL  /api/supabase?op=…` | One proxy for every Management API call the setup flow makes: `get-orgs`, `get-projects`, `get-keys`, `create-project`, `get-project-status`, `run-sql`. The old `/api/<name>` paths are rewritten onto it in `vercel.json` |
 
 | `POST /api/add-device` | Creates a new hardware Auth user for an additional terminal |
 
-| `GET  /api/get-orgs` | Lists the user's Supabase organizations for the guided "create project for me" onboarding |
+| `GET/POST /api/domains` | Resolves, links and unlinks custom domains (public menu + CFDI portal) via the Vercel Domains API |
 
-| `POST /api/create-project` | Provisions a brand-new Supabase project via the Management API (strong DB password generated + returned once, never persisted); returns immediately in a `COMING_UP` state |
+| `POST /api/log-error` | Lightweight error-reporting sink (webhook) |
 
-| `GET  /api/get-project-status` | Polls a single project's provisioning status until `ACTIVE_HEALTHY`, then onboarding fetches keys + runs the install SQL |
+
+
+> Vercel's Hobby plan caps a deploy at **14 Serverless Functions**, which is why the six Management API proxies and the domain endpoints are each merged into one file dispatched on `?op=`.
 
 
 
