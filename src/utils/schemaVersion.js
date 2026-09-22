@@ -17,6 +17,13 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.7 — Disk IO: indexes the delivery-reminder sweep's delivery_date filter
+//       and the six unindexed foreign keys, and rewrites every RLS policy's
+//       auth.uid()/auth.role() call as (select auth.uid()) so Postgres hoists
+//       it into a one-time InitPlan instead of re-running it per row
+//       (migration 047). Also folds the two overlapping SELECT policies on
+//       app_users into one and stops re-adding the blanket schema_meta read
+//       policy that shadowed migration 042's narrowing.
 // 1.6 — security lockdown step 1: the public CFDI portal talks to
 //       cfdi_lookup_ticket / cfdi_request_invoice instead of reading and
 //       writing sales / fiscal_profiles / active_tickets with the anon key.
@@ -97,4 +104,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.6';
+export const APP_SCHEMA_VERSION = '1.7';

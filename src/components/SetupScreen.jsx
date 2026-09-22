@@ -1559,19 +1559,26 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         DROP POLICY IF EXISTS "Admins can insert"             ON public.app_users;
         DROP POLICY IF EXISTS "Admins can update"             ON public.app_users;
         DROP POLICY IF EXISTS "Admins can delete"             ON public.app_users;
+        DROP POLICY IF EXISTS "app_users_select"              ON public.app_users;
 
-        CREATE POLICY "Users can read own row" ON public.app_users
-          FOR SELECT TO authenticated USING (auth_user_id = auth.uid());
-        CREATE POLICY "Admins can read all" ON public.app_users
-          FOR SELECT TO authenticated USING (public.is_app_admin(auth.uid()));
+        -- One SELECT policy, not two. Admins are app_users, so "Admins can
+        -- read all" already returned every row "Users can read own row" would,
+        -- and two permissive policies on the same command means Postgres
+        -- evaluates both on every read.
+        CREATE POLICY "app_users_select" ON public.app_users
+          FOR SELECT TO authenticated
+          USING (
+            auth_user_id = (select auth.uid())
+            OR public.is_app_admin((select auth.uid()))
+          );
         CREATE POLICY "Admins can insert" ON public.app_users
-          FOR INSERT TO authenticated WITH CHECK (public.is_app_admin(auth.uid()));
+          FOR INSERT TO authenticated WITH CHECK (public.is_app_admin((select auth.uid())));
         CREATE POLICY "Admins can update" ON public.app_users
           FOR UPDATE TO authenticated
-          USING (public.is_app_admin(auth.uid()))
-          WITH CHECK (public.is_app_admin(auth.uid()));
+          USING (public.is_app_admin((select auth.uid())))
+          WITH CHECK (public.is_app_admin((select auth.uid())));
         CREATE POLICY "Admins can delete" ON public.app_users
-          FOR DELETE TO authenticated USING (public.is_app_admin(auth.uid()));
+          FOR DELETE TO authenticated USING (public.is_app_admin((select auth.uid())));
 
         -- Client calls this on every successful sign-in. See api/install.js
         -- for the contract docstring.
@@ -1679,7 +1686,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         ALTER TABLE public.fiscal_profiles ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all for authenticated users" ON public.fiscal_profiles;
         CREATE POLICY "Enable all for authenticated users" ON public.fiscal_profiles
-          FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+          FOR ALL USING ((select auth.role()) = 'authenticated') WITH CHECK ((select auth.role()) = 'authenticated');
 
         ALTER TABLE public.sales
           ADD COLUMN IF NOT EXISTS cfdi_status text DEFAULT 'none' CHECK (cfdi_status IN ('none', 'requested', 'issued', 'reopened', 'canceled')),
@@ -1704,7 +1711,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         ALTER TABLE public.cfdi_global_periods ENABLE ROW LEVEL SECURITY;
         DROP POLICY IF EXISTS "Enable all for authenticated users" ON public.cfdi_global_periods;
         CREATE POLICY "Enable all for authenticated users" ON public.cfdi_global_periods
-          FOR ALL USING (auth.role() = 'authenticated') WITH CHECK (auth.role() = 'authenticated');
+          FOR ALL USING ((select auth.role()) = 'authenticated') WITH CHECK ((select auth.role()) = 'authenticated');
 
         -- ---------------------------------------------------------------------------
         -- Shared resolver: ticket reference -> the one row it names.
@@ -2214,8 +2221,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
             EXECUTE format(
               'CREATE POLICY %I ON public.%I FOR ALL TO authenticated '
-              'USING (public.is_app_user(auth.uid())) '
-              'WITH CHECK (public.is_app_user(auth.uid()))',
+              'USING (public.is_app_user((select auth.uid()))) '
+              'WITH CHECK (public.is_app_user((select auth.uid())))',
               t || '_app_users_rw', t);
           END LOOP;
         END
@@ -2229,7 +2236,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             DROP POLICY IF EXISTS "Authenticated can read schema_meta" ON public.schema_meta;
             DROP POLICY IF EXISTS "schema_meta_app_users_read" ON public.schema_meta;
             CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
-              FOR SELECT TO authenticated USING (public.is_app_user(auth.uid()));
+              FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
           END IF;
         END
         $do$;
@@ -2664,11 +2671,20 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           updated_at timestamptz NOT NULL DEFAULT now()
         );
         ALTER TABLE public.schema_meta ENABLE ROW LEVEL SECURITY;
+        -- Scoped, not USING (true). The allowlist block above installs the same
+        -- policy, but only on an install where schema_meta already exists -- on a
+        -- first install this CREATE TABLE runs after it, so the policy has to be
+        -- (re)stated here too or the table ends up with RLS on and no policy.
+        -- Stating it identically in both places also means the table is left with
+        -- exactly ONE permissive SELECT policy; the old USING (true) version that
+        -- used to live here shadowed migration 042's narrowing and made Postgres
+        -- evaluate two policies on every read of the version banner.
         DROP POLICY IF EXISTS "Authenticated can read schema_meta" ON public.schema_meta;
-        CREATE POLICY "Authenticated can read schema_meta" ON public.schema_meta
-          FOR SELECT TO authenticated USING (true);
+        DROP POLICY IF EXISTS "schema_meta_app_users_read" ON public.schema_meta;
+        CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
+          FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '1.6', now())
+        VALUES ('schema_version', '1.7', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;
