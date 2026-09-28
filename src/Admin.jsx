@@ -1000,7 +1000,8 @@ function Admin() {
       linkedRecipeId: '',
       publicHidden: false,
       vendorId: '',
-      vendorUnitCost: ''
+      vendorUnitCost: '',
+      vendorSplitType: ''
     }));
   };
 
@@ -1024,7 +1025,9 @@ function Admin() {
     // onto each sale line (via the cart spread) so settlement stays correct even
     // if the cost is later edited. Only meaningful when a vendor is assigned.
     const vendorUnitCostCents = vendorId ? toCents(newItemForm.vendorUnitCost || 0) : 0;
-    return { vendorId, vendorName, vendorUnitCostCents };
+    // Per-item split override ('' = vendor default), snapshotted like the cost.
+    const vendorSplitType = vendorId ? (newItemForm.vendorSplitType || '') : '';
+    return { vendorId, vendorName, vendorUnitCostCents, vendorSplitType };
   };
 
   const handleAddDrink = () => {

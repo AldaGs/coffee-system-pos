@@ -13,6 +13,10 @@
 //                   the vendor takes all profit). The cost rides on each sale line
 //                   as vendorUnitCostCents (snapshotted from the menu item), so a
 //                   later price/cost change never rewrites historic settlements.
+// A menu item may override its vendor's split via vendorSplitType (also
+// snapshotted onto the sale line), so one vendor can mix both deals; such a
+// row reports splitType 'mixed' and its cut is Σ cost-lines' cost + pct of the
+// percentage lines.
 
 const HOUSE_KEY = '__house__';
 const HOUSE_NAME = 'Casa';
@@ -97,6 +101,7 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       vendorId: m.vendorId,
       vendorName: m.vendorName,
       vendorUnitCostCents: line.vendorUnitCostCents != null ? line.vendorUnitCostCents : m.vendorUnitCostCents,
+      vendorSplitType: line.vendorSplitType || m.vendorSplitType || '',
     };
   };
 
@@ -116,6 +121,10 @@ export function computeSettlement(sales, vendors = [], range = {}) {
         vendorName: isHouse ? HOUSE_NAME : (vendor?.name || line.vendorName || HOUSE_NAME),
         isHouse,
         splitType: vendor?.splitType === 'cost' ? 'cost' : 'percentage',
+        hasCost: false,
+        hasPct: false,
+        pctNetCents: 0,
+        pctTaxCents: 0,
         commissionBase: vendor?.commissionBase === 'base' ? 'base' : 'gross',
         commissionPercent: isHouse ? 0 : (Number(vendor?.commissionPercent) || 0),
         units: 0,
@@ -172,14 +181,22 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       g.units += qty;
       g.grossCents += gross;
       g.refundCents += refundPerLine[idx];
-      g.costCents += (Number(line.vendorUnitCostCents) || 0) * qty;
-      g.taxCents += lineTaxCents(line, netLine); // IVA carved from the net (post-refund) line
+      const lineTax = lineTaxCents(line, netLine); // IVA carved from the net (post-refund) line
+      g.taxCents += lineTax;
+      // Per-item override beats the vendor default; House lines have no split.
+      const mode = line.vendorSplitType === 'cost' || line.vendorSplitType === 'percentage'
+        ? line.vendorSplitType : g.splitType;
+      const lineCost = mode === 'cost' ? (Number(line.vendorUnitCostCents) || 0) * qty : 0;
+      if (!g.isHouse) {
+        if (mode === 'cost') { g.hasCost = true; g.costCents += lineCost; }
+        else { g.hasPct = true; g.pctNetCents += netLine; g.pctTaxCents += lineTax; }
+      }
 
       const name = line.name || 'Unknown';
-      const entry = g.items.get(name) || { name, units: 0, grossCents: 0, costCents: 0 };
+      const entry = g.items.get(name) || { name, units: 0, grossCents: 0, costCents: 0, splitType: mode };
       entry.units += qty;
       entry.grossCents += gross;
-      entry.costCents += (Number(line.vendorUnitCostCents) || 0) * qty;
+      entry.costCents += lineCost;
       g.items.set(name, entry);
     });
   }
@@ -194,20 +211,21 @@ export function computeSettlement(sales, vendors = [], range = {}) {
     // largely refunded — that means the vendor owes the house). For a percentage
     // vendor the cut is taken on the gross net by default, or on the pre-IVA base
     // when commissionBase === 'base' (vendor keeps & remits the IVA themselves).
-    let commissionCents;
-    if (g.isHouse) commissionCents = 0;
-    else if (g.splitType === 'cost') commissionCents = g.costCents;
-    else {
-      const commissionable = g.commissionBase === 'base' ? baseCents : netCents;
-      commissionCents = Math.round((commissionable * g.commissionPercent) / 100);
+    // Mixed vendors sum both: cost of the cost-recovery lines plus the
+    // percentage of the commission lines' net (or pre-IVA base).
+    let commissionCents = 0;
+    if (!g.isHouse) {
+      const commissionable = g.commissionBase === 'base' ? g.pctNetCents - g.pctTaxCents : g.pctNetCents;
+      commissionCents = g.costCents + Math.round((commissionable * g.commissionPercent) / 100);
     }
+    const splitType = g.hasCost && g.hasPct ? 'mixed' : g.hasCost ? 'cost' : g.hasPct ? 'percentage' : g.splitType;
     const payoutCents = netCents - commissionCents;
     return {
       key: g.key,
       vendorId: g.vendorId,
       vendorName: g.vendorName,
       isHouse: g.isHouse,
-      splitType: g.splitType,
+      splitType,
       commissionBase: g.commissionBase,
       commissionPercent: g.commissionPercent,
       units: g.units,

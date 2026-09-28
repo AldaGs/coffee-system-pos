@@ -176,6 +176,22 @@ describe('vendorUtils — settlement math (centavos)', () => {
     });
   });
 
+  describe('per-item split override (mixed vendor)', () => {
+    it('charges cost on cost-recovery items and % on the rest', () => {
+      const { rows } = computeSettlement([
+        sale('m', [
+          { name: 'Bag', basePrice: 20000, qty: 1, vendorId: 'v1', vendorUnitCostCents: 8000, vendorSplitType: 'cost' },
+          { name: 'Mug', basePrice: 10000, qty: 1, vendorId: 'v1', vendorUnitCostCents: 9999 },
+        ]),
+      ], vendors);
+      const r = rows.find((x) => x.vendorId === 'v1');
+      expect(r.splitType).toBe('mixed');
+      expect(r.costCents).toBe(8000);          // Mug's cost ignored: it's a % line
+      expect(r.commissionCents).toBe(10000);   // 8000 cost + 20% of 10000
+      expect(r.payoutCents).toBe(20000);
+    });
+  });
+
   describe('retroactive attribution via itemVendorMap', () => {
     // A pre-tagging sale line: has an item id + name but NO vendor snapshot.
     const oldSale = sale('old', [{ id: 'notebook', name: 'Notebook', basePrice: 11500, qty: 2 }]);
@@ -188,7 +204,7 @@ describe('vendorUtils — settlement math (centavos)', () => {
 
     it('credits untagged lines to the current menu owner when a map is given', () => {
       const itemVendorMap = new Map([
-        ['notebook', { vendorId: 'v1', vendorName: 'AldaGs', vendorUnitCostCents: 3500 }],
+        ['notebook', { vendorId: 'v1', vendorName: 'AldaGs', vendorUnitCostCents: 3500, vendorSplitType: 'cost' }],
       ]);
       const { rows } = computeSettlement([oldSale], vendors, { itemVendorMap });
       const alda = rows.find((r) => r.vendorId === 'v1');

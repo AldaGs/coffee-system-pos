@@ -279,7 +279,20 @@ function MenuEditorTab({
 
                   {/* Production cost — only for cost-recovery vendors. The house
                       recovers this per unit; the vendor keeps the rest. */}
-                  {vendors.find(v => String(v.id) === String(newItemForm.vendorId))?.splitType === 'cost' && (
+                  {/* Per-product payout: inherit the vendor's split or override it,
+                      so one vendor can mix commission and cost-recovery items. */}
+                  {newItemForm.vendorId && (
+                    <select
+                      value={newItemForm.vendorSplitType || ''}
+                      onChange={(e) => setNewItemForm({ ...newItemForm, vendorSplitType: e.target.value })}
+                      style={{ padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold', marginTop: '4px' }}
+                    >
+                      <option value="">{t('menu.vendorSplitDefault')}</option>
+                      <option value="percentage">{t('vendors.splitPercentage')}</option>
+                      <option value="cost">{t('vendors.splitCost')}</option>
+                    </select>
+                  )}
+                  {(newItemForm.vendorSplitType || vendors.find(v => String(v.id) === String(newItemForm.vendorId))?.splitType) === 'cost' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
                       <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelVendorCost') || 'Costo de producción (unitario)'}</label>
                       <input
@@ -421,7 +434,8 @@ function MenuEditorTab({
                         linkedWarehouseId: '',
                         linkedRecipeId: '',
                         vendorId: '',
-                        vendorUnitCost: ''
+                        vendorUnitCost: '',
+                        vendorSplitType: ''
                       });
                     }}
                     style={{ padding: '16px 20px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
@@ -638,7 +652,8 @@ function MenuEditorTab({
                                   linkedRecipeId: item.linkedRecipeId || '',
                                   publicHidden: !!item.publicHidden,
                                   vendorId: item.vendorId || '',
-                                  vendorUnitCost: item.vendorUnitCostCents ? String(fromCents(item.vendorUnitCostCents)) : ''
+                                  vendorUnitCost: item.vendorUnitCostCents ? String(fromCents(item.vendorUnitCostCents)) : '',
+                                  vendorSplitType: item.vendorSplitType || ''
                                 });
                                 // Remember where to return after save/cancel, then
                                 // scroll the editor form into view (scrollIntoView

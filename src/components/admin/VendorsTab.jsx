@@ -69,7 +69,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
     Object.values(cats).forEach((items) => {
       (items || []).forEach((it) => {
         if (it?.id != null && it.vendorId) {
-          map.set(String(it.id), { vendorId: it.vendorId, vendorName: it.vendorName || '', vendorUnitCostCents: it.vendorUnitCostCents || 0 });
+          map.set(String(it.id), { vendorId: it.vendorId, vendorName: it.vendorName || '', vendorUnitCostCents: it.vendorUnitCostCents || 0, vendorSplitType: it.vendorSplitType || '' });
         }
       });
     });
@@ -305,11 +305,9 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
               <option value="cost">{t('vendors.splitCost')}</option>
             </select>
           </label>
-          {form.splitType === 'cost' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', paddingBottom: '14px' }}>
-              {t('vendors.costPerItemNote')}
-            </div>
-          ) : (
+          {/* Commission % stays editable for cost-recovery vendors too: it
+              applies to any product overridden to a commission split. */}
+          {(
             <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold' }}>
               {t('vendors.commission')}
               <input style={inputStyle} type="number" min="0" max="100" step="0.5" value={form.commissionPercent} onChange={(e) => setForm({ ...form, commissionPercent: e.target.value })} />
@@ -330,7 +328,10 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             )}
           </div>
         </div>
-        {form.splitType === 'percentage' && (
+        {form.splitType === 'cost' && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{t('vendors.costPerItemNote')}</div>
+        )}
+        {(
           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold', maxWidth: '320px', marginBottom: '12px' }}>
             {t('vendors.commissionBaseLabel')}
             <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.commissionBase} onChange={(e) => setForm({ ...form, commissionBase: e.target.value })}>
@@ -354,7 +355,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                     {v.contact ? `${v.contact} · ` : ''}
                     {v.splitType === 'cost'
-                      ? t('vendors.splitCost')
+                      ? `${t('vendors.splitCost')} · ${v.commissionPercent}%`
                       : `${t('vendors.commission')}: ${v.commissionPercent}%`}
                   </div>
                 </div>
@@ -427,7 +428,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                     <tr style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setExpanded(expanded === r.key ? null : r.key)}>
                       <td style={{ ...td, textAlign: 'left' }}>
                         <Icon icon={expanded === r.key ? 'lucide:chevron-down' : 'lucide:chevron-right'} style={{ verticalAlign: 'middle', marginRight: '6px', color: 'var(--text-muted)' }} />
-                        {r.vendorName}{r.isHouse ? ` · ${t('vendors.house')}` : (r.splitType === 'cost' ? ` · ${t('vendors.splitCost')}` : ` · ${r.commissionPercent}%`)}
+                        {r.vendorName}{r.isHouse ? ` · ${t('vendors.house')}` : (r.splitType === 'cost' ? ` · ${t('vendors.splitCost')}` : r.splitType === 'mixed' ? ` · ${t('vendors.splitCost')} + ${r.commissionPercent}%` : ` · ${r.commissionPercent}%`)}
                       </td>
                       <td style={td}>{r.units}</td>
                       <td style={td}>{formatForDisplay(r.grossCents)}</td>
