@@ -401,7 +401,8 @@ export const sendFinalMessage = (phone, ticket, total, options = {}) => {
 export const shareBlob = async (blob, fileName, meta = {}) => {
   const type = blob.type || 'application/octet-stream';
   const file = new File([blob], fileName, { type });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  // meta.download skips the share sheet and saves the file directly.
+  if (!meta.download && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: meta.title || 'Document', text: meta.text || '' });
       return;
@@ -433,7 +434,8 @@ export const shareElementAsPNG = async (elementId, fileName = 'statement.png', m
   if (!blob) throw new Error('Failed to generate image');
 
   const file = new File([blob], fileName, { type: 'image/png' });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  // meta.download skips the share sheet and saves the file directly.
+  if (!meta.download && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: meta.title || 'Statement', text: meta.text || '' });
       return;
@@ -476,7 +478,8 @@ export const saveTicketAsPNG = async (elementId, fileName = 'ticket.png') => {
 
     const file = new File([blob], fileName, { type: 'image/png' });
 
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    // meta.download skips the share sheet and saves the file directly.
+  if (!meta.download && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
           files: [file],

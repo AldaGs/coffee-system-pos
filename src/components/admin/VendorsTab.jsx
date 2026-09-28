@@ -201,14 +201,14 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
   // Render a premium per-vendor statement off-screen, snapshot it, and open the
   // share sheet (falls back to download). format: 'png' (quick, for friends) or
   // 'pdf' (professional). Two RAFs let the off-screen node paint first.
-  const shareStatement = async (row, format) => {
+  const shareStatement = async (row, format, download = false) => {
     if (sharing) return;
     setShareRow(null);
     setSharing(true);
     try {
       const safe = (row.vendorName || 'vendor').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
       const base = `estado-${safe}_${range.from || ''}_${range.to || ''}`;
-      const meta = { title: t('vendors.statementTitle'), text: `${row.vendorName} · ${range.from || ''} → ${range.to || ''}` };
+      const meta = { download, title: t('vendors.statementTitle'), text: `${row.vendorName} · ${range.from || ''} → ${range.to || ''}` };
       if (format === 'pdf') {
         // Vector PDF (selectable text) — built directly, no off-screen capture.
         const blob = await buildVendorStatementPdf(row, { paidCents: paidFor(row), range, branding, brandColor, t });
@@ -565,20 +565,30 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             <h3 style={{ color: 'var(--text-main)', marginTop: 0 }}>{t('vendors.shareStatement')}</h3>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 0 }}>{shareRow.vendorName} · {range.from || ''} → {range.to || ''}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'pdf')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '14px', cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'pdf')} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '14px', cursor: 'pointer', textAlign: 'left' }}>
                 <Icon icon="lucide:file-text" width="24" />
                 <span>
                   <span style={{ display: 'block', fontWeight: 800, fontSize: '1rem' }}>{t('vendors.sharePdf')}</span>
                   <span style={{ display: 'block', fontSize: '0.78rem', opacity: 0.85 }}>{t('vendors.sharePdfHint')}</span>
                 </span>
               </button>
-              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'png')} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '14px', cursor: 'pointer', textAlign: 'left' }}>
+              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'pdf', true)} title={t('vendors.download')} aria-label={t('vendors.download')} style={{ padding: '0 16px', background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid var(--border)', borderRadius: '14px', cursor: 'pointer' }}>
+                  <Icon icon="lucide:download" width="22" />
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'png')} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '14px', cursor: 'pointer', textAlign: 'left' }}>
                 <Icon icon="lucide:image" width="24" style={{ color: 'var(--brand-color)' }} />
                 <span>
                   <span style={{ display: 'block', fontWeight: 800, fontSize: '1rem' }}>{t('vendors.sharePng')}</span>
                   <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('vendors.sharePngHint')}</span>
                 </span>
               </button>
+              <button disabled={sharing} onClick={() => shareStatement(shareRow, 'png', true)} title={t('vendors.download')} aria-label={t('vendors.download')} style={{ padding: '0 16px', background: 'var(--bg-main)', color: 'var(--brand-color)', border: '1px solid var(--border)', borderRadius: '14px', cursor: 'pointer' }}>
+                  <Icon icon="lucide:download" width="22" />
+                </button>
+              </div>
               <button disabled={sharing} onClick={() => setShareRow(null)} style={{ padding: '12px', background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>
                 {t('vendors.payCancel')}
               </button>
