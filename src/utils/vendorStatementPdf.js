@@ -1,4 +1,5 @@
 import { formatForDisplay } from './moneyUtils';
+import { splitLabel as splitLabelFor, splitTerms } from './vendorUtils';
 
 // jsPDF is heavy (~1.4 MB), so we load it on demand the first time a PDF is
 // generated rather than shipping it in the main bundle / PWA precache.
@@ -45,15 +46,13 @@ export async function buildVendorStatementPdf(row, { paidCents = 0, range = {}, 
   const W = doc.internal.pageSize.getWidth();   // ~595.28
   const M = 40;
   const RIGHT = W - M;
-  // 'mixed' (per-item overrides) uses the cost layout; % items show their rate.
-  const isCost = row.splitType === 'cost' || row.splitType === 'mixed';
-  const itemTake = (it) => it.splitType === 'cost' ? it.grossCents - it.costCents : it.grossCents - Math.round((it.grossCents * row.commissionPercent) / 100);
+  // Any non-% split uses the per-unit layout; % items show their rate.
+  const isCost = row.splitType !== 'percentage';
   const hasTax = row.taxCents > 0;
   const balance = row.payoutCents - paidCents;
   const shopName = branding.header || 'TinyPOS';
   const generated = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  const splitLabel = row.splitType === 'mixed' ? `${t('vendors.splitCost')} + ${row.commissionPercent}%`
-    : isCost ? t('vendors.splitCost') : `${t('vendors.colCommission')} · ${row.commissionPercent}%`;
+  const splitLabel = splitLabelFor(row.splitType, row.commissionPercent, t);
 
   const text = (s, x, y, { size = 10, color = INK, bold = false, align = 'left' } = {}) => {
     doc.setFont('helvetica', bold ? 'bold' : 'normal');
@@ -123,8 +122,8 @@ export async function buildVendorStatementPdf(row, { paidCents = 0, range = {}, 
     text(String(it.units), rightEdge(0), y, { size: 10, color: MUTED, align: 'right' });
     text(money(perUnit(it.grossCents, it.units)), rightEdge(1), y, { size: 10, align: 'right' });
     if (isCost) {
-      text(it.splitType === 'cost' ? money(perUnit(it.costCents, it.units)) : `${row.commissionPercent}%`, rightEdge(2), y, { size: 10, color: MUTED, align: 'right' });
-      text(money(itemTake(it)), rightEdge(3), y, { size: 10, bold: true, color: GREEN, align: 'right' });
+      text(it.splitType !== 'percentage' ? money(perUnit(it.costCents, it.units)) : `${row.commissionPercent}%`, rightEdge(2), y, { size: 10, color: MUTED, align: 'right' });
+      text(money(it.takeCents), rightEdge(3), y, { size: 10, bold: true, color: GREEN, align: 'right' });
     } else {
       text(money(it.grossCents), rightEdge(2), y, { size: 10, bold: true, align: 'right' });
     }
@@ -135,9 +134,7 @@ export async function buildVendorStatementPdf(row, { paidCents = 0, range = {}, 
 
   // terms line
   y += 8;
-  const terms = row.splitType === 'mixed'
-    ? `${t('vendors.termsCost')} ${t('vendors.termsCommission').replace('{pct}', String(row.commissionPercent))}`
-    : isCost ? t('vendors.termsCost') : t('vendors.termsCommission').replace('{pct}', String(row.commissionPercent));
+  const terms = splitTerms(row, t);
   doc.splitTextToSize(terms, RIGHT - M).forEach((ln) => { text(ln, M, y, { size: 9, color: MUTED }); y += 12; });
 
   // --- Summary panel ---

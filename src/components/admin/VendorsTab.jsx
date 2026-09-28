@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, fromCents, toCents } from '../../utils/moneyUtils';
-import { computeSettlement } from '../../utils/vendorUtils';
+import { computeSettlement, normalizeSplitType, splitLabel } from '../../utils/vendorUtils';
 import { recordVendorPayout, reverseVendorPayout } from '../../services/vendorPayoutsService';
 import { writeExpense } from '../../services/expenseLedger';
 import { shareElementAsPNG, shareBlob } from '../../utils/sharingUtils';
@@ -80,7 +80,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
 
   const startEdit = (v) => {
     setEditingId(v.id);
-    setForm({ name: v.name, contact: v.contact || '', commissionPercent: String(v.commissionPercent ?? 0), splitType: v.splitType === 'cost' ? 'cost' : 'percentage', commissionBase: v.commissionBase === 'base' ? 'base' : 'gross', isActive: v.isActive !== false });
+    setForm({ name: v.name, contact: v.contact || '', commissionPercent: String(v.commissionPercent ?? 0), splitType: normalizeSplitType(v.splitType), commissionBase: v.commissionBase === 'base' ? 'base' : 'gross', isActive: v.isActive !== false });
   };
 
   const saveVendor = async () => {
@@ -91,7 +91,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
         name: form.name.trim(),
         contact: form.contact.trim(),
         commissionPercent: Math.max(0, Math.min(100, Number(form.commissionPercent) || 0)),
-        splitType: form.splitType === 'cost' ? 'cost' : 'percentage',
+        splitType: normalizeSplitType(form.splitType),
         commissionBase: form.commissionBase === 'base' ? 'base' : 'gross',
         isActive: form.isActive,
       };
@@ -303,6 +303,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             <select style={{ ...inputStyle, cursor: 'pointer' }} value={form.splitType} onChange={(e) => setForm({ ...form, splitType: e.target.value })}>
               <option value="percentage">{t('vendors.splitPercentage')}</option>
               <option value="cost">{t('vendors.splitCost')}</option>
+              <option value="fixed">{t('vendors.splitFixed')}</option>
             </select>
           </label>
           {/* Commission % stays editable for cost-recovery vendors too: it
@@ -328,8 +329,8 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             )}
           </div>
         </div>
-        {form.splitType === 'cost' && (
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{t('vendors.costPerItemNote')}</div>
+        {form.splitType !== 'percentage' && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '12px' }}>{t(form.splitType === 'fixed' ? 'vendors.fixedPerItemNote' : 'vendors.costPerItemNote')}</div>
         )}
         {(
           <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold', maxWidth: '320px', marginBottom: '12px' }}>
@@ -354,9 +355,9 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                   </div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                     {v.contact ? `${v.contact} · ` : ''}
-                    {v.splitType === 'cost'
-                      ? `${t('vendors.splitCost')} · ${v.commissionPercent}%`
-                      : `${t('vendors.commission')}: ${v.commissionPercent}%`}
+                    {v.splitType === 'percentage'
+                      ? `${t('vendors.commission')}: ${v.commissionPercent}%`
+                      : `${splitLabel(v.splitType, v.commissionPercent, t)} · ${v.commissionPercent}%`}
                   </div>
                 </div>
                 <button onClick={() => startEdit(v)} title={t('vendors.edit')} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer' }}>
@@ -428,7 +429,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
                     <tr style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setExpanded(expanded === r.key ? null : r.key)}>
                       <td style={{ ...td, textAlign: 'left' }}>
                         <Icon icon={expanded === r.key ? 'lucide:chevron-down' : 'lucide:chevron-right'} style={{ verticalAlign: 'middle', marginRight: '6px', color: 'var(--text-muted)' }} />
-                        {r.vendorName}{r.isHouse ? ` · ${t('vendors.house')}` : (r.splitType === 'cost' ? ` · ${t('vendors.splitCost')}` : r.splitType === 'mixed' ? ` · ${t('vendors.splitCost')} + ${r.commissionPercent}%` : ` · ${r.commissionPercent}%`)}
+                        {r.vendorName}{r.isHouse ? ` · ${t('vendors.house')}` : ` · ${r.splitType === 'percentage' ? `${r.commissionPercent}%` : splitLabel(r.splitType, r.commissionPercent, t)}`}
                       </td>
                       <td style={td}>{r.units}</td>
                       <td style={td}>{formatForDisplay(r.grossCents)}</td>

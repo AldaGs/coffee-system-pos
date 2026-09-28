@@ -18,6 +18,27 @@
 // row reports splitType 'mixed' and its cut is Σ cost-lines' cost + pct of the
 // percentage lines.
 
+//   'fixed'       — consignment price: the vendor gets a fixed amount per unit
+//                   sold (vendorUnitCostCents), the house keeps the rest. Refunds
+//                   scale the vendor's amount down by the line's refunded share.
+
+const SPLIT_TYPES = ['percentage', 'cost', 'fixed'];
+export const normalizeSplitType = (v) => (SPLIT_TYPES.includes(v) ? v : 'percentage');
+
+// Display label for a settlement/vendor split. 'mixed' = per-item overrides.
+export function splitLabel(splitType, pct, t) {
+  if (splitType === 'cost') return t('vendors.splitCost');
+  if (splitType === 'fixed') return t('vendors.splitFixed');
+  if (splitType === 'mixed') return `${t('vendors.splitMixed')} · ${pct}%`;
+  return `${t('vendors.colCommission')} · ${pct}%`;
+}
+
+// Deal-terms sentence for a statement: one clause per split used by the row.
+export function splitTerms(row, t) {
+  const terms = { cost: t('vendors.termsCost'), fixed: t('vendors.termsFixed'), percentage: t('vendors.termsCommission').replace('{pct}', String(row.commissionPercent)) };
+  return (row.modes || [row.splitType]).map((m) => terms[m]).filter(Boolean).join(' ');
+}
+
 const HOUSE_KEY = '__house__';
 const HOUSE_NAME = 'Casa';
 
@@ -120,9 +141,9 @@ export function computeSettlement(sales, vendors = [], range = {}) {
         vendorId: line.vendorId || null,
         vendorName: isHouse ? HOUSE_NAME : (vendor?.name || line.vendorName || HOUSE_NAME),
         isHouse,
-        splitType: vendor?.splitType === 'cost' ? 'cost' : 'percentage',
-        hasCost: false,
-        hasPct: false,
+        splitType: normalizeSplitType(vendor?.splitType),
+        modes: new Set(),
+        fixedCutCents: 0,
         pctNetCents: 0,
         pctTaxCents: 0,
         commissionBase: vendor?.commissionBase === 'base' ? 'base' : 'gross',
@@ -184,19 +205,27 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       const lineTax = lineTaxCents(line, netLine); // IVA carved from the net (post-refund) line
       g.taxCents += lineTax;
       // Per-item override beats the vendor default; House lines have no split.
-      const mode = line.vendorSplitType === 'cost' || line.vendorSplitType === 'percentage'
-        ? line.vendorSplitType : g.splitType;
-      const lineCost = mode === 'cost' ? (Number(line.vendorUnitCostCents) || 0) * qty : 0;
+      const mode = SPLIT_TYPES.includes(line.vendorSplitType) ? line.vendorSplitType : g.splitType;
+      const unitAmount = (Number(line.vendorUnitCostCents) || 0) * qty;
+      const lineCost = mode === 'cost' ? unitAmount : 0;
+      // Fixed: vendor's amount shrinks with the refunded share of the line.
+      const linePay = mode === 'fixed' ? (gross > 0 ? Math.round((unitAmount * netLine) / gross) : 0) : 0;
       if (!g.isHouse) {
-        if (mode === 'cost') { g.hasCost = true; g.costCents += lineCost; }
-        else { g.hasPct = true; g.pctNetCents += netLine; g.pctTaxCents += lineTax; }
+        g.modes.add(mode);
+        if (mode === 'cost') g.costCents += lineCost;
+        else if (mode === 'fixed') g.fixedCutCents += netLine - linePay;
+        else { g.pctNetCents += netLine; g.pctTaxCents += lineTax; }
       }
 
       const name = line.name || 'Unknown';
-      const entry = g.items.get(name) || { name, units: 0, grossCents: 0, costCents: 0, splitType: mode };
+      const entry = g.items.get(name) || { name, units: 0, grossCents: 0, costCents: 0, takeCents: 0, splitType: mode };
       entry.units += qty;
       entry.grossCents += gross;
-      entry.costCents += lineCost;
+      entry.costCents += mode === 'percentage' ? 0 : unitAmount; // per-unit amount (house cost or vendor price)
+      // Vendor's share of this item (pre-refund estimate for % items).
+      entry.takeCents += mode === 'cost' ? gross - lineCost
+        : mode === 'fixed' ? unitAmount
+        : gross - Math.round((gross * g.commissionPercent) / 100);
       g.items.set(name, entry);
     });
   }
@@ -216,9 +245,10 @@ export function computeSettlement(sales, vendors = [], range = {}) {
     let commissionCents = 0;
     if (!g.isHouse) {
       const commissionable = g.commissionBase === 'base' ? g.pctNetCents - g.pctTaxCents : g.pctNetCents;
-      commissionCents = g.costCents + Math.round((commissionable * g.commissionPercent) / 100);
+      commissionCents = g.costCents + g.fixedCutCents + Math.round((commissionable * g.commissionPercent) / 100);
     }
-    const splitType = g.hasCost && g.hasPct ? 'mixed' : g.hasCost ? 'cost' : g.hasPct ? 'percentage' : g.splitType;
+    const modes = [...g.modes];
+    const splitType = modes.length > 1 ? 'mixed' : modes[0] || g.splitType;
     const payoutCents = netCents - commissionCents;
     return {
       key: g.key,
@@ -226,6 +256,7 @@ export function computeSettlement(sales, vendors = [], range = {}) {
       vendorName: g.vendorName,
       isHouse: g.isHouse,
       splitType,
+      modes,
       commissionBase: g.commissionBase,
       commissionPercent: g.commissionPercent,
       units: g.units,

@@ -192,6 +192,18 @@ describe('vendorUtils — settlement math (centavos)', () => {
     });
   });
 
+  describe('fixed amount per unit', () => {
+    it('pays the vendor the fixed price, house keeps the rest, refunds scale it', () => {
+      const line = { name: 'Jam', basePrice: 10000, qty: 2, vendorId: 'v1', vendorUnitCostCents: 6000, vendorSplitType: 'fixed' };
+      const r = computeSettlement([sale('f', [line])], vendors).rows[0];
+      expect(r.splitType).toBe('fixed');
+      expect(r.payoutCents).toBe(12000);
+      expect(r.commissionCents).toBe(8000);
+      const half = computeSettlement([sale('g', [line], { refund_amount: 10000 })], vendors).rows[0];
+      expect(half.payoutCents).toBe(6000);  // one of two units refunded
+    });
+  });
+
   describe('retroactive attribution via itemVendorMap', () => {
     // A pre-tagging sale line: has an item id + name but NO vendor snapshot.
     const oldSale = sale('old', [{ id: 'notebook', name: 'Notebook', basePrice: 11500, qty: 2 }]);

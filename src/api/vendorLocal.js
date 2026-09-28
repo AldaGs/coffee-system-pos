@@ -6,6 +6,7 @@
 // IDs are client-generated UUIDs — integer ids would collide with existing
 // Supabase rows when the user upgrades and the migration pushes this registry up.
 
+import { normalizeSplitType } from '../utils/vendorUtils';
 import { db } from '../db';
 
 function rowToVendor(row) {
@@ -14,7 +15,7 @@ function rowToVendor(row) {
     name: row.name,
     contact: row.contact || '',
     commissionPercent: Number(row.commission_percent) || 0,
-    splitType: row.data?.splitType === 'cost' ? 'cost' : 'percentage',
+    splitType: normalizeSplitType(row.data?.splitType),
     commissionBase: row.data?.commissionBase === 'base' ? 'base' : 'gross',
     isActive: row.is_active !== false,
     sortOrder: row.sort_order ?? 0,
@@ -39,7 +40,7 @@ export async function addVendor(vendor) {
     is_active: vendor.isActive !== false,
     sort_order: vendor.sortOrder ?? nextOrder,
     data: {
-      splitType: vendor.splitType === 'cost' ? 'cost' : 'percentage',
+      splitType: normalizeSplitType(vendor.splitType),
       commissionBase: vendor.commissionBase === 'base' ? 'base' : 'gross',
     },
   });
@@ -56,7 +57,7 @@ export async function updateVendor(id, patch) {
   if (patch.splitType !== undefined || patch.commissionBase !== undefined) {
     const cur = await db.vendors.get(id);
     const data = { ...(cur?.data || {}) };
-    if (patch.splitType !== undefined) data.splitType = patch.splitType === 'cost' ? 'cost' : 'percentage';
+    if (patch.splitType !== undefined) data.splitType = normalizeSplitType(patch.splitType);
     if (patch.commissionBase !== undefined) data.commissionBase = patch.commissionBase === 'base' ? 'base' : 'gross';
     row.data = data;
   }

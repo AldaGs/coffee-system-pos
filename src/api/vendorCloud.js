@@ -13,6 +13,7 @@
 //                     menu item (vendorUnitCostCents), not here.
 // splitType rides on the reserved `data` jsonb column so no schema change is needed.
 
+import { normalizeSplitType } from '../utils/vendorUtils';
 import { supabase } from '../supabaseClient';
 
 function rowToVendor(row) {
@@ -21,7 +22,7 @@ function rowToVendor(row) {
     name: row.name,
     contact: row.contact || '',
     commissionPercent: Number(row.commission_percent) || 0,
-    splitType: row.data?.splitType === 'cost' ? 'cost' : 'percentage',
+    splitType: normalizeSplitType(row.data?.splitType),
     commissionBase: row.data?.commissionBase === 'base' ? 'base' : 'gross',
     isActive: row.is_active !== false,
     sortOrder: row.sort_order ?? 0,
@@ -37,7 +38,7 @@ function vendorToRow(vendor) {
     is_active: vendor.isActive !== false,
     sort_order: vendor.sortOrder ?? 0,
     data: {
-      splitType: vendor.splitType === 'cost' ? 'cost' : 'percentage',
+      splitType: normalizeSplitType(vendor.splitType),
       commissionBase: vendor.commissionBase === 'base' ? 'base' : 'gross',
     },
   };
@@ -76,7 +77,7 @@ export async function updateVendor(id, patch) {
   if (patch.splitType !== undefined || patch.commissionBase !== undefined) {
     const { data: cur } = await supabase.from('vendors').select('data').eq('id', id).maybeSingle();
     const data = { ...(cur?.data || {}) };
-    if (patch.splitType !== undefined) data.splitType = patch.splitType === 'cost' ? 'cost' : 'percentage';
+    if (patch.splitType !== undefined) data.splitType = normalizeSplitType(patch.splitType);
     if (patch.commissionBase !== undefined) data.commissionBase = patch.commissionBase === 'base' ? 'base' : 'gross';
     row.data = data;
   }

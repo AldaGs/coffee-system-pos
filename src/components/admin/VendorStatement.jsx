@@ -1,4 +1,5 @@
 import { formatForDisplay } from '../../utils/moneyUtils';
+import { splitLabel as splitLabelFor, splitTerms } from '../../utils/vendorUtils';
 
 // Premium, vendor-facing settlement statement. Rendered off-screen and snapshot
 // to PNG for sharing, so it uses an explicit LIGHT palette (not theme vars) —
@@ -36,16 +37,11 @@ export default function VendorStatement({ id, row, paidCents = 0, range = {}, br
   const ACCENT = accent || DEFAULT_ACCENT;
   const balance = row.payoutCents - paidCents;
   const hasTax = row.taxCents > 0;
-  // 'mixed' (per-item overrides) uses the cost layout; % items show their rate.
-  const isCost = row.splitType === 'cost' || row.splitType === 'mixed';
-  const itemTake = (it) => it.splitType === 'cost' ? it.grossCents - it.costCents : it.grossCents - Math.round((it.grossCents * row.commissionPercent) / 100);
+  // Any non-% split uses the per-unit layout; % items show their rate.
+  const isCost = row.splitType !== 'percentage';
   const shopName = branding.header || 'TinyPOS';
   const generated = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-  const splitLabel = row.splitType === 'cost'
-    ? t('vendors.splitCost')
-    : row.splitType === 'mixed'
-      ? `${t('vendors.splitCost')} + ${row.commissionPercent}%`
-      : `${t('vendors.colCommission')} · ${row.commissionPercent}%`;
+  const splitLabel = splitLabelFor(row.splitType, row.commissionPercent, t);
 
   return (
     <div id={id} style={{
@@ -108,9 +104,9 @@ export default function VendorStatement({ id, row, paidCents = 0, range = {}, br
                 <td style={{ ...CELL, fontWeight: 600 }}>{it.name}</td>
                 <td style={{ ...CELL, textAlign: 'right', color: MUTED }}>{it.units}</td>
                 <td style={{ ...CELL, textAlign: 'right' }}>{formatForDisplay(perUnit(it.grossCents, it.units))}</td>
-                {isCost ? <td style={{ ...CELL, textAlign: 'right', color: MUTED }}>{it.splitType === 'cost' ? formatForDisplay(perUnit(it.costCents, it.units)) : `${row.commissionPercent}%`}</td> : null}
+                {isCost ? <td style={{ ...CELL, textAlign: 'right', color: MUTED }}>{it.splitType !== 'percentage' ? formatForDisplay(perUnit(it.costCents, it.units)) : `${row.commissionPercent}%`}</td> : null}
                 {isCost
-                  ? <td style={{ ...CELL, textAlign: 'right', fontWeight: 700, color: '#15803d' }}>{formatForDisplay(itemTake(it))}</td>
+                  ? <td style={{ ...CELL, textAlign: 'right', fontWeight: 700, color: '#15803d' }}>{formatForDisplay(it.takeCents)}</td>
                   : <td style={{ ...CELL, textAlign: 'right', fontWeight: 600 }}>{formatForDisplay(it.grossCents)}</td>}
               </tr>
             ))}
@@ -118,11 +114,7 @@ export default function VendorStatement({ id, row, paidCents = 0, range = {}, br
         </table>
         {/* Deal terms line — reinforces the split applied to this statement */}
         <div style={{ fontSize: '12px', color: MUTED, margin: '-12px 0 24px' }}>
-          {row.splitType === 'mixed'
-            ? `${t('vendors.termsCost')} ${t('vendors.termsCommission').replace('{pct}', String(row.commissionPercent))}`
-            : isCost
-            ? t('vendors.termsCost')
-            : t('vendors.termsCommission').replace('{pct}', String(row.commissionPercent))}
+          {splitTerms(row, t)}
         </div>
 
         {/* Summary panel */}

@@ -34,6 +34,8 @@ function MenuEditorTab({
   vendors = [], isAdvancedMode = true, onGoToTab, onNewRecipe
 }) {
   const { t } = useTranslation();
+  // Effective payout split for the item being edited (override or vendor default).
+  const itemSplit = newItemForm.vendorSplitType || vendors.find(v => String(v.id) === String(newItemForm.vendorId))?.splitType;
   const { showPrompt, showAlert, showConfirm } = useDialog();
   const fileInputRef = useRef(null);
   // Refs to drive auto-scroll between the editor form and the item in the list.
@@ -290,11 +292,12 @@ function MenuEditorTab({
                       <option value="">{t('menu.vendorSplitDefault')}</option>
                       <option value="percentage">{t('vendors.splitPercentage')}</option>
                       <option value="cost">{t('vendors.splitCost')}</option>
+                      <option value="fixed">{t('vendors.splitFixed')}</option>
                     </select>
                   )}
-                  {(newItemForm.vendorSplitType || vendors.find(v => String(v.id) === String(newItemForm.vendorId))?.splitType) === 'cost' && (
+                  {(itemSplit === 'cost' || itemSplit === 'fixed') && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('menu.labelVendorCost') || 'Costo de producción (unitario)'}</label>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t(itemSplit === 'fixed' ? 'menu.labelVendorFixed' : 'menu.labelVendorCost')}</label>
                       <input
                         type="number" min="0" step="0.01"
                         value={newItemForm.vendorUnitCost || ''}
