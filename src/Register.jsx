@@ -37,7 +37,7 @@ import CheckoutModal from './components/register/CheckoutModal';
 import LoyaltyModal from './components/register/LoyaltyModal';
 import FlyingReceipt from './components/register/FlyingReceipt';
 import ExpenseModal from './components/register/ExpenseModal';
-import ToastNotifications from './components/register/ToastNotifications';
+import { useToastStack } from './components/ui/arc';
 import { usePresence } from './hooks/usePresence';
 import { useCheckout } from './hooks/useCheckout';
 import { useShiftCorte } from './hooks/useShiftCorte';
@@ -150,12 +150,8 @@ function Register() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pendingItem, setPendingItem] = useState(null);
   const [successTicket, setSuccessTicket] = useState(null);
-  const [toasts, setToasts] = useState([]);
-  const showToast = (message, type = 'success') => {
-    const id = crypto.randomUUID();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 5000);
-  };
+  const { toast } = useToastStack();
+  const showToast = (message, type = 'success') => toast({ type, title: message });
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
 
   // --- REALTIME ACTIVE TICKETS (multi-device live sync) ---------------------
@@ -1136,6 +1132,7 @@ function Register() {
         <ModifierModal
           isModalOpen={isModalOpen}
           setIsModalOpen={setIsModalOpen}
+          setPendingItem={setPendingItem}
         />
 
         <CheckoutModal
@@ -1161,8 +1158,6 @@ function Register() {
         <LoyaltyModal loyaltyModal={loyaltyModal} setLoyaltyModal={setLoyaltyModal} menuData={menuData} handleCheckLoyalty={handleCheckLoyalty} handleAttachCustomer={handleAttachCustomer} handleRedeemReward={handleRedeemReward} handleGuestReceipt={handleGuestReceipt} phoneError={phoneError} sendFinalMessage={sendFinalMessage} isAdvancedMode={posSettings?.isAdvancedMode === true} />
 
         <FlyingReceipt successTicket={successTicket} />
-
-        <ToastNotifications toastNotifications={toasts} />
 
         <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} isSavingExpense={isSavingExpense} />
 

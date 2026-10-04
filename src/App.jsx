@@ -18,11 +18,13 @@ import AuthorizeHub from './components/AuthorizeHub';
 import { supabase } from './supabaseClient';
 import { getMode, setMode, MODE_LOCAL, isUpgradePending, clearUpgradePending } from './utils/appMode';
 import UpdateNotification from './components/shared/UpdateNotification';
+import { useToastStack } from './components/ui/arc';
 
 function MainApp() {
 
   // --- 1. NEW: CHECK FOR INSTALLATION ---
   // We now check for the specific keys that SetupScreen saves.
+  const { toast } = useToastStack();
   const [isInstalled, setIsInstalled] = useState(
     !!localStorage.getItem('tinypos_supabase_url') && !!localStorage.getItem('tinypos_supabase_anon_key')
   );
@@ -247,7 +249,7 @@ function MainApp() {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      window.alert("Device Authorization Failed: " + error.message);
+      toast({ type: 'error', title: 'Device Authorization Failed', description: error.message });
     }
 
     setIsLoggingIn(false);

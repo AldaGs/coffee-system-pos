@@ -2,6 +2,7 @@ import { Icon } from '@iconify/react';
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { supabase } from '../../supabaseClient';
 import { db } from '../../db';
+import { SortableDataTable } from '../ui/arc';
 import { useTranslation } from '../../hooks/useTranslation';
 import { logActivity } from '../../services/activityService';
 import { toCents, toMillicents, fromMillicents, formatForDisplay, formatMillicentsForDisplay, millicentsToCents } from '../../utils/moneyUtils';
@@ -780,11 +781,15 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
     });
   };
 
-  const handleSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
-    setSortConfig({ key, direction });
-  };
+  // Rows for the sortable table: plain sort keys plus the original item for rendering.
+  const inventoryRows = useMemo(() => inventoryItems.map(item => ({
+    id: String(item.id),
+    item,
+    name: item.name,
+    current_stock: parseFloat(item.current_stock) || 0,
+    unit_cost: parseFloat(item.unit_cost) || 0,
+    actions: '',
+  })), [inventoryItems]);
 
   const sortedItems = useMemo(() => {
     let sortableItems = [...inventoryItems];
@@ -1479,52 +1484,39 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
 
       {/* --- INVENTORY LIST --- */}
       <div style={{ background: 'var(--bg-surface)', borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-        <table className="card-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: 'var(--bg-main)' }}>
-              <th onClick={() => handleSort('name')} style={{ padding: '20px 24px', textAlign: 'left', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {t('inv.thName')}
-                  <Icon icon={sortConfig.key === 'name' ? (sortConfig.direction === 'asc' ? 'lucide:sort-asc' : 'lucide:sort-desc') : 'lucide:chevrons-up-down'} style={{ fontSize: '1rem' }} />
-                </div>
-              </th>
-              <th onClick={() => handleSort('current_stock')} style={{ padding: '20px 24px', textAlign: 'left', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {t('inv.thStock')}
-                  <Icon icon={sortConfig.key === 'current_stock' ? (sortConfig.direction === 'asc' ? 'lucide:sort-asc' : 'lucide:sort-desc') : 'lucide:chevrons-up-down'} style={{ fontSize: '1rem' }} />
-                </div>
-              </th>
-              <th onClick={() => handleSort('unit_cost')} style={{ padding: '20px 24px', textAlign: 'left', borderBottom: '2px solid var(--border)', cursor: 'pointer', userSelect: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {t('inv.thCost')}
-                  <Icon icon={sortConfig.key === 'unit_cost' ? (sortConfig.direction === 'asc' ? 'lucide:sort-asc' : 'lucide:sort-desc') : 'lucide:chevrons-up-down'} style={{ fontSize: '1rem' }} />
-                </div>
-              </th>
-              <th style={{ padding: '20px 24px', textAlign: 'right', borderBottom: '2px solid var(--border)', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('inv.thActions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedItems.map((item) => (
-              <tr
-                key={item.id}
-                ref={(el) => {
-                  if (el) rowRefs.current.set(item.id, el);
-                  else rowRefs.current.delete(item.id);
-                }}
-                style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s', scrollMarginTop: '16px', scrollMarginBottom: '16px' }}
-                className="hover-row"
-              >
-                <td data-label={t('inv.thName')} style={{ padding: '20px 24px', fontWeight: '700', fontSize: '1rem' }}>{item.name}</td>
-                <td data-label={t('inv.thStock')} style={{ padding: '20px 24px' }}>
+        <div className="arc">
+          <SortableDataTable
+            rows={inventoryRows}
+            rowKey="id"
+            caption={t('admin.inventory')}
+            defaultSort={sortConfig}
+            onSortChange={setSortConfig}
+            columns={[
+              {
+                key: 'name', label: t('inv.thName'),
+                // The ref lets an edit/restock panel scroll its row back into view on close.
+                render: (_, row) => <span ref={(el) => { if (el) rowRefs.current.set(row.item.id, el); else rowRefs.current.delete(row.item.id); }} style={{ fontWeight: 700, scrollMarginTop: '16px', scrollMarginBottom: '16px' }}>{row.name}</span>,
+              },
+              {
+                key: 'current_stock', label: t('inv.thStock'), numeric: false,
+                render: (_, { item }) => (
                   <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: isLowStock(item) ? 'rgba(231, 76, 60, 0.1)' : 'rgba(46, 204, 113, 0.1)', borderRadius: '20px', color: isLowStock(item) ? '#e74c3c' : '#27ae60', fontWeight: 'bold', fontSize: '0.95rem' }} title={Number(item.reorder_point) > 0 ? `${t('inv.reorderPoint')}: ${item.reorder_point} ${item.unit}` : undefined}>
                     <Icon icon={isLowStock(item) ? 'lucide:alert-circle' : 'lucide:check-circle'} />
                     {item.current_stock} {item.unit}
                   </div>
-                </td>
-                <td data-label={t('inv.thCost')} style={{ padding: '20px 24px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '1rem' }}>
-                  {formatMillicentsForDisplay(item.unit_cost || 0)} / {item.unit}
-                </td>
-                <td data-label={t('inv.thActions')} style={{ padding: '20px 24px', textAlign: 'right' }}>
+                ),
+              },
+              {
+                key: 'unit_cost', label: t('inv.thCost'), numeric: false,
+                render: (_, { item }) => (
+                  <span style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                    {formatMillicentsForDisplay(item.unit_cost || 0)} / {item.unit}
+                  </span>
+                ),
+              },
+              {
+                key: 'actions', label: t('inv.thActions'), sortable: false,
+                render: (_, { item }) => (
                   <div style={{ position: 'relative', display: 'inline-block' }}>
                     <button
                       onClick={(e) => {
@@ -1570,11 +1562,11 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
                       );
                     })()}
                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                ),
+              },
+            ]}
+          />
+        </div>
       </div>
 
       <style>{`

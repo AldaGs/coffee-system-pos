@@ -120,13 +120,14 @@ export function useTickets({
     }
   };
 
-  const handleCancelTicket = () => {
+  // `confirmed` skips the dialog when the caller already asked (e.g. a hold-to-confirm button).
+  const handleCancelTicket = (confirmed = false) => {
     if (!activeTicket) return;
     if (activeTicket.items.length === 0) {
       clearCurrentTicket();
       return;
     }
-    showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), () => {
+    const voidTicket = () => {
       // Log the void; consume any manager override the gate just authorized.
       logActivity('ticket_voided', null, {
         ticket_id: activeTicket.id,
@@ -134,7 +135,9 @@ export function useTickets({
         item_count: activeTicket.items.length,
       }, consumePendingAuthorizer());
       clearCurrentTicket();
-    });
+    };
+    if (confirmed) voidTicket();
+    else showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), voidTicket);
   };
 
   const addToTicket = async (item, modifiers, customPrice) => {

@@ -7,6 +7,7 @@ import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { supabase } from '../../supabaseClient';
+import { HoldToConfirm, MoneyCounter, SwipeActions, SwipeActionsRow, useToastStack } from '../ui/arc';
 import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
 
 function TicketArea({
@@ -20,6 +21,7 @@ function TicketArea({
   orderFlowMode = false, onAddProduct
 }) {
   const { t } = useTranslation();
+  const { toast } = useToastStack();
   const [qtyEditItem, setQtyEditItem] = useState(null);
 
   const {
@@ -55,7 +57,7 @@ function TicketArea({
       }).catch(console.error);
     } else {
       navigator.clipboard.writeText(cfdiUrl);
-      alert('Enlace CFDI copiado al portapapeles');
+      toast({ type: 'success', title: t('ticket.cfdiCopied') });
     }
   };
 
@@ -111,8 +113,8 @@ function TicketArea({
               </button>
             )}
 
-            <ul className="ticket-items">
-              {activeTicket.items.length === 0 ? (
+            {activeTicket.items.length === 0 ? (
+              <ul className="ticket-items">
                 orderFlowMode ? (
                   <li className="order-flow-empty-ticket">
                     <Icon icon="lucide:coffee" style={{ fontSize: '2.4rem', opacity: 0.25 }} />
@@ -126,14 +128,25 @@ function TicketArea({
                 ) : (
                   <li className="empty-cart">{t('ticket.empty')}</li>
                 )
-              ) : (
-                activeTicket.items.map(item => {
-                  // A line already covered by a saved per-product split stays in
-                  // the ticket (the total still includes it) but is flagged and
-                  // locked so it can't be removed out from under the payment.
-                  const isPaidLine = (activeTicket.savedPaidProductIds || []).includes(item.uniqueId);
-                  return (
-                  <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start', opacity: isPaidLine ? 0.6 : 1 }}>
+              </ul>
+            ) : (
+              <div className="ticket-items">
+                {/* Swipe a line left to remove it, right to edit its quantity; the ⋯ menu does the same by tap. */}
+                <SwipeActions label={t('ticket.items')} className="arc ticket-swipe">
+                  {activeTicket.items.map(item => {
+                    // A line already covered by a saved per-product split stays in
+                    // the ticket (the total still includes it) but is flagged and
+                    // locked so it can't be removed out from under the payment.
+                    const isPaidLine = (activeTicket.savedPaidProductIds || []).includes(item.uniqueId);
+                    return (
+                      <SwipeActionsRow
+                        key={item.uniqueId}
+                        label={item.name}
+                        className="ticket-swipe-row"
+                        leading={isPaidLine ? [] : [{ label: t('ticket.editQty'), icon: <Icon icon="lucide:hash" />, tone: 'accent', keepRow: true, onSelect: () => setQtyEditItem(item) }]}
+                        trailing={isPaidLine ? [] : [{ label: t('ticket.removeLine'), icon: <Icon icon="lucide:trash-2" />, tone: 'danger', onSelect: () => handleRemoveItem(item.uniqueId) }]}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', opacity: isPaidLine ? 0.6 : 1 }}>
                     <div className="item-row">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                         <button
@@ -161,9 +174,6 @@ function TicketArea({
                           )}
                         </div>
                       </div>
-                      {!isPaidLine && (
-                        <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
-                      )}
                     </div>
                     {item.selectedModifiers.map(mod => (
                       <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>
@@ -171,17 +181,19 @@ function TicketArea({
                         <span>{mod.price > 0 ? formatForDisplay(normalizeMenuPrice(mod.price)) : ''}</span>
                       </div>
                     ))}
-                  </li>
-                  );
-                })
-              )}
-            </ul>
+                        </div>
+                      </SwipeActionsRow>
+                    );
+                  })}
+                </SwipeActions>
+              </div>
+            )}
 
             <div className="ticket-footer">
               <CustomerStrip />
               <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
                 <span>{t('ticket.subtotal')}</span>
-                <span>{formatForDisplay(cartSubtotal)}</span>
+                <MoneyCounter cents={cartSubtotal} />
               </div>
               {autoDiscountAmount > 0 && (
                 <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#27ae60' }}>
@@ -198,7 +210,7 @@ function TicketArea({
               {(activeTicket.discount || autoDiscountAmount > 0) && (
                 <div className="total-row" style={{ marginBottom: '16px', fontSize: '1.5rem', color: 'var(--text-main)' }}>
                   <span>{t('ticket.total')}</span>
-                  <span>{formatForDisplay(cartTotal)}</span>
+                  <MoneyCounter cents={cartTotal} />
                 </div>
               )}
               <div className="checkout-actions">
@@ -240,22 +252,23 @@ function TicketArea({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button
-                    className="cancel-btn"
-                    onClick={() => {
+                  <HoldToConfirm
+                    key={isActionSheetOpen ? 'open' : 'closed'}
+                    className="arc"
+                    tone="danger"
+                    label={t('ticket.holdToVoid')}
+                    confirmedLabel={t('ticket.voided')}
+                    icon={lockHint ? <Icon icon="lucide:lock" /> : <Icon icon="lucide:trash-2" />}
+                    onConfirm={() => {
                       setIsActionSheetOpen(false);
                       gateRegisterAction({
                         posSettings, activeCashier, requirePin,
                         title: t('ticket.authVoid') || t('ticket.btnVoid'),
-                        run: () => handleCancelTicket(),
+                        run: () => handleCancelTicket(true),
                       });
                     }}
-                    aria-label={lockHint ? t('settings.lockBadgeAria') : undefined}
-                    style={{ flex: 1, padding: '16px', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                  >
-                    {lockHint && <Icon icon="lucide:lock" style={{ fontSize: '0.95rem' }} />}
-                    {t('ticket.btnVoid')}
-                  </button>
+                    style={{ flex: 1, minHeight: 56, fontSize: '1.1rem' }}
+                  />
                   <button onClick={() => { setIsActionSheetOpen(false); handleRenameTicket(); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#2980b9', border: '1px solid #2980b9', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     {t('ticket.btnRename')}
                   </button>
