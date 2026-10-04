@@ -7,6 +7,7 @@ import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { supabase } from '../../supabaseClient';
+import { HoldToConfirm, useToastStack } from '../ui/arc';
 import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
 
 function TicketArea({
@@ -20,6 +21,7 @@ function TicketArea({
   orderFlowMode = false, onAddProduct
 }) {
   const { t } = useTranslation();
+  const { toast } = useToastStack();
   const [qtyEditItem, setQtyEditItem] = useState(null);
 
   const {
@@ -55,7 +57,7 @@ function TicketArea({
       }).catch(console.error);
     } else {
       navigator.clipboard.writeText(cfdiUrl);
-      alert('Enlace CFDI copiado al portapapeles');
+      toast({ type: 'success', title: t('ticket.cfdiCopied') });
     }
   };
 
@@ -240,22 +242,23 @@ function TicketArea({
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button
-                    className="cancel-btn"
-                    onClick={() => {
+                  <HoldToConfirm
+                    key={isActionSheetOpen ? 'open' : 'closed'}
+                    className="arc"
+                    tone="danger"
+                    label={t('ticket.holdToVoid')}
+                    confirmedLabel={t('ticket.voided')}
+                    icon={lockHint ? <Icon icon="lucide:lock" /> : <Icon icon="lucide:trash-2" />}
+                    onConfirm={() => {
                       setIsActionSheetOpen(false);
                       gateRegisterAction({
                         posSettings, activeCashier, requirePin,
                         title: t('ticket.authVoid') || t('ticket.btnVoid'),
-                        run: () => handleCancelTicket(),
+                        run: () => handleCancelTicket(true),
                       });
                     }}
-                    aria-label={lockHint ? t('settings.lockBadgeAria') : undefined}
-                    style={{ flex: 1, padding: '16px', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                  >
-                    {lockHint && <Icon icon="lucide:lock" style={{ fontSize: '0.95rem' }} />}
-                    {t('ticket.btnVoid')}
-                  </button>
+                    style={{ flex: 1, minHeight: 56, fontSize: '1.1rem' }}
+                  />
                   <button onClick={() => { setIsActionSheetOpen(false); handleRenameTicket(); }} style={{ flex: 1, padding: '16px', background: 'var(--bg-main)', color: '#2980b9', border: '1px solid #2980b9', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.1rem' }}>
                     {t('ticket.btnRename')}
                   </button>

@@ -1,0 +1,32 @@
+/* Design tokens for the vendored Arc components (https://github.com/kuratlielia/arc-library, MIT).
+   Scoped to .arc and mapped onto TinyPOS's own palette, so they follow body.dark-mode and the brand color. */
+.arc {
+  --background: var(--bg-main);
+  --surface: var(--bg-surface);
+  --surface-raised: var(--bg-surface);
+  --surface-muted: color-mix(in oklab, var(--text-main) 5%, var(--bg-surface));
+  --foreground: var(--text-main);
+  --text-secondary: var(--text-muted);
+  --border-strong: color-mix(in oklab, var(--text-main) 22%, var(--bg-surface));
+  --accent: var(--brand-color, #f28b05);
+  --accent-foreground: #fff;
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
+  --shadow-raised: 0 6px 18px rgb(0 0 0 / .08), 0 1px 3px rgb(0 0 0 / .05);
+  --shadow-floating: 0 20px 48px rgb(0 0 0 / .14), 0 3px 10px rgb(0 0 0 / .06);
+  --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem;
+  --radius-control: .75rem; --radius-panel: 1rem; --radius-pill: 9999px;
+  --control-height-md: 2.75rem;
+  --text-sm: .95rem;
+  --tracking-body: 0; --leading-body: 1.4;
+  --ease-enter: cubic-bezier(.16,1,.3,1);
+  --ease-standard: cubic-bezier(.22,1,.36,1);
+  --ease-spring: cubic-bezier(.34,1.3,.64,1);
+  --duration-instant: 120ms; --duration-fast: 160ms; --duration-standard: 240ms; --duration-spring: 580ms;
+}
+
+/* Toasts must float above the app's modals (which go up to z-index 9999). */
+section.arc { z-index: 10000; }
+/* Keep white text on the red fill in dark mode too (Arc uses the page background there). */
+button.arc[data-tone="danger"] { --hold-on-fill: #fff; }
