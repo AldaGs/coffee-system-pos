@@ -39,7 +39,7 @@
 .label { font-size: var(--text-xs); font-weight: 500; letter-spacing: var(--tracking-body); line-height: var(--leading-body); white-space: nowrap; }
 
 /* The menu grows from its trigger, matching the library dropdown. */
-.menu { --menu-x: 0px; --menu-y: -5px; position: relative; z-index: 60; min-width: 11rem; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--surface-raised); box-shadow: var(--shadow-floating); transform-origin: var(--radix-dropdown-menu-content-transform-origin); }
+.menu { --menu-x: 0px; --menu-y: -5px; position: relative; z-index: 1110; min-width: 11rem; padding: 5px; border: 1px solid var(--border); border-radius: var(--radius-panel); background: var(--surface-raised); box-shadow: var(--shadow-floating); transform-origin: var(--radix-dropdown-menu-content-transform-origin); }
 .menu[data-side="top"] { --menu-y: 5px; }
 .menu[data-state="open"] { animation: menu-fade-in var(--duration-fast) var(--ease-enter) both, menu-rise-in var(--duration-spring) var(--ease-spring) both; }
 .menu[data-state="closed"] { animation: menu-out var(--duration-instant) var(--ease-standard) both; }

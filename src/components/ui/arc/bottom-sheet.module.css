@@ -1,5 +1,6 @@
+/* TinyPOS: layers sit above the app's own drawers and sheets (up to z-index 1060), below toasts (10000). */
 /* The dim follows the sheet's position in JS; only its color lives here. */
-.overlay { position: fixed; inset: 0; z-index: 50; background: oklch(16% 0 0 / .34); }
+.overlay { position: fixed; inset: 0; z-index: 1100; background: oklch(16% 0 0 / .34); }
 :global(:root[data-theme="dark"]) .overlay { background: oklch(0% 0 0 / .52); }
 /* While it leaves, nothing underneath is blocked and the sheet cannot be grabbed again.
    Radix sets pointer-events: auto inline on the overlay, so only !important lets a click reach the trigger and reverse the exit. */
@@ -8,7 +9,7 @@
 /* The sheet is as tall as its largest detent plus a hidden extension below the fold; detents are translateY offsets from there. */
 .sheet {
   position: fixed;
-  z-index: 51;
+  z-index: 1101;
   right: 0;
   bottom: calc(var(--sheet-extension) * -1);
   left: 0;
