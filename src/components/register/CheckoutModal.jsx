@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { MoneyCounter } from '../ui/arc';
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
@@ -36,7 +37,7 @@ function CheckoutModal({
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '20px', background: 'var(--bg-main)', padding: '15px', borderRadius: '8px' }}>
           <div>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>{t('check.totalDue')}</span>
-            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: 'var(--brand-color)' }}>{formatForDisplay(totalDue)}</p>
+            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: 'var(--brand-color)' }}><MoneyCounter cents={totalDue} /></p>
           </div>
           <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>{t('check.paid')}</span>
@@ -44,7 +45,7 @@ function CheckoutModal({
           </div>
           <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: '20px' }}>
             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'uppercase' }}>{t('check.remaining')}</span>
-            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#e74c3c' }}>{formatForDisplay(remaining)}</p>
+            <p style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '5px 0 0 0', color: '#e74c3c' }}><MoneyCounter cents={remaining} /></p>
           </div>
         </div>
 
@@ -108,7 +109,7 @@ function CheckoutModal({
                 <button onClick={() => setNWays(Math.min(20, nWays + 1))} style={{ padding: '10px 20px', borderRadius: '8px', border: '2px solid var(--border)', background: 'transparent', color: 'var(--text-main)', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
               </div>
               <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--brand-color)' }}>{formatForDisplay(Math.floor(remaining / nWays))}</span>
+                <span style={{ fontSize: '2.5rem', fontWeight: 'bold', color: 'var(--brand-color)' }}><MoneyCounter cents={Math.floor(remaining / nWays)} /></span>
                 <span style={{ color: 'var(--text-muted)', display: 'block', marginTop: '5px' }}>{t('check.perPerson')}</span>
               </div>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>

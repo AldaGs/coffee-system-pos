@@ -30,3 +30,5 @@
 section.arc { z-index: 10000; }
 /* Keep white text on the red fill in dark mode too (Arc uses the page background there). */
 button.arc[data-tone="danger"] { --hold-on-fill: #fff; }
+/* MoneyCounter inherits the surrounding text style instead of Arc's display size. */
+.arc-money > span { font: inherit; color: inherit; letter-spacing: inherit; line-height: inherit; }

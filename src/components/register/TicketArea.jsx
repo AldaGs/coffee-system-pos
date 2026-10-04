@@ -7,7 +7,7 @@ import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { supabase } from '../../supabaseClient';
-import { HoldToConfirm, useToastStack } from '../ui/arc';
+import { HoldToConfirm, MoneyCounter, useToastStack } from '../ui/arc';
 import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
 
 function TicketArea({
@@ -183,7 +183,7 @@ function TicketArea({
               <CustomerStrip />
               <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
                 <span>{t('ticket.subtotal')}</span>
-                <span>{formatForDisplay(cartSubtotal)}</span>
+                <MoneyCounter cents={cartSubtotal} />
               </div>
               {autoDiscountAmount > 0 && (
                 <div className="total-row" style={{ marginBottom: '4px', fontSize: '1.1rem', color: '#27ae60' }}>
@@ -200,7 +200,7 @@ function TicketArea({
               {(activeTicket.discount || autoDiscountAmount > 0) && (
                 <div className="total-row" style={{ marginBottom: '16px', fontSize: '1.5rem', color: 'var(--text-main)' }}>
                   <span>{t('ticket.total')}</span>
-                  <span>{formatForDisplay(cartTotal)}</span>
+                  <MoneyCounter cents={cartTotal} />
                 </div>
               )}
               <div className="checkout-actions">
