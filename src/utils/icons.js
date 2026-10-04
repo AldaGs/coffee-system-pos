@@ -84,6 +84,7 @@ import rotateCcw from '@iconify-icons/lucide/rotate-ccw';
 import save from '@iconify-icons/lucide/save';
 import scrollText from '@iconify-icons/lucide/scroll-text';
 import settings from '@iconify-icons/lucide/settings';
+import pieChart from '@iconify-icons/lucide/pie-chart';
 import search from '@iconify-icons/lucide/search';
 import settings2 from '@iconify-icons/lucide/settings-2';
 import shield from '@iconify-icons/lucide/shield';
@@ -221,6 +222,7 @@ const icons = {
   'lucide:terminal': terminal,
   'lucide:ticket': ticket,
   'lucide:ticket-plus': ticket,
+  'lucide:pie-chart': pieChart,
   'lucide:search': search,
   'lucide:trash-2': trash2,
   'lucide:trending-up': trendingUp,

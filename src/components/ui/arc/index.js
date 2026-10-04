@@ -5,3 +5,6 @@ export { HoldToConfirm } from './hold-to-confirm';
 export { AnimatedCounter } from './animated-counter';
 export { MoneyCounter } from './MoneyCounter';
 export { CommandPalette } from './command-palette';
+export { ActivityHeatmap } from './activity-heatmap';
+export { BarChart } from './bar-chart';
+export { DonutChart } from './donut-chart';

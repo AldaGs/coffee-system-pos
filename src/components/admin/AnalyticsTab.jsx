@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay, millicentsToCents, normalizeUnitCostToMillicents } from '../../utils/moneyUtils';
 import { computeCogsAndWastage } from '../../utils/cogsMath';
+import SalesTrends from './SalesTrends';
 
 function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [], salesByMethod = {} }) {
   const { t } = useTranslation();
@@ -289,6 +290,9 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
           </button>
         </div>
       </div>
+
+      {/* --- SALES TRENDS (Arc charts) --- */}
+      <SalesTrends filteredSales={filteredSales} allSales={allSales} />
 
       {/* --- ROW 1: MENU HEALTH --- */}
       <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', fontSize: '1.2rem' }}>
