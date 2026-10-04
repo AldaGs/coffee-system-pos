@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { BottomSheet } from '../ui/arc';
 
 function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, activeTicket, menuData, handleToggleManualRule, isAdvancedMode }) {
   const { t } = useTranslation();
   const [codeInput, setCodeInput] = useState('');
   const [codeError, setCodeError] = useState(false);
-
-  if (!isDiscountModalOpen) return null;
 
   const allRules = isAdvancedMode ? (menuData?.discountRules || []) : [];
   const isLive = (r) => r.isActive && !(r.usage === 'once' && r.consumedAt);
@@ -26,13 +25,14 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
   };
 
   return (
-    <div className="modal-overlay" style={{ zIndex: 100 }}>
-      <div className="modal-content fade-in" style={{ maxWidth: '400px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, color: '#8e44ad' }}>{t('discModal.title')}</h2>
-          <button onClick={() => setIsDiscountModalOpen(false)} aria-label={t('common.close')} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-main)' }}>✕</button>
-        </div>
-
+    <BottomSheet
+      open={isDiscountModalOpen}
+      onOpenChange={setIsDiscountModalOpen}
+      title={t('discModal.title')}
+      closeLabel={t('common.close')}
+      detents={[0.6, 0.92]}
+      className="arc"
+    >
         {presetRules.length > 0 && (
           <div style={{ marginBottom: '20px' }}>
             <div style={{ fontSize: '0.75rem', fontWeight: '900', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px' }}>{t('discModal.presetsTitle')}</div>
@@ -127,8 +127,7 @@ function DiscountModal({ isDiscountModalOpen, setIsDiscountModalOpen, discountFo
             {t('discModal.btnApply')}
           </button>
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   );
 }
 

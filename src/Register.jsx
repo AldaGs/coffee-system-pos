@@ -1132,6 +1132,7 @@ function Register() {
         <ModifierModal
           isModalOpen={isModalOpen}
           setIsModalOpen={setIsModalOpen}
+          setPendingItem={setPendingItem}
         />
 
         <CheckoutModal

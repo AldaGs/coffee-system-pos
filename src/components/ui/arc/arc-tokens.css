@@ -19,9 +19,10 @@
   --shadow-raised: 0 6px 18px rgb(0 0 0 / .08), 0 1px 3px rgb(0 0 0 / .05);
   --shadow-floating: 0 20px 48px rgb(0 0 0 / .14), 0 3px 10px rgb(0 0 0 / .06);
   --space-2: .5rem; --space-3: .75rem; --space-4: 1rem; --space-5: 1.25rem; --space-6: 1.5rem; --space-8: 2rem;
-  --radius-control: .75rem; --radius-panel: 1rem; --radius-pill: 9999px;
+  --radius-control: .75rem; --radius-panel: 1rem; --radius-surface: 1.25rem; --radius-pill: 9999px;
   --control-height-md: 2.75rem;
   --text-sm: .95rem;
+  --text-lg: 1.125rem; --control-on: var(--brand-color, #f28b05); --control-glyph: #fff;
   --text-base: 1rem; --text-2xl: 1.75rem; --text-3xl: 2.25rem;
   --font-body: inherit; --font-display: inherit;
   --tracking-display: -.02em; --leading-display: 1.1;
@@ -47,3 +48,6 @@ button.arc[data-tone="danger"] { --hold-on-fill: #fff; }
 .arc-palette-overlay { position: fixed; inset: 0; z-index: 9000; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; background: rgb(0 0 0 / .35); }
 .arc-palette-overlay > .arc { width: min(36rem, 100%); }
 body.dark-mode .arc { --series-1: #2f8be0; --series-2: #e66e00; --series-3: #a947cc; --series-4: #00a861; }
+
+/* Ticket lines: the swipe list sits flush in the ticket panel instead of in its own framed card. */
+.ticket-swipe { border: 0 !important; border-radius: 0 !important; background: transparent !important; --surface: var(--bg-surface); --swipe-actions-inset: 0px; font-size: 1.1rem; font-weight: 500; }

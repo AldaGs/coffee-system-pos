@@ -18,6 +18,7 @@ import { buildDeductionPlan } from '../../utils/inventoryMath';
 import { restoreInventory } from '../../services/inventoryService';
 import { useMenuStore } from '../../store/useMenuStore';
 import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
+import { SortableDataTable } from '../ui/arc';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
@@ -460,6 +461,211 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
     }
   };
 
+  // Pieces of an order row, shared by the sortable table's cells.
+  const renderOrderBadges = (order) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
+          {order.order_name ? (
+            <>
+              <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
+                {order.order_name}
+              </span>
+              {order.ticket_id && (
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', background: 'var(--bg-main)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                  {order.ticket_id.slice(-6)}
+                </span>
+              )}
+            </>
+          ) : order.ticket_id ? (
+            <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
+              {order.ticket_id.slice(-6)}
+            </span>
+          ) : (
+            <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
+              #{order.id}
+            </span>
+          )}
+
+          {order.status === 'refunded' && (
+            <span style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(231, 76, 60, 0.2)' }}>
+              <Icon icon="lucide:x-circle" />
+              {t('orders.voided')}
+            </span>
+          )}
+          {order.status === 'partial_refund' && (
+            <span style={{ background: 'rgba(243, 156, 18, 0.1)', color: '#f39c12', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(243, 156, 18, 0.2)' }}>
+              <Icon icon="lucide:alert-triangle" />
+              {t('orders.partial')}
+            </span>
+          )}
+          {order.status === 'completed' && (
+            <span style={{ background: 'rgba(46, 204, 113, 0.1)', color: '#27ae60', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(46, 204, 113, 0.2)' }}>
+              <Icon icon="lucide:check-circle-2" />
+              {t('orders.completed')}
+            </span>
+          )}
+          {order.cfdi_status === 'requested' && (
+            <span style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(52, 152, 219, 0.2)' }}>
+              <Icon icon="lucide:file-text" />
+              CFDI Solicitado
+            </span>
+          )}
+          {order.cfdi_status === 'issued' && (
+            <span style={{ background: 'rgba(155, 89, 182, 0.1)', color: '#8e44ad', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(155, 89, 182, 0.2)' }}>
+              <Icon icon="lucide:file-check" />
+              CFDI Emitido
+            </span>
+          )}
+        </div>
+  );
+  const renderOrderTotals = (order) => (
+        <div style={{ textAlign: 'inherit' }}>
+          {(() => {
+            const autoAmt = order.discount?.autoDiscountAmount || 0;
+            const manualAmt = order.discount?.manualDiscountAmount || 0;
+            const totalDisc = autoAmt + manualAmt;
+            if (totalDisc <= 0) return null;
+            const manualLabel = order.discount?.type === 'percentage'
+              ? `${t('ticket.discount')} (${order.discount.value}%)`
+              : t('ticket.discount');
+            return (
+              <>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'inherit' }}>
+                  {t('ticket.subtotal')}: {formatForDisplay((order.total_amount || 0) + totalDisc)}
+                </div>
+                <div style={{ color: '#27ae60', fontWeight: '700', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'inherit', gap: '4px' }}>
+                  <Icon icon="lucide:tag" style={{ fontSize: '0.85rem' }} />
+                  {manualAmt > 0 ? manualLabel : t('ticket.discount')} -{formatForDisplay(totalDisc)}
+                </div>
+              </>
+            );
+          })()}
+          <div style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)', textDecoration: order.status === 'refunded' ? 'line-through' : 'none', letterSpacing: '-1px' }}>
+            {formatForDisplay(order.total_amount || 0)}
+          </div>
+          {order.refund_amount > 0 && (
+            <div style={{ color: '#e74c3c', fontWeight: '800', fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'inherit', gap: '4px' }}>
+              <Icon icon="lucide:undo-2" />
+              -{formatForDisplay(order.refund_amount)} {t('orders.refundedLabel')}
+            </div>
+          )}
+        </div>
+  );
+  const renderOrderActions = (order) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            onClick={() => handlePrint(order)}
+            title={t('ticket.btnPrint')}
+            style={{ padding: '10px', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+          >
+            <Icon icon="lucide:printer" />
+          </button>
+          <button
+            onClick={() => handleSharePNG(order)}
+            title={t('ticket.btnShare')}
+            style={{ padding: '10px', background: 'rgba(230, 126, 34, 0.1)', color: '#e67e22', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+          >
+            <Icon icon="lucide:share-2" />
+          </button>
+          <button
+            onClick={() => handleShareWA(order)}
+            title={t('ticket.btnWA')}
+            style={{ padding: '10px', background: 'rgba(37, 211, 102, 0.1)', color: '#25D366', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
+          >
+            <Icon icon="lucide:message-circle" />
+          </button>
+          <button
+            onClick={() => handleShareCFDI(order)}
+            title="Factura / CFDI"
+            style={{ padding: '10px', background: 'var(--bg-main)', color: '#34495e', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer' }}
+          >
+            <Icon icon="lucide:file-text" />
+          </button>
+        </div>
+
+        {order.cfdi_status === 'requested' && (
+          <button
+            onClick={() => setCfdiModal({ isOpen: true, order })}
+            style={{
+              padding: '12px 20px',
+              background: 'rgba(52, 152, 219, 0.05)',
+              color: '#2980b9',
+              border: '2px solid rgba(52, 152, 219, 0.2)',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontWeight: '900',
+              transition: '0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <Icon icon="lucide:file-check" /> Emitir CFDI
+          </button>
+        )}
+
+        <button
+          onClick={() => {
+            gateRegisterAction({
+              posSettings, activeCashier, requirePin,
+              title: t('orders.promptPin'),
+              run: () => {
+                setRefundMode('all');
+                setRefundAmount('');
+                setRefundItems({});
+                // Sensible default: full refund -> return tip; partial -> keep tip with staff.
+                setTipRefundMode('full');
+                // Pre-tick the resellable lines (sealed products), leave
+                // made-to-order lines unticked. The operator confirms or
+                // changes it per line before confirming the refund.
+                setRestockItems(Object.fromEntries(
+                  (order.items || []).map((line, idx) => [idx, defaultRestock(line)])
+                ));
+                setRefundModal({ isOpen: true, order: order });
+              },
+            });
+          }}
+          aria-label={refundLocked ? t('settings.lockBadgeAria') : undefined}
+          disabled={order.status === 'refunded'}
+          style={{
+            padding: '12px 20px',
+            background: order.status === 'refunded' ? 'var(--bg-main)' : 'rgba(231, 76, 60, 0.05)',
+            color: order.status === 'refunded' ? 'var(--text-muted)' : '#e74c3c',
+            border: `2px solid ${order.status === 'refunded' ? 'transparent' : 'rgba(231, 76, 60, 0.2)'}`,
+            borderRadius: '16px',
+            cursor: order.status === 'refunded' ? 'not-allowed' : 'pointer',
+            fontWeight: '900',
+            transition: '0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            textTransform: 'uppercase',
+            fontSize: '0.85rem'
+          }}
+        >
+          {refundLocked ? <Icon icon="lucide:lock" /> : <Icon icon="lucide:rotate-ccw" />}
+          {t('orders.btnRefund')}
+        </button>
+    </div>
+  );
+  const orderRows = dexieSales.map(order => ({
+    id: String(order.id),
+    order,
+    name: order.order_name || (order.ticket_id ? order.ticket_id.slice(-6) : `#${order.id}`),
+    created: new Date(order.created_at).getTime() || 0,
+    cashier: order.cashier_name || '',
+    total: Number(order.total_amount) || 0,
+    actions: '',
+  }));
+  const orderColumns = [
+    { key: 'name', label: t('orders.colOrder'), render: (_, row) => renderOrderBadges(row.order) },
+    { key: 'created', label: t('orders.colDate'), numeric: false, render: (value) => new Date(value).toLocaleString(lang === 'es' ? 'es-MX' : 'en-US') },
+    { key: 'cashier', label: t('orders.colCashier') },
+    { key: 'total', label: t('orders.colTotal'), numeric: true, render: (_, row) => renderOrderTotals(row.order) },
+    { key: 'actions', label: t('orders.colActions'), sortable: false, render: (_, row) => renderOrderActions(row.order) },
+  ];
+
   return (
     <div className="admin-section fade-in">
       {/* Hidden capture target for PNG generation */}
@@ -533,208 +739,18 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {dexieSales.slice().reverse().map(order => (
-          <div key={order.id} className="mobile-flex-stack" style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '0.9rem' }}>
-                  {order.order_name ? (
-                    <>
-                      <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
-                        {order.order_name}
-                      </span>
-                      {order.ticket_id && (
-                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', background: 'var(--bg-main)', padding: '2px 8px', borderRadius: '6px', border: '1px solid var(--border)' }}>
-                          {order.ticket_id.slice(-6)}
-                        </span>
-                      )}
-                    </>
-                  ) : order.ticket_id ? (
-                    <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
-                      {order.ticket_id.slice(-6)}
-                    </span>
-                  ) : (
-                    <span style={{ fontWeight: 'bold', fontSize: '1.3rem', color: 'var(--text-main)' }}>
-                      #{order.id}
-                    </span>
-                  )}
-
-                  {order.status === 'refunded' && (
-                    <span style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#e74c3c', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(231, 76, 60, 0.2)' }}>
-                      <Icon icon="lucide:x-circle" />
-                      {t('orders.voided')}
-                    </span>
-                  )}
-                  {order.status === 'partial_refund' && (
-                    <span style={{ background: 'rgba(243, 156, 18, 0.1)', color: '#f39c12', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(243, 156, 18, 0.2)' }}>
-                      <Icon icon="lucide:alert-triangle" />
-                      {t('orders.partial')}
-                    </span>
-                  )}
-                  {order.status === 'completed' && (
-                    <span style={{ background: 'rgba(46, 204, 113, 0.1)', color: '#27ae60', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(46, 204, 113, 0.2)' }}>
-                      <Icon icon="lucide:check-circle-2" />
-                      {t('orders.completed')}
-                    </span>
-                  )}
-                  {order.cfdi_status === 'requested' && (
-                    <span style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(52, 152, 219, 0.2)' }}>
-                      <Icon icon="lucide:file-text" />
-                      CFDI Solicitado
-                    </span>
-                  )}
-                  {order.cfdi_status === 'issued' && (
-                    <span style={{ background: 'rgba(155, 89, 182, 0.1)', color: '#8e44ad', padding: '6px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '900', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(155, 89, 182, 0.2)' }}>
-                      <Icon icon="lucide:file-check" />
-                      CFDI Emitido
-                    </span>
-                  )}
-                </div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Icon icon="lucide:calendar" style={{ fontSize: '0.85rem' }} />
-                    {new Date(order.created_at).toLocaleString(lang === 'es' ? 'es-MX' : 'en-US')}
-                  </span>
-                  <span style={{ height: '4px', width: '4px', background: 'var(--border)', borderRadius: '50%' }} className="desktop-only" />
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Icon icon="lucide:user" style={{ fontSize: '1rem' }} />
-                    {order.cashier_name}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mobile-flex-stack" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
-              <div style={{ textAlign: 'inherit' }}>
-                {(() => {
-                  const autoAmt = order.discount?.autoDiscountAmount || 0;
-                  const manualAmt = order.discount?.manualDiscountAmount || 0;
-                  const totalDisc = autoAmt + manualAmt;
-                  if (totalDisc <= 0) return null;
-                  const manualLabel = order.discount?.type === 'percentage'
-                    ? `${t('ticket.discount')} (${order.discount.value}%)`
-                    : t('ticket.discount');
-                  return (
-                    <>
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'inherit' }}>
-                        {t('ticket.subtotal')}: {formatForDisplay((order.total_amount || 0) + totalDisc)}
-                      </div>
-                      <div style={{ color: '#27ae60', fontWeight: '700', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'inherit', gap: '4px' }}>
-                        <Icon icon="lucide:tag" style={{ fontSize: '0.85rem' }} />
-                        {manualAmt > 0 ? manualLabel : t('ticket.discount')} -{formatForDisplay(totalDisc)}
-                      </div>
-                    </>
-                  );
-                })()}
-                <div style={{ fontSize: '1.2rem', fontWeight: '900', color: 'var(--text-main)', textDecoration: order.status === 'refunded' ? 'line-through' : 'none', letterSpacing: '-1px' }}>
-                  {formatForDisplay(order.total_amount || 0)}
-                </div>
-                {order.refund_amount > 0 && (
-                  <div style={{ color: '#e74c3c', fontWeight: '800', fontSize: '0.95rem', display: 'flex', alignItems: 'center', justifyContent: 'inherit', gap: '4px' }}>
-                    <Icon icon="lucide:undo-2" />
-                    -{formatForDisplay(order.refund_amount)} {t('orders.refundedLabel')}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  onClick={() => handlePrint(order)}
-                  title={t('ticket.btnPrint')}
-                  style={{ padding: '10px', background: 'rgba(52, 152, 219, 0.1)', color: '#3498db', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
-                >
-                  <Icon icon="lucide:printer" />
-                </button>
-                <button
-                  onClick={() => handleSharePNG(order)}
-                  title={t('ticket.btnShare')}
-                  style={{ padding: '10px', background: 'rgba(230, 126, 34, 0.1)', color: '#e67e22', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
-                >
-                  <Icon icon="lucide:share-2" />
-                </button>
-                <button
-                  onClick={() => handleShareWA(order)}
-                  title={t('ticket.btnWA')}
-                  style={{ padding: '10px', background: 'rgba(37, 211, 102, 0.1)', color: '#25D366', border: 'none', borderRadius: '12px', cursor: 'pointer' }}
-                >
-                  <Icon icon="lucide:message-circle" />
-                </button>
-                <button
-                  onClick={() => handleShareCFDI(order)}
-                  title="Factura / CFDI"
-                  style={{ padding: '10px', background: 'var(--bg-main)', color: '#34495e', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer' }}
-                >
-                  <Icon icon="lucide:file-text" />
-                </button>
-              </div>
-
-              {order.cfdi_status === 'requested' && (
-                <button
-                  onClick={() => setCfdiModal({ isOpen: true, order })}
-                  style={{
-                    padding: '12px 20px',
-                    background: 'rgba(52, 152, 219, 0.05)',
-                    color: '#2980b9',
-                    border: '2px solid rgba(52, 152, 219, 0.2)',
-                    borderRadius: '16px',
-                    cursor: 'pointer',
-                    fontWeight: '900',
-                    transition: '0.2s',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}
-                >
-                  <Icon icon="lucide:file-check" /> Emitir CFDI
-                </button>
-              )}
-
-              <button
-                onClick={() => {
-                  gateRegisterAction({
-                    posSettings, activeCashier, requirePin,
-                    title: t('orders.promptPin'),
-                    run: () => {
-                      setRefundMode('all');
-                      setRefundAmount('');
-                      setRefundItems({});
-                      // Sensible default: full refund -> return tip; partial -> keep tip with staff.
-                      setTipRefundMode('full');
-                      // Pre-tick the resellable lines (sealed products), leave
-                      // made-to-order lines unticked. The operator confirms or
-                      // changes it per line before confirming the refund.
-                      setRestockItems(Object.fromEntries(
-                        (order.items || []).map((line, idx) => [idx, defaultRestock(line)])
-                      ));
-                      setRefundModal({ isOpen: true, order: order });
-                    },
-                  });
-                }}
-                aria-label={refundLocked ? t('settings.lockBadgeAria') : undefined}
-                disabled={order.status === 'refunded'}
-                style={{
-                  padding: '12px 20px',
-                  background: order.status === 'refunded' ? 'var(--bg-main)' : 'rgba(231, 76, 60, 0.05)',
-                  color: order.status === 'refunded' ? 'var(--text-muted)' : '#e74c3c',
-                  border: `2px solid ${order.status === 'refunded' ? 'transparent' : 'rgba(231, 76, 60, 0.2)'}`,
-                  borderRadius: '16px',
-                  cursor: order.status === 'refunded' ? 'not-allowed' : 'pointer',
-                  fontWeight: '900',
-                  transition: '0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  textTransform: 'uppercase',
-                  fontSize: '0.85rem'
-                }}
-              >
-                {refundLocked ? <Icon icon="lucide:lock" /> : <Icon icon="lucide:rotate-ccw" />}
-                {t('orders.btnRefund')}
-              </button>
-            </div>
+        {dexieSales.length > 0 && (
+          <div className="arc">
+            <SortableDataTable
+              rows={orderRows}
+              columns={orderColumns}
+              rowKey="id"
+              caption={t('orders.tableCaption')}
+              defaultSort={{ key: 'created', direction: 'desc' }}
+              itemName={{ one: t('orders.itemOne'), other: t('orders.itemOther') }}
+            />
           </div>
-        ))}
+        )}
         {dexieSales.length === 0 && (
           <div style={{ padding: '80px 20px', textAlign: 'center', background: 'var(--bg-surface)', borderRadius: '24px', border: '2px dashed var(--border)' }}>
             <Icon icon="lucide:receipt" style={{ fontSize: '4rem', color: 'var(--text-muted)', opacity: 0.2, marginBottom: '20px' }} />

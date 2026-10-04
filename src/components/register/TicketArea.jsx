@@ -7,7 +7,7 @@ import CustomerStrip from './CustomerStrip';
 import { formatForDisplay, normalizeMenuPrice } from '../../utils/moneyUtils';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { supabase } from '../../supabaseClient';
-import { HoldToConfirm, MoneyCounter, useToastStack } from '../ui/arc';
+import { HoldToConfirm, MoneyCounter, SwipeActions, SwipeActionsRow, useToastStack } from '../ui/arc';
 import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
 
 function TicketArea({
@@ -113,8 +113,8 @@ function TicketArea({
               </button>
             )}
 
-            <ul className="ticket-items">
-              {activeTicket.items.length === 0 ? (
+            {activeTicket.items.length === 0 ? (
+              <ul className="ticket-items">
                 orderFlowMode ? (
                   <li className="order-flow-empty-ticket">
                     <Icon icon="lucide:coffee" style={{ fontSize: '2.4rem', opacity: 0.25 }} />
@@ -128,14 +128,25 @@ function TicketArea({
                 ) : (
                   <li className="empty-cart">{t('ticket.empty')}</li>
                 )
-              ) : (
-                activeTicket.items.map(item => {
-                  // A line already covered by a saved per-product split stays in
-                  // the ticket (the total still includes it) but is flagged and
-                  // locked so it can't be removed out from under the payment.
-                  const isPaidLine = (activeTicket.savedPaidProductIds || []).includes(item.uniqueId);
-                  return (
-                  <li key={item.uniqueId} className="ticket-item" style={{ flexDirection: 'column', alignItems: 'flex-start', opacity: isPaidLine ? 0.6 : 1 }}>
+              </ul>
+            ) : (
+              <div className="ticket-items">
+                {/* Swipe a line left to remove it, right to edit its quantity; the ⋯ menu does the same by tap. */}
+                <SwipeActions label={t('ticket.items')} className="arc ticket-swipe">
+                  {activeTicket.items.map(item => {
+                    // A line already covered by a saved per-product split stays in
+                    // the ticket (the total still includes it) but is flagged and
+                    // locked so it can't be removed out from under the payment.
+                    const isPaidLine = (activeTicket.savedPaidProductIds || []).includes(item.uniqueId);
+                    return (
+                      <SwipeActionsRow
+                        key={item.uniqueId}
+                        label={item.name}
+                        className="ticket-swipe-row"
+                        leading={isPaidLine ? [] : [{ label: t('ticket.editQty'), icon: <Icon icon="lucide:hash" />, tone: 'accent', keepRow: true, onSelect: () => setQtyEditItem(item) }]}
+                        trailing={isPaidLine ? [] : [{ label: t('ticket.removeLine'), icon: <Icon icon="lucide:trash-2" />, tone: 'danger', onSelect: () => handleRemoveItem(item.uniqueId) }]}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', width: '100%', opacity: isPaidLine ? 0.6 : 1 }}>
                     <div className="item-row">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                         <button
@@ -163,9 +174,6 @@ function TicketArea({
                           )}
                         </div>
                       </div>
-                      {!isPaidLine && (
-                        <button className="delete-item-btn" aria-label={t('a11y.removeItem')} onClick={() => handleRemoveItem(item.uniqueId)}>✕</button>
-                      )}
                     </div>
                     {item.selectedModifiers.map(mod => (
                       <div key={mod.id} style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', width: '100%', paddingLeft: '10px', paddingRight: '30px' }}>
@@ -173,11 +181,13 @@ function TicketArea({
                         <span>{mod.price > 0 ? formatForDisplay(normalizeMenuPrice(mod.price)) : ''}</span>
                       </div>
                     ))}
-                  </li>
-                  );
-                })
-              )}
-            </ul>
+                        </div>
+                      </SwipeActionsRow>
+                    );
+                  })}
+                </SwipeActions>
+              </div>
+            )}
 
             <div className="ticket-footer">
               <CustomerStrip />

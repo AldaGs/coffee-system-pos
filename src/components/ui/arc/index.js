@@ -8,3 +8,6 @@ export { CommandPalette } from './command-palette';
 export { ActivityHeatmap } from './activity-heatmap';
 export { BarChart } from './bar-chart';
 export { DonutChart } from './donut-chart';
+export { BottomSheet } from './bottom-sheet';
+export { SortableDataTable } from './sortable-data-table';
+export { SwipeActions, SwipeActionsRow } from './swipe-actions';

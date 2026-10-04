@@ -1,23 +1,31 @@
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
+import { BottomSheet } from '../ui/arc';
 
-function ModifierModal({ 
-  isModalOpen 
+function ModifierModal({
+  isModalOpen, setIsModalOpen, setPendingItem
 }) {
   const { t } = useTranslation();
 
   const { 
     pendingItem, menuData, handleToggleModifier, 
-    handleTextModifierChange, addToTicket 
+    handleTextModifierChange, addToTicket
   } = usePos();
 
-  if (!isModalOpen || !pendingItem) return null;
+  // Swiping the sheet away (or Esc / tapping outside) drops the item without adding it.
+  const dismiss = () => { setIsModalOpen(false); setPendingItem(null); };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content">
-        <h2>{t('modModal.customize')} {pendingItem.name}</h2>
+    <BottomSheet
+      open={isModalOpen && !!pendingItem}
+      onOpenChange={(open) => { if (!open) dismiss(); }}
+      title={pendingItem ? `${t('modModal.customize')} ${pendingItem.name}` : ''}
+      closeLabel={t('common.close')}
+      detents={[0.6, 0.92]}
+      className="arc"
+    >
+      {pendingItem && <>
         
         {pendingItem.allowedModifiers
           .filter(modKey => menuData.modifierGroups[modKey] && !menuData.modifierGroupSettings?.[modKey]?.isHidden)
@@ -67,8 +75,8 @@ function ModifierModal({
             {t('modModal.btnAdd')}
           </button>
         </div>
-      </div>
-    </div>
+      </>}
+    </BottomSheet>
   );
 }
 
