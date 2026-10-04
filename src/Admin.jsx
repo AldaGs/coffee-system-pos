@@ -55,6 +55,7 @@ import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
 import { toCents, fromCents } from './utils/moneyUtils';
 import { computeCogsAndWastage } from './utils/cogsMath';
+import { CommandPalette } from './components/ui/arc';
 
 function Admin() {
   usePreventAccidentalExit();
@@ -103,6 +104,18 @@ function Admin() {
   const [adminPinInput, setAdminPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  // Ctrl/⌘+K opens the section search from anywhere in the dashboard.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsPaletteOpen(true);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
   // Cloud reconciliation state for the local-first boot. The dashboard paints
   // from the cached menuData immediately; this tracks the background refresh so
   // the UI can tell the user whether what they're looking at is server-fresh:
@@ -1843,6 +1856,41 @@ function Admin() {
   };
 
 
+  const adminTabs = [
+    { id: 'analytics', icon: 'lucide:bar-chart-3', label: t('admin.analytics') },
+    { id: 'orders', icon: 'lucide:receipt', label: t('admin.orders') },
+    { id: 'menu', icon: 'lucide:coffee', label: t('admin.menu') },
+    { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
+    { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
+    { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
+    { id: 'vendors', icon: 'lucide:store', label: t('admin.vendors'), advancedOnly: true },
+    { id: 'tables', icon: 'lucide:armchair', label: t('admin.tables'), advancedOnly: true },
+    // Public menus (TinyMenu) need a Supabase project to publish — cloud only.
+    { id: 'menus', icon: 'lucide:layout-list', label: t('admin.publicMenus'), cloudOnly: true },
+    { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
+    { id: 'cfdi', icon: 'lucide:file-text', label: t('admin.cfdi'), cloudOnly: true },
+    { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
+    { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
+    // Team (server-side PINs/app_users), Devices (Management API provisioning),
+    // and Activity (server feed) are meaningless on a single local device.
+    { id: 'team', icon: 'lucide:users', label: t('admin.team'), cloudOnly: true },
+    { id: 'devices', icon: 'lucide:tablet-smartphone', label: t('admin.devices'), cloudOnly: true },
+    { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
+    { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true, cloudOnly: true },
+    { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
+    // Help is always reachable — never gated by Advanced/Cloud mode.
+    { id: 'help', icon: 'lucide:life-buoy', label: t('admin.help') },
+  // Public Menus stays visible in local mode (locked, with the upgrade
+  // offer) because that's where owners go looking for it.
+  ].filter(tab => !(tab.cloudOnly && isLocalMode() && tab.id !== 'menus'));
+  const openTab = (tab) => {
+    if (tab.advancedOnly && generalSettings.isAdvancedMode !== true) {
+      showConfirm(t('settings.advancedLockedTitle'), t('settings.advancedLockedDesc'), () => switchTab('settings'));
+    } else {
+      switchTab(tab.id);
+    }
+  };
+
   if (isAuthenticated && !isAdminUnlocked) {
     return (
       <SharedPinPad
@@ -1879,6 +1927,30 @@ function Admin() {
 
   return (
     <div className="admin-layout">
+      {isPaletteOpen && (
+        <div className="arc-palette-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsPaletteOpen(false); }}>
+          <div className="arc">
+            <CommandPalette
+              autoFocus
+              label={t('admin.paletteSearch')}
+              placeholder={t('admin.paletteSearch')}
+              emptyTitle={t('admin.paletteEmpty')}
+              emptyHint={t('admin.paletteEmptyHint')}
+              items={adminTabs.map(tab => ({
+                id: tab.id,
+                label: tab.label,
+                group: t('admin.paletteGroup'),
+                // Match without accents too, so "analiticas" finds "Analíticas".
+                keywords: [tab.id, tab.label.normalize('NFD').replace(/\p{Diacritic}/gu, '')],
+                description: tab.advancedOnly && generalSettings.isAdvancedMode !== true ? t('admin.paletteLocked') : undefined,
+                icon: <Icon icon={tab.icon} />,
+              }))}
+              onSelect={(item) => { setIsPaletteOpen(false); openTab(adminTabs.find(tab => tab.id === item.id)); }}
+              onClose={() => setIsPaletteOpen(false)}
+            />
+          </div>
+        </div>
+      )}
       <div className={`admin-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)}></div>
 
       <aside className={`admin-aside ${isMobileMenuOpen ? 'open' : ''}`}>
@@ -1891,45 +1963,20 @@ function Admin() {
             <Icon icon="lucide:x" />
           </button>
         </div>
+        <button
+          onClick={() => setIsPaletteOpen(true)}
+          style={{ margin: '12px 16px 0', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.08)', color: 'inherit', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.95rem', flexShrink: 0 }}
+        >
+          <Icon icon="lucide:search" />
+          <span>{t('admin.paletteOpen')}</span>
+        </button>
         <nav className="admin-aside-nav" style={{ display: 'flex', flexDirection: 'column', padding: '16px 0', flex: 1, gap: '4px', overflowY: 'auto', minHeight: 0, WebkitOverflowScrolling: 'touch' }}>
-          {[
-            { id: 'analytics', icon: 'lucide:bar-chart-3', label: t('admin.analytics') },
-            { id: 'orders', icon: 'lucide:receipt', label: t('admin.orders') },
-            { id: 'menu', icon: 'lucide:coffee', label: t('admin.menu') },
-            { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
-            { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
-            { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
-            { id: 'vendors', icon: 'lucide:store', label: t('admin.vendors'), advancedOnly: true },
-            { id: 'tables', icon: 'lucide:armchair', label: t('admin.tables'), advancedOnly: true },
-            // Public menus (TinyMenu) need a Supabase project to publish — cloud only.
-            { id: 'menus', icon: 'lucide:layout-list', label: t('admin.publicMenus'), cloudOnly: true },
-            { id: 'receipt', icon: 'lucide:printer', label: t('admin.receipt') },
-            { id: 'cfdi', icon: 'lucide:file-text', label: t('admin.cfdi'), cloudOnly: true },
-            { id: 'discounts', icon: 'lucide:percent', label: t('admin.promotions'), advancedOnly: true },
-            { id: 'loyalty', icon: 'lucide:star', label: t('admin.loyalty'), advancedOnly: true },
-            // Team (server-side PINs/app_users), Devices (Management API provisioning),
-            // and Activity (server feed) are meaningless on a single local device.
-            { id: 'team', icon: 'lucide:users', label: t('admin.team'), cloudOnly: true },
-            { id: 'devices', icon: 'lucide:tablet-smartphone', label: t('admin.devices'), cloudOnly: true },
-            { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
-            { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true, cloudOnly: true },
-            { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
-            // Help is always reachable — never gated by Advanced/Cloud mode.
-            { id: 'help', icon: 'lucide:life-buoy', label: t('admin.help') },
-          // Public Menus stays visible in local mode (locked, with the upgrade
-          // offer) because that's where owners go looking for it.
-          ].filter(tab => !(tab.cloudOnly && isLocalMode() && tab.id !== 'menus')).map(tab => {
+          {adminTabs.map(tab => {
             const isLocked = tab.advancedOnly && generalSettings.isAdvancedMode !== true;
             return (
               <button
                 key={tab.id}
-                onClick={() => {
-                  if (isLocked) {
-                    showConfirm(t('settings.advancedLockedTitle'), t('settings.advancedLockedDesc'), () => switchTab('settings'));
-                  } else {
-                    switchTab(tab.id);
-                  }
-                }}
+                onClick={() => openTab(tab)}
                 style={{
                   padding: '12px 24px',
                   textAlign: 'left',

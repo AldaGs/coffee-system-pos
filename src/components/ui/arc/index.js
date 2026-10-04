@@ -4,3 +4,4 @@ export { ToastStackProvider, ToastStack, useToastStack } from './toast-stack';
 export { HoldToConfirm } from './hold-to-confirm';
 export { AnimatedCounter } from './animated-counter';
 export { MoneyCounter } from './MoneyCounter';
+export { CommandPalette } from './command-palette';

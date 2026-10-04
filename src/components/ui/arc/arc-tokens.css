@@ -7,6 +7,9 @@
   --surface-muted: color-mix(in oklab, var(--text-main) 5%, var(--bg-surface));
   --foreground: var(--text-main);
   --text-secondary: var(--text-muted);
+  --border-subtle: var(--border);
+  --focus-ring: transparent;
+  --text-xs: .8rem;
   --border-strong: color-mix(in oklab, var(--text-main) 22%, var(--bg-surface));
   --accent: var(--brand-color, #f28b05);
   --accent-foreground: #fff;
@@ -32,3 +35,7 @@ section.arc { z-index: 10000; }
 button.arc[data-tone="danger"] { --hold-on-fill: #fff; }
 /* MoneyCounter inherits the surrounding text style instead of Arc's display size. */
 .arc-money > span { font: inherit; color: inherit; letter-spacing: inherit; line-height: inherit; }
+
+/* Admin ⌘K palette: a dimmed overlay with the palette near the top. */
+.arc-palette-overlay { position: fixed; inset: 0; z-index: 9000; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; background: rgb(0 0 0 / .35); }
+.arc-palette-overlay > .arc { width: min(36rem, 100%); }

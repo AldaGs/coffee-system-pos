@@ -101,6 +101,12 @@ export const translations = {
     "admin.tables": "Tables",
     "admin.settings": "General Settings",
     "admin.help": "Help",
+    "admin.paletteSearch": "Search sections…",
+    "admin.paletteEmpty": "No matching sections",
+    "admin.paletteEmptyHint": "Try a different word.",
+    "admin.paletteOpen": "Search (Ctrl+K)",
+    "admin.paletteGroup": "Sections",
+    "admin.paletteLocked": "Requires Advanced mode",
     "admin.backToRegister": "Back to Register",
 
     // --- Help / User Guide ---
@@ -1637,6 +1643,12 @@ export const translations = {
     "admin.tables": "Mesas",
     "admin.settings": "General",
     "admin.help": "Ayuda",
+    "admin.paletteSearch": "Buscar secciones…",
+    "admin.paletteEmpty": "Sin resultados",
+    "admin.paletteEmptyHint": "Prueba con otra palabra.",
+    "admin.paletteOpen": "Buscar (Ctrl+K)",
+    "admin.paletteGroup": "Secciones",
+    "admin.paletteLocked": "Requiere el modo avanzado",
     "admin.backToRegister": "Regresar a la Registradora",
 
     // --- Help / User Guide ---
