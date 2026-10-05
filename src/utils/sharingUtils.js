@@ -478,8 +478,7 @@ export const saveTicketAsPNG = async (elementId, fileName = 'ticket.png') => {
 
     const file = new File([blob], fileName, { type: 'image/png' });
 
-    // meta.download skips the share sheet and saves the file directly.
-  if (!meta.download && navigator.canShare && navigator.canShare({ files: [file] })) {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
           files: [file],
