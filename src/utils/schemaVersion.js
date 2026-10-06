@@ -17,6 +17,9 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.8 — One fiscal_profiles row per CFDI request: drops UNIQUE(rfc) and
+//       cfdi_request_invoice inserts/updates its own profile instead of
+//       overwriting a shared one by RFC (migration 048).
 // 1.7 — Disk IO: indexes the delivery-reminder sweep's delivery_date filter
 //       and the six unindexed foreign keys, and rewrites every RLS policy's
 //       auth.uid()/auth.role() call as (select auth.uid()) so Postgres hoists
@@ -104,4 +107,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.7';
+export const APP_SCHEMA_VERSION = '1.8';

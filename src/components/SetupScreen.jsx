@@ -1674,7 +1674,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         -- ---------------------------------------------------------------------------
         CREATE TABLE IF NOT EXISTS public.fiscal_profiles (
           id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-          rfc text NOT NULL UNIQUE,
+          rfc text NOT NULL,
           razon_social text NOT NULL,
           regimen_fiscal text NOT NULL,
           uso_cfdi text NOT NULL,
@@ -1891,17 +1891,23 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             RETURN jsonb_build_object('ok', false, 'reason', 'invalid_fields');
           END IF;
 
-          INSERT INTO public.fiscal_profiles (rfc, razon_social, regimen_fiscal, uso_cfdi, cp, email)
-          VALUES (v_rfc, btrim(p_razon_social), btrim(p_regimen_fiscal), btrim(p_uso_cfdi),
-                  btrim(p_cp), btrim(p_email))
-          ON CONFLICT (rfc) DO UPDATE SET
-            razon_social   = EXCLUDED.razon_social,
-            regimen_fiscal = EXCLUDED.regimen_fiscal,
-            uso_cfdi       = EXCLUDED.uso_cfdi,
-            cp             = EXCLUDED.cp,
-            email          = EXCLUDED.email,
-            updated_at     = now()
-          RETURNING id INTO v_profile_id;
+          -- One profile row per request: a shared row keyed by RFC let any submission
+          -- rewrite the email/razon social of every other ticket linked to it. A
+          -- reopened sale edits its own row; anything else gets a fresh one.
+          v_profile_id := NULLIF(v_row->>'fiscal_profile_id', '')::uuid;
+          IF v_profile_id IS NOT NULL THEN
+            UPDATE public.fiscal_profiles
+            SET rfc = v_rfc, razon_social = btrim(p_razon_social),
+                regimen_fiscal = btrim(p_regimen_fiscal), uso_cfdi = btrim(p_uso_cfdi),
+                cp = btrim(p_cp), email = btrim(p_email), updated_at = now()
+            WHERE id = v_profile_id;
+          END IF;
+          IF v_profile_id IS NULL OR NOT FOUND THEN
+            INSERT INTO public.fiscal_profiles (rfc, razon_social, regimen_fiscal, uso_cfdi, cp, email)
+            VALUES (v_rfc, btrim(p_razon_social), btrim(p_regimen_fiscal), btrim(p_uso_cfdi),
+                    btrim(p_cp), btrim(p_email))
+            RETURNING id INTO v_profile_id;
+          END IF;
 
           UPDATE public.sales
           SET fiscal_profile_id = v_profile_id,
@@ -2684,7 +2690,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
           FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '1.7', now())
+        VALUES ('schema_version', '1.8', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

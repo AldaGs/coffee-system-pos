@@ -141,7 +141,7 @@ function CfdiTab({ showAlert, showConfirm }) {
 
     const acc = {
       ticketCount: 0, grossCents: 0, refundCents: 0, netCents: 0,
-      invoicedCount: 0, invoicedCents: 0, globalCount: 0, globalCents: 0,
+      invoicedCount: 0, invoicedCents: 0, globalCount: 0, globalCents: 0, pendingCount: 0,
     };
     for (const s of data || []) {
       const gross = Number(s.total_amount) || 0;
@@ -154,6 +154,8 @@ function CfdiTab({ showAlert, showConfirm }) {
       if (s.cfdi_status === 'issued') {
         acc.invoicedCount += 1;
         acc.invoicedCents += net;
+      } else if (s.cfdi_status === 'requested' || s.cfdi_status === 'reopened') {
+        acc.pendingCount += 1;
       } else {
         acc.globalCount += 1;
         acc.globalCents += net;
@@ -181,6 +183,10 @@ function CfdiTab({ showAlert, showConfirm }) {
       // Snapshot the totals now so a later refund can't change what was filed.
       let summary = null;
       try { summary = await computeMonthSummary(newPeriod); } catch { /* keep null */ }
+      if (summary?.pendingCount > 0) {
+        showAlert(t('common.error'), `Hay ${summary.pendingCount} solicitud(es) de factura pendientes en ${newPeriod}. Emítelas o cancélalas antes de cerrar el periodo.`);
+        return;
+      }
       const { error } = await supabase
         .from('cfdi_global_periods')
         .upsert({ period: newPeriod, business_name: businessName || null, summary }, { onConflict: 'period' });
@@ -369,6 +375,7 @@ function CfdiTab({ showAlert, showConfirm }) {
       ...(s.refundCents ? [{ label: 'Reembolsos', value: `- ${fmtCents(s.refundCents)}` }] : []),
       { label: 'Ventas netas', value: fmtCents(s.netCents), strong: true },
       { label: `Facturas individuales (${s.invoicedCount})`, value: `- ${fmtCents(s.invoicedCents)}` },
+      ...(s.pendingCount > 0 ? [{ label: `Solicitudes pendientes (${s.pendingCount}) — emítelas o cancélalas antes de cerrar`, value: '⚠' }] : []),
     ];
     return (
       <div style={{ marginTop: '12px', padding: '14px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px' }}>
@@ -639,7 +646,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                       <Icon icon="lucide:calendar" /> {new Date(req.created_at).toLocaleString()}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: req.isPaid ? '#27ae60' : '#e74c3c' }}>
-                      <Icon icon="lucide:dollar-sign" /> ${(req.total_amount || 0) / 100} ({req.isPaid ? 'Pagado' : 'Pendiente'})
+                      <Icon icon="lucide:dollar-sign" /> {fmtCents(req.total_amount)} ({req.isPaid ? 'Pagado' : 'Pendiente'})
                     </span>
                   </div>
                 </div>

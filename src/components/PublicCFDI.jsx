@@ -136,7 +136,7 @@ function PublicCFDI({ ticketId }) {
 
         setSale(data.ticket);
         setGlobalPeriod(data.global_period || null);
-        if (data.profile) setFormData(data.profile);
+        if (data.profile) setFormData(Object.fromEntries(Object.entries(data.profile).map(([k, v]) => [k, v ?? ''])));
       } catch (err) {
         setError(err.message);
       } finally {
@@ -167,7 +167,7 @@ function PublicCFDI({ ticketId }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value.toUpperCase() });
+    setFormData(prev => ({ ...prev, [name]: value }));
     if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: undefined }));
   };
 
@@ -250,12 +250,12 @@ function PublicCFDI({ ticketId }) {
       // writes only fiscal_profile_id + cfdi_status on this one sale.
       const { data, error: rpcError } = await supabase.rpc('cfdi_request_invoice', {
         p_ref: String(ticketId),
-        p_rfc: formData.rfc,
-        p_razon_social: formData.razon_social,
+        p_rfc: formData.rfc.trim().toUpperCase(),
+        p_razon_social: formData.razon_social.trim().toUpperCase(),
         p_regimen_fiscal: formData.regimen_fiscal,
         p_uso_cfdi: formData.uso_cfdi,
-        p_cp: formData.cp,
-        p_email: formData.email,
+        p_cp: formData.cp.trim(),
+        p_email: formData.email.trim().toLowerCase(),
       });
 
       if (rpcError) throw rpcError;
@@ -540,13 +540,13 @@ function PublicCFDI({ ticketId }) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>RFC</label>
-                <input required disabled={!isEditable} type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13} placeholder="XAXX010101000" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.rfc ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
+                <input required disabled={!isEditable} type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="XAXX010101000" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.rfc ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
                 {fieldErrors.rfc && <span style={fieldErrorStyle}>{fieldErrors.rfc}</span>}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Razón Social</label>
-                <input required disabled={!isEditable} type="text" name="razon_social" value={formData.razon_social} onChange={handleChange} placeholder="Empresa S.A. de C.V." style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.razon_social ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
+                <input required disabled={!isEditable} type="text" name="razon_social" value={formData.razon_social} onChange={handleChange} placeholder="Empresa S.A. de C.V." style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.razon_social ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
                 {fieldErrors.razon_social && <span style={fieldErrorStyle}>{fieldErrors.razon_social}</span>}
               </div>
 
@@ -558,7 +558,7 @@ function PublicCFDI({ ticketId }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 2 }}>
                   <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Email para Factura</label>
-                  <input required disabled={!isEditable} type="email" name="email" value={formData.email} onChange={(e) => { setFormData({ ...formData, email: e.target.value.toLowerCase() }); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); }} placeholder="correo@ejemplo.com" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.email ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
+                  <input required disabled={!isEditable} type="email" autoCapitalize="none" name="email" value={formData.email} onChange={(e) => { const v = e.target.value; setFormData(prev => ({ ...prev, email: v })); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); }} placeholder="correo@ejemplo.com" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.email ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
                   {fieldErrors.email && <span style={fieldErrorStyle}>{fieldErrors.email}</span>}
                 </div>
               </div>
