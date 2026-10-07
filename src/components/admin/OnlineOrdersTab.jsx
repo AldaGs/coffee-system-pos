@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { toCents, fromCents } from '../../utils/moneyUtils';
 import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 
 // Online ordering settings. Stored at posSettings.onlineOrders so the
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
 // every device gets it through the normal posSettings sync.
-// Shape: { enabled, paused, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
-const DEFAULTS = { enabled: false, paused: false, schedule: null };
+// Shape: { enabled, paused, delivery: { enabled, feeCents }, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
+const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const { t } = useTranslation();
   const saved = { ...DEFAULTS, ...(menuData?.posSettings?.onlineOrders || {}) };
   const [form, setForm] = useState(saved);
+  const delivery = form.delivery || DEFAULTS.delivery;
+  const setDelivery = (patch) => setForm({ ...form, delivery: { ...delivery, ...patch } });
   const sched = form.schedule || { days: 0, start: '', end: '' };
   const days = bitmaskToDays(sched.days);
 
@@ -49,6 +52,18 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <input type="checkbox" checked={!!form.paused} onChange={e => setForm({ ...form, paused: e.target.checked })} />
           <span><strong>{t('oo.paused')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.pausedDesc')}</small></span>
         </label>
+
+        <label style={{ ...row, cursor: 'pointer' }}>
+          <input type="checkbox" checked={!!delivery.enabled} onChange={e => setDelivery({ enabled: e.target.checked })} />
+          <span><strong>{t('oo.deliveryOn')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.deliveryDesc')}</small></span>
+        </label>
+        {delivery.enabled && (
+          <label style={{ ...row, borderTop: 'none', paddingTop: 0 }}>
+            <span>{t('oo.deliveryFee')}</span>
+            <input type="number" min="0" step="0.5" style={{ ...input, width: 110 }}
+              value={fromCents(delivery.feeCents)} onChange={e => setDelivery({ feeCents: Math.max(0, toCents(e.target.value)) })} />
+          </label>
+        )}
 
         <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
           <strong>{t('oo.schedule')}</strong>
