@@ -54,3 +54,10 @@ Customers order from a shared link, track the order live, and the shop receives 
 - **/order**: pickup/delivery toggle (only when offered), address remembered in localStorage (cleared by "forget my data"), fee in totals, "Order #N" and the `on_delivery` step on the tracker for delivery orders.
 - **Register**: accept stores `order_num`; the fee becomes a ticket line (`id: online-delivery-fee`, untaxed, no inventory link). Inbox shows type + address and a "Send to logistics" button for delivery orders: updates the existing `order_fulfillment` row (ticket already sent to KDS) with address + notes + phone, else inserts it (and marks the ticket `kds_sent`).
 - **Not done**: Register inbox does not mirror `in_transit` into `online_orders.status` (customer view is derived server-side); online payment and customer accounts remain out of scope.
+
+## Delivery map pin (schema 2.2)
+
+- **Schema 2.2**: `online_orders` and `order_fulfillment` + `delivery_lat`, `delivery_lng` (double precision, IF NOT EXISTS). `public_place_order` reads optional `payload.lat/lng` for delivery orders; non-numeric, out-of-range (-90..90, -180..180) or half-present values are stored as NULL (never an error).
+- **/order**: for delivery only, `PinMap.jsx` (Leaflet + OpenStreetMap tiles, no API keys) is lazy-loaded (`React.lazy`, so Leaflet and its CSS stay out of the menu bundle). "Use my location" (geolocation, on button press), tap map / drag marker, and "Search address" (Nominatim, button press only, one request). Default view: saved pin, else Mexico City zoomed out. The pin is optional; the address text is still required. Saved in the same localStorage entry as the address (cleared by "forget my data").
+- **Register**: `sendOrderToLogistics` copies `delivery_lat/lng`; the inbox shows a "Map" link (`google.com/maps?q=lat,lng`).
+- **tinylogistics**: Navigate buttons (Google Maps / Waze) from the coords, or Google Maps by address text when no pin; hidden behind the same PIN gate as the address.

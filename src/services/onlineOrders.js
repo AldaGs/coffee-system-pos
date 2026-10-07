@@ -77,6 +77,8 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
 export async function sendOrderToLogistics(order, ticket) {
   const patch = {
     delivery_address: order.delivery_address,
+    delivery_lat: order.delivery_lat ?? null,
+    delivery_lng: order.delivery_lng ?? null,
     delivery_notes: [order.notes, `Tel: ${order.phone}`].filter(Boolean).join(' · '),
   };
   const { data: updated, error } = await supabase.from('order_fulfillment')

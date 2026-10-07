@@ -2707,6 +2707,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS order_num int;
         ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_address text;
         ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_notes text;
+        ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lat double precision;
+        ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lng double precision;
+        ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_lat double precision;
+        ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_lng double precision;
         CREATE INDEX IF NOT EXISTS idx_online_orders_status ON public.online_orders (status);
         CREATE INDEX IF NOT EXISTS idx_online_orders_ticket ON public.online_orders (active_ticket_id);
         ALTER TABLE public.online_orders ENABLE ROW LEVEL SECURITY;
@@ -2756,6 +2760,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           v_deliv boolean;
           v_fee_cfg int;
           v_fee int := 0;
+          v_lat double precision;
+          v_lng double precision;
         BEGIN
           -- 1. Feature gate: opt-in, not paused, inside the schedule (shop timezone).
           SELECT menu_data->'posSettings'->'onlineOrders' INTO v_cfg FROM public.shop_settings WHERE id = 1;
@@ -2797,6 +2803,14 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             IF NOT v_deliv THEN RAISE EXCEPTION 'delivery_disabled'; END IF;
             IF v_addr IS NULL OR length(v_addr) < 5 OR length(v_addr) > 250 THEN RAISE EXCEPTION 'invalid_address'; END IF;
             v_fee := v_fee_cfg;
+            -- Optional map pin: numeric and in range, else dropped (address text stays the source of truth).
+            BEGIN
+              v_lat := (payload->>'lat')::double precision;
+              v_lng := (payload->>'lng')::double precision;
+            EXCEPTION WHEN OTHERS THEN v_lat := NULL; v_lng := NULL; END;
+            IF v_lat IS NULL OR v_lng IS NULL OR v_lat NOT BETWEEN -90 AND 90 OR v_lng NOT BETWEEN -180 AND 180 THEN
+              v_lat := NULL; v_lng := NULL;
+            END IF;
           ELSE
             v_addr := NULL;
           END IF;
@@ -2868,8 +2882,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
               'line_cents', v_unit * v_qty);
           END LOOP;
 
-          INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents)
-          VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee)
+          INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents, delivery_lat, delivery_lng)
+          VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee, v_lat, v_lng)
           RETURNING token INTO v_token;
           RETURN v_token;
         END;
@@ -2944,7 +2958,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
           FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '2.1', now())
+        VALUES ('schema_version', '2.2', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

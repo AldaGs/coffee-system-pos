@@ -175,7 +175,9 @@ export default function OnlineOrdersInbox({
                   <span style={{ fontWeight: 700 }}>{t(`oo.st_${o.status}`)}</span>
                 </div>
                 {o.order_type === 'delivery' && (
-                  <div style={{ fontWeight: 700 }}>{t('oo.delivery')}: {o.delivery_address}</div>
+                  <div style={{ fontWeight: 700 }}>{t('oo.delivery')}: {o.delivery_address}
+                    {o.delivery_lat != null && <> · <a href={`https://www.google.com/maps?q=${o.delivery_lat},${o.delivery_lng}`} target="_blank" rel="noreferrer">{t('oo.map')}</a></>}
+                  </div>
                 )}
                 {o.pickup_at && <div style={{ color: 'var(--text-muted)' }}>{t('oo.pickupAt')}: {new Date(o.pickup_at).toLocaleString()}</div>}
                 {o.notes && <div style={{ color: 'var(--text-muted)' }}>{o.notes}</div>}

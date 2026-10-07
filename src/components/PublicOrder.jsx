@@ -9,11 +9,14 @@
 // localStorage only. Connection bootstrap mirrors PublicMenu (?p= ref,
 // custom domain, legacy ?u=&k=).
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
+
+// Leaflet + its CSS only download when a customer picks delivery.
+const PinMap = lazy(() => import('./PinMap'));
 
 const CUSTOMER_KEY = 'tinypos_order_customer';
 const HISTORY_KEY = 'tinypos_order_history';
@@ -46,7 +49,7 @@ const STR = {
     rejectedWhy: 'Motivo', st_requested: 'Pedido enviado', st_accepted: 'Aceptado', st_preparing: 'Preparando',
     st_ready: 'Listo para recoger', st_completed: 'Entregado', st_delivered: 'Entregado', st_rejected: 'Rechazado',
     waiting: 'Esperando confirmación del negocio…', updating: 'Actualizando…',
-    typePickup: 'Recoger', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
+    typePickup: 'Recoger', pinUseMine: 'Usar mi ubicación', pinSearch: 'Buscar dirección en el mapa', pinClear: 'Quitar pin', pinHint: 'Opcional: toca el mapa o arrastra el pin a tu puerta.', pinNoGeo: 'No pudimos obtener tu ubicación.', pinNeedAddr: 'Escribe tu dirección primero.', pinNotFound: 'No encontramos esa dirección.', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
     payOnDelivery: 'Pagas al recibir.', orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
     invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', invalid_type: 'Revisa tu pedido.',
   },
@@ -68,7 +71,7 @@ const STR = {
     rejectedWhy: 'Reason', st_requested: 'Order sent', st_accepted: 'Accepted', st_preparing: 'Preparing',
     st_ready: 'Ready for pickup', st_completed: 'Picked up', st_delivered: 'Delivered', st_rejected: 'Rejected',
     waiting: 'Waiting for the shop to confirm…', updating: 'Updating…',
-    typePickup: 'Pickup', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
+    typePickup: 'Pickup', pinUseMine: 'Use my location', pinSearch: 'Search address on map', pinClear: 'Remove pin', pinHint: 'Optional: tap the map or drag the pin to your door.', pinNoGeo: 'Could not get your location.', pinNeedAddr: 'Enter your address first.', pinNotFound: 'Address not found.', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
     payOnDelivery: 'You pay on delivery.', orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
     invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', invalid_type: 'Please review your order.',
   },
@@ -150,7 +153,7 @@ function Order({ client, lang, setLang }) {
   const [cart, setCart] = useState([]); // { key, id, qty, mods: [optionId] }
   const [picking, setPicking] = useState(null); // { item, mods }
   const [checkingOut, setCheckingOut] = useState(false);
-  const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', ...readJson(CUSTOMER_KEY, {}) }));
+  const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}) }));
   const [history, setHistory] = useState(() => readJson(HISTORY_KEY, []));
   const [notes, setNotes] = useState('');
   const [pickup, setPickup] = useState('');
@@ -242,7 +245,7 @@ function Order({ client, lang, setLang }) {
   };
   const forget = () => {
     removeKey(CUSTOMER_KEY); removeKey(HISTORY_KEY);
-    setCustomer({ name: '', phone: '', address: '' }); setHistory([]);
+    setCustomer({ name: '', phone: '', address: '', lat: null, lng: null }); setHistory([]);
     setFormErr(s.forgot);
   };
 
@@ -252,13 +255,14 @@ function Order({ client, lang, setLang }) {
     const payload = {
       name: customer.name, phone: customer.phone, notes,
       order_type: delivery ? 'delivery' : 'pickup', address: delivery ? customer.address : null,
+      lat: delivery ? customer.lat : null, lng: delivery ? customer.lng : null,
       pickup_at: pickup ? new Date(pickup).toISOString() : null,
       items: cart.map((l) => ({ id: l.id, qty: l.qty, modifiers: l.mods })),
     };
     const { data: token, error: err } = await client.rpc('public_place_order', { payload });
     setSending(false);
     if (err) { const c = errCode(err); setFormErr(s[c] || (c && c.startsWith('online_orders') ? s.notOpen : s.generic)); return; }
-    writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone, address: customer.address || '' });
+    writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone, address: customer.address || '', lat: customer.lat ?? null, lng: customer.lng ?? null });
     writeJson(HISTORY_KEY, [{ token, total_cents: grand, items: cart.map((l) => ({ id: l.id, qty: l.qty, mods: l.mods })) }, ...history].slice(0, MAX_HISTORY));
     window.location.assign(`/order/track/${token}${window.location.search}`);
   };
@@ -361,6 +365,12 @@ function Order({ client, lang, setLang }) {
             <input style={inputStyle} placeholder={s.name} autoComplete="name" maxLength={80} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
             <input style={inputStyle} placeholder={s.phone} autoComplete="tel" inputMode="tel" maxLength={20} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
             {delivery && <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} />}
+            {delivery && (
+              <Suspense fallback={null}>
+                <PinMap pin={customer.lat != null ? { lat: customer.lat, lng: customer.lng } : null} address={customer.address} s={s}
+                  onPin={(lat, lng) => setCustomer((c) => ({ ...c, lat, lng }))} />
+              </Suspense>
+            )}
             <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
             <label style={{ fontSize: '0.85rem', color: '#555' }}>{s.pickup}
               <input style={inputStyle} type="datetime-local" value={pickup} onChange={(e) => setPickup(e.target.value)} />
