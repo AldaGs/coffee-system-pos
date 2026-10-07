@@ -10,7 +10,7 @@ import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 // Bundlers break Leaflet's runtime icon-path detection; point it at the assets.
 L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
 
-const MEXICO_CITY = [19.4326, -99.1332];
+const PUEBLA = [19.0414, -98.2063];
 const btn = { padding: '8px 12px', borderRadius: 10, border: '1px solid #ddd', background: 'white', fontSize: '0.9rem', cursor: 'pointer' };
 
 export default function PinMap({ pin, address, onPin, s }) {
@@ -32,7 +32,7 @@ export default function PinMap({ pin, address, onPin, s }) {
   };
 
   useEffect(() => {
-    const m = L.map(el.current).setView(pin ? [pin.lat, pin.lng] : MEXICO_CITY, pin ? 16 : 11);
+    const m = L.map(el.current).setView(pin ? [pin.lat, pin.lng] : PUEBLA, pin ? 16 : 11);
     map.current = m;
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
