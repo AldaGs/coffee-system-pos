@@ -94,13 +94,18 @@ export async function sendOrderToLogistics(order, ticket) {
 }
 
 // Called after a ticket is charged: closes the linked online order, if any.
-export async function completeOnlineOrderForTicket(ticketId) {
+export async function completeOnlineOrderForTicket(ticketId, status = 'completed', extra = {}) {
   if (isLocalMode() || ticketId == null) return;
   try {
     await supabase.from('online_orders')
-      .update({ status: 'completed', updated_at: new Date().toISOString() })
+      .update({ status, ...extra, updated_at: new Date().toISOString() })
       .eq('active_ticket_id', ticketId).in('status', ['accepted', 'preparing', 'ready']);
   } catch (err) {
     console.warn('Could not complete online order for ticket', ticketId, err);
   }
 }
+
+// Voiding the ticket cancels the online order, so the customer's tracker stops
+// spinning and shows it as cancelled instead of stuck on "preparing".
+export const cancelOnlineOrderForTicket = (ticketId, reason) =>
+  completeOnlineOrderForTicket(ticketId, 'rejected', { reject_reason: reason });

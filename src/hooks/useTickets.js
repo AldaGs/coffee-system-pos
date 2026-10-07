@@ -1,4 +1,5 @@
 import { db } from '../db';
+import { cancelOnlineOrderForTicket } from '../services/onlineOrders';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 import {
@@ -134,6 +135,7 @@ export function useTickets({
         ticket_name: activeTicket.name,
         item_count: activeTicket.items.length,
       }, consumePendingAuthorizer());
+      cancelOnlineOrderForTicket(activeTicket.id, t('oo.voidedReason'));
       clearCurrentTicket();
     };
     if (confirmed) voidTicket();
