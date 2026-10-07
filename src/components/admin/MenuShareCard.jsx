@@ -22,6 +22,8 @@ const QR_DOWNLOAD_SIZE = 1024; // larger version for the downloaded PNG
 function MenuShareCard({ menuData }) {
   const { t } = useTranslation();
   const canvasRef = useRef(null);
+  const orderCanvasRef = useRef(null);
+  const [orderCopied, setOrderCopied] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
   const [menuUrl, setMenuUrl] = useState(null);
@@ -104,6 +106,23 @@ function MenuShareCard({ menuData }) {
       color: { dark: '#111', light: '#ffffff' }
     }).catch(err => setError(err.message));
   }, [menuUrl]);
+
+  // Online-ordering link: same short-URL scheme, /order instead of /menu.
+  const orderEnabled = menuData?.posSettings?.onlineOrders?.enabled === true;
+  const orderUrl = menuUrl && orderEnabled ? menuUrl.replace('/menu?', '/order?') : null;
+  useEffect(() => {
+    if (!orderCanvasRef.current || !orderUrl) return;
+    QRCode.toCanvas(orderCanvasRef.current, orderUrl, {
+      width: QR_SIZE, margin: 1, errorCorrectionLevel: 'L', color: { dark: '#111', light: '#ffffff' }
+    }).catch(() => {});
+  }, [orderUrl]);
+  const handleCopyOrder = async () => {
+    try {
+      await navigator.clipboard.writeText(orderUrl);
+      setOrderCopied(true);
+      setTimeout(() => setOrderCopied(false), 1800);
+    } catch { /* user can select the field manually */ }
+  };
 
   const handleAddDomain = async () => {
     if (!customDomain) return;
@@ -295,6 +314,26 @@ function MenuShareCard({ menuData }) {
           )}
           {error && error !== 'clipboard' && (
             <p style={errorTextStyle}>{error}</p>
+          )}
+
+          {orderUrl && (
+            <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
+              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon icon="lucide:shopping-bag" style={{ color: brand }} />
+                {t('oo.linkTitle')}
+              </label>
+              <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('oo.linkDesc')}</p>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <canvas ref={orderCanvasRef} width={QR_SIZE} height={QR_SIZE} style={qrStyle} />
+                <div style={{ ...urlRowStyle, flex: 1, minWidth: 220 }}>
+                  <input readOnly value={orderUrl} onFocus={(e) => e.target.select()} style={urlInputStyle} />
+                  <button type="button" onClick={handleCopyOrder} style={{ ...buttonStyle, background: brand }}>
+                    <Icon icon={orderCopied ? 'lucide:check' : 'lucide:copy'} />
+                    {orderCopied ? t('share.copied') : t('share.copy')}
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Custom Domain Section */}

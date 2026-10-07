@@ -48,6 +48,7 @@ import InventoryTab from './components/admin/InventoryTab.jsx';
 import CfdiTab from './components/admin/CfdiTab';
 import ActivityTab from './components/admin/ActivityTab';
 import TipsTab from './components/admin/TipsTab';
+import OnlineOrdersTab from './components/admin/OnlineOrdersTab';
 import DevicesTab from './components/admin/DevicesTab';
 import HelpTab from './components/admin/HelpTab';
 import BootScreen from './components/register/BootScreen';
@@ -1875,6 +1876,7 @@ function Admin() {
     // and Activity (server feed) are meaningless on a single local device.
     { id: 'team', icon: 'lucide:users', label: t('admin.team'), cloudOnly: true },
     { id: 'devices', icon: 'lucide:tablet-smartphone', label: t('admin.devices'), cloudOnly: true },
+    { id: 'onlineOrders', icon: 'lucide:shopping-bag', label: t('admin.onlineOrders'), advancedOnly: true, cloudOnly: true },
     { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
     { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true, cloudOnly: true },
     { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
@@ -2117,6 +2119,10 @@ function Admin() {
         {/* NEW ACTIVITY TAB */}
         {activeTab === 'activity' && (
           <ActivityTab />
+        )}
+
+        {activeTab === 'onlineOrders' && (
+          <OnlineOrdersTab menuData={menuData} saveSettingsToCloud={saveSettingsToCloud} showAlert={showAlert} />
         )}
 
         {activeTab === 'tips' && (
