@@ -11,6 +11,7 @@ import { isLocalMode } from './utils/appMode';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
+import OnlineOrdersInbox from './components/register/OnlineOrdersInbox';
 import { useTheme } from './hooks/useTheme';
 import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
@@ -1166,6 +1167,14 @@ function Register() {
         <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
 
         <SyncStatusModal isSyncModalOpen={isSyncModalOpen} setIsSyncModalOpen={setIsSyncModalOpen} isCurrentlyOffline={isCurrentlyOffline} syncQueue={syncQueue} expenseQueue={expenseQueue} waQueue={waQueue} />
+
+        {posSettings?.onlineOrders?.enabled && !isLocalMode() && (
+          <OnlineOrdersInbox
+            tickets={tickets} activeCashier={activeCashier} myDeviceId={myDeviceId} menuData={menuData}
+            kdsEnabled={!!posSettings?.kdsEnabled} handleSendToKds={handleSendToKds}
+            setActiveTicketId={setActiveTicketId} showAlert={showAlert} showPrompt={showPrompt} showToast={showToast}
+          />
+        )}
 
         <HelpModal isOpen={isHelpModalOpen} onClose={() => setIsHelpModalOpen(false)} />
 

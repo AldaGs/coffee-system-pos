@@ -1,6 +1,7 @@
 import { processCheckout, validateStockLocally } from '../services/checkoutService';
 import { attemptBackgroundSync } from '../services/syncService';
 import { logActivity } from '../services/activityService';
+import { completeOnlineOrderForTicket } from '../services/onlineOrders';
 import { updateDiscountRule } from '../api/menu';
 import { dayKey } from '../utils/discountEngine';
 import { useCartStore } from '../store/useCartStore';
@@ -170,6 +171,7 @@ export const useCheckout = (posState) => {
         }
         recordRuleUsage(activeTicket);
         attemptBackgroundSync();
+        completeOnlineOrderForTicket(activeTicket?.id);
         logActivity('sale', null, {
           amount: cartTotal,
           method: masterMethodString,
