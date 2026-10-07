@@ -105,7 +105,16 @@ export async function completeOnlineOrderForTicket(ticketId, status = 'completed
   }
 }
 
-// Voiding the ticket cancels the online order, so the customer's tracker stops
+// Voiding a ticket: cancel its KDS/logistics row (both apps alert on the
+// realtime update) and its online order, so the customer's tracker stops
 // spinning and shows it as cancelled instead of stuck on "preparing".
-export const cancelOnlineOrderForTicket = (ticketId, reason) =>
-  completeOnlineOrderForTicket(ticketId, 'rejected', { reject_reason: reason });
+export async function cancelTicketEverywhere(ticketId, reason) {
+  if (isLocalMode() || ticketId == null) return;
+  const open = (q) => q.eq('active_ticket_id', ticketId).not('status', 'in', '(completed,cancelled)');
+  const { error } = await open(supabase.from('order_fulfillment')
+    .update({ status: 'cancelled', cancel_reason: reason, cancelled_at: new Date().toISOString() }));
+  // cancel_reason/cancelled_at come from tinylogistics' schema; installs without it get the status only.
+  if (error) await open(supabase.from('order_fulfillment').update({ status: 'cancelled' }))
+    .then(({ error: e }) => e && console.warn('Could not cancel fulfillment for ticket', ticketId, e));
+  await completeOnlineOrderForTicket(ticketId, 'rejected', { reject_reason: reason });
+}
