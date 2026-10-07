@@ -5,7 +5,7 @@ import { createRealtimeChannel } from '../../utils/realtime';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import {
-  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus
+  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, sendOrderToLogistics, setOnlineOrderStatus
 } from '../../services/onlineOrders';
 
 const LIVE = ['requested', 'accepted', 'preparing', 'ready'];
@@ -86,7 +86,7 @@ export default function OnlineOrdersInbox({
   };
 
   const accept = (o) => run(o, async () => {
-    const id = await acceptOnlineOrder(o, { activeCashier, myDeviceId, menuData, orderNum: nextOrderNum });
+    const id = await acceptOnlineOrder(o, { activeCashier, myDeviceId, menuData, orderNum: nextOrderNum, feeLabel: t('oo.deliveryFeeLine') });
     if (id == null) return showToast(t('oo.alreadyHandled'), 'warning');
     setNextOrderNum(nextOrderNum + 1);
     setActiveTicketId(id);
@@ -98,6 +98,14 @@ export default function OnlineOrdersInbox({
     const ticket = tickets.find((tk) => tk.id === o.active_ticket_id);
     if (ticket) await handleSendToKds(ticket);
     await setOnlineOrderStatus(o.id, 'preparing');
+  });
+
+  const toLogistics = (o) => run(o, async () => {
+    const ticket = tickets.find((tk) => tk.id === o.active_ticket_id);
+    // With the KDS on, go through its send path first so the row is created once.
+    if (ticket && kdsEnabled && !ticket.kds_sent) await handleSendToKds(ticket, { silent: true });
+    await sendOrderToLogistics(o, ticket);
+    showToast(t('oo.sentLogistics'));
   });
 
   const pending = orders.filter((o) => o.status === 'requested').length;
@@ -125,6 +133,9 @@ export default function OnlineOrdersInbox({
                   <strong>{o.customer_name} · {o.phone}</strong>
                   <span style={{ fontWeight: 700 }}>{t(`oo.st_${o.status}`)}</span>
                 </div>
+                {o.order_type === 'delivery' && (
+                  <div style={{ fontWeight: 700 }}>{t('oo.delivery')}: {o.delivery_address}</div>
+                )}
                 {o.pickup_at && <div style={{ color: 'var(--text-muted)' }}>{t('oo.pickupAt')}: {new Date(o.pickup_at).toLocaleString()}</div>}
                 {o.notes && <div style={{ color: 'var(--text-muted)' }}>{o.notes}</div>}
                 <ul style={{ margin: '8px 0', paddingLeft: 18 }}>
@@ -144,6 +155,9 @@ export default function OnlineOrdersInbox({
                   </>)}
                   {(o.status === 'accepted' || o.status === 'preparing') && (
                     <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'ready'))} style={btn('#16a085')}>{t('oo.markReady')}</button>
+                  )}
+                  {o.order_type === 'delivery' && o.active_ticket_id != null && o.status !== 'requested' && (
+                    <button type="button" disabled={busy === o.id} onClick={() => toLogistics(o)} style={btn('#d35400')}>{t('oo.sendLogistics')}</button>
                   )}
                   {o.active_ticket_id != null && (
                     <button type="button" onClick={() => { setActiveTicketId(o.active_ticket_id); setOpen(false); }} style={btn('#7f8c8d')}>{t('oo.openTicket')}</button>

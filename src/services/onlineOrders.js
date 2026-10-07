@@ -20,9 +20,9 @@ export const rejectOnlineOrder = (id, reason) =>
 // Accept: atomically claim the order (so two stations can't both accept it),
 // then open a real active ticket from the server-priced snapshot and link it.
 // Returns the new ticket id, or null if another station got there first.
-export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menuData, orderNum }) {
+export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menuData, orderNum, feeLabel = 'Envío' }) {
   const { data: claimed, error } = await supabase.from('online_orders')
-    .update({ status: 'accepted', updated_at: new Date().toISOString() })
+    .update({ status: 'accepted', order_num: orderNum, updated_at: new Date().toISOString() })
     .eq('id', order.id).eq('status', 'requested').select('id');
   if (error) throw error;
   if (!claimed?.length) return null;
@@ -38,6 +38,11 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
     uniqueId: crypto.randomUUID(),
     selectedModifiers: (l.modifiers || []).map((m) => ({ id: m.id, name: m.name, price: m.price_cents, groupId: m.groupId })),
   }));
+
+  // Delivery fee rides on the ticket as a plain priced line (no menu item, no tax).
+  if (order.delivery_fee_cents > 0) {
+    items.push({ id: 'online-delivery-fee', name: feeLabel, basePrice: order.delivery_fee_cents, qty: 1, uniqueId: crypto.randomUUID(), selectedModifiers: [] });
+  }
 
   const prefix = (myDeviceId || 'ONL').substring(0, 3).toUpperCase();
   const note = order.notes ? ` - ${order.notes.slice(0, 40)}` : '';
@@ -63,6 +68,29 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
   pushActiveTicketCreate(ticket);
   await supabase.from('online_orders').update({ active_ticket_id: ticket.id }).eq('id', order.id);
   return ticket.id;
+}
+
+// Hand a delivery order to tinylogistics through the shared order_fulfillment
+// row. Updates the row if the ticket already went to the KDS, else inserts it
+// (same shape as Register's handleSendToKds) and marks the ticket kds_sent so
+// KDS immediate mode doesn't add a second one.
+export async function sendOrderToLogistics(order, ticket) {
+  const patch = {
+    delivery_address: order.delivery_address,
+    delivery_notes: [order.notes, `Tel: ${order.phone}`].filter(Boolean).join(' · '),
+  };
+  const { data: updated, error } = await supabase.from('order_fulfillment')
+    .update(patch).eq('active_ticket_id', order.active_ticket_id).select('id');
+  if (error) throw error;
+  if (updated?.length) return;
+  if (!ticket) throw new Error('ticket_missing');
+  await db.active_tickets.update(ticket.id, { kds_sent: true });
+  const { error: insErr } = await supabase.from('order_fulfillment').insert({
+    active_ticket_id: ticket.id, customer_name: order.customer_name, items: ticket.items,
+    payment_status: 'unpaid', status: 'received', ...patch,
+  });
+  if (insErr) { await db.active_tickets.update(ticket.id, { kds_sent: false }).catch(() => {}); throw insErr; }
+  await supabase.from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id); // best effort
 }
 
 // Called after a ticket is charged: closes the linked online order, if any.
