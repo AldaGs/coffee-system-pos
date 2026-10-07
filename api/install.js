@@ -1083,7 +1083,8 @@ export default async function handler(req, res) {
         'name',        COALESCE((SELECT menu_data->'posSettings'->>'name'       FROM public.shop_settings WHERE id = 1), 'Menu'),
         'brand_color', COALESCE((SELECT menu_data->'posSettings'->>'brandColor' FROM public.shop_settings WHERE id = 1), '#f28b05'),
         'language',    COALESCE((SELECT menu_data->'posSettings'->>'language'   FROM public.shop_settings WHERE id = 1), 'es'),
-        'timezone',    v_tz
+        'timezone',    v_tz,
+        'logo', COALESCE(NULLIF((SELECT menu_data->'posSettings'->>'appBootLogo' FROM public.shop_settings WHERE id = 1), ''), (SELECT menu_data->'receiptSettings'->>'logo' FROM public.shop_settings WHERE id = 1))
       );
 
       IF v_kind = 'live' OR v_kind = 'designed' THEN
@@ -1165,7 +1166,8 @@ export default async function handler(req, res) {
         'name', COALESCE((SELECT menu_data->'posSettings'->>'name' FROM public.shop_settings WHERE id = 1), 'Menu'),
         'brand_color', COALESCE((SELECT menu_data->'posSettings'->>'brandColor' FROM public.shop_settings WHERE id = 1), '#f28b05'),
         'language', COALESCE((SELECT menu_data->'posSettings'->>'language' FROM public.shop_settings WHERE id = 1), 'es'),
-        'timezone', v_tz
+        'timezone', v_tz,
+        'logo', COALESCE(NULLIF((SELECT menu_data->'posSettings'->>'appBootLogo' FROM public.shop_settings WHERE id = 1), ''), (SELECT menu_data->'receiptSettings'->>'logo' FROM public.shop_settings WHERE id = 1))
       );
       IF v_kind = 'live' OR v_kind = 'designed' THEN
         RETURN jsonb_build_object(
@@ -2871,6 +2873,8 @@ export default async function handler(req, res) {
         'order_num', v_row.order_num,
         'delivery_fee_cents', v_row.delivery_fee_cents,
         'reject_reason', v_row.reject_reason,
+        'show_iva', COALESCE((SELECT (menu_data->'posSettings'->'onlineOrders'->'ticket'->>'showIva')::boolean FROM public.shop_settings WHERE id = 1), false),
+        'tax_rate', COALESCE((SELECT (menu_data->'receiptSettings'->>'taxRate')::numeric FROM public.shop_settings WHERE id = 1), 16),
         'items', v_row.items,
         'total_cents', v_row.total_cents,
         'pickup_at', v_row.pickup_at,
@@ -2901,7 +2905,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '2.0', now())
+    VALUES ('schema_version', '2.1', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

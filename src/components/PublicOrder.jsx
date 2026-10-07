@@ -11,7 +11,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
+import OrderTicket from './OrderTicket';
 
 const CUSTOMER_KEY = 'tinypos_order_customer';
 const HISTORY_KEY = 'tinypos_order_history';
@@ -43,7 +45,7 @@ const STR = {
     track: 'Seguimiento de tu pedido', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
     rejectedWhy: 'Motivo', st_requested: 'Pedido enviado', st_accepted: 'Aceptado', st_preparing: 'Preparando',
     st_ready: 'Listo para recoger', st_completed: 'Entregado', st_delivered: 'Entregado', st_rejected: 'Rechazado',
-    waiting: 'Esperando confirmación del negocio…',
+    waiting: 'Esperando confirmación del negocio…', updating: 'Actualizando…',
     typePickup: 'Recoger', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
     payOnDelivery: 'Pagas al recibir.', orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
     invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', invalid_type: 'Revisa tu pedido.',
@@ -65,7 +67,7 @@ const STR = {
     track: 'Track your order', notFound: 'Order not found.', backToMenu: 'Back to menu',
     rejectedWhy: 'Reason', st_requested: 'Order sent', st_accepted: 'Accepted', st_preparing: 'Preparing',
     st_ready: 'Ready for pickup', st_completed: 'Picked up', st_delivered: 'Delivered', st_rejected: 'Rejected',
-    waiting: 'Waiting for the shop to confirm…',
+    waiting: 'Waiting for the shop to confirm…', updating: 'Updating…',
     typePickup: 'Pickup', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
     payOnDelivery: 'You pay on delivery.', orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
     invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', invalid_type: 'Please review your order.',
@@ -204,15 +206,7 @@ function Order({ client, lang, setLang }) {
   const active = categories.find((c) => c.id === activeCat) || categories[0];
   const fmt = (c) => formatForDisplay(c, lang);
 
-  const header = (
-    <header style={{ background: brand, color: 'white', padding: '24px 20px', textAlign: 'center', position: 'relative' }}>
-      <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{data.shop?.name || 'Menu'}</h1>
-      <button type="button" onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
-        style={{ position: 'absolute', right: 12, top: 12, background: 'rgba(255,255,255,0.25)', border: 'none', color: 'white', borderRadius: 8, padding: '4px 10px', fontWeight: 700, cursor: 'pointer' }}>
-        {lang === 'es' ? 'EN' : 'ES'}
-      </button>
-    </header>
-  );
+  const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} />;
 
   if (gate) {
     const msg = gate === 'online_orders_paused' ? s.paused : gate === 'online_orders_closed' ? s.closed : s.notOpen;
@@ -385,6 +379,20 @@ function Order({ client, lang, setLang }) {
   );
 }
 
+// Brand-colored top bar (logo + name + language toggle), shared by /order and the tracker.
+function ShopHeader({ shop, lang, setLang }) {
+  return (
+    <header style={{ background: shop?.brand_color || '#f28b05', color: 'white', padding: '20px 20px', textAlign: 'center', position: 'relative' }}>
+      {shop?.logo && <img src={shop.logo} alt="" style={{ display: 'block', margin: '0 auto 8px', maxHeight: 56, maxWidth: 160, objectFit: 'contain' }} />}
+      <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{shop?.name || 'Menu'}</h1>
+      <button type="button" onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
+        style={{ position: 'absolute', right: 12, top: 12, background: 'rgba(255,255,255,0.25)', border: 'none', color: 'white', borderRadius: 8, padding: '4px 10px', fontWeight: 700, cursor: 'pointer' }}>
+        {lang === 'es' ? 'EN' : 'ES'}
+      </button>
+    </header>
+  );
+}
+
 const qtyBtn = { width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd', background: 'white', fontSize: '1.1rem', cursor: 'pointer' };
 
 function Sheet({ children, onClose }) {
@@ -399,17 +407,33 @@ function Sheet({ children, onClose }) {
 
 const STEPS = ['requested', 'accepted', 'preparing', 'ready', 'completed'];
 const DELIVERY_STEPS = ['requested', 'accepted', 'preparing', 'ready', 'on_delivery', 'completed'];
+const STEP_ICON = {
+  requested: 'lucide:clipboard-list', accepted: 'lucide:check-circle', preparing: 'lucide:chef-hat',
+  ready: 'lucide:shopping-bag', on_delivery: 'lucide:bike', completed: 'lucide:party-popper',
+};
+const STEP_ICON_DELIVERY = { ready: 'lucide:package-check', completed: 'lucide:house' };
 
 function Track({ client, token, lang, setLang }) {
   const [order, setOrder] = useState(undefined); // undefined = loading, null = not found
+  const [shop, setShop] = useState(null);
+  const [polling, setPolling] = useState(false);
   const timer = useRef(null);
   const s = STR[lang] || STR.es;
+
+  // Shop info (logo/name/brand) changes rarely: fetch once, not on every poll.
+  useEffect(() => {
+    let cancelled = false;
+    client.rpc('get_public_menu').then(({ data }) => { if (!cancelled && data?.shop) setShop(data.shop); });
+    return () => { cancelled = true; };
+  }, [client]);
 
   useEffect(() => {
     let cancelled = false;
     const poll = async () => {
+      setPolling(true);
       const { data } = await client.rpc('get_order_status', { p_token: token });
       if (cancelled) return;
+      setPolling(false);
       setOrder(data?.found ? data : null);
       const done = !data?.found || ['completed', 'rejected'].includes(data.status);
       if (!done) timer.current = setTimeout(poll, 8000);
@@ -422,46 +446,50 @@ function Track({ client, token, lang, setLang }) {
   const back = <a href={`/order${window.location.search}`} style={{ color: '#555' }}>{s.backToMenu}</a>;
   if (order === null) return <div style={centerStyle}><div><p>{s.notFound}</p>{back}</div></div>;
 
+  const brand = shop?.brand_color || '#f28b05';
   const rejected = order.status === 'rejected';
   const isDelivery = order.order_type === 'delivery';
   const steps = isDelivery ? DELIVERY_STEPS : STEPS;
   const idx = steps.indexOf(order.status);
+  const finished = order.status === 'completed';
   const label = (st) => (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
     <div style={pageStyle}>
+      <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.tp-spin{animation:none!important}}'}</style>
+      <ShopHeader shop={shop || { brand_color: brand }} lang={lang} setLang={setLang} />
       <div style={{ maxWidth: 480, margin: '0 auto', padding: 24 }}>
-        <button type="button" onClick={() => setLang(lang === 'es' ? 'en' : 'es')} style={{ float: 'right', border: '1px solid #ddd', background: 'white', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>{lang === 'es' ? 'EN' : 'ES'}</button>
-        <h2 style={{ marginTop: 0 }}>{s.track}</h2>
+        <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {s.track}
+          {polling && <Icon icon="lucide:refresh-cw" width="14" aria-label={s.updating} title={s.updating} style={{ color: '#999' }} />}
+        </h2>
         {order.order_num != null && <div style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: 8 }}>{s.orderNo} #{order.order_num}</div>}
         {rejected ? (
-          <div style={{ background: '#fdecea', color: '#c0392b', padding: 16, borderRadius: 12, fontWeight: 700 }}>
-            {s.st_rejected}{order.reject_reason ? ` — ${s.rejectedWhy}: ${order.reject_reason}` : ''}
+          <div style={{ background: '#fdecea', color: '#c0392b', padding: 16, borderRadius: 12, fontWeight: 700, display: 'flex', gap: 10, alignItems: 'center' }}>
+            <Icon icon="lucide:circle-x" width="24" />
+            <span>{s.st_rejected}{order.reject_reason ? ` — ${s.rejectedWhy}: ${order.reject_reason}` : ''}</span>
           </div>
         ) : (
           <ol style={{ listStyle: 'none', padding: 0, margin: '16px 0' }}>
-            {steps.map((st, i) => (
-              <li key={st} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', opacity: i <= idx ? 1 : 0.35, fontWeight: i === idx ? 800 : 500 }}>
-                <span style={{ width: 22, height: 22, borderRadius: 999, background: i <= idx ? '#27ae60' : '#ccc', color: 'white', textAlign: 'center', lineHeight: '22px', fontSize: '0.8rem' }}>{i <= idx ? '✓' : ''}</span>
-                {label(st)}
-              </li>
-            ))}
+            {steps.map((st, i) => {
+              const current = i === idx && !finished;
+              const done = i < idx || (finished && i <= idx);
+              const icon = (isDelivery && STEP_ICON_DELIVERY[st]) || STEP_ICON[st];
+              return (
+                <li key={st} aria-current={current ? 'step' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', opacity: i <= idx ? 1 : 0.35, fontWeight: current ? 800 : 500 }}>
+                  <span style={{ width: 36, height: 36, borderRadius: 999, background: done ? '#27ae60' : current ? brand : '#ddd', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon icon={icon} width="20" />
+                  </span>
+                  <span style={{ flex: 1 }}>{label(st)}</span>
+                  {done && <Icon icon="lucide:check" width="20" style={{ color: '#27ae60' }} />}
+                  {current && <Icon className="tp-spin" icon="lucide:loader-2" width="20" style={{ color: brand, animation: 'tp-spin 1s linear infinite' }} />}
+                </li>
+              );
+            })}
           </ol>
         )}
         {order.status === 'requested' && <p style={{ color: '#666' }}>{s.waiting}</p>}
-        <div style={{ background: 'white', border: '1px solid #eee', borderRadius: 12, padding: 16, marginTop: 16 }}>
-          {(order.items || []).map((l, i) => (
-            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-              <span>{l.qty}× {l.name}{l.modifiers?.length ? ` (${l.modifiers.map((m) => m.name).join(', ')})` : ''}</span>
-              <span>{formatForDisplay(l.line_cents, lang)}</span>
-            </div>
-          ))}
-          {order.delivery_fee_cents > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span>{s.deliveryFee}</span><span>{formatForDisplay(order.delivery_fee_cents, lang)}</span></div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '1px solid #eee', marginTop: 8, paddingTop: 8 }}>
-            <span>{s.total}</span><span>{formatForDisplay(order.total_cents, lang)}</span>
-          </div>
-        </div>
+        <OrderTicket style={{ marginTop: 16 }} items={order.items} deliveryFeeCents={order.delivery_fee_cents}
+          totalCents={order.total_cents} showIva={!!order.show_iva} taxRate={order.tax_rate || 16} lang={lang} />
         <p style={{ marginTop: 20 }}>{back}</p>
       </div>
     </div>

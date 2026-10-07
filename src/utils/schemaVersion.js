@@ -17,6 +17,8 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 2.1 — Public logo in the menu RPCs' shop block; get_order_status returns
+//       show_iva + tax_rate for the customer ticket.
 // 2.0 — Online ordering delivery: online_orders order_type/delivery_address/
 //       delivery_fee_cents/order_num, order_fulfillment delivery columns, and
 //       delivery-aware public_place_order / get_order_status (on_delivery is
@@ -113,4 +115,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '2.0';
+export const APP_SCHEMA_VERSION = '2.1';
