@@ -1,4 +1,4 @@
-// Customer-facing online ordering (pickup only, pay at pickup). No accounts.
+// Customer-facing online ordering (pickup or delivery, pay on receipt). No accounts.
 //
 //   /order?p=REF                  menu + cart + checkout
 //   /order/track/<token>?p=REF    live status of one order
@@ -42,8 +42,11 @@ const STR = {
     rate_limited: 'Demasiados intentos. Espera unos minutos.', generic: 'No se pudo enviar el pedido.',
     track: 'Seguimiento de tu pedido', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
     rejectedWhy: 'Motivo', st_requested: 'Pedido enviado', st_accepted: 'Aceptado', st_preparing: 'Preparando',
-    st_ready: 'Listo para recoger', st_completed: 'Entregado', st_rejected: 'Rechazado',
+    st_ready: 'Listo para recoger', st_completed: 'Entregado', st_delivered: 'Entregado', st_rejected: 'Rechazado',
     waiting: 'Esperando confirmación del negocio…',
+    typePickup: 'Recoger', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
+    payOnDelivery: 'Pagas al recibir.', orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
+    invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', invalid_type: 'Revisa tu pedido.',
   },
   en: {
     loading: 'Loading…', notOpen: 'We are not accepting orders right now.',
@@ -61,8 +64,11 @@ const STR = {
     rate_limited: 'Too many attempts. Wait a few minutes.', generic: 'Could not send the order.',
     track: 'Track your order', notFound: 'Order not found.', backToMenu: 'Back to menu',
     rejectedWhy: 'Reason', st_requested: 'Order sent', st_accepted: 'Accepted', st_preparing: 'Preparing',
-    st_ready: 'Ready for pickup', st_completed: 'Picked up', st_rejected: 'Rejected',
+    st_ready: 'Ready for pickup', st_completed: 'Picked up', st_delivered: 'Delivered', st_rejected: 'Rejected',
     waiting: 'Waiting for the shop to confirm…',
+    typePickup: 'Pickup', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
+    payOnDelivery: 'You pay on delivery.', orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
+    invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', invalid_type: 'Please review your order.',
   },
 };
 
@@ -110,7 +116,7 @@ function useClient() {
 const errCode = (error) => {
   const m = String(error?.message || '');
   return ['online_orders_disabled', 'online_orders_paused', 'online_orders_closed', 'invalid_name', 'invalid_phone',
-    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited'].find((c) => m.includes(c)) || null;
+    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'invalid_type'].find((c) => m.includes(c)) || null;
 };
 
 const pageStyle = {
@@ -142,10 +148,12 @@ function Order({ client, lang, setLang }) {
   const [cart, setCart] = useState([]); // { key, id, qty, mods: [optionId] }
   const [picking, setPicking] = useState(null); // { item, mods }
   const [checkingOut, setCheckingOut] = useState(false);
-  const [customer, setCustomer] = useState(() => readJson(CUSTOMER_KEY, { name: '', phone: '' }));
+  const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', ...readJson(CUSTOMER_KEY, {}) }));
   const [history, setHistory] = useState(() => readJson(HISTORY_KEY, []));
   const [notes, setNotes] = useState('');
   const [pickup, setPickup] = useState('');
+  const [feeCents, setFeeCents] = useState(null); // null = delivery not offered
+  const [orderType, setOrderType] = useState('pickup');
   const [sending, setSending] = useState(false);
   const [formErr, setFormErr] = useState(null);
   const s = STR[lang] || STR.es;
@@ -162,6 +170,8 @@ function Order({ client, lang, setLang }) {
       setData(menu.data);
       setActiveCat(menu.data?.categories?.[0]?.id ?? null);
       if (menu.data?.shop?.language) setLang(menu.data.shop.language === 'en' ? 'en' : 'es');
+      const m = /^open:(\d+)$/.exec(String(probe.data || ''));
+      setFeeCents(m ? Number(m[1]) : null);
       setGate(probe.error ? (errCode(probe.error) || 'online_orders_disabled') : null);
     })();
     return () => { cancelled = true; };
@@ -182,6 +192,8 @@ function Order({ client, lang, setLang }) {
     return (it?.price_cents || 0) + line.mods.reduce((a, id) => a + optionPrice(id), 0);
   };
   const total = cart.reduce((a, l) => a + unitCents(l) * l.qty, 0);
+  const delivery = orderType === 'delivery' && feeCents != null;
+  const grand = total + (delivery ? feeCents : 0);
   const count = cart.reduce((a, l) => a + l.qty, 0);
 
   if (loadErr) return <div style={centerStyle}>{loadErr}</div>;
@@ -236,7 +248,7 @@ function Order({ client, lang, setLang }) {
   };
   const forget = () => {
     removeKey(CUSTOMER_KEY); removeKey(HISTORY_KEY);
-    setCustomer({ name: '', phone: '' }); setHistory([]);
+    setCustomer({ name: '', phone: '', address: '' }); setHistory([]);
     setFormErr(s.forgot);
   };
 
@@ -245,14 +257,15 @@ function Order({ client, lang, setLang }) {
     setSending(true);
     const payload = {
       name: customer.name, phone: customer.phone, notes,
+      order_type: delivery ? 'delivery' : 'pickup', address: delivery ? customer.address : null,
       pickup_at: pickup ? new Date(pickup).toISOString() : null,
       items: cart.map((l) => ({ id: l.id, qty: l.qty, modifiers: l.mods })),
     };
     const { data: token, error: err } = await client.rpc('public_place_order', { payload });
     setSending(false);
     if (err) { const c = errCode(err); setFormErr(s[c] || (c && c.startsWith('online_orders') ? s.notOpen : s.generic)); return; }
-    writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone });
-    writeJson(HISTORY_KEY, [{ token, total_cents: total, items: cart.map((l) => ({ id: l.id, qty: l.qty, mods: l.mods })) }, ...history].slice(0, MAX_HISTORY));
+    writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone, address: customer.address || '' });
+    writeJson(HISTORY_KEY, [{ token, total_cents: grand, items: cart.map((l) => ({ id: l.id, qty: l.qty, mods: l.mods })) }, ...history].slice(0, MAX_HISTORY));
     window.location.assign(`/order/track/${token}${window.location.search}`);
   };
 
@@ -334,17 +347,32 @@ function Order({ client, lang, setLang }) {
               <span style={{ width: 80, textAlign: 'right' }}>{fmt(unitCents(l) * l.qty)}</span>
             </div>
           ))}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', margin: '12px 0' }}><span>{s.total}</span><span>{fmt(total)}</span></div>
+          {feeCents != null && (
+            <div style={{ display: 'flex', gap: 8, margin: '12px 0 0' }}>
+              {['pickup', 'delivery'].map((ty) => (
+                <button key={ty} type="button" onClick={() => setOrderType(ty)}
+                  style={{ flex: 1, padding: '10px 8px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', border: `1px solid ${brand}`,
+                    background: orderType === ty ? brand : 'white', color: orderType === ty ? 'white' : brand }}>
+                  {ty === 'pickup' ? s.typePickup : s.typeDelivery}
+                </button>
+              ))}
+            </div>
+          )}
+          {delivery && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 0' }}><span>{s.deliveryFee}</span><span>{fmt(feeCents)}</span></div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', margin: '12px 0' }}><span>{s.total}</span><span>{fmt(grand)}</span></div>
 
           <div style={{ display: 'grid', gap: 10 }}>
             <input style={inputStyle} placeholder={s.name} autoComplete="name" maxLength={80} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
             <input style={inputStyle} placeholder={s.phone} autoComplete="tel" inputMode="tel" maxLength={20} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+            {delivery && <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} />}
             <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
             <label style={{ fontSize: '0.85rem', color: '#555' }}>{s.pickup}
               <input style={inputStyle} type="datetime-local" value={pickup} onChange={(e) => setPickup(e.target.value)} />
             </label>
           </div>
-          <p style={{ color: '#666', fontSize: '0.9rem' }}>{s.payAtPickup}</p>
+          <p style={{ color: '#666', fontSize: '0.9rem' }}>{delivery ? s.payOnDelivery : s.payAtPickup}</p>
           {formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
           <button type="button" disabled={sending || cart.length === 0} onClick={submit}
             style={{ width: '100%', background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer', opacity: sending || cart.length === 0 ? 0.6 : 1 }}>
@@ -370,6 +398,7 @@ function Sheet({ children, onClose }) {
 }
 
 const STEPS = ['requested', 'accepted', 'preparing', 'ready', 'completed'];
+const DELIVERY_STEPS = ['requested', 'accepted', 'preparing', 'ready', 'on_delivery', 'completed'];
 
 function Track({ client, token, lang, setLang }) {
   const [order, setOrder] = useState(undefined); // undefined = loading, null = not found
@@ -394,22 +423,26 @@ function Track({ client, token, lang, setLang }) {
   if (order === null) return <div style={centerStyle}><div><p>{s.notFound}</p>{back}</div></div>;
 
   const rejected = order.status === 'rejected';
-  const idx = STEPS.indexOf(order.status);
+  const isDelivery = order.order_type === 'delivery';
+  const steps = isDelivery ? DELIVERY_STEPS : STEPS;
+  const idx = steps.indexOf(order.status);
+  const label = (st) => (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
     <div style={pageStyle}>
       <div style={{ maxWidth: 480, margin: '0 auto', padding: 24 }}>
         <button type="button" onClick={() => setLang(lang === 'es' ? 'en' : 'es')} style={{ float: 'right', border: '1px solid #ddd', background: 'white', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>{lang === 'es' ? 'EN' : 'ES'}</button>
         <h2 style={{ marginTop: 0 }}>{s.track}</h2>
+        {order.order_num != null && <div style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: 8 }}>{s.orderNo} #{order.order_num}</div>}
         {rejected ? (
           <div style={{ background: '#fdecea', color: '#c0392b', padding: 16, borderRadius: 12, fontWeight: 700 }}>
             {s.st_rejected}{order.reject_reason ? ` — ${s.rejectedWhy}: ${order.reject_reason}` : ''}
           </div>
         ) : (
           <ol style={{ listStyle: 'none', padding: 0, margin: '16px 0' }}>
-            {STEPS.map((st, i) => (
+            {steps.map((st, i) => (
               <li key={st} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', opacity: i <= idx ? 1 : 0.35, fontWeight: i === idx ? 800 : 500 }}>
                 <span style={{ width: 22, height: 22, borderRadius: 999, background: i <= idx ? '#27ae60' : '#ccc', color: 'white', textAlign: 'center', lineHeight: '22px', fontSize: '0.8rem' }}>{i <= idx ? '✓' : ''}</span>
-                {s[`st_${st}`]}
+                {label(st)}
               </li>
             ))}
           </ol>
@@ -422,6 +455,9 @@ function Track({ client, token, lang, setLang }) {
               <span>{formatForDisplay(l.line_cents, lang)}</span>
             </div>
           ))}
+          {order.delivery_fee_cents > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}><span>{s.deliveryFee}</span><span>{formatForDisplay(order.delivery_fee_cents, lang)}</span></div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, borderTop: '1px solid #eee', marginTop: 8, paddingTop: 8 }}>
             <span>{s.total}</span><span>{formatForDisplay(order.total_cents, lang)}</span>
           </div>
