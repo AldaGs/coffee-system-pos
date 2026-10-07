@@ -2672,7 +2672,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         -- Schema version stamp — mirror of api/install.js. Bump together
         -- with src/utils/schemaVersion.js on every schema change.
         -- ==========================================
-        -- ONLINE ORDERING (schema 1.9): shareable /order page, pickup only.
+        -- ONLINE ORDERING (schema 1.9, delivery 2.0): shareable /order page.
         -- online_orders has NO anon access at all. The public page talks only to
         -- public_place_order (reprices server-side from menu_items) and
         -- get_order_status (token lookup). Settings live in
@@ -2696,6 +2696,15 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           created_at       timestamptz NOT NULL DEFAULT now(),
           updated_at       timestamptz NOT NULL DEFAULT now()
         );
+        -- 2.0: delivery. order_type/address/fee ride on the order; order_num is the
+        -- shift order number stamped on accept. order_fulfillment gets the delivery
+        -- columns tinylogistics reads (no-op when its own migration already added them).
+        ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS order_type text NOT NULL DEFAULT 'pickup' CHECK (order_type IN ('pickup','delivery'));
+        ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_address text;
+        ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_fee_cents int NOT NULL DEFAULT 0;
+        ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS order_num int;
+        ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_address text;
+        ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_notes text;
         CREATE INDEX IF NOT EXISTS idx_online_orders_status ON public.online_orders (status);
         CREATE INDEX IF NOT EXISTS idx_online_orders_ticket ON public.online_orders (active_ticket_id);
         ALTER TABLE public.online_orders ENABLE ROW LEVEL SECURITY;
@@ -2740,6 +2749,11 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           v_out jsonb := '[]'::jsonb;
           v_total int := 0;
           v_token text;
+          v_type text := COALESCE(NULLIF(payload->>'order_type', ''), 'pickup');
+          v_addr text := NULLIF(btrim(COALESCE(payload->>'address', '')), '');
+          v_deliv boolean;
+          v_fee_cfg int;
+          v_fee int := 0;
         BEGIN
           -- 1. Feature gate: opt-in, not paused, inside the schedule (shop timezone).
           SELECT menu_data->'posSettings'->'onlineOrders' INTO v_cfg FROM public.shop_settings WHERE id = 1;
@@ -2764,13 +2778,26 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
           -- Availability probe for the page: {"check":true} runs only the gate above.
 
-          IF COALESCE((payload->>'check')::boolean, false) THEN RETURN 'open'; END IF;
+          v_deliv := COALESCE((v_cfg->'delivery'->>'enabled')::boolean, false);
+          v_fee_cfg := CASE WHEN v_deliv THEN GREATEST(COALESCE((v_cfg->'delivery'->>'feeCents')::int, 0), 0) ELSE 0 END;
+          -- Probe answer: 'open', or 'open:<feeCents>' when delivery is offered.
+          IF COALESCE((payload->>'check')::boolean, false) THEN
+            RETURN CASE WHEN v_deliv THEN 'open:' || v_fee_cfg ELSE 'open' END;
+          END IF;
 
 
           -- 2. Input validation (the page enforces the same; this is the real check).
           IF length(v_name) < 1 OR length(v_name) > 80 THEN RAISE EXCEPTION 'invalid_name'; END IF;
           IF length(v_phone) < 7 OR length(v_phone) > 15 THEN RAISE EXCEPTION 'invalid_phone'; END IF;
           IF v_notes IS NOT NULL AND length(v_notes) > 300 THEN RAISE EXCEPTION 'invalid_notes'; END IF;
+          IF v_type NOT IN ('pickup', 'delivery') THEN RAISE EXCEPTION 'invalid_type'; END IF;
+          IF v_type = 'delivery' THEN
+            IF NOT v_deliv THEN RAISE EXCEPTION 'delivery_disabled'; END IF;
+            IF v_addr IS NULL OR length(v_addr) < 5 OR length(v_addr) > 250 THEN RAISE EXCEPTION 'invalid_address'; END IF;
+            v_fee := v_fee_cfg;
+          ELSE
+            v_addr := NULL;
+          END IF;
           IF NULLIF(payload->>'pickup_at', '') IS NOT NULL THEN
             BEGIN v_pickup := (payload->>'pickup_at')::timestamptz;
             EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_pickup'; END;
@@ -2839,8 +2866,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
               'line_cents', v_unit * v_qty);
           END LOOP;
 
-          INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents)
-          VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total)
+          INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents)
+          VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee)
           RETURNING token INTO v_token;
           RETURN v_token;
         END;
@@ -2857,6 +2884,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         AS $$
         DECLARE
           v_row public.online_orders%ROWTYPE;
+          v_status text;
+          v_ful text;
         BEGIN
           IF p_token IS NULL OR length(p_token) <> 32 THEN
             RETURN jsonb_build_object('found', false);
@@ -2865,9 +2894,22 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           IF NOT FOUND THEN
             RETURN jsonb_build_object('found', false);
           END IF;
+          -- Delivery orders: logistics drives the last steps, so derive them from the
+          -- linked order_fulfillment here (works with the Register closed).
+          v_status := v_row.status;
+          IF v_row.order_type = 'delivery' AND v_row.active_ticket_id IS NOT NULL
+             AND v_status IN ('accepted', 'preparing', 'ready', 'on_delivery') THEN
+            SELECT status INTO v_ful FROM public.order_fulfillment
+             WHERE active_ticket_id = v_row.active_ticket_id ORDER BY created_at DESC LIMIT 1;
+            IF v_ful = 'in_transit' THEN v_status := 'on_delivery';
+            ELSIF v_ful = 'completed' THEN v_status := 'completed'; END IF;
+          END IF;
           RETURN jsonb_build_object(
             'found', true,
-            'status', v_row.status,
+            'status', v_status,
+            'order_type', v_row.order_type,
+            'order_num', v_row.order_num,
+            'delivery_fee_cents', v_row.delivery_fee_cents,
             'reject_reason', v_row.reject_reason,
             'items', v_row.items,
             'total_cents', v_row.total_cents,
@@ -2898,7 +2940,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
           FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '1.9', now())
+        VALUES ('schema_version', '2.0', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -2389,6 +2389,220 @@ REVOKE ALL ON FUNCTION public.get_order_status(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_order_status(text) TO anon, authenticated;
 
 ${stamp('1.9')}`,
+  },
+  {
+    // 2.0 — online ordering delivery: order_type/address/fee/order_num on
+    // online_orders, delivery columns on order_fulfillment, delivery-aware RPCs.
+    version: '2.0',
+    sql: `
+-- 2.0: delivery. order_type/address/fee ride on the order; order_num is the
+-- shift order number stamped on accept. order_fulfillment gets the delivery
+-- columns tinylogistics reads (no-op when its own migration already added them).
+ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS order_type text NOT NULL DEFAULT 'pickup' CHECK (order_type IN ('pickup','delivery'));
+ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_address text;
+ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_fee_cents int NOT NULL DEFAULT 0;
+ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS order_num int;
+ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_address text;
+ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_notes text;
+
+CREATE OR REPLACE FUNCTION public.public_place_order(payload jsonb)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_cfg jsonb;
+  v_sched jsonb;
+  v_local timestamp;
+  v_phone text := regexp_replace(COALESCE(payload->>'phone', ''), '[^0-9]', '', 'g');
+  v_name text := btrim(COALESCE(payload->>'name', ''));
+  v_notes text := NULLIF(btrim(COALESCE(payload->>'notes', '')), '');
+  v_pickup timestamptz := NULL;
+  v_in jsonb;
+  v_it record;
+  v_item public.menu_items%ROWTYPE;
+  v_qty int;
+  v_mods jsonb;
+  v_mod_ids jsonb;
+  v_opt record;
+  v_unit int;
+  v_out jsonb := '[]'::jsonb;
+  v_total int := 0;
+  v_token text;
+  v_type text := COALESCE(NULLIF(payload->>'order_type', ''), 'pickup');
+  v_addr text := NULLIF(btrim(COALESCE(payload->>'address', '')), '');
+  v_deliv boolean;
+  v_fee_cfg int;
+  v_fee int := 0;
+BEGIN
+  -- 1. Feature gate: opt-in, not paused, inside the schedule (shop timezone).
+  SELECT menu_data->'posSettings'->'onlineOrders' INTO v_cfg FROM public.shop_settings WHERE id = 1;
+  IF COALESCE((v_cfg->>'enabled')::boolean, false) = false THEN
+    RAISE EXCEPTION 'online_orders_disabled';
+  END IF;
+  IF COALESCE((v_cfg->>'paused')::boolean, false) THEN
+    RAISE EXCEPTION 'online_orders_paused';
+  END IF;
+  v_sched := v_cfg->'schedule';
+  IF v_sched IS NOT NULL AND jsonb_typeof(v_sched) = 'object' THEN
+    v_local := (now() AT TIME ZONE public.shop_timezone())::timestamp;
+    IF NOT public.schedule_matches(
+      COALESCE((v_sched->>'days')::int, 0),
+      NULLIF(v_sched->>'start', '')::time,
+      NULLIF(v_sched->>'end', '')::time,
+      NULL, NULL, v_local
+    ) THEN
+      RAISE EXCEPTION 'online_orders_closed';
+    END IF;
+  END IF;
+
+  -- Availability probe for the page: {"check":true} runs only the gate above.
+
+  v_deliv := COALESCE((v_cfg->'delivery'->>'enabled')::boolean, false);
+  v_fee_cfg := CASE WHEN v_deliv THEN GREATEST(COALESCE((v_cfg->'delivery'->>'feeCents')::int, 0), 0) ELSE 0 END;
+  -- Probe answer: 'open', or 'open:<feeCents>' when delivery is offered.
+  IF COALESCE((payload->>'check')::boolean, false) THEN
+    RETURN CASE WHEN v_deliv THEN 'open:' || v_fee_cfg ELSE 'open' END;
+  END IF;
+
+
+  -- 2. Input validation (the page enforces the same; this is the real check).
+  IF length(v_name) < 1 OR length(v_name) > 80 THEN RAISE EXCEPTION 'invalid_name'; END IF;
+  IF length(v_phone) < 7 OR length(v_phone) > 15 THEN RAISE EXCEPTION 'invalid_phone'; END IF;
+  IF v_notes IS NOT NULL AND length(v_notes) > 300 THEN RAISE EXCEPTION 'invalid_notes'; END IF;
+  IF v_type NOT IN ('pickup', 'delivery') THEN RAISE EXCEPTION 'invalid_type'; END IF;
+  IF v_type = 'delivery' THEN
+    IF NOT v_deliv THEN RAISE EXCEPTION 'delivery_disabled'; END IF;
+    IF v_addr IS NULL OR length(v_addr) < 5 OR length(v_addr) > 250 THEN RAISE EXCEPTION 'invalid_address'; END IF;
+    v_fee := v_fee_cfg;
+  ELSE
+    v_addr := NULL;
+  END IF;
+  IF NULLIF(payload->>'pickup_at', '') IS NOT NULL THEN
+    BEGIN v_pickup := (payload->>'pickup_at')::timestamptz;
+    EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_pickup'; END;
+    IF v_pickup < now() - interval '5 minutes' OR v_pickup > now() + interval '7 days' THEN
+      RAISE EXCEPTION 'invalid_pickup';
+    END IF;
+  END IF;
+  v_in := payload->'items';
+  IF v_in IS NULL OR jsonb_typeof(v_in) <> 'array'
+     OR jsonb_array_length(v_in) < 1 OR jsonb_array_length(v_in) > 50 THEN
+    RAISE EXCEPTION 'invalid_items';
+  END IF;
+
+  -- 3. Abuse limits: per phone and shop-wide.
+  IF NOT public.rate_limit_hit('order:' || v_phone, 5, interval '15 minutes')
+     OR NOT public.rate_limit_hit('order:all', 120, interval '1 hour') THEN
+    RAISE EXCEPTION 'rate_limited';
+  END IF;
+
+  -- 4. Reprice every line from menu_items; client prices are never read.
+  FOR v_it IN SELECT value AS j FROM jsonb_array_elements(v_in) LOOP
+    BEGIN v_qty := (v_it.j->>'qty')::int;
+    EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_items'; END;
+    IF v_qty IS NULL OR v_qty < 1 OR v_qty > 99 THEN RAISE EXCEPTION 'invalid_items'; END IF;
+
+    SELECT i.* INTO v_item
+    FROM public.menu_items i
+    JOIN public.menu_categories c ON c.id = i.category_id
+    WHERE i.id = (v_it.j->>'id')
+      AND c.public_hidden = false
+      AND COALESCE((i.data->>'publicHidden')::boolean, false) = false;
+    IF NOT FOUND OR v_item.price_type <> 'fixed' OR NOT public.menu_item_available(v_item.id) THEN
+      RAISE EXCEPTION 'item_unavailable';
+    END IF;
+
+    v_unit := v_item.base_price_cents;
+    v_mods := '[]'::jsonb;
+    v_mod_ids := CASE WHEN jsonb_typeof(v_it.j->'modifiers') = 'array' THEN v_it.j->'modifiers' ELSE '[]'::jsonb END;
+    IF jsonb_array_length(v_mod_ids) > 20 THEN RAISE EXCEPTION 'invalid_items'; END IF;
+
+    FOR v_opt IN
+      SELECT o.id, o.name, o.price_delta_cents, g.id AS group_id
+      FROM jsonb_array_elements_text(v_mod_ids) AS m(id)
+      LEFT JOIN public.menu_modifier_options o ON o.id = m.id
+      LEFT JOIN public.menu_item_modifier_groups l ON l.group_id = o.group_id AND l.item_id = v_item.id
+      LEFT JOIN public.menu_modifier_groups g ON g.id = l.group_id AND g.is_hidden = false
+    LOOP
+      IF v_opt.id IS NULL OR v_opt.group_id IS NULL THEN RAISE EXCEPTION 'item_unavailable'; END IF;
+      v_unit := v_unit + COALESCE(v_opt.price_delta_cents, 0);
+      v_mods := v_mods || jsonb_build_object(
+        'id', v_opt.id, 'name', v_opt.name, 'groupId', v_opt.group_id,
+        'price_cents', COALESCE(v_opt.price_delta_cents, 0));
+    END LOOP;
+    -- Single-choice groups accept at most one option.
+    IF EXISTS (
+      SELECT 1 FROM jsonb_to_recordset(v_mods) AS x(id text, "groupId" text)
+      JOIN public.menu_modifier_groups g ON g.id = x."groupId" AND g.allow_multiple = false
+      GROUP BY x."groupId" HAVING count(*) > 1
+    ) THEN RAISE EXCEPTION 'invalid_items'; END IF;
+
+    v_total := v_total + v_unit * v_qty;
+    v_out := v_out || jsonb_build_object(
+      'id', v_item.id, 'name', v_item.name, 'qty', v_qty,
+      'unit_cents', v_unit, 'base_cents', v_item.base_price_cents,
+      'iva', v_item.data->>'ivaTreatment', 'modifiers', v_mods,
+      'line_cents', v_unit * v_qty);
+  END LOOP;
+
+  INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents)
+  VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee)
+  RETURNING token INTO v_token;
+  RETURN v_token;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.public_place_order(jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.public_place_order(jsonb) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_order_status(p_token text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+DECLARE
+  v_row public.online_orders%ROWTYPE;
+  v_status text;
+  v_ful text;
+BEGIN
+  IF p_token IS NULL OR length(p_token) <> 32 THEN
+    RETURN jsonb_build_object('found', false);
+  END IF;
+  SELECT * INTO v_row FROM public.online_orders WHERE token = p_token;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('found', false);
+  END IF;
+  -- Delivery orders: logistics drives the last steps, so derive them from the
+  -- linked order_fulfillment here (works with the Register closed).
+  v_status := v_row.status;
+  IF v_row.order_type = 'delivery' AND v_row.active_ticket_id IS NOT NULL
+     AND v_status IN ('accepted', 'preparing', 'ready', 'on_delivery') THEN
+    SELECT status INTO v_ful FROM public.order_fulfillment
+     WHERE active_ticket_id = v_row.active_ticket_id ORDER BY created_at DESC LIMIT 1;
+    IF v_ful = 'in_transit' THEN v_status := 'on_delivery';
+    ELSIF v_ful = 'completed' THEN v_status := 'completed'; END IF;
+  END IF;
+  RETURN jsonb_build_object(
+    'found', true,
+    'status', v_status,
+    'order_type', v_row.order_type,
+    'order_num', v_row.order_num,
+    'delivery_fee_cents', v_row.delivery_fee_cents,
+    'reject_reason', v_row.reject_reason,
+    'items', v_row.items,
+    'total_cents', v_row.total_cents,
+    'pickup_at', v_row.pickup_at,
+    'created_at', v_row.created_at
+  );
+END;
+$$;
+REVOKE ALL ON FUNCTION public.get_order_status(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_order_status(text) TO anon, authenticated;
+
+${stamp('2.0')}`,
   },
 ];
 
