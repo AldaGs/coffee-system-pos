@@ -190,6 +190,7 @@ function TicketArea({
             )}
 
             <div className="ticket-footer">
+              <div id="online-order-slot" />
               <CustomerStrip />
               <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
                 <span>{t('ticket.subtotal')}</span>

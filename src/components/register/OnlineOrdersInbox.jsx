@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
 import { createRealtimeChannel } from '../../utils/realtime';
@@ -37,7 +38,7 @@ function beep() {
 // Floating inbox for online orders: badge + sound for new ones, accept/reject,
 // and the preparing/ready steps (manual, or driven by the KDS).
 export default function OnlineOrdersInbox({
-  tickets, activeCashier, myDeviceId, menuData, nextOrderNum, setNextOrderNum, kdsEnabled, handleSendToKds,
+  tickets, activeCashier, myDeviceId, menuData, activeTicketId, nextOrderNum, setNextOrderNum, kdsEnabled, handleSendToKds,
   setActiveTicketId, showAlert, showPrompt, showToast
 }) {
   const { t } = useTranslation();
@@ -121,8 +122,38 @@ export default function OnlineOrdersInbox({
   const pending = orders.filter((o) => o.status === 'requested').length;
   const btn = (bg) => ({ background: bg, color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontWeight: 700, cursor: 'pointer' });
 
+  // Status/step buttons, shared by the inbox list and the open ticket's footer.
+  const actions = (o) => (<>
+                  {o.status === 'requested' && (<>
+                    <button type="button" disabled={busy === o.id} onClick={() => accept(o)} style={btn('#27ae60')}>{t('oo.accept')}</button>
+                    <button type="button" disabled={busy === o.id} onClick={() => reject(o)} style={btn('#e74c3c')}>{t('oo.reject')}</button>
+                  </>)}
+                  {o.status === 'accepted' && (<>
+                    {kdsEnabled && <button type="button" disabled={busy === o.id} onClick={() => toKitchen(o)} style={btn('#8e44ad')}>{t('oo.sendKitchen')}</button>}
+                    <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'preparing'))} style={btn('#2980b9')}>{t('oo.markPreparing')}</button>
+                  </>)}
+                  {(o.status === 'accepted' || o.status === 'preparing') && (
+                    <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'ready'))} style={btn('#16a085')}>{t('oo.markReady')}</button>
+                  )}
+                  {o.order_type === 'delivery' && o.active_ticket_id != null && o.status !== 'requested' && (
+                    <button type="button" disabled={busy === o.id} onClick={() => toLogistics(o)} style={btn('#d35400')}>{t('oo.sendLogistics')}</button>
+                  )}
+                  <a href={`https://wa.me/${waPhone(o.phone)}?text=${encodeURIComponent(`${t('oo.trackMsg')} ${trackUrl(o.token)}`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn('#25D366'), textDecoration: 'none' }}>{t('oo.sendTrackLink')}</a>
+  </>);
+
+  const current = activeTicketId != null && orders.find((o) => String(o.active_ticket_id) === String(activeTicketId));
+  // The slot lives in TicketArea's footer; look it up after commit so a footer
+  // mounted in this same render (ticket just opened) is found.
+  const [slot, setSlot] = useState(null);
+  useEffect(() => { setSlot(document.getElementById('online-order-slot')); }, [activeTicketId, current]);
+
   return (
     <>
+      {current && slot && createPortal(
+        <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>{t('oo.inboxTitle')} · {t(`oo.st_${current.status}`)}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions(current)}</div>
+        </div>, slot)}
       <button type="button" onClick={() => setOpen(true)} aria-label={t('oo.inboxTitle')}
         style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 900, width: 52, height: 52, borderRadius: 999, border: 'none', cursor: 'pointer',
           background: pending ? '#e74c3c' : 'var(--brand-color)', color: 'white', fontSize: '1.4rem', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>
@@ -155,21 +186,7 @@ export default function OnlineOrdersInbox({
                 </ul>
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>{formatForDisplay(o.total_cents)}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {o.status === 'requested' && (<>
-                    <button type="button" disabled={busy === o.id} onClick={() => accept(o)} style={btn('#27ae60')}>{t('oo.accept')}</button>
-                    <button type="button" disabled={busy === o.id} onClick={() => reject(o)} style={btn('#e74c3c')}>{t('oo.reject')}</button>
-                  </>)}
-                  {o.status === 'accepted' && (<>
-                    {kdsEnabled && <button type="button" disabled={busy === o.id} onClick={() => toKitchen(o)} style={btn('#8e44ad')}>{t('oo.sendKitchen')}</button>}
-                    <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'preparing'))} style={btn('#2980b9')}>{t('oo.markPreparing')}</button>
-                  </>)}
-                  {(o.status === 'accepted' || o.status === 'preparing') && (
-                    <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'ready'))} style={btn('#16a085')}>{t('oo.markReady')}</button>
-                  )}
-                  {o.order_type === 'delivery' && o.active_ticket_id != null && o.status !== 'requested' && (
-                    <button type="button" disabled={busy === o.id} onClick={() => toLogistics(o)} style={btn('#d35400')}>{t('oo.sendLogistics')}</button>
-                  )}
-                  <a href={`https://wa.me/${waPhone(o.phone)}?text=${encodeURIComponent(`${t('oo.trackMsg')} ${trackUrl(o.token)}`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn('#25D366'), textDecoration: 'none' }}>{t('oo.sendTrackLink')}</a>
+                  {actions(o)}
                   {o.active_ticket_id != null && (
                     <button type="button" onClick={() => { setActiveTicketId(o.active_ticket_id); setOpen(false); }} style={btn('#7f8c8d')}>{t('oo.openTicket')}</button>
                   )}

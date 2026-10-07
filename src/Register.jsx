@@ -1170,7 +1170,7 @@ function Register() {
 
         {posSettings?.onlineOrders?.enabled && !isLocalMode() && (
           <OnlineOrdersInbox
-            tickets={tickets} activeCashier={activeCashier} myDeviceId={myDeviceId} menuData={menuData} nextOrderNum={nextOrderNum} setNextOrderNum={setNextOrderNum}
+            tickets={tickets} activeCashier={activeCashier} myDeviceId={myDeviceId} menuData={menuData} activeTicketId={activeTicketId} nextOrderNum={nextOrderNum} setNextOrderNum={setNextOrderNum}
             kdsEnabled={!!posSettings?.kdsEnabled} handleSendToKds={handleSendToKds}
             setActiveTicketId={setActiveTicketId} showAlert={showAlert} showPrompt={showPrompt} showToast={showToast}
           />
