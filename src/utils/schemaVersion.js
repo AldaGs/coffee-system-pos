@@ -17,6 +17,8 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 1.9 — Online ordering: online_orders table (no anon access) plus the
+//       public_place_order / get_order_status RPCs behind the /order page.
 // 1.8 — One fiscal_profiles row per CFDI request: drops UNIQUE(rfc) and
 //       cfdi_request_invoice inserts/updates its own profile instead of
 //       overwriting a shared one by RFC (migration 048).
@@ -107,4 +109,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '1.8';
+export const APP_SCHEMA_VERSION = '1.9';
