@@ -20,7 +20,7 @@ export const rejectOnlineOrder = (id, reason) =>
 // Accept: atomically claim the order (so two stations can't both accept it),
 // then open a real active ticket from the server-priced snapshot and link it.
 // Returns the new ticket id, or null if another station got there first.
-export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menuData }) {
+export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menuData, orderNum }) {
   const { data: claimed, error } = await supabase.from('online_orders')
     .update({ status: 'accepted', updated_at: new Date().toISOString() })
     .eq('id', order.id).eq('status', 'requested').select('id');
@@ -43,7 +43,7 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
   const note = order.notes ? ` - ${order.notes.slice(0, 40)}` : '';
   const ticket = {
     id: Date.now(),
-    name: `${prefix} - ${order.customer_name} (Online)${note}`,
+    name: `${prefix} - ${order.customer_name} (#${orderNum}) (Online)${note}`,
     items,
     cashier_id: activeCashier?.id,
     last_modified_by: myDeviceId,

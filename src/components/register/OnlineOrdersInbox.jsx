@@ -27,7 +27,7 @@ function beep() {
 // Floating inbox for online orders: badge + sound for new ones, accept/reject,
 // and the preparing/ready steps (manual, or driven by the KDS).
 export default function OnlineOrdersInbox({
-  tickets, activeCashier, myDeviceId, menuData, kdsEnabled, handleSendToKds,
+  tickets, activeCashier, myDeviceId, menuData, nextOrderNum, setNextOrderNum, kdsEnabled, handleSendToKds,
   setActiveTicketId, showAlert, showPrompt, showToast
 }) {
   const { t } = useTranslation();
@@ -86,8 +86,9 @@ export default function OnlineOrdersInbox({
   };
 
   const accept = (o) => run(o, async () => {
-    const id = await acceptOnlineOrder(o, { activeCashier, myDeviceId, menuData });
+    const id = await acceptOnlineOrder(o, { activeCashier, myDeviceId, menuData, orderNum: nextOrderNum });
     if (id == null) return showToast(t('oo.alreadyHandled'), 'warning');
+    setNextOrderNum(nextOrderNum + 1);
     setActiveTicketId(id);
     setOpen(false);
   });
