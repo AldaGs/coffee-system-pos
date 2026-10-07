@@ -14,6 +14,7 @@ import UpgradeNagModal from './components/UpgradeNagModal';
 import MigrationScreen from './components/MigrationScreen';
 import PublicCFDI from './components/PublicCFDI';
 import PublicEnroll from './components/PublicEnroll';
+import PublicOrder from './components/PublicOrder';
 import AuthorizeHub from './components/AuthorizeHub';
 import { supabase } from './supabaseClient';
 import { getMode, setMode, MODE_LOCAL, isUpgradePending, clearUpgradePending } from './utils/appMode';
@@ -474,6 +475,12 @@ export default function App() {
   // card. Bypasses the auth/setup gates like the other customer-facing pages.
   if (typeof window !== 'undefined' && window.location.pathname === '/enroll') {
     return <PublicEnroll />;
+  }
+
+  // Online ordering page + tracker. Checked before the custom-domain branch so
+  // /order works on a shop's own domain too.
+  if (typeof window !== 'undefined' && (window.location.pathname === '/order' || window.location.pathname.startsWith('/order/track/'))) {
+    return <PublicOrder />;
   }
 
   if (typeof window !== 'undefined' && (window.location.pathname === '/menu' || window.location.pathname === '/menu/tv' || isCustomDomain)) {

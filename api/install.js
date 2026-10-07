@@ -2722,6 +2722,11 @@ export default async function handler(req, res) {
         END IF;
       END IF;
 
+      -- Availability probe for the page: {"check":true} runs only the gate above.
+
+      IF COALESCE((payload->>'check')::boolean, false) THEN RETURN 'open'; END IF;
+
+
       -- 2. Input validation (the page enforces the same; this is the real check).
       IF length(v_name) < 1 OR length(v_name) > 80 THEN RAISE EXCEPTION 'invalid_name'; END IF;
       IF length(v_phone) < 7 OR length(v_phone) > 15 THEN RAISE EXCEPTION 'invalid_phone'; END IF;
