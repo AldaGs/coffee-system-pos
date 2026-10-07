@@ -4,11 +4,21 @@ import { supabase } from '../../supabaseClient';
 import { createRealtimeChannel } from '../../utils/realtime';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
+import { menuBaseUrl } from '../../utils/customDomainSync';
 import {
   ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, sendOrderToLogistics, setOnlineOrderStatus
 } from '../../services/onlineOrders';
 
 const LIVE = ['requested', 'accepted', 'preparing', 'ready'];
+
+// Tracking link the customer can reopen if they lost the page (same shape PublicOrder redirects to).
+const trackUrl = (token) => {
+  let ref = '';
+  try { ref = new URL(localStorage.getItem('tinypos_supabase_url') || '').hostname.split('.')[0]; } catch { /* no cloud url */ }
+  return `${menuBaseUrl()}/order/track/${token}${ref ? `?p=${ref}` : ''}`;
+};
+// ponytail: assumes 10-digit numbers are Mexican (+52); others are sent as typed.
+const waPhone = (phone) => { const d = String(phone || '').replace(/\D/g, ''); return d.length === 10 ? `52${d}` : d; };
 
 // Short two-tone beep; WebAudio so there is no asset to ship. Browsers may
 // block it until the first user gesture, which is fine (the badge still shows).
@@ -159,6 +169,7 @@ export default function OnlineOrdersInbox({
                   {o.order_type === 'delivery' && o.active_ticket_id != null && o.status !== 'requested' && (
                     <button type="button" disabled={busy === o.id} onClick={() => toLogistics(o)} style={btn('#d35400')}>{t('oo.sendLogistics')}</button>
                   )}
+                  <a href={`https://wa.me/${waPhone(o.phone)}?text=${encodeURIComponent(`${t('oo.trackMsg')} ${trackUrl(o.token)}`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn('#25D366'), textDecoration: 'none' }}>{t('oo.sendTrackLink')}</a>
                   {o.active_ticket_id != null && (
                     <button type="button" onClick={() => { setActiveTicketId(o.active_ticket_id); setOpen(false); }} style={btn('#7f8c8d')}>{t('oo.openTicket')}</button>
                   )}
