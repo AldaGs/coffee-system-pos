@@ -1,21 +1,31 @@
 import { useState } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, fromCents } from '../../utils/moneyUtils';
+import OrderTicket from '../OrderTicket';
 import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 
 // Online ordering settings. Stored at posSettings.onlineOrders so the
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
 // every device gets it through the normal posSettings sync.
 // Shape: { enabled, paused, delivery: { enabled, feeCents }, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
-const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 } };
+const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const saved = { ...DEFAULTS, ...(menuData?.posSettings?.onlineOrders || {}) };
   const [form, setForm] = useState(saved);
   const delivery = form.delivery || DEFAULTS.delivery;
   const setDelivery = (patch) => setForm({ ...form, delivery: { ...delivery, ...patch } });
+  const showIva = !!form.ticket?.showIva;
+  // Preview with real menu items: one IVA 16%, one tasa 0, then whatever else; samples if the menu is empty.
+  const all = Object.values(menuData?.categories || {}).flat().filter((i) => i?.basePrice > 0);
+  const picks = [all.find((i) => i.ivaTreatment === 'iva16'), all.find((i) => i.ivaTreatment !== 'iva16'), ...all]
+    .filter((i, n, a) => i && a.indexOf(i) === n).slice(0, 3);
+  const sample = picks.length ? picks : [
+    { name: 'Americano', basePrice: 4500, ivaTreatment: 'iva16' }, { name: 'Croissant', basePrice: 3500, ivaTreatment: 'tasa0' }];
+  const lines = sample.map((i) => ({ qty: 1, name: i.name, modifiers: [], line_cents: i.basePrice, iva: i.ivaTreatment || 'tasa0' }));
+  const fee = delivery.enabled ? delivery.feeCents || 0 : 0;
   const sched = form.schedule || { days: 0, start: '', end: '' };
   const days = bitmaskToDays(sched.days);
 
@@ -85,6 +95,18 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <span>–</span>
             <input type="time" value={sched.end} onChange={e => setSched({ end: e.target.value })} style={input} />
           </div>
+        </div>
+
+        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
+          <strong>{t('oo.ticket')}</strong>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.ticketDesc')}</small>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={showIva} onChange={e => setForm({ ...form, ticket: { ...form.ticket, showIva: e.target.checked } })} />
+            <span>{t('oo.ticketShowIva')}</span>
+          </label>
+          <OrderTicket style={{ maxWidth: 360 }} items={lines} deliveryFeeCents={fee}
+            totalCents={lines.reduce((a, l) => a + l.line_cents, 0) + fee}
+            showIva={showIva} taxRate={menuData?.receiptSettings?.taxRate || 16} lang={lang} />
         </div>
 
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('oo.linkHint')}</p>
