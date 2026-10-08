@@ -81,7 +81,9 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
         </button>
       </div>
 
-      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 32, alignItems: 'start' }}>
+      {/* Masonry via CSS columns: cards stack per column, so a tall card (delivery hours)
+          doesn't leave a row-height gap under its neighbours like a grid does. */}
+      <div style={{ columns: '350px', columnGap: 32 }}>
         <Card icon="lucide:power" title={t('oo.title')}>
         <label style={{ ...row, cursor: 'pointer' }}>
           <input type="checkbox" checked={!!form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
@@ -264,7 +266,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
 // Same card look as General Settings.
 function Card({ icon, title, children }) {
   return (
-    <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12, breakInside: 'avoid', marginBottom: 32 }}>
       <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Icon icon={icon} style={{ color: 'var(--brand-color)' }} />{title}
       </h3>
