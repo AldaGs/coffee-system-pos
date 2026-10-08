@@ -193,6 +193,13 @@ const pageStyle = {
   height: '100dvh', overflowY: 'auto', background: '#fafafa', color: '#222', WebkitOverflowScrolling: 'touch',
   fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
 };
+// Shared motion: slide-up for the bottom bar and sheets, fade for wizard steps, spinner for waits.
+// Rendered once at the page root; reduced-motion users get none of it.
+const MOTION_CSS = '@keyframes tp-spin{to{transform:rotate(360deg)}}@keyframes tp-up{from{transform:translateY(100%);opacity:0}}@keyframes tp-fade{from{opacity:0;transform:translateY(6px)}}@keyframes tp-dim{from{opacity:0}}'
+  + '.tp-spin{animation:tp-spin .9s linear infinite}.tp-up{animation:tp-up .32s cubic-bezier(.2,.8,.2,1)}.tp-fade{animation:tp-fade .25s ease-out}.tp-dim{animation:tp-dim .2s ease-out}'
+  + '@media (prefers-reduced-motion:reduce){.tp-spin,.tp-up,.tp-fade,.tp-dim{animation:none!important}}';
+const Spinner = ({ size = '1.1em' }) => <Icon icon="lucide:loader-2" className="tp-spin" style={{ fontSize: size, verticalAlign: '-0.15em' }} />;
+const Loading = ({ text }) => <div style={centerStyle}><div style={{ display: 'grid', gap: 12, justifyItems: 'center' }}><Spinner size="2rem" />{text}</div></div>;
 const centerStyle = { minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center', color: '#444', fontFamily: 'system-ui, sans-serif' };
 const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '12px 14px', borderRadius: 10, border: '1px solid #ddd', fontSize: '1rem', background: 'white' };
 
@@ -204,10 +211,10 @@ function PublicOrder() {
   const s = STR[lang] || STR.es;
 
   if (error) return <div style={centerStyle}>{s.badLink}</div>;
-  if (!client) return <div style={centerStyle}>{s.loading}</div>;
-  return trackToken
+  if (!client) return <><style>{MOTION_CSS}</style><Loading text={s.loading} /></>;
+  return <><style>{MOTION_CSS}</style>{trackToken
     ? <Track client={client} token={trackToken} lang={lang} setLang={setLang} />
-    : <Order client={client} lang={lang} setLang={setLang} />;
+    : <Order client={client} lang={lang} setLang={setLang} />}</>;
 }
 
 function Order({ client, lang, setLang }) {
@@ -315,7 +322,7 @@ function Order({ client, lang, setLang }) {
   const cashChips = [grand, ...[...new Set([50, 100, 200, 500].map((b) => Math.ceil(grand / (b * 100)) * b * 100))].filter((c) => c > grand).slice(0, 3)];
 
   if (loadErr) return <div style={centerStyle}>{loadErr}</div>;
-  if (!data) return <div style={centerStyle}>{s.loading}</div>;
+  if (!data) return <Loading text={s.loading} />;
 
   const brand = data.shop?.brand_color || '#f28b05';
   const categories = (data.categories || []).filter((c) => c.items.length > 0);
@@ -407,6 +414,7 @@ function Order({ client, lang, setLang }) {
     </div>
     <small style={{ color: '#888' }}>{s.stepOf.replace('{n}', stepIdx + 1).replace('{m}', steps.length)}</small>
     <h3 style={{ margin: '4px 0 12px' }}>{s[`step_${step}`]}</h3>
+    <div key={step} className="tp-fade">
 
     {step === 'cart' && (<>
     {cart.length === 0 && <p style={{ color: '#666' }}>{s.empty}</p>}
@@ -499,6 +507,7 @@ function Order({ client, lang, setLang }) {
     )}
     <p style={{ color: '#666', fontSize: '0.9rem' }}>{pay ? s.payNote[pay][delivery ? 1 : 0] : delivery ? s.payOnDelivery : s.payAtPickup}</p>
     </>)}
+    </div>
 
     {delivery && (
       <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 0' }}><span>{s.deliveryFee}</span><span>{fmt(feeCents)}</span></div>
@@ -512,7 +521,7 @@ function Order({ client, lang, setLang }) {
         <button type="button" disabled={stepBlock} onClick={() => go(stepIdx + 1)} style={{ ...nextBtn, opacity: stepBlock ? 0.6 : 1 }}>{s.next}</button>
       ) : (
         <button type="button" disabled={sending || cart.length === 0} onClick={submit} style={{ ...nextBtn, opacity: sending || cart.length === 0 ? 0.6 : 1 }}>
-          {sending ? s.sending : s.send}
+          {sending ? <><Spinner /> {s.sending}</> : s.send}
         </button>
       )}
     </div>
@@ -578,7 +587,7 @@ function Order({ client, lang, setLang }) {
       ) : menuCol}
 
       {!wide && !gate && count > 0 && !checkingOut && (
-        <button type="button" onClick={() => setCheckingOut(true)}
+        <button type="button" className="tp-up" onClick={() => setCheckingOut(true)}
           style={{ position: 'fixed', left: 16, right: 16, bottom: 16, background: brand, color: 'white', border: 'none', borderRadius: 14, padding: 16, fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
           {s.cart} ({count}) · {fmt(total)}
         </button>
@@ -728,8 +737,8 @@ function SlotPicker({ label, value, onChange, shop, lang, s, delivery }) {
 
 function Sheet({ children, onClose }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: 'white', width: '100%', maxWidth: 520, maxHeight: '90dvh', overflowY: 'auto', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box' }}>
+    <div onClick={onClose} className="tp-dim" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={(e) => e.stopPropagation()} className="tp-up" style={{ background: 'white', width: '100%', maxWidth: 520, maxHeight: '90dvh', overflowY: 'auto', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box' }}>
         {children}
       </div>
     </div>
@@ -796,7 +805,7 @@ function Track({ client, token, lang, setLang }) {
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); evs.forEach((e) => el.removeEventListener(e, hold)); };
   }, [shop, menu, order]); // strip mounts once the order + menu are in
-  if (order === undefined) return <div style={centerStyle}>{s.loading}</div>;
+  if (order === undefined) return <Loading text={s.loading} />;
   const back = <a href={`/order${window.location.search}`} style={{ color: '#555' }}>{s.backToMenu}</a>;
   if (order === null) return <div style={centerStyle}><div><p>{s.notFound}</p>{back}</div></div>;
 
@@ -827,7 +836,7 @@ function Track({ client, token, lang, setLang }) {
   const label = (st) => (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
     <Page client={client} lang={lang}>
-      <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}.tp-marquee{scrollbar-width:none}.tp-marquee::-webkit-scrollbar{display:none}@media (prefers-reduced-motion:reduce){.tp-spin{animation:none!important}}'}</style>
+      <style>{'.tp-marquee{scrollbar-width:none}.tp-marquee::-webkit-scrollbar{display:none}'}</style>
       <ShopHeader shop={shop || { brand_color: brand }} lang={lang} setLang={setLang} />
       <div style={{ maxWidth: 480, width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: 24 }}>
         <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
