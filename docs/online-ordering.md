@@ -9,7 +9,7 @@ Customers order from a shared link, track the order live, and the shop receives 
 - **Manual accept**: every order waits for staff Accept/Reject; the customer sees it.
 - **Pickup** (phase 1) and **delivery** via tinylogistics (phase 2, opt-in under `onlineOrders.delivery`).
 - **No customer accounts**: customer data is remembered in the customer's browser (localStorage). Shop side links orders to existing customers by phone.
-- **No online payment**: pay at pickup.
+- **No online payment**: the customer picks cash / card / bank transfer at checkout (schema 2.6), but still pays at pickup/delivery.
 
 ## Customer status timeline
 
@@ -75,3 +75,9 @@ Customers order from a shared link, track the order live, and the shop receives 
 - **Settings**: `posSettings.onlineOrders.slots = { enabled: false (default; rules apply only when true), interval: 15|30|60 (default 30), daysAhead: 0-14 (3), leadMinutes (30), hours: { days, start, end } | null }`. `hours: null` = same as the ordering `schedule`; with no hours anywhere slots run 09:00-21:00 every day (a schedule with days but no times keeps its days and uses 09:00-21:00). Admin: Online orders > "Delivery/pickup times".
 - **Public page**: `get_active_menu` shop block carries `slots` and `schedule` (read once at load, not by the 8s poll). `SlotPicker` in `PublicOrder.jsx` opens a native `<input type="datetime-local">` (via `showPicker()`, input visually hidden). The value is wall-clock in `shop.timezone` and converted with `pickupSlots.js` (`toLocalInput`/`fromLocalInput`); `pickup_at` is still sent as an ISO instant. Always `min` = now (no past). With `slots.enabled`: `min` = now + lead, `max` = now + daysAhead, `step` = interval, and the pick is re-validated with `slotValid` (days/hours/interval); an invalid pick is rejected with a hint message. Optional: empty = as soon as possible.
 - **Server**: `public_place_order` always rejects `pickup_at` (`invalid_pickup`) if it is < now - 5 min or > now + 14 days. Only when `slots.enabled` it also requires >= now + lead - 5 min, <= now + daysAhead days, matching configured days/hours (`schedule_matches`, shop tz) and interval alignment.
+
+## Payment method (schema 2.6)
+- **Settings**: `posSettings.onlineOrders.payments = { methods: ['cash','card','transfer'], transferInfo: '' }` (default all three; at least one). Admin: Online orders > "Payment methods" (transfer details textarea appears when transfer is offered).
+- **Server**: `online_orders.payment_method` (CHECK cash/card/transfer, NULL on old rows). `public_place_order` requires `payload.payment_method` to be one of the offered methods (no config = all three) else `invalid_payment`. `get_order_status` returns `payment_method`; `get_active_menu` shop block carries `payments` (read once at load; the tracker takes `transferInfo` from `get_public_menu`, not the 8s poll).
+- **Page**: required segmented choice (banknote / credit-card / landmark icons) saved in the draft; transfer shows `transferInfo`; the pay-at-pickup line is method-aware; tracker shows the method (+ transfer details).
+- **Shop**: inbox card shows the method; the accepted ticket name gets ` · Efectivo|Tarjeta|Transferencia`; `sendOrderToLogistics` adds `Pago: <método>` to `delivery_notes`. The Register checkout modal is not pre-selected (its buttons are one-shot actions with no method state).

@@ -40,6 +40,9 @@ const writeJson = (key, value) => {
 };
 const removeKey = (key) => { try { localStorage.removeItem(key); } catch { /* ignore */ } };
 
+const PAY_METHODS = ['cash', 'card', 'transfer'];
+const PAY_ICON = { cash: 'lucide:banknote', card: 'lucide:credit-card', transfer: 'lucide:landmark' };
+
 const STR = {
   es: {
     loading: 'Cargando…', notOpen: 'No estamos aceptando pedidos en este momento.',
@@ -60,7 +63,9 @@ const STR = {
     st_ready: 'Listo para recoger', st_completed: 'Entregado', st_delivered: 'Entregado', st_rejected: 'Rechazado',
     waiting: 'Esperando confirmación del negocio…', updating: 'Actualizando…',
     typePickup: 'Recoger', pinUseMine: 'Usar mi ubicación', pinSearch: 'Buscar dirección en el mapa', pinClear: 'Quitar pin', pinHint: 'Opcional: toca el mapa o arrastra el pin a tu puerta.', pinNoGeo: 'No pudimos obtener tu ubicación.', pinNeedAddr: 'Escribe tu dirección primero.', pinNotFound: 'No encontramos esa dirección.', mightLike: 'También te puede gustar', pinNeedHttps: 'La ubicación requiere HTTPS: escribe la dirección o mueve el pin.', pinDenied: 'Permiso de ubicación denegado: escribe la dirección o mueve el pin.', pinStreet: 'Calle encontrada: arrastra el pin a tu puerta exacta.', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
-    payOnDelivery: 'Pagas al recibir.', orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
+    payOnDelivery: 'Pagas al recibir.', payLabel: 'Forma de pago', pay_cash: 'Efectivo', pay_card: 'Tarjeta', pay_transfer: 'Transferencia', invalid_payment: 'Elige una forma de pago.',
+    payNote: { cash: ['Pagas en efectivo al recoger.', 'Pagas en efectivo al recibir.'], card: ['Pagas con tarjeta en terminal al recoger.', 'Pagas con tarjeta al recibir (el repartidor lleva terminal).'], transfer: ['Transfiere con estos datos y muestra tu comprobante al recoger.', 'Transfiere con estos datos y muestra tu comprobante al recibir.'] },
+    orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
     invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', invalid_type: 'Revisa tu pedido.',
   },
   en: {
@@ -82,7 +87,9 @@ const STR = {
     st_ready: 'Ready for pickup', st_completed: 'Picked up', st_delivered: 'Delivered', st_rejected: 'Rejected',
     waiting: 'Waiting for the shop to confirm…', updating: 'Updating…',
     typePickup: 'Pickup', pinUseMine: 'Use my location', pinSearch: 'Search address on map', pinClear: 'Remove pin', pinHint: 'Optional: tap the map or drag the pin to your door.', pinNoGeo: 'Could not get your location.', pinNeedAddr: 'Enter your address first.', pinNotFound: 'Address not found.', mightLike: 'You might also like', pinNeedHttps: 'Location needs HTTPS: type the address or move the pin.', pinDenied: 'Location permission denied: type the address or move the pin.', pinStreet: 'Street found: drag the pin to your exact door.', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
-    payOnDelivery: 'You pay on delivery.', orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
+    payOnDelivery: 'You pay on delivery.', payLabel: 'Payment method', pay_cash: 'Cash', pay_card: 'Card', pay_transfer: 'Bank transfer', invalid_payment: 'Choose a payment method.',
+    payNote: { cash: ['You pay in cash at pickup.', 'You pay in cash on delivery.'], card: ['You pay by card at the terminal on pickup.', 'You pay by card on delivery (the driver brings a terminal).'], transfer: ['Transfer using these details and show your receipt at pickup.', 'Transfer using these details and show your receipt on delivery.'] },
+    orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
     invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', invalid_type: 'Please review your order.',
   },
 };
@@ -131,7 +138,7 @@ function useClient() {
 const errCode = (error) => {
   const m = String(error?.message || '');
   return ['online_orders_disabled', 'online_orders_paused', 'online_orders_closed', 'invalid_name', 'invalid_phone',
-    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'invalid_type'].find((c) => m.includes(c)) || null;
+    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'invalid_type', 'invalid_payment'].find((c) => m.includes(c)) || null;
 };
 
 // Desktop gets a two-column layout with the cart as a side panel.
@@ -185,6 +192,7 @@ function Order({ client, lang, setLang }) {
   const [pickup, setPickup] = useState(() => (/Z$/.test(draft.pickup || '') && Date.parse(draft.pickup) > Date.now() ? draft.pickup : ''));
   const [feeCents, setFeeCents] = useState(null); // null = delivery not offered
   const [orderType, setOrderType] = useState(draft.orderType || 'pickup');
+  const [payment, setPayment] = useState(draft.payment || '');
   const [sending, setSending] = useState(false);
   const [formErr, setFormErr] = useState(null);
   const s = STR[lang] || STR.es;
@@ -216,8 +224,8 @@ function Order({ client, lang, setLang }) {
     return m;
   }, [data]);
   useEffect(() => {
-    writeJson(DRAFT_KEY, { cart, customer, notes, pickup, orderType });
-  }, [cart, customer, notes, pickup, orderType]);
+    writeJson(DRAFT_KEY, { cart, customer, notes, pickup, orderType, payment });
+  }, [cart, customer, notes, pickup, orderType, payment]);
   // Drop restored lines whose item left the menu or sold out since the draft was saved.
   useEffect(() => {
     if (data) setCart((prev) => prev.filter((l) => itemsById.has(l.id) && itemsById.get(l.id).available !== false));
@@ -231,6 +239,9 @@ function Order({ client, lang, setLang }) {
     return (it?.price_cents || 0) + line.mods.reduce((a, id) => a + optionPrice(id), 0);
   };
   const total = cart.reduce((a, l) => a + unitCents(l) * l.qty, 0);
+  // Offered methods (default all three); a lone method is preselected.
+  const offered = PAY_METHODS.filter((m) => (data.shop?.payments?.methods?.length ? data.shop.payments.methods : PAY_METHODS).includes(m));
+  const pay = offered.includes(payment) ? payment : offered.length === 1 ? offered[0] : '';
   const delivery = orderType === 'delivery' && feeCents != null;
   const grand = total + (delivery ? feeCents : 0);
   const count = cart.reduce((a, l) => a + l.qty, 0);
@@ -286,12 +297,13 @@ function Order({ client, lang, setLang }) {
 
   const submit = async () => {
     setFormErr(null);
+    if (!pay) { setFormErr(s.invalid_payment); return; }
     setSending(true);
     const payload = {
       name: customer.name, phone: customer.phone, notes,
       order_type: delivery ? 'delivery' : 'pickup', address: delivery ? customer.address : null,
       lat: delivery ? customer.lat : null, lng: delivery ? customer.lng : null,
-      pickup_at: pickup || null,
+      pickup_at: pickup || null, payment_method: pay,
       items: cart.map((l) => ({ id: l.id, qty: l.qty, modifiers: l.mods })),
     };
     const { data: token, error: err } = await client.rpc('public_place_order', { payload });
@@ -348,7 +360,22 @@ function Order({ client, lang, setLang }) {
       <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
       <SlotPicker label={delivery ? s.deliveryAt : s.pickupAt} value={pickup} onChange={setPickup} shop={data?.shop} lang={lang} s={s} brand={brand} />
     </div>
-    <p style={{ color: '#666', fontSize: '0.9rem' }}>{delivery ? s.payOnDelivery : s.payAtPickup}</p>
+    <div role="radiogroup" aria-label={s.payLabel} style={{ margin: '12px 0 0' }}>
+      <div style={{ fontWeight: 700, marginBottom: 6 }}>{s.payLabel}</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {offered.map((m) => (
+          <button key={m} type="button" role="radio" aria-checked={pay === m} onClick={() => setPayment(m)}
+            style={{ flex: 1, padding: '10px 4px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', border: `1px solid ${brand}`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+              background: pay === m ? brand : 'white', color: pay === m ? 'white' : brand }}>
+            <Icon icon={PAY_ICON[m]} width="20" />{s[`pay_${m}`]}
+          </button>
+        ))}
+      </div>
+    </div>
+    {pay === 'transfer' && data.shop?.payments?.transferInfo && (
+      <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: '#f5f5f5', whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{data.shop.payments.transferInfo}</div>
+    )}
+    <p style={{ color: '#666', fontSize: '0.9rem' }}>{pay ? s.payNote[pay][delivery ? 1 : 0] : delivery ? s.payOnDelivery : s.payAtPickup}</p>
     {formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
     <button type="button" disabled={sending || cart.length === 0} onClick={submit}
       style={{ width: '100%', background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer', opacity: sending || cart.length === 0 ? 0.6 : 1 }}>
@@ -632,6 +659,12 @@ function Track({ client, token, lang, setLang }) {
           </ol>
         )}
         {order.status === 'requested' && <p style={{ color: '#666' }}>{s.waiting}</p>}
+        {order.payment_method && (
+          <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: '#f5f5f5' }}>
+            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Icon icon={PAY_ICON[order.payment_method]} width="20" />{s.payLabel}: {s[`pay_${order.payment_method}`]}</div>
+            {order.payment_method === 'transfer' && shop?.payments?.transferInfo && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{shop.payments.transferInfo}</div>}
+          </div>
+        )}
         <OrderTicket style={{ marginTop: 16 }} items={order.items} deliveryFeeCents={order.delivery_fee_cents}
           totalCents={order.total_cents} showIva={!!order.show_iva} taxRate={order.tax_rate || 16} lang={lang} />
         {picks.length > 0 && (

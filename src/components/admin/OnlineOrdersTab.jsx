@@ -9,7 +9,7 @@ import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 // every device gets it through the normal posSettings sync.
 // slots: { enabled (default false: any future time),  interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
 // Shape: { enabled, paused, delivery: { enabled, feeCents }, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
-const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] } };
+const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
@@ -33,6 +33,10 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const fee = delivery.enabled ? delivery.feeCents || 0 : 0;
   const sched = form.schedule || { days: 0, start: '', end: '' };
   const days = bitmaskToDays(sched.days);
+
+  const pay = { ...DEFAULTS.payments, ...(form.payments || {}) };
+  const setPay = (patch) => setForm({ ...form, payments: { ...pay, ...patch } });
+  const togglePay = (m) => setPay({ methods: pay.methods.includes(m) ? pay.methods.filter((x) => x !== m) : [...pay.methods, m] });
 
   const sl = { ...DEFAULTS.slots, ...(form.slots || {}) };
   const setSl = (patch) => setForm({ ...form, slots: { ...sl, ...patch } });
@@ -106,6 +110,22 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <span>–</span>
             <input type="time" value={sched.end} onChange={e => setSched({ end: e.target.value })} style={input} />
           </div>
+        </div>
+
+        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
+          <strong>{t('oo.payments')}</strong>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.paymentsDesc')}</small>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {['cash', 'card', 'transfer'].map((m) => (
+              <label key={m} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                <input type="checkbox" checked={pay.methods.includes(m)} disabled={pay.methods.length === 1 && pay.methods.includes(m)} onChange={() => togglePay(m)} />
+                <span>{t(`check.${m}`)}</span>
+              </label>
+            ))}
+          </div>
+          {pay.methods.includes('transfer') && (
+            <textarea rows={3} maxLength={400} style={input} placeholder={t('oo.transferInfoPh')} value={pay.transferInfo} onChange={e => setPay({ transferInfo: e.target.value })} />
+          )}
         </div>
 
         <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>

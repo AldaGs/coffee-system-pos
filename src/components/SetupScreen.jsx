@@ -1175,6 +1175,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             'timezone', v_tz,
             'showcase', (SELECT menu_data->'posSettings'->'onlineOrders'->'trackShowcase' FROM public.shop_settings WHERE id = 1),
             'slots',       (SELECT menu_data->'posSettings'->'onlineOrders'->'slots' FROM public.shop_settings WHERE id = 1),
+            'payments',   (SELECT menu_data->'posSettings'->'onlineOrders'->'payments' FROM public.shop_settings WHERE id = 1),
             'schedule',    (SELECT menu_data->'posSettings'->'onlineOrders'->'schedule' FROM public.shop_settings WHERE id = 1),
             'logo', COALESCE(NULLIF((SELECT menu_data->'posSettings'->>'appBootLogo' FROM public.shop_settings WHERE id = 1), ''), (SELECT menu_data->'receiptSettings'->>'logo' FROM public.shop_settings WHERE id = 1))
           );
@@ -2712,6 +2713,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_notes text;
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lat double precision;
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lng double precision;
+        ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS payment_method text CHECK (payment_method IN ('cash','card','transfer'));
         ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_lat double precision;
         ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_lng double precision;
         CREATE INDEX IF NOT EXISTS idx_online_orders_status ON public.online_orders (status);
@@ -2767,6 +2769,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           v_lat double precision;
           v_lng double precision;
           v_cats jsonb;
+          v_pay text := payload->>'payment_method';
+          v_pays jsonb;
         BEGIN
           -- 1. Feature gate: opt-in, not paused, inside the schedule (shop timezone).
           SELECT menu_data->'posSettings'->'onlineOrders' INTO v_cfg FROM public.shop_settings WHERE id = 1;
@@ -2804,6 +2808,9 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           IF length(v_phone) < 7 OR length(v_phone) > 15 THEN RAISE EXCEPTION 'invalid_phone'; END IF;
           IF v_notes IS NOT NULL AND length(v_notes) > 300 THEN RAISE EXCEPTION 'invalid_notes'; END IF;
           IF v_type NOT IN ('pickup', 'delivery') THEN RAISE EXCEPTION 'invalid_type'; END IF;
+          v_pays := v_cfg->'payments'->'methods';
+          IF v_pays IS NULL OR jsonb_typeof(v_pays) <> 'array' OR jsonb_array_length(v_pays) = 0 THEN v_pays := '["cash","card","transfer"]'::jsonb; END IF;
+          IF v_pay IS NULL OR v_pay NOT IN ('cash','card','transfer') OR NOT (v_pays @> to_jsonb(v_pay)) THEN RAISE EXCEPTION 'invalid_payment'; END IF;
           IF v_type = 'delivery' THEN
             IF NOT v_deliv THEN RAISE EXCEPTION 'delivery_disabled'; END IF;
             IF v_addr IS NULL OR length(v_addr) < 5 OR length(v_addr) > 250 THEN RAISE EXCEPTION 'invalid_address'; END IF;
@@ -2912,8 +2919,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
               'line_cents', v_unit * v_qty);
           END LOOP;
 
-          INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents, delivery_lat, delivery_lng)
-          VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee, v_lat, v_lng)
+          INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents, delivery_lat, delivery_lng, payment_method)
+          VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee, v_lat, v_lng, v_pay)
           RETURNING token INTO v_token;
           RETURN v_token;
         END;
@@ -2954,6 +2961,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             'found', true,
             'status', v_status,
             'order_type', v_row.order_type,
+            'payment_method', v_row.payment_method,
             'order_num', v_row.order_num,
             'delivery_fee_cents', v_row.delivery_fee_cents,
             'reject_reason', v_row.reject_reason,
@@ -2988,7 +2996,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
           FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '2.5', now())
+        VALUES ('schema_version', '2.6', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

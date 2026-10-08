@@ -10,6 +10,7 @@ import {
   ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus
 } from '../../services/onlineOrders';
 
+const PAY_ICON = { cash: 'lucide:banknote', card: 'lucide:credit-card', transfer: 'lucide:landmark' };
 const LIVE = ['requested', 'accepted', 'preparing', 'ready'];
 
 // Tracking link the customer can reopen if they lost the page (same shape PublicOrder redirects to).
@@ -169,6 +170,7 @@ export default function OnlineOrdersInbox({
                   </div>
                 )}
                 {o.pickup_at && <div style={{ color: 'var(--text-muted)' }}>{t('oo.pickupAt')}: {new Date(o.pickup_at).toLocaleString()}</div>}
+                {o.payment_method && <div style={{ fontWeight: 700 }}><Icon icon={PAY_ICON[o.payment_method]} style={{ verticalAlign: '-2px' }} /> {t(`check.${o.payment_method}`)}</div>}
                 {o.notes && <div style={{ color: 'var(--text-muted)' }}>{o.notes}</div>}
                 <ul style={{ margin: '8px 0', paddingLeft: 18 }}>
                   {(o.items || []).map((l, i) => (
