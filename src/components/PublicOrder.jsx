@@ -162,6 +162,21 @@ function useWide() {
   return wide;
 }
 
+// Page wrapper: the content column fills at least the viewport so the legal links
+// always sit at the very bottom (below short pages, after everything on long ones).
+function Page({ client, lang, bottomPad = 16, children }) {
+  return (
+    <div style={pageStyle}>
+      <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+        {children}
+        <footer style={{ marginTop: 'auto', textAlign: 'center', color: '#888', fontSize: '0.8rem', padding: `24px 16px ${bottomPad}px` }}>
+          <LegalLinks client={client} lang={lang} />
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 const pageStyle = {
   height: '100dvh', overflowY: 'auto', background: '#fafafa', color: '#222', WebkitOverflowScrolling: 'touch',
   fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
@@ -287,7 +302,7 @@ function Order({ client, lang, setLang }) {
   const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} cartCount={count} onCart={gate ? null : openCart} cartLabel={s.cart} />;
   // Not taking orders (closed / paused / disabled): same menu, read-only, with a banner on top.
   const banner = gate && <GateBanner s={s} gate={gate} shop={data.shop} />;
-  if (categories.length === 0) return <div style={pageStyle}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></div>;
+  if (categories.length === 0) return <Page client={client} lang={lang}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></Page>;
 
   const addLine = (id, mods) => {
     const key = `${id}|${[...mods].sort().join(',')}`;
@@ -497,7 +512,7 @@ function Order({ client, lang, setLang }) {
 
       <ul style={wide
         ? { listStyle: 'none', margin: 0, padding: '16px 0 32px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }
-        : { listStyle: 'none', margin: 0, padding: '8px 16px 140px' }}>
+        : { listStyle: 'none', margin: 0, padding: '8px 16px 16px' }}>
         {active.items.map((it) => {
           const out = it.available === false || it.price_type !== 'fixed';
           return (
@@ -513,12 +528,11 @@ function Order({ client, lang, setLang }) {
           );
         })}
       </ul>
-      <div style={{ textAlign: 'center', color: '#888', fontSize: '0.8rem', padding: '0 16px 100px' }}><LegalLinks client={client} lang={lang} /></div>
     </div>
   );
 
   return (
-    <div style={pageStyle}>
+    <Page client={client} lang={lang} bottomPad={!wide && !gate && count > 0 && !checkingOut ? 96 : 16}>
       {header}
       {wide && !gate ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, maxWidth: 1200, margin: '0 auto', padding: '0 24px', alignItems: 'start' }}>
@@ -557,7 +571,7 @@ function Order({ client, lang, setLang }) {
       )}
 
       {!wide && !gate && checkingOut && <Sheet onClose={() => setCheckingOut(false)}>{cartBody}</Sheet>}
-    </div>
+    </Page>
   );
 }
 
@@ -756,7 +770,7 @@ function Track({ client, token, lang, setLang }) {
   };
   const label = (st) => (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
-    <div style={pageStyle}>
+    <Page client={client} lang={lang}>
       <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}@keyframes tp-marquee{to{transform:translateX(-50%)}}.tp-track{animation:tp-marquee linear infinite}.tp-marquee:hover .tp-track,.tp-marquee:active .tp-track{animation-play-state:paused}@media (prefers-reduced-motion:reduce){.tp-spin,.tp-track{animation:none!important}.tp-marquee{overflow-x:auto!important}}'}</style>
       <ShopHeader shop={shop || { brand_color: brand }} lang={lang} setLang={setLang} />
       <div style={{ maxWidth: 480, margin: '0 auto', padding: 24 }}>
@@ -819,9 +833,8 @@ function Track({ client, token, lang, setLang }) {
           </div>
         )}
         <p style={{ marginTop: 20 }}>{back}</p>
-        <div style={{ textAlign: 'center', color: '#888', fontSize: '0.8rem', marginTop: 16 }}><LegalLinks client={client} lang={lang} /></div>
       </div>
-    </div>
+    </Page>
   );
 }
 
