@@ -3547,7 +3547,7 @@ RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, extensions
-AS $
+AS $$
 DECLARE
   v_cfg jsonb;
   v_sched jsonb;
@@ -3726,7 +3726,7 @@ END IF;
   RETURNING token INTO v_token;
   RETURN v_token;
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.public_place_order(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.public_place_order(jsonb) TO anon, authenticated;
 
