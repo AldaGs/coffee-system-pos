@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 3.4 — Clip online card payments: clip_credentials (service-role only), clip_status()/set_clip_credentials(), online_orders.payment_status/clip_*.
 // 3.3 — Public order menu exposes whitelisted local delivery areas for the customer map.
 // 3.2 — Address areas and optional shipping quote workflow.
 // 3.1 — get_order_menu(): online orders use posSettings.onlineOrders.menuId; public_place_order validates against it.
@@ -130,4 +131,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '3.3';
+export const APP_SCHEMA_VERSION = '3.4';

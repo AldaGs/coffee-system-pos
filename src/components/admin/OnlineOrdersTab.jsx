@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { supabase } from '../../supabaseClient';
 import { Icon } from '@iconify/react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -379,6 +380,8 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           )}
         </Card>
 
+        <ClipCard input={input} showAlert={showAlert} />
+
         <Card icon="lucide:receipt" title={t('oo.ticket')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.ticketDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
@@ -418,6 +421,41 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
       {menuData?.posSettings?.onlineOrders?.enabled && <MenuShareCard menuData={menuData} kind="order" />}
       <LegalSection menuData={menuData} saveSettingsToCloud={saveSettingsToCloud} showAlert={showAlert} />
     </div>
+  );
+}
+
+// Per-business Clip credentials. Write-only: the secret never comes back to the
+// browser; clip_status() only says whether one is stored and whether it's on.
+// Saves on its own button (not the page-level Save) via set_clip_credentials().
+function ClipCard({ input, showAlert }) {
+  const { t } = useTranslation();
+  const [status, setStatus] = useState(null);
+  const [key, setKey] = useState('');
+  const [secret, setSecret] = useState('');
+  const [enabled, setEnabled] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const load = () => supabase.rpc('clip_status').then(({ data }) => { if (data) { setStatus(data); setEnabled(!!data.enabled); } });
+  useEffect(() => { load(); }, []);
+  const save = async () => {
+    setSaving(true);
+    const { error } = await supabase.rpc('set_clip_credentials', { p_key: key, p_secret: secret, p_enabled: enabled });
+    setSaving(false);
+    if (error) return showAlert(t('common.error'), error.message);
+    setKey(''); setSecret(''); load();
+    showAlert(t('common.success'), t('oo.clipSaved'));
+  };
+  return (
+    <Card icon="lucide:credit-card" title={t('oo.clip')}>
+      <small style={{ color: 'var(--text-muted)' }}>{t('oo.clipHint')}</small>
+      {status?.configured && <strong style={{ color: 'var(--brand-color)' }}>{t('oo.clipConfigured')} ✓</strong>}
+      <input style={input} autoComplete="off" placeholder={t('oo.clipKey')} value={key} onChange={e => setKey(e.target.value)} />
+      <input style={input} type="password" autoComplete="new-password" placeholder={t('oo.clipSecret')} value={secret} onChange={e => setSecret(e.target.value)} />
+      <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+        <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+        <span>{t('oo.clipEnabled')}</span>
+      </label>
+      <button type="button" onClick={save} disabled={saving} style={{ ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' }}>{t('common.save')}</button>
+    </Card>
   );
 }
 

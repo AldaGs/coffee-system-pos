@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { deployClipFunctions } from './_clipFunctions.js';
 
 // Single entry point for every Supabase Management API call the setup flow makes.
 // These were six separate files (get-orgs / get-projects / get-keys /
@@ -177,6 +178,18 @@ const OPS = {
           body: { disable_signup: true, password_hibp_enabled: true },
         }
       );
+    },
+  },
+
+  // POST /api/supabase?op=clipfns&projectRef=… — (re)deploy the Clip checkout /
+  // webhook Edge Functions into the tenant's project. Non-fatal for callers.
+  clipfns: {
+    method: 'POST',
+    handle: async (req, res, authHeader) => {
+      const { projectRef } = req.query;
+      if (!projectRef) return res.status(400).json({ error: 'Missing projectRef' });
+      const failed = await deployClipFunctions(projectRef, authHeader.slice(7));
+      return res.status(failed.length ? 502 : 200).json({ failed });
     },
   },
 
