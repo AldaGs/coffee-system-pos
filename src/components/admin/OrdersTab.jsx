@@ -17,6 +17,7 @@ import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { buildDeductionPlan } from '../../utils/inventoryMath';
 import { restoreInventory } from '../../services/inventoryService';
 import { rejectOnlineOrderForRefund } from '../../services/onlineOrders';
+import { canReopenSale, reopenSale } from '../../services/reopenService';
 import { useMenuStore } from '../../store/useMenuStore';
 import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
 import { SortableDataTable } from '../ui/arc';
@@ -124,6 +125,29 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       inventory,
     });
     return deductions.map(d => ({ id: d.id, name: d.name, qty: d.qty }));
+  };
+
+  // Put a ticket closed by mistake back on the register (not a refund).
+  const handleReopen = (order) => {
+    gateRegisterAction({
+      posSettings, activeCashier, requirePin,
+      title: t('orders.promptPin'),
+      run: () => showConfirm(t('orders.reopenTitle'), t('orders.reopenDesc'), async () => {
+        try {
+          const { warnings } = await reopenSale({ sale: order, recipes });
+          logActivity('ticket_reopened', null, {
+            ticket_id: order.ticket_id || null,
+            ticket_label: order.order_name || (order.ticket_id ? order.ticket_id.slice(-6) : String(order.id)),
+            sale_local_id: order.local_id || null,
+            total_amount: order.total_amount,
+            original_cashier: order.cashier_name || null
+          }, consumePendingAuthorizer());
+          showAlert(t('orders.btnReopen'), warnings.length ? `${t('orders.reopenWarn')}\n${warnings.join('\n')}` : t('orders.reopenDone'));
+        } catch (e) {
+          showAlert(t('common.error'), e?.message || String(e));
+        }
+      }),
+    });
   };
 
   const handleProcessRefund = async () => {
@@ -604,6 +628,31 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
             }}
           >
             <Icon icon="lucide:file-check" /> Emitir CFDI
+          </button>
+        )}
+
+        {canReopenSale(order) && (
+          <button
+            onClick={() => handleReopen(order)}
+            style={{
+              padding: '12px 20px',
+              background: 'rgba(41, 128, 185, 0.05)',
+              color: '#2980b9',
+              border: '2px solid rgba(41, 128, 185, 0.2)',
+              borderRadius: '16px',
+              cursor: 'pointer',
+              fontWeight: '900',
+              transition: '0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              textTransform: 'uppercase',
+              fontSize: '0.85rem'
+            }}
+          >
+            {refundLocked ? <Icon icon="lucide:lock" /> : <Icon icon="lucide:undo-2" />}
+            {t('orders.btnReopen')}
           </button>
         )}
 
