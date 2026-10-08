@@ -563,7 +563,7 @@ function Order({ client, lang, setLang }) {
     <Page client={client} lang={lang} bottomPad={!wide && !gate && count > 0 && !checkingOut ? 96 : 16}>
       {header}
       {wide && !gate ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, maxWidth: 1200, margin: '0 auto', padding: '0 24px', alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, maxWidth: 1200, width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: '0 24px', alignItems: 'start' }}>
           {menuCol}
           <aside ref={asideRef} style={{ position: 'sticky', top: 16, marginTop: 16, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', background: 'white', borderRadius: 16, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
             {cartBody}
@@ -801,7 +801,7 @@ function Track({ client, token, lang, setLang }) {
     <Page client={client} lang={lang}>
       <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}@keyframes tp-marquee{to{transform:translateX(-50%)}}.tp-track{animation:tp-marquee linear infinite}.tp-marquee:hover .tp-track,.tp-marquee:active .tp-track{animation-play-state:paused}@media (prefers-reduced-motion:reduce){.tp-spin,.tp-track{animation:none!important}.tp-marquee{overflow-x:auto!important}}'}</style>
       <ShopHeader shop={shop || { brand_color: brand }} lang={lang} setLang={setLang} />
-      <div style={{ maxWidth: 480, margin: '0 auto', padding: 24 }}>
+      <div style={{ maxWidth: 480, width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: 24 }}>
         <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           {s.track}
           {polling && <Icon icon="lucide:refresh-cw" width="14" aria-label={s.updating} title={s.updating} style={{ color: '#999' }} />}
