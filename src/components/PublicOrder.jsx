@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
-import { slotRules, slotValid, toLocalInput, fromLocalInput } from '../utils/pickupSlots';
+import { slotRules, timesFor, toLocalInput, fromLocalInput } from '../utils/pickupSlots';
 
 // MapLibre + its CSS only download when a customer picks delivery.
 // The pin is optional: if the map chunk fails to load (bad network, stale deploy) checkout still works.
@@ -48,7 +48,7 @@ const STR = {
     noMenu: 'El menú no está disponible para pedidos.', soldOut: 'Agotado', add: 'Agregar',
     options: 'Opciones', choose: 'Elige tus opciones', addToCart: 'Agregar al pedido', cancel: 'Cancelar',
     cart: 'Tu pedido', empty: 'Aún no agregas nada.', total: 'Total', checkout: 'Hacer pedido',
-    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario',
+    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario', chooseTime: 'Elige la hora', noTimes: 'No hay horarios disponibles ese día.',
     payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
     repeat: 'Repetir último pedido', forget: 'Olvidar mis datos', forgot: 'Datos borrados de este dispositivo.',
     pastOrders: 'Mis pedidos', view: 'Ver',
@@ -70,7 +70,7 @@ const STR = {
     noMenu: 'The menu is not available for ordering.', soldOut: 'Sold out', add: 'Add',
     options: 'Options', choose: 'Choose your options', addToCart: 'Add to order', cancel: 'Cancel',
     cart: 'Your order', empty: 'Nothing added yet.', total: 'Total', checkout: 'Place order',
-    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time',
+    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time', chooseTime: 'Choose a time', noTimes: 'No times available that day.',
     payAtPickup: 'You pay at pickup.', send: 'Send order', sending: 'Sending…',
     repeat: 'Repeat last order', forget: 'Forget my data', forgot: 'Data erased from this device.',
     pastOrders: 'My orders', view: 'View',
@@ -468,44 +468,54 @@ const qtyBtn = { width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd
 
 // Optional pickup/delivery time: native datetime-local (shop timezone) behind the same button.
 // Always blocks the past; with slots.enabled it also applies lead/range/step and re-checks the rules on pick.
-function SlotPicker({ label, value, onChange, shop, lang, s, brand }) {
+// Date via the native calendar, then a time list holding only times that are actually
+// allowed that day (native pickers can't block hours, so they accepted then rejected).
+function SlotPicker({ label, value, onChange, shop, lang, s }) {
   const ref = useRef(null);
-  const [bad, setBad] = useState(false);
   const tz = shop?.timezone || 'America/Mexico_City';
   const locale = lang === 'en' ? 'en-US' : 'es-MX';
   const rules = shop?.slots?.enabled ? slotRules(shop.slots, shop.schedule) : null;
-  const now = Date.now();
-  const min = toLocalInput(now + (rules?.leadMinutes || 0) * 60000, tz);
-  const max = toLocalInput(now + (rules?.daysAhead ?? 14) * 86400000, tz);
-  const pick = (e) => {
-    const ms = fromLocalInput(e.target.value, tz);
-    // Pickers report '' while only the date (or only the time) is set: wait for both
-    // instead of treating it as a clear, which wiped the half-finished pick.
-    if (Number.isNaN(ms)) return;
-    if (ms < Date.now() - 60000 || (rules && !slotValid(ms, { tz, slots: shop.slots, schedule: shop.schedule }))) return setBad(true);
-    setBad(false);
-    onChange(new Date(ms).toISOString());
-  };
-  const open = () => { const el = ref.current; try { el.showPicker(); } catch { el.focus(); el.click(); } };
+  const ctx = { tz, slots: shop?.slots, schedule: shop?.schedule };
+  const [date, setDate] = useState(() => (value ? toLocalInput(Date.parse(value), tz).slice(0, 10) : ''));
+  // Clock read on open (not during render); the time list is refreshed each time the calendar opens.
+  const [now, setNow] = useState(() => Date.now());
+  const minDate = toLocalInput(now, tz).slice(0, 10);
+  const maxDate = toLocalInput(now + (rules?.daysAhead ?? 14) * 86400000, tz).slice(0, 10);
+  const times = date ? timesFor(date, { ...ctx, now }) : [];
+  const time = value ? toLocalInput(Date.parse(value), tz).slice(11) : '';
+
+  const open = () => { setNow(Date.now()); const el = ref.current; try { el.showPicker(); } catch { el.focus(); el.click(); } };
+  const pickDate = (e) => { if (!e.target.value) return; setNow(Date.now()); setDate(e.target.value); onChange(''); };
+  const pickTime = (e) => onChange(e.target.value ? new Date(fromLocalInput(`${date}T${e.target.value}`, tz)).toISOString() : '');
+  const clear = () => { setDate(''); onChange(''); if (ref.current) ref.current.value = ''; };
+  const fmtDate = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString(locale, { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' });
+  const fmtTime = (hhmm) => new Date(`2000-01-01T${hhmm}:00Z`).toLocaleTimeString(locale, { timeZone: 'UTC', hour: 'numeric', minute: '2-digit' });
   const days = rules && (rules.days ? [0, 1, 2, 3, 4, 5, 6].filter((i) => rules.days & (1 << i)).map((i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })).join(', ') : s.everyDay);
-  const shown = value && new Date(value).toLocaleString(locale, { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ fontSize: '0.85rem', color: '#555', marginBottom: 4 }}>{label}</div>
       <div style={{ display: 'flex', gap: 6 }}>
         <button type="button" onClick={open} style={{ ...inputStyle, flex: 1, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', textAlign: 'left', background: 'white' }}>
-          <Icon icon="lucide:calendar" />{shown || s.chooseSlot}
+          <Icon icon="lucide:calendar" />{date ? `${fmtDate(date)}${time ? `, ${fmtTime(time)}` : ''}` : s.chooseSlot}
         </button>
-        {value && <button type="button" aria-label={s.clearSlot} onClick={() => { onChange(''); setBad(false); if (ref.current) ref.current.value = ''; }} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
+        {date && <button type="button" aria-label={s.clearSlot} onClick={clear} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
       </div>
       {/* visually hidden, not display:none (that blocks showPicker in some browsers) */}
-      {/* Uncontrolled so React never rewrites it mid-pick; the × clears it directly. */}
-      <input ref={ref} type="datetime-local" tabIndex={-1} aria-hidden="true" defaultValue={value ? toLocalInput(Date.parse(value), tz) : ''}
-        min={min} max={max} step={rules ? rules.interval * 60 : 60} onChange={pick} onBlur={pick}
-        style={{ position: 'absolute', left: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0, padding: 0 }} />
-      {bad && rules && <small style={{ color: '#c0392b', display: 'block' }}>{s.slotRule.replace('{days}', days).replace('{start}', rules.start).replace('{end}', rules.end).replace('{n}', rules.interval)}</small>}
-      {bad && !rules && <small style={{ color: '#c0392b', display: 'block' }}>{s.slotPast}</small>}
-      {!value && !bad && <small style={{ color: '#777' }}>{s.asap}</small>}
+      <input ref={ref} type="date" tabIndex={-1} aria-hidden="true" defaultValue={date} min={minDate} max={maxDate} onChange={pickDate}
+        style={{ position: 'absolute', left: 0, top: 24, width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0, padding: 0 }} />
+      {date && times.length > 0 && (
+        <select value={time} onChange={pickTime} style={{ ...inputStyle, marginTop: 8, cursor: 'pointer' }} aria-label={label}>
+          <option value="">{s.chooseTime}</option>
+          {times.map((t) => <option key={t} value={t}>{fmtTime(t)}</option>)}
+        </select>
+      )}
+      {date && times.length === 0 && (
+        <small style={{ color: '#c0392b', display: 'block', marginTop: 6 }}>
+          {s.noTimes}{rules ? ` ${s.slotRule.replace('{days}', days).replace('{start}', rules.start).replace('{end}', rules.end).replace('{n}', rules.interval)}` : ''}
+        </small>
+      )}
+      {!date && <small style={{ color: '#777' }}>{s.asap}</small>}
     </div>
   );
 }

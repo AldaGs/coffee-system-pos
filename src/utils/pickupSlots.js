@@ -47,3 +47,16 @@ export function slotValid(ms, { now = Date.now(), tz, slots, schedule }) {
   const t = p.h * 60 + p.mi, a = toMin(r.start), b = toMin(r.end);
   return (a <= b ? t >= a && t < b : t >= a || t < b) && p.s === 0 && t % r.interval === 0;
 }
+
+// Times ('HH:MM') a customer may pick on `date` ('YYYY-MM-DD', shop tz). With rules: every
+// interval inside the hours that passes slotValid. Without: every 15 min that is still ahead.
+export function timesFor(date, { now = Date.now(), tz, slots, schedule }) {
+  const step = slots?.enabled ? slotRules(slots, schedule).interval : 15;
+  const out = [];
+  for (let t = 0; t < 1440; t += step) {
+    const hhmm = `${p2(Math.floor(t / 60))}:${p2(t % 60)}`;
+    const ms = fromLocalInput(`${date}T${hhmm}`, tz);
+    if (slots?.enabled ? slotValid(ms, { now, tz, slots, schedule }) : ms > now && ms <= now + 14 * 86400000) out.push(hhmm);
+  }
+  return out;
+}

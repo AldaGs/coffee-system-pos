@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slotValid, toLocalInput, fromLocalInput } from '../utils/pickupSlots';
+import { slotValid, toLocalInput, fromLocalInput, timesFor } from '../utils/pickupSlots';
 
 // 2026-10-07 15:00 UTC = 09:00 in Mexico City (UTC-6, no DST after 2022); a Wednesday
 const now = Date.UTC(2026, 9, 7, 15, 0);
@@ -21,5 +21,11 @@ describe('pickupSlots', () => {
     const ok = (local) => slotValid(fromLocalInput(local, tz), { now, tz, slots });
     expect(ok('2026-10-12T10:30')).toBe(true); // Monday
     expect(ok('2026-10-13T10:30')).toBe(false); // Tuesday
+  });
+  it('lists only allowed times for a day', () => {
+    const slots = { enabled: true, interval: 60, daysAhead: 7, leadMinutes: 30, hours: { days: 31, start: '09:00', end: '13:00' } };
+    expect(timesFor('2026-10-07', { now, tz, slots })).toEqual(['10:00', '11:00', '12:00']); // 09:00 inside lead
+    expect(timesFor('2026-10-10', { now, tz, slots })).toEqual([]); // Saturday closed (Mon-Fri)
+    expect(timesFor('2026-10-07', { now, tz, slots: null })[0]).toBe('09:15'); // no rules: next 15 min
   });
 });
