@@ -15,6 +15,7 @@ import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
 import LegalLinks from './LegalLinks';
+import { useLegal } from '../hooks/useLegal';
 import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk } from '../utils/pickupSlots';
 
 // MapLibre + its CSS only download when a customer picks delivery.
@@ -191,6 +192,7 @@ function Order({ client, lang, setLang }) {
   const [picking, setPicking] = useState(null); // { item, mods }
   const [checkingOut, setCheckingOut] = useState(false);
   const [stepId, setStepId] = useState('cart'); // checkout wizard step
+  const legal = useLegal(client); // consent line only when the shop wrote both texts
   const wide = useWide();
   const asideRef = useRef(null);
   const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}), ...draft.customer }));
@@ -453,7 +455,7 @@ function Order({ client, lang, setLang }) {
         </button>
       )}
     </div>
-    {step === 'pay' && (
+    {step === 'pay' && legal?.privacy && legal?.terms && (
       <p style={{ color: '#888', fontSize: '0.8rem', margin: '10px 0 0' }}>
         {s.legalA}<LegalLinks client={client} lang={lang} only="privacy" />{s.legalB}<LegalLinks client={client} lang={lang} only="terms" />.
       </p>

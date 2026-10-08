@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import LegalLinks from './LegalLinks';
+import { useLegal } from '../hooks/useLegal';
 import { Icon } from '@iconify/react';
 import { getCfdiPeriodWarning } from '../utils/cfdiUrl';
 import { parseConstancia } from '../utils/constanciaFiscal';
@@ -40,6 +41,7 @@ const isFiscalComplete = (data) => Object.keys(validateFiscal(data)).length === 
 
 function PublicCFDI({ ticketId }) {
   const [supabase, setSupabase] = useState(null);
+  const legal = useLegal(supabase); // consent line only when the shop wrote a privacy notice
   const [sale, setSale] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -613,7 +615,7 @@ function PublicCFDI({ ticketId }) {
               >
                 {isSubmitting ? 'Enviando...' : isRequested ? 'Factura solicitada' : !isPaid ? 'Esperando Pago' : isReopened ? 'Reenviar Datos' : 'Solicitar Factura'}
               </button>
-              <small style={{ color: '#888', textAlign: 'center' }}>Al enviar aceptas el <LegalLinks client={supabase} only="privacy" />.</small>
+              {legal?.privacy && <small style={{ color: '#888', textAlign: 'center' }}>Al enviar aceptas el <LegalLinks client={supabase} only="privacy" />.</small>}
             </form>
           )}
 
