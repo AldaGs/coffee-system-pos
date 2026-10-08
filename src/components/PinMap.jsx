@@ -4,6 +4,11 @@
 import { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+// MapLibre finds its worker relative to its own file, which breaks once Vite
+// pre-bundles/moves it (map stays blank gray). Let Vite bundle the worker and hand over its URL.
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+
+maplibregl.setWorkerUrl(workerUrl);
 
 const STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
 const YELLOW = /^(highway|bridge|tunnel)-(motorway|trunk|primary)/;
@@ -12,6 +17,8 @@ const YELLOW = /^(highway|bridge|tunnel)-(motorway|trunk|primary)/;
 function googleize(style) {
   for (const l of style.layers) {
     const id = l.id;
+    // Bus stops/shops clutter a small "drop your pin" map; street and place labels stay.
+    if (/^poi/.test(id)) { l.layout = { ...l.layout, visibility: 'none' }; continue; }
     const paint = (l.paint ||= {});
     const color = (c) => { paint[l.type === 'line' ? 'line-color' : l.type === 'background' ? 'background-color' : 'fill-color'] = c; };
     if (l.type === 'background') color('#f5f5f5');
