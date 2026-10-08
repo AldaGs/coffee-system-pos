@@ -170,7 +170,7 @@ export default function OnlineOrdersInbox({
                   </div>
                 )}
                 {o.pickup_at && <div style={{ color: 'var(--text-muted)' }}>{t('oo.pickupAt')}: {new Date(o.pickup_at).toLocaleString()}</div>}
-                {o.payment_method && <div style={{ fontWeight: 700 }}><Icon icon={PAY_ICON[o.payment_method]} style={{ verticalAlign: '-2px' }} /> {t(`check.${o.payment_method}`)}</div>}
+                {o.payment_method && <div style={{ fontWeight: 700 }}><Icon icon={PAY_ICON[o.payment_method]} style={{ verticalAlign: '-2px' }} /> {t(`check.${o.payment_method}`)}{o.cash_amount_cents != null && ` · ${t('oo.paysWith')} ${formatForDisplay(o.cash_amount_cents)} · ${t('oo.change')} ${formatForDisplay(o.cash_amount_cents - o.total_cents)}`}</div>}
                 {o.notes && <div style={{ color: 'var(--text-muted)' }}>{o.notes}</div>}
                 <ul style={{ margin: '8px 0', paddingLeft: 18 }}>
                   {(o.items || []).map((l, i) => (

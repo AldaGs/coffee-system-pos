@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
-import { slotRules, timesFor, toLocalInput, fromLocalInput } from '../utils/pickupSlots';
+import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk } from '../utils/pickupSlots';
 
 // MapLibre + its CSS only download when a customer picks delivery.
 // The pin is optional: if the map chunk fails to load (bad network, stale deploy) checkout still works.
@@ -64,6 +64,8 @@ const STR = {
     waiting: 'Esperando confirmación del negocio…', updating: 'Actualizando…',
     typePickup: 'Recoger', pinUseMine: 'Usar mi ubicación', pinSearch: 'Buscar dirección en el mapa', pinClear: 'Quitar pin', pinHint: 'Opcional: toca el mapa o arrastra el pin a tu puerta.', pinNoGeo: 'No pudimos obtener tu ubicación.', pinNeedAddr: 'Escribe tu dirección primero.', pinNotFound: 'No encontramos esa dirección.', mightLike: 'También te puede gustar', pinNeedHttps: 'La ubicación requiere HTTPS: escribe la dirección o mueve el pin.', pinDenied: 'Permiso de ubicación denegado: escribe la dirección o mueve el pin.', pinStreet: 'Calle encontrada: arrastra el pin a tu puerta exacta.', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
     payOnDelivery: 'Pagas al recibir.', payLabel: 'Forma de pago', pay_cash: 'Efectivo', pay_card: 'Tarjeta', pay_transfer: 'Transferencia', invalid_payment: 'Elige una forma de pago.',
+    cashPay: '¿Con cuánto pagas? (opcional)', cashExact: 'Exacto', cashPaysWith: 'Paga con', cashChange: 'Cambio', invalid_cash: 'Escribe un monto igual o mayor al total (máximo $1,000 más).',
+    noMoreSlots: 'Ya no hay entregas hoy: programado para {when}', noMoreSlotsPickup: 'Ya no hay recolecciones hoy: programado para {when}', pickup_required: 'Elige una fecha y hora de entrega o recolección.',
     payNote: { cash: ['Pagas en efectivo al recoger.', 'Pagas en efectivo al recibir.'], card: ['Pagas con tarjeta en terminal al recoger.', 'Pagas con tarjeta al recibir (el repartidor lleva terminal).'], transfer: ['Transfiere con estos datos y muestra tu comprobante al recoger.', 'Transfiere con estos datos y muestra tu comprobante al recibir.'] },
     orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
     invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', invalid_type: 'Revisa tu pedido.',
@@ -88,6 +90,8 @@ const STR = {
     waiting: 'Waiting for the shop to confirm…', updating: 'Updating…',
     typePickup: 'Pickup', pinUseMine: 'Use my location', pinSearch: 'Search address on map', pinClear: 'Remove pin', pinHint: 'Optional: tap the map or drag the pin to your door.', pinNoGeo: 'Could not get your location.', pinNeedAddr: 'Enter your address first.', pinNotFound: 'Address not found.', mightLike: 'You might also like', pinNeedHttps: 'Location needs HTTPS: type the address or move the pin.', pinDenied: 'Location permission denied: type the address or move the pin.', pinStreet: 'Street found: drag the pin to your exact door.', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
     payOnDelivery: 'You pay on delivery.', payLabel: 'Payment method', pay_cash: 'Cash', pay_card: 'Card', pay_transfer: 'Bank transfer', invalid_payment: 'Choose a payment method.',
+    cashPay: 'How much will you pay with? (optional)', cashExact: 'Exact', cashPaysWith: 'Paying with', cashChange: 'Change', invalid_cash: 'Enter an amount equal to or above the total (at most $1,000 more).',
+    noMoreSlots: 'No more deliveries today: scheduled for {when}', noMoreSlotsPickup: 'No more pickups today: scheduled for {when}', pickup_required: 'Choose a delivery or pickup date and time.',
     payNote: { cash: ['You pay in cash at pickup.', 'You pay in cash on delivery.'], card: ['You pay by card at the terminal on pickup.', 'You pay by card on delivery (the driver brings a terminal).'], transfer: ['Transfer using these details and show your receipt at pickup.', 'Transfer using these details and show your receipt on delivery.'] },
     orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
     invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', invalid_type: 'Please review your order.',
@@ -138,7 +142,7 @@ function useClient() {
 const errCode = (error) => {
   const m = String(error?.message || '');
   return ['online_orders_disabled', 'online_orders_paused', 'online_orders_closed', 'invalid_name', 'invalid_phone',
-    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'invalid_type', 'invalid_payment'].find((c) => m.includes(c)) || null;
+    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'invalid_type', 'invalid_payment', 'invalid_cash', 'pickup_required'].find((c) => m.includes(c)) || null;
 };
 
 // Desktop gets a two-column layout with the cart as a side panel.
@@ -193,6 +197,7 @@ function Order({ client, lang, setLang }) {
   const [feeCents, setFeeCents] = useState(null); // null = delivery not offered
   const [orderType, setOrderType] = useState(draft.orderType || 'pickup');
   const [payment, setPayment] = useState(draft.payment || '');
+  const [cash, setCash] = useState(draft.cash || ''); // pesos typed by the customer ("pays with")
   const [sending, setSending] = useState(false);
   const [formErr, setFormErr] = useState(null);
   const s = STR[lang] || STR.es;
@@ -224,8 +229,8 @@ function Order({ client, lang, setLang }) {
     return m;
   }, [data]);
   useEffect(() => {
-    writeJson(DRAFT_KEY, { cart, customer, notes, pickup, orderType, payment });
-  }, [cart, customer, notes, pickup, orderType, payment]);
+    writeJson(DRAFT_KEY, { cart, customer, notes, pickup, orderType, payment, cash });
+  }, [cart, customer, notes, pickup, orderType, payment, cash]);
   // Drop restored lines whose item left the menu or sold out since the draft was saved.
   useEffect(() => {
     if (data) setCart((prev) => prev.filter((l) => itemsById.has(l.id) && itemsById.get(l.id).available !== false));
@@ -245,6 +250,10 @@ function Order({ client, lang, setLang }) {
   const delivery = orderType === 'delivery' && feeCents != null;
   const grand = total + (delivery ? feeCents : 0);
   const count = cart.reduce((a, l) => a + l.qty, 0);
+  const cashCents = pay === 'cash' && cash !== '' ? Math.round(parseFloat(cash) * 100) : null;
+  const cashBad = cashCents != null && !(cashCents >= grand && cashCents <= grand + 100000);
+  // Exact + the next few round bills above the total.
+  const cashChips = [grand, ...[...new Set([50, 100, 200, 500].map((b) => Math.ceil(grand / (b * 100)) * b * 100))].filter((c) => c > grand).slice(0, 3)];
 
   if (loadErr) return <div style={centerStyle}>{loadErr}</div>;
   if (!data) return <div style={centerStyle}>{s.loading}</div>;
@@ -298,12 +307,14 @@ function Order({ client, lang, setLang }) {
   const submit = async () => {
     setFormErr(null);
     if (!pay) { setFormErr(s.invalid_payment); return; }
+    if (cashBad) { setFormErr(s.invalid_cash); return; }
+    if (!pickup && !asapOk({ tz: data.shop?.timezone || 'America/Mexico_City', slots: data.shop?.slots, schedule: data.shop?.schedule })) { setFormErr(s.pickup_required); return; }
     setSending(true);
     const payload = {
       name: customer.name, phone: customer.phone, notes,
       order_type: delivery ? 'delivery' : 'pickup', address: delivery ? customer.address : null,
       lat: delivery ? customer.lat : null, lng: delivery ? customer.lng : null,
-      pickup_at: pickup || null, payment_method: pay,
+      pickup_at: pickup || null, payment_method: pay, cash_amount_cents: cashCents,
       items: cart.map((l) => ({ id: l.id, qty: l.qty, modifiers: l.mods })),
     };
     const { data: token, error: err } = await client.rpc('public_place_order', { payload });
@@ -358,7 +369,7 @@ function Order({ client, lang, setLang }) {
         </Suspense>
       )}
       <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      <SlotPicker label={delivery ? s.deliveryAt : s.pickupAt} value={pickup} onChange={setPickup} shop={data?.shop} lang={lang} s={s} brand={brand} />
+      <SlotPicker delivery={delivery} label={delivery ? s.deliveryAt : s.pickupAt} value={pickup} onChange={setPickup} shop={data?.shop} lang={lang} s={s} brand={brand} />
     </div>
     <div role="radiogroup" aria-label={s.payLabel} style={{ margin: '12px 0 0' }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{s.payLabel}</div>
@@ -374,6 +385,23 @@ function Order({ client, lang, setLang }) {
     </div>
     {pay === 'transfer' && data.shop?.payments?.transferInfo && (
       <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: '#f5f5f5', whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{data.shop.payments.transferInfo}</div>
+    )}
+    {pay === 'cash' && (
+      <div style={{ marginTop: 8 }}>
+        <label style={{ fontWeight: 700, display: 'block', marginBottom: 6 }}>{s.cashPay}</label>
+        <input style={inputStyle} inputMode="decimal" placeholder="$" value={cash} aria-invalid={cashBad}
+          onChange={(e) => setCash(e.target.value.replace(/[^0-9.]/g, ''))} />
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+          {cashChips.map((c, i) => (
+            <button key={c} type="button" onClick={() => setCash(String(c / 100))}
+              style={{ padding: '6px 12px', borderRadius: 999, border: `1px solid ${brand}`, background: cashCents === c ? brand : 'white', color: cashCents === c ? 'white' : brand, fontWeight: 700, cursor: 'pointer' }}>
+              {i === 0 ? s.cashExact : fmt(c)}
+            </button>
+          ))}
+        </div>
+        {cashBad && <small style={{ color: '#c0392b', display: 'block', marginTop: 4 }}>{s.invalid_cash}</small>}
+        {cashCents != null && !cashBad && <div style={{ fontWeight: 700, marginTop: 6 }}>{s.cashChange}: {fmt(cashCents - grand)}</div>}
+      </div>
     )}
     <p style={{ color: '#666', fontSize: '0.9rem' }}>{pay ? s.payNote[pay][delivery ? 1 : 0] : delivery ? s.payOnDelivery : s.payAtPickup}</p>
     {formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
@@ -497,7 +525,7 @@ const qtyBtn = { width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd
 // Always blocks the past; with slots.enabled it also applies lead/range/step and re-checks the rules on pick.
 // Date via the native calendar, then a time list holding only times that are actually
 // allowed that day (native pickers can't block hours, so they accepted then rejected).
-function SlotPicker({ label, value, onChange, shop, lang, s }) {
+function SlotPicker({ label, value, onChange, shop, lang, s, delivery }) {
   const ref = useRef(null);
   const tz = shop?.timezone || 'America/Mexico_City';
   const locale = lang === 'en' ? 'en-US' : 'es-MX';
@@ -511,6 +539,17 @@ function SlotPicker({ label, value, onChange, shop, lang, s }) {
   const times = date ? timesFor(date, { ...ctx, now }) : [];
   const time = value ? toLocalInput(Date.parse(value), tz).slice(11) : '';
 
+  const asap = asapOk(ctx);
+  // ASAP isn't served right now: preselect the first available slot (the customer can still change it).
+  const [auto, setAuto] = useState('');
+  useEffect(() => {
+    if (value || asapOk(ctx)) return;
+    const ms = firstSlot(ctx);
+    if (ms == null) return;
+    const iso = new Date(ms).toISOString();
+    setDate(toLocalInput(ms, tz).slice(0, 10)); setAuto(iso); onChange(iso);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const open = () => { setNow(Date.now()); const el = ref.current; try { el.showPicker(); } catch { el.focus(); el.click(); } };
   const pickDate = (e) => { if (!e.target.value) return; setNow(Date.now()); setDate(e.target.value); onChange(''); };
   const pickTime = (e) => onChange(e.target.value ? new Date(fromLocalInput(`${date}T${e.target.value}`, tz)).toISOString() : '');
@@ -526,7 +565,7 @@ function SlotPicker({ label, value, onChange, shop, lang, s }) {
         <button type="button" onClick={open} style={{ ...inputStyle, flex: 1, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', textAlign: 'left', background: 'white' }}>
           <Icon icon="lucide:calendar" />{date ? `${fmtDate(date)}${time ? `, ${fmtTime(time)}` : ''}` : s.chooseSlot}
         </button>
-        {date && <button type="button" aria-label={s.clearSlot} onClick={clear} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
+        {date && asap && <button type="button" aria-label={s.clearSlot} onClick={clear} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
       </div>
       {/* visually hidden, not display:none (that blocks showPicker in some browsers) */}
       <input ref={ref} type="date" tabIndex={-1} aria-hidden="true" defaultValue={date} min={minDate} max={maxDate} onChange={pickDate}
@@ -542,7 +581,12 @@ function SlotPicker({ label, value, onChange, shop, lang, s }) {
           {s.noTimes}{rules ? ` ${s.slotRule.replace('{days}', days).replace('{start}', rules.start).replace('{end}', rules.end).replace('{n}', rules.interval)}` : ''}
         </small>
       )}
-      {!date && <small style={{ color: '#777' }}>{s.asap}</small>}
+      {!date && asap && <small style={{ color: '#777' }}>{s.asap}</small>}
+      {auto && value === auto && (
+        <small style={{ color: '#a05a00', display: 'block', marginTop: 6 }}>
+          {(delivery ? s.noMoreSlots : s.noMoreSlotsPickup).replace('{when}', `${fmtDate(date)}, ${fmtTime(time)}`)}
+        </small>
+      )}
     </div>
   );
 }
@@ -662,6 +706,7 @@ function Track({ client, token, lang, setLang }) {
         {order.payment_method && (
           <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: '#f5f5f5' }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Icon icon={PAY_ICON[order.payment_method]} width="20" />{s.payLabel}: {s[`pay_${order.payment_method}`]}</div>
+            {order.payment_method === 'cash' && order.cash_amount_cents != null && <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.cashPaysWith}: {formatForDisplay(order.cash_amount_cents, lang)} · {s.cashChange}: {formatForDisplay(order.cash_amount_cents - order.total_cents, lang)}</div>}
             {order.payment_method === 'transfer' && shop?.payments?.transferInfo && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{shop.payments.transferInfo}</div>}
           </div>
         )}

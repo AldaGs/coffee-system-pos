@@ -2674,6 +2674,7 @@ export default async function handler(req, res) {
     ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lat double precision;
     ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lng double precision;
     ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS payment_method text CHECK (payment_method IN ('cash','card','transfer'));
+    ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS cash_amount_cents int;
     ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_lat double precision;
     ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_lng double precision;
     CREATE INDEX IF NOT EXISTS idx_online_orders_status ON public.online_orders (status);
@@ -2731,6 +2732,7 @@ export default async function handler(req, res) {
       v_cats jsonb;
       v_pay text := payload->>'payment_method';
       v_pays jsonb;
+      v_cash int;
     BEGIN
       -- 1. Feature gate: opt-in, not paused, inside the schedule (shop timezone).
       SELECT menu_data->'posSettings'->'onlineOrders' INTO v_cfg FROM public.shop_settings WHERE id = 1;
@@ -2812,6 +2814,19 @@ export default async function handler(req, res) {
           END IF;
         END IF;
       END IF;
+      -- ASAP is only allowed while the shop is inside its delivery/pickup hours (schema 2.7).
+      IF v_pickup IS NULL AND COALESCE((v_cfg->'slots'->>'enabled')::boolean, false) THEN
+        v_sl := v_cfg->'slots';
+        v_hrs := CASE WHEN jsonb_typeof(v_sl->'hours') = 'object' THEN v_sl->'hours'
+                      WHEN jsonb_typeof(v_sched) = 'object' THEN v_sched ELSE '{}'::jsonb END;
+        IF NOT public.schedule_matches(
+             COALESCE((v_hrs->>'days')::int, 0),
+             COALESCE(NULLIF(v_hrs->>'start', ''), '09:00')::time,
+             COALESCE(NULLIF(v_hrs->>'end', ''), '21:00')::time,
+             NULL, NULL, (now() AT TIME ZONE public.shop_timezone())::timestamp) THEN
+          RAISE EXCEPTION 'pickup_required';
+        END IF;
+      END IF;
       v_in := payload->'items';
       IF v_in IS NULL OR jsonb_typeof(v_in) <> 'array'
          OR jsonb_array_length(v_in) < 1 OR jsonb_array_length(v_in) > 50 THEN
@@ -2879,8 +2894,15 @@ export default async function handler(req, res) {
           'line_cents', v_unit * v_qty);
       END LOOP;
 
-      INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents, delivery_lat, delivery_lng, payment_method)
-      VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee, v_lat, v_lng, v_pay)
+      -- Optional "pays with" amount (cash only): whole cents, >= the server total, at most $1000 over.
+      IF v_pay = 'cash' AND NULLIF(payload->>'cash_amount_cents', '') IS NOT NULL THEN
+        BEGIN v_cash := (payload->>'cash_amount_cents')::int;
+        EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_cash'; END;
+        IF v_cash < v_total + v_fee OR v_cash > v_total + v_fee + 100000 THEN RAISE EXCEPTION 'invalid_cash'; END IF;
+      END IF;
+      
+      INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents, delivery_lat, delivery_lng, payment_method, cash_amount_cents)
+      VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee, v_lat, v_lng, v_pay, v_cash)
       RETURNING token INTO v_token;
       RETURN v_token;
     END;
@@ -2922,6 +2944,7 @@ export default async function handler(req, res) {
         'status', v_status,
         'order_type', v_row.order_type,
         'payment_method', v_row.payment_method,
+        'cash_amount_cents', v_row.cash_amount_cents,
         'order_num', v_row.order_num,
         'delivery_fee_cents', v_row.delivery_fee_cents,
         'reject_reason', v_row.reject_reason,
@@ -2957,7 +2980,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '2.6', now())
+    VALUES ('schema_version', '2.7', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

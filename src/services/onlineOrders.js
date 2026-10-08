@@ -9,6 +9,7 @@ import { cleanPhone } from '../utils/customerCapture';
 
 // Spanish labels: they land on the ticket name and the courier's notes.
 export const PAY_LABEL = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
+const peso = (c) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
 
 export const ONLINE_STATUS_RANK = { requested: 0, accepted: 1, preparing: 2, ready: 3, completed: 4 };
 
@@ -51,7 +52,7 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
   const note = order.notes ? ` - ${order.notes.slice(0, 40)}` : '';
   const ticket = {
     id: Date.now(),
-    name: `${prefix} - ${order.customer_name} (#${orderNum}) (Online)${note}${order.payment_method ? ` · ${PAY_LABEL[order.payment_method]}` : ''}`,
+    name: `${prefix} - ${order.customer_name} (#${orderNum}) (Online)${note}${order.payment_method ? ` · ${PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? ` ${peso(order.cash_amount_cents)}` : ''}` : ''}`,
     items,
     cashier_id: activeCashier?.id,
     last_modified_by: myDeviceId,
@@ -90,7 +91,7 @@ export async function sendOrderToLogistics(order, ticket) {
     delivery_address: order.delivery_address,
     delivery_lat: order.delivery_lat ?? null,
     delivery_lng: order.delivery_lng ?? null,
-    delivery_notes: [order.notes, `Tel: ${order.phone}`, order.payment_method && `Pago: ${PAY_LABEL[order.payment_method]}`].filter(Boolean).join(' · '),
+    delivery_notes: [order.notes, `Tel: ${order.phone}`, order.payment_method && `Pago: ${PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? `, paga con ${peso(order.cash_amount_cents)}, cambio ${peso(order.cash_amount_cents - order.total_cents)}` : ''}`].filter(Boolean).join(' · '),
   };
   const { data: updated, error } = await supabase.from('order_fulfillment')
     .update(patch).eq('active_ticket_id', order.active_ticket_id).select('id');

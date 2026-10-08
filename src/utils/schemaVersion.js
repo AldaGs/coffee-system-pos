@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 2.7 — Online orders: optional cash_amount_cents ("pays with"); public_place_order raises invalid_cash / pickup_required (ASAP outside slot hours).
 // 2.6 — Payment method chosen at checkout: online_orders.payment_method; place_order requires an offered one; shop block carries onlineOrders.payments.
 // 2.5 — Slot rules are opt-in (slots.enabled); pickup_at always validated as not past / <= 14 days.
 // 2.4 — Pickup/delivery time slots: get_active_menu shop block carries onlineOrders.slots + schedule;
@@ -123,4 +124,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '2.6';
+export const APP_SCHEMA_VERSION = '2.7';

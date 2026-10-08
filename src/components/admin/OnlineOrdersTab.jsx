@@ -135,6 +135,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <span>{t('oo.slotsEnable')}</span>
           </label>
           <small style={{ color: 'var(--text-muted)' }}>{sl.enabled ? t('oo.slotsDesc') : t('oo.slotsOffDesc')}</small>
+          {sl.enabled && <small style={{ color: 'var(--text-muted)' }}>{t('oo.slotsIndep')}</small>}
           {sl.enabled && (<>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <label>{t('oo.slotInterval')} <select style={input} value={sl.interval} onChange={e => setSl({ interval: +e.target.value })}>

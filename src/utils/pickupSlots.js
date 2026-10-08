@@ -60,3 +60,25 @@ export function timesFor(date, { now = Date.now(), tz, slots, schedule }) {
   }
   return out;
 }
+
+// Earliest bookable slot (UTC ms) scanning today + daysAhead days in the shop tz, or null.
+export function firstSlot(ctx) {
+  const now = ctx.now ?? Date.now();
+  const days = slotRules(ctx.slots, ctx.schedule).daysAhead;
+  for (let i = 0; i <= days; i++) {
+    const date = toLocalInput(now + i * 86400000, ctx.tz).slice(0, 10);
+    const t = timesFor(date, { ...ctx, now })[0];
+    if (t) return fromLocalInput(`${date}T${t}`, ctx.tz);
+  }
+  return null;
+}
+
+// "As soon as possible" only makes sense if a slot opens within lead + interval minutes.
+// With no slot at all it stays true so the server (hours check) decides.
+export function asapOk(ctx) {
+  if (!ctx.slots?.enabled) return true;
+  const now = ctx.now ?? Date.now();
+  const r = slotRules(ctx.slots, ctx.schedule);
+  const f = firstSlot({ ...ctx, now });
+  return f == null || f <= now + (r.leadMinutes + r.interval) * 60000;
+}

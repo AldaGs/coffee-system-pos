@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slotValid, toLocalInput, fromLocalInput, timesFor } from '../utils/pickupSlots';
+import { slotValid, toLocalInput, fromLocalInput, timesFor, firstSlot, asapOk } from '../utils/pickupSlots';
 
 // 2026-10-07 15:00 UTC = 09:00 in Mexico City (UTC-6, no DST after 2022); a Wednesday
 const now = Date.UTC(2026, 9, 7, 15, 0);
@@ -21,6 +21,15 @@ describe('pickupSlots', () => {
     const ok = (local) => slotValid(fromLocalInput(local, tz), { now, tz, slots });
     expect(ok('2026-10-12T10:30')).toBe(true); // Monday
     expect(ok('2026-10-13T10:30')).toBe(false); // Tuesday
+  });
+  it('finds the first slot and decides if ASAP is offered', () => {
+    const slots = { enabled: true, interval: 60, daysAhead: 3, leadMinutes: 30, hours: { days: 31, start: '09:00', end: '13:00' } };
+    expect(firstSlot({ now, tz, slots })).toBe(fromLocalInput('2026-10-07T10:00', tz));
+    expect(asapOk({ now, tz, slots })).toBe(true);
+    const late = Date.UTC(2026, 9, 8, 5, 0); // Wed 23:00 local
+    expect(firstSlot({ now: late, tz, slots })).toBe(fromLocalInput('2026-10-08T09:00', tz));
+    expect(asapOk({ now: late, tz, slots })).toBe(false);
+    expect(asapOk({ now: late, tz, slots: { ...slots, enabled: false } })).toBe(true);
   });
   it('lists only allowed times for a day', () => {
     const slots = { enabled: true, interval: 60, daysAhead: 7, leadMinutes: 30, hours: { days: 31, start: '09:00', end: '13:00' } };
