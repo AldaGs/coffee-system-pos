@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -4345,6 +4345,25 @@ REVOKE ALL ON FUNCTION public.get_order_status(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_order_status(text) TO anon, authenticated;
 
 ${stamp('2.7')}`,
+  },
+  {
+    // 2.8 — get_legal(): public privacy notice + terms from posSettings.legal.
+    version: '2.8',
+    sql: `
+CREATE OR REPLACE FUNCTION public.get_legal()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'business_name', COALESCE(menu_data->'posSettings'->'legal'->>'businessName', ''),
+    'address', COALESCE(menu_data->'posSettings'->'legal'->>'address', ''),
+    'contact', COALESCE(menu_data->'posSettings'->'legal'->>'contact', ''),
+    'privacy', COALESCE(menu_data->'posSettings'->'legal'->>'privacy', ''),
+    'terms', COALESCE(menu_data->'posSettings'->'legal'->>'terms', '')
+  ) FROM public.shop_settings WHERE id = 1;
+$$;
+REVOKE ALL ON FUNCTION public.get_legal() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_legal() TO anon, authenticated;
+
+${stamp('2.8')}`,
   },
 ];
 

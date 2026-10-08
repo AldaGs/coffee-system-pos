@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import LegalLinks from './LegalLinks';
 import { Icon } from '@iconify/react';
 import { getCfdiPeriodWarning } from '../utils/cfdiUrl';
 import { parseConstancia } from '../utils/constanciaFiscal';
@@ -612,6 +613,7 @@ function PublicCFDI({ ticketId }) {
               >
                 {isSubmitting ? 'Enviando...' : isRequested ? 'Factura solicitada' : !isPaid ? 'Esperando Pago' : isReopened ? 'Reenviar Datos' : 'Solicitar Factura'}
               </button>
+              <small style={{ color: '#888', textAlign: 'center' }}>Al enviar aceptas el <LegalLinks client={supabase} only="privacy" />.</small>
             </form>
           )}
 

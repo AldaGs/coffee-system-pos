@@ -2960,6 +2960,19 @@ export default async function handler(req, res) {
     REVOKE ALL ON FUNCTION public.get_order_status(text) FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION public.get_order_status(text) TO anon, authenticated;
 
+    CREATE OR REPLACE FUNCTION public.get_legal()
+    RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+      SELECT jsonb_build_object(
+        'business_name', COALESCE(menu_data->'posSettings'->'legal'->>'businessName', ''),
+        'address', COALESCE(menu_data->'posSettings'->'legal'->>'address', ''),
+        'contact', COALESCE(menu_data->'posSettings'->'legal'->>'contact', ''),
+        'privacy', COALESCE(menu_data->'posSettings'->'legal'->>'privacy', ''),
+        'terms', COALESCE(menu_data->'posSettings'->'legal'->>'terms', '')
+      ) FROM public.shop_settings WHERE id = 1;
+    $$;
+    REVOKE ALL ON FUNCTION public.get_legal() FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.get_legal() TO anon, authenticated;
+
     CREATE TABLE IF NOT EXISTS public.schema_meta (
       key text PRIMARY KEY,
       value text NOT NULL,
@@ -2980,7 +2993,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '2.7', now())
+    VALUES ('schema_version', '2.8', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

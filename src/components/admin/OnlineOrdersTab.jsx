@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, fromCents } from '../../utils/moneyUtils';
 import OrderTicket from '../OrderTicket';
+import LegalSection from './LegalSection';
 import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 
 // Online ordering settings. Stored at posSettings.onlineOrders so the
@@ -212,6 +213,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           {t('common.save')}
         </button>
       </div>
+      <LegalSection menuData={menuData} saveSettingsToCloud={saveSettingsToCloud} showAlert={showAlert} />
     </div>
   );
 }

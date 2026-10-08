@@ -14,6 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
+import LegalLinks from './LegalLinks';
 import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk } from '../utils/pickupSlots';
 
 // MapLibre + its CSS only download when a customer picks delivery.
@@ -52,7 +53,7 @@ const STR = {
     options: 'Opciones', choose: 'Elige tus opciones', addToCart: 'Agregar al pedido', cancel: 'Cancelar',
     cart: 'Tu pedido', empty: 'Aún no agregas nada.', total: 'Total', checkout: 'Hacer pedido',
     name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario', step_cart: 'Tu pedido', step_location: 'Ubicación de entrega', step_time: 'Fecha y hora', step_pay: 'Tus datos y pago', stepOf: 'Paso {n} de {m}', next: 'Siguiente', back: 'Atrás', chooseTime: 'Elige la hora', noTimes: 'No hay horarios disponibles ese día.',
-    payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
+    legalA: 'Al enviar tu pedido aceptas el ', legalB: ' y los ', payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
     repeat: 'Repetir último pedido', forget: 'Olvidar mis datos', forgot: 'Datos borrados de este dispositivo.',
     pastOrders: 'Mis pedidos', view: 'Ver',
     invalid_name: 'Escribe tu nombre.', invalid_phone: 'Escribe un teléfono válido.', invalid_pickup: 'Ese horario ya no está disponible, elige otro.',
@@ -79,6 +80,7 @@ const STR = {
     cart: 'Your order', empty: 'Nothing added yet.', total: 'Total', checkout: 'Place order',
     name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time', step_cart: 'Your order', step_location: 'Delivery location', step_time: 'Date & time', step_pay: 'Your details & payment', stepOf: 'Step {n} of {m}', next: 'Next', back: 'Back', chooseTime: 'Choose a time', noTimes: 'No times available that day.',
     payAtPickup: 'You pay at pickup.', send: 'Send order', sending: 'Sending…',
+    legalA: 'By sending your order you accept the ', legalB: ' and the ',
     repeat: 'Repeat last order', forget: 'Forget my data', forgot: 'Data erased from this device.',
     pastOrders: 'My orders', view: 'View',
     invalid_name: 'Enter your name.', invalid_phone: 'Enter a valid phone number.', invalid_pickup: 'That time is no longer available, please pick another.',
@@ -451,6 +453,11 @@ function Order({ client, lang, setLang }) {
         </button>
       )}
     </div>
+    {step === 'pay' && (
+      <p style={{ color: '#888', fontSize: '0.8rem', margin: '10px 0 0' }}>
+        {s.legalA}<LegalLinks client={client} lang={lang} only="privacy" />{s.legalB}<LegalLinks client={client} lang={lang} only="terms" />.
+      </p>
+    )}
     {step === 'cart' && <button type="button" onClick={forget} style={{ background: 'none', border: 'none', color: '#888', marginTop: 12, textDecoration: 'underline', cursor: 'pointer' }}>{s.forget}</button>}
     </>
   );
@@ -491,6 +498,7 @@ function Order({ client, lang, setLang }) {
           );
         })}
       </ul>
+      <div style={{ textAlign: 'center', color: '#888', fontSize: '0.8rem', padding: '0 16px 100px' }}><LegalLinks client={client} lang={lang} /></div>
     </div>
   );
 
@@ -774,6 +782,7 @@ function Track({ client, token, lang, setLang }) {
           </div>
         )}
         <p style={{ marginTop: 20 }}>{back}</p>
+        <div style={{ textAlign: 'center', color: '#888', fontSize: '0.8rem', marginTop: 16 }}><LegalLinks client={client} lang={lang} /></div>
       </div>
     </div>
   );
