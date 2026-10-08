@@ -79,7 +79,7 @@ export function makeWebhook(env, fetch) {
   const CLIP = {
     status: 'https://api.payclip.com/v2/checkout/',
     webhookId: (b) => b?.payment_request_id ?? b?.id,
-    isPaid: (r) => r?.status === 'COMPLETED',
+    isPaid: (r) => r?.status === 'CHECKOUT_COMPLETED', // verified 2026-10-08 against a real payment
   };
   const base = env('SUPABASE_URL');
   const key = env('SUPABASE_SERVICE_ROLE_KEY');

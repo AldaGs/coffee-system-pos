@@ -56,7 +56,7 @@ describe('clip-webhook', () => {
   };
 
   it('marks paid only when Clip itself says COMPLETED (never the body)', async () => {
-    const paid = await run(json({ status: 'COMPLETED' }));
+    const paid = await run(json({ status: 'CHECKOUT_COMPLETED' }));
     expect(paid.res.status).toBe(200);
     expect(paid.patches).toHaveLength(1);
     expect(paid.patches[0].url).toContain('payment_status=neq.paid'); // idempotent
