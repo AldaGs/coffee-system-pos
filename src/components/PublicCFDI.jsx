@@ -362,7 +362,9 @@ function PublicCFDI({ ticketId }) {
           .cfdi-row { flex-direction: column !important; }
         }
       `}</style>
-      <div className="cfdi-page" style={{ maxWidth: '600px', margin: '0 auto', background: 'white', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+      {/* Fills the viewport so the legal links always sit at the very bottom. */}
+      <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div className="cfdi-page" style={{ maxWidth: '600px', width: '100%', margin: '0 auto', background: 'white', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
         
         <div style={{ background: 'linear-gradient(135deg, #3498db, #2980b9)', padding: '30px', color: 'white', textAlign: 'center' }}>
           <Icon icon="lucide:file-text" style={{ fontSize: '3rem', marginBottom: '10px' }} />
@@ -620,6 +622,10 @@ function PublicCFDI({ ticketId }) {
           )}
 
         </div>
+      </div>
+      <footer style={{ marginTop: 'auto', paddingTop: 24, textAlign: 'center', color: '#888', fontSize: '0.8rem' }}>
+        <LegalLinks client={supabase} />
+      </footer>
       </div>
     </div>
   );

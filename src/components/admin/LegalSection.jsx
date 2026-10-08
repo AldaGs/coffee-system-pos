@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { legalTemplate } from '../../utils/legalTemplates';
 
@@ -17,20 +18,26 @@ function LegalSection({ menuData, saveSettingsToCloud, showAlert }) {
     showAlert(t('common.success'), t('oo.saved'));
   };
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginTop: 24, display: 'grid', gap: 10 }}>
-      <h2 style={{ margin: 0 }}>{t('legal.title')}</h2>
+    <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', marginTop: 32, display: 'grid', gap: 12 }}>
+      <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon icon="lucide:scale" style={{ color: 'var(--brand-color)' }} />{t('legal.title')}
+      </h3>
       <small style={{ color: 'var(--text-muted)' }}>{t('legal.note')}</small>
       <input style={input} placeholder={t('legal.businessName')} value={f.businessName} onChange={e => setF({ ...f, businessName: e.target.value })} />
       <input style={input} placeholder={t('legal.address')} value={f.address} onChange={e => setF({ ...f, address: e.target.value })} />
       <input style={input} placeholder={t('legal.contact')} value={f.contact} onChange={e => setF({ ...f, contact: e.target.value })} />
       {['privacy', 'terms'].map((k) => (
-        <div key={k} style={{ display: 'grid', gap: 6 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <strong>{t(`legal.${k}`)}</strong>
+        // Long texts: collapsed by default so the card stays scannable.
+        <details key={k} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: '10px 14px' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon icon="lucide:chevron-right" />{t(`legal.${k}`)}
+            <small style={{ marginLeft: 'auto', fontWeight: 600, color: f[k]?.trim() ? '#27ae60' : 'var(--text-muted)' }}>{f[k]?.trim() ? '✓' : '—'}</small>
+          </summary>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', margin: '10px 0 6px' }}>
             <button type="button" onClick={() => fillTemplate(k)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: 700 }}>{t('legal.useTemplate')}</button>
           </div>
-          <textarea rows={14} style={input} value={f[k]} onChange={e => setF({ ...f, [k]: e.target.value })} />
-        </div>
+          <textarea rows={14} style={{ ...input, width: '100%', boxSizing: 'border-box' }} value={f[k]} onChange={e => setF({ ...f, [k]: e.target.value })} />
+        </details>
       ))}
       <button type="button" onClick={save}
         style={{ padding: '12px 22px', border: 'none', borderRadius: 12, background: 'var(--brand-color)', color: 'white', fontWeight: 800, cursor: 'pointer', justifySelf: 'start' }}>

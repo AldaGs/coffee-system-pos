@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, fromCents } from '../../utils/moneyUtils';
 import OrderTicket from '../OrderTicket';
@@ -64,18 +65,25 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
     showAlert(t('common.success'), t('oo.saved'));
   };
 
-  const row = { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderTop: '1px solid var(--border)' };
+  const row = { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' };
   const input = { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' };
 
   return (
     <div className="admin-section fade-in">
-      <div className="admin-section-header" style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>{t('oo.title')}</h1>
-        <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.1rem' }}>{t('oo.subtitle')}</p>
+      <div className="admin-section-header" style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>{t('oo.title')}</h1>
+          <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.1rem' }}>{t('oo.subtitle')}</p>
+        </div>
+        <button type="button" onClick={save}
+          style={{ flexShrink: 0, padding: '14px 28px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: 16, cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+          <Icon icon="lucide:save" />{t('common.save')}
+        </button>
       </div>
 
-      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '8px 20px 20px' }}>
-        <label style={{ ...row, borderTop: 'none', cursor: 'pointer' }}>
+      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 32, alignItems: 'start' }}>
+        <Card icon="lucide:power" title={t('oo.title')}>
+        <label style={{ ...row, cursor: 'pointer' }}>
           <input type="checkbox" checked={!!form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
           <span><strong>{t('oo.enabled')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.enabledDesc')}</small></span>
         </label>
@@ -89,15 +97,17 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <span><strong>{t('oo.deliveryOn')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.deliveryDesc')}</small></span>
         </label>
         {delivery.enabled && (
-          <label style={{ ...row, borderTop: 'none', paddingTop: 0 }}>
+          <label style={{ ...row, paddingTop: 0 }}>
             <span>{t('oo.deliveryFee')}</span>
             <input type="number" min="0" step="0.5" style={{ ...input, width: 110 }}
               value={fromCents(delivery.feeCents)} onChange={e => setDelivery({ feeCents: Math.max(0, toCents(e.target.value)) })} />
           </label>
         )}
 
-        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
-          <strong>{t('oo.storeHours')}</strong>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>{t('oo.linkHint')}</p>
+        </Card>
+
+        <Card icon="lucide:store" title={t('oo.storeHours')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.storeHoursDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" checked={!!oh.always}
@@ -132,26 +142,9 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <button type="button" onClick={() => setOh({ rules: [...oh.rules, { days: 0, start: '09:00', end: '21:00' }] })}
               style={{ ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' }}>+ {t('oo.addHours')}</button>
           )}
-        </div>
+        </Card>
 
-        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
-          <strong>{t('oo.payments')}</strong>
-          <small style={{ color: 'var(--text-muted)' }}>{t('oo.paymentsDesc')}</small>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {['cash', 'card', 'transfer'].map((m) => (
-              <label key={m} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
-                <input type="checkbox" checked={pay.methods.includes(m)} disabled={pay.methods.length === 1 && pay.methods.includes(m)} onChange={() => togglePay(m)} />
-                <span>{t(`check.${m}`)}</span>
-              </label>
-            ))}
-          </div>
-          {pay.methods.includes('transfer') && (
-            <textarea rows={3} maxLength={400} style={input} placeholder={t('oo.transferInfoPh')} value={pay.transferInfo} onChange={e => setPay({ transferInfo: e.target.value })} />
-          )}
-        </div>
-
-        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
-          <strong>{t('oo.schedule')}</strong>
+        <Card icon="lucide:truck" title={t('oo.schedule')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.scheduleDesc')}</small>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {DAY_ORDER.map(d => {
@@ -170,10 +163,8 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <span>–</span>
             <input type="time" value={sched.end} onChange={e => setSched({ end: e.target.value })} style={input} />
           </div>
-        </div>
-
-        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
-          <strong>{t('oo.slots')}</strong>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <strong>{t('oo.slots')}</strong>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" checked={!!sl.enabled} onChange={e => setSl({ enabled: e.target.checked })} />
             <span>{t('oo.slotsEnable')}</span>
@@ -211,10 +202,25 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             </div>
           </>)}
           </>)}
-        </div>
+          </div>
+        </Card>
 
-        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
-          <strong>{t('oo.ticket')}</strong>
+        <Card icon="lucide:wallet" title={t('oo.payments')}>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.paymentsDesc')}</small>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {['cash', 'card', 'transfer'].map((m) => (
+              <label key={m} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                <input type="checkbox" checked={pay.methods.includes(m)} disabled={pay.methods.length === 1 && pay.methods.includes(m)} onChange={() => togglePay(m)} />
+                <span>{t(`check.${m}`)}</span>
+              </label>
+            ))}
+          </div>
+          {pay.methods.includes('transfer') && (
+            <textarea rows={3} maxLength={400} style={input} placeholder={t('oo.transferInfoPh')} value={pay.transferInfo} onChange={e => setPay({ transferInfo: e.target.value })} />
+          )}
+        </Card>
+
+        <Card icon="lucide:receipt" title={t('oo.ticket')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.ticketDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" checked={showIva} onChange={e => setForm({ ...form, ticket: { ...form.ticket, showIva: e.target.checked } })} />
@@ -223,10 +229,9 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <OrderTicket style={{ maxWidth: 360 }} items={lines} deliveryFeeCents={fee}
             totalCents={lines.reduce((a, l) => a + l.line_cents, 0) + fee}
             showIva={showIva} taxRate={menuData?.receiptSettings?.taxRate || 16} lang={lang} />
-        </div>
+        </Card>
 
-        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
-          <strong>{t('oo.showcase')}</strong>
+        <Card icon="lucide:sparkles" title={t('oo.showcase')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.showcaseDesc')}</small>
           <select style={input} value={sc.mode} onChange={e => setSc({ mode: e.target.value })}>
             {['off', 'all', 'categories', 'items'].map(m => <option key={m} value={m}>{t(`oo.showcase_${m}`)}</option>)}
@@ -248,15 +253,22 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                   </div>))}
             </div>
           )}
-        </div>
-
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('oo.linkHint')}</p>
-        <button type="button" onClick={save}
-          style={{ padding: '12px 22px', border: 'none', borderRadius: 12, background: 'var(--brand-color)', color: 'white', fontWeight: 800, cursor: 'pointer' }}>
-          {t('common.save')}
-        </button>
+        </Card>
       </div>
+
       <LegalSection menuData={menuData} saveSettingsToCloud={saveSettingsToCloud} showAlert={showAlert} />
+    </div>
+  );
+}
+
+// Same card look as General Settings.
+function Card({ icon, title, children }) {
+  return (
+    <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Icon icon={icon} style={{ color: 'var(--brand-color)' }} />{title}
+      </h3>
+      {children}
     </div>
   );
 }

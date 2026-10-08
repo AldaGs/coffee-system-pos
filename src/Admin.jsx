@@ -1863,6 +1863,7 @@ function Admin() {
     { id: 'menu', icon: 'lucide:coffee', label: t('admin.menu') },
     { id: 'modifiers', icon: 'lucide:sparkles', label: t('admin.modifiers') },
     { id: 'calculator', icon: 'lucide:flask-conical', label: t('admin.recipe'), advancedOnly: true },
+    { id: 'onlineOrders', icon: 'lucide:shopping-bag', label: t('admin.onlineOrders'), advancedOnly: true, cloudOnly: true },
     { id: 'inventory', icon: 'lucide:database', label: t('admin.inventory'), advancedOnly: true },
     { id: 'vendors', icon: 'lucide:store', label: t('admin.vendors'), advancedOnly: true },
     { id: 'tables', icon: 'lucide:armchair', label: t('admin.tables'), advancedOnly: true },
@@ -1876,7 +1877,6 @@ function Admin() {
     // and Activity (server feed) are meaningless on a single local device.
     { id: 'team', icon: 'lucide:users', label: t('admin.team'), cloudOnly: true },
     { id: 'devices', icon: 'lucide:tablet-smartphone', label: t('admin.devices'), cloudOnly: true },
-    { id: 'onlineOrders', icon: 'lucide:shopping-bag', label: t('admin.onlineOrders'), advancedOnly: true, cloudOnly: true },
     { id: 'tips', icon: 'lucide:wallet', label: t('admin.tips'), advancedOnly: true },
     { id: 'activity', icon: 'lucide:history', label: t('admin.activity'), advancedOnly: true, cloudOnly: true },
     { id: 'settings', icon: 'lucide:settings', label: t('admin.settings') },
