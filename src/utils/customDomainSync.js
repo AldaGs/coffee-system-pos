@@ -14,8 +14,8 @@
 import { supabase } from '../supabaseClient';
 import { isLocalMode } from './appMode';
 
-const POS_KEY = { cfdi: 'cfdiCustomDomain', menu: 'menuCustomDomain' };
-const LS_KEY = { cfdi: 'tinypos_cfdi_custom_domain', menu: 'tinypos_custom_domain' };
+const POS_KEY = { cfdi: 'cfdiCustomDomain', menu: 'menuCustomDomain', order: 'orderCustomDomain' };
+const LS_KEY = { cfdi: 'tinypos_cfdi_custom_domain', menu: 'tinypos_custom_domain', order: 'tinypos_order_custom_domain' };
 
 function cachedPosSettings() {
   try {
@@ -46,6 +46,12 @@ export function menuBaseUrl() {
   const domain = readCustomDomain('menu');
   if (domain) return `https://${domain}`;
   return typeof window !== 'undefined' ? window.location.origin : '';
+}
+
+/** Base URL for online-ordering links: the ordering domain, else the menu one. */
+export function orderBaseUrl() {
+  const domain = readCustomDomain('order');
+  return domain ? `https://${domain}` : menuBaseUrl();
 }
 
 /**

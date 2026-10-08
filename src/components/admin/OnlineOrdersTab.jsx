@@ -4,6 +4,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, fromCents } from '../../utils/moneyUtils';
 import OrderTicket from '../OrderTicket';
 import LegalSection from './LegalSection';
+import MenuShareCard from './MenuShareCard';
 import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 
 // Online ordering settings. Stored at posSettings.onlineOrders so the
@@ -266,6 +267,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
         </Card>
       </div>
 
+      {menuData?.posSettings?.onlineOrders?.enabled && <MenuShareCard menuData={menuData} kind="order" />}
       <LegalSection menuData={menuData} saveSettingsToCloud={saveSettingsToCloud} showAlert={showAlert} />
     </div>
   );

@@ -947,12 +947,16 @@ function Register() {
       // 2. Update Supabase
       if (!isLocalMode()) {
         // Critical path: the durable KDS record. If this fails, the send failed.
+        // Scheduled online orders carry their time so KDS/logistics can hold them.
+        const { data: oo } = await supabase.from('online_orders')
+          .select('pickup_at').eq('active_ticket_id', ticket.id).maybeSingle();
         const { error: insertErr } = await supabase.from('order_fulfillment').insert({
           active_ticket_id: ticket.id,
           customer_name: ticket.name,
           items: ticket.items,
           payment_status: 'unpaid',
-          status: 'received'
+          status: 'received',
+          ...(oo?.pickup_at ? { delivery_date: oo.pickup_at } : {})
         });
         if (insertErr) throw insertErr;
 

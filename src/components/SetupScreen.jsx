@@ -2712,6 +2712,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS order_num int;
         ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_address text;
         ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_notes text;
+        ALTER TABLE public.order_fulfillment ADD COLUMN IF NOT EXISTS delivery_date timestamptz; -- 3.0: scheduled online orders
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lat double precision;
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS delivery_lng double precision;
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS payment_method text CHECK (payment_method IN ('cash','card','transfer'));
@@ -3043,7 +3044,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
           FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '2.9', now())
+        VALUES ('schema_version', '3.0', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

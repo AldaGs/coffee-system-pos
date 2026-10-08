@@ -14,26 +14,28 @@ import QRCode from 'qrcode';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { supabase } from '../../supabaseClient';
-import { readCustomDomain, persistCustomDomain, menuBaseUrl, backfillCustomDomain } from '../../utils/customDomainSync';
+import { readCustomDomain, persistCustomDomain, menuBaseUrl, orderBaseUrl, backfillCustomDomain } from '../../utils/customDomainSync';
 
 const QR_SIZE = 180;       // rendered size in the card
 const QR_DOWNLOAD_SIZE = 1024; // larger version for the downloaded PNG
 
-function MenuShareCard({ menuData }) {
+// kind 'order' = the same card for the online-ordering page (/order), with its
+// own custom domain whose TXT record carries ':order' so the root opens /order.
+function MenuShareCard({ menuData, kind = 'menu' }) {
+  const isOrder = kind === 'order';
+  const page = isOrder ? 'order' : 'menu';
   const { t } = useTranslation();
   const canvasRef = useRef(null);
-  const orderCanvasRef = useRef(null);
-  const [orderCopied, setOrderCopied] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
   const [menuUrl, setMenuUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [customDomain, setCustomDomain] = useState(() => readCustomDomain('menu'));
-  const [linkedDomain, setLinkedDomain] = useState(() => readCustomDomain('menu'));
+  const [customDomain, setCustomDomain] = useState(() => readCustomDomain(kind));
+  const [linkedDomain, setLinkedDomain] = useState(() => readCustomDomain(kind));
   const [isAddingDomain, setIsAddingDomain] = useState(false);
   const [isRemovingDomain, setIsRemovingDomain] = useState(false);
   const [domainStatus, setDomainStatus] = useState(null);
-  const [isHelpOpen, setIsHelpOpen] = useState(!readCustomDomain('menu'));
+  const [isHelpOpen, setIsHelpOpen] = useState(!readCustomDomain(kind));
 
   // Derive project ref + anon key from localStorage (written by SetupScreen).
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url') || '';
@@ -74,23 +76,23 @@ function MenuShareCard({ menuData }) {
       // 2. Build the short URL: /menu?p=PROJECT_REF
       //    PublicMenu reads ?p, constructs the Supabase URL, and fetches
       //    the anon key from storage.
-      const origin = menuBaseUrl();
-      setMenuUrl(`${origin}/menu?p=${projectRef}`);
+      const origin = isOrder ? orderBaseUrl() : menuBaseUrl();
+      setMenuUrl(`${origin}/${page}?p=${projectRef}`);
     } catch (err) {
       console.error('MenuShareCard: config upload failed', err);
       setError(err.message || 'Error uploading config');
       // Fall back to the long URL so the QR is still usable.
-      const origin = menuBaseUrl();
+      const origin = isOrder ? orderBaseUrl() : menuBaseUrl();
       const u = btoa(supabaseUrl);
       const k = btoa(anonKey);
-      setMenuUrl(`${origin}/menu?u=${u}&k=${k}`);
+      setMenuUrl(`${origin}/${page}?u=${u}&k=${k}`);
     } finally {
       setUploading(false);
     }
-  }, [projectRef, anonKey, missingCreds, supabaseUrl]);
+  }, [projectRef, anonKey, missingCreds, supabaseUrl, isOrder, page, linkedDomain]); // linkedDomain: rebuild after (un)linking
 
   // On mount (and whenever creds change), upload the config.
-  useEffect(() => backfillCustomDomain('menu'), []);
+  useEffect(() => backfillCustomDomain(kind), [kind]);
 
   useEffect(() => {
     setTimeout(generateShortUrl, 0);
@@ -106,23 +108,6 @@ function MenuShareCard({ menuData }) {
       color: { dark: '#111', light: '#ffffff' }
     }).catch(err => setError(err.message));
   }, [menuUrl]);
-
-  // Online-ordering link: same short-URL scheme, /order instead of /menu.
-  const orderEnabled = menuData?.posSettings?.onlineOrders?.enabled === true;
-  const orderUrl = menuUrl && orderEnabled ? menuUrl.replace('/menu?', '/order?') : null;
-  useEffect(() => {
-    if (!orderCanvasRef.current || !orderUrl) return;
-    QRCode.toCanvas(orderCanvasRef.current, orderUrl, {
-      width: QR_SIZE, margin: 1, errorCorrectionLevel: 'L', color: { dark: '#111', light: '#ffffff' }
-    }).catch(() => {});
-  }, [orderUrl]);
-  const handleCopyOrder = async () => {
-    try {
-      await navigator.clipboard.writeText(orderUrl);
-      setOrderCopied(true);
-      setTimeout(() => setOrderCopied(false), 1800);
-    } catch { /* user can select the field manually */ }
-  };
 
   const handleAddDomain = async () => {
     if (!customDomain) return;
@@ -142,7 +127,7 @@ function MenuShareCard({ menuData }) {
       
       setDomainStatus({ success: true, message: `Dominio ${data.domain} agregado con éxito.` });
       setLinkedDomain(data.domain);
-      await persistCustomDomain('menu', data.domain);
+      await persistCustomDomain(kind, data.domain);
       setIsHelpOpen(false);
     } catch (err) {
       setDomainStatus({ success: false, message: err.message });
@@ -169,7 +154,7 @@ function MenuShareCard({ menuData }) {
       setDomainStatus({ success: true, message: `Dominio removido con éxito.` });
       setLinkedDomain('');
       setCustomDomain('');
-      await persistCustomDomain('menu', '');
+      await persistCustomDomain(kind, '');
       setIsHelpOpen(true);
     } catch (err) {
       setDomainStatus({ success: false, message: err.message });
@@ -205,7 +190,7 @@ function MenuShareCard({ menuData }) {
       });
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `menu-${shopName}.png`;
+      a.download = `${page}-${shopName}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -228,7 +213,7 @@ function MenuShareCard({ menuData }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `menu-${shopName}.svg`;
+      a.download = `${page}-${shopName}.svg`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -242,9 +227,9 @@ function MenuShareCard({ menuData }) {
     <div style={cardStyle}>
       <h3 style={titleStyle}>
         <Icon icon="lucide:qr-code" style={{ color: brand }} />
-        {t('share.title')}
+        {isOrder ? t('oo.linkTitle') : t('share.title')}
       </h3>
-      <p style={descStyle}>{t('share.desc')}</p>
+      <p style={descStyle}>{isOrder ? t('oo.linkDesc') : t('share.desc')}</p>
 
       {uploading && (
         <div style={uploadingBarStyle}>
@@ -316,26 +301,6 @@ function MenuShareCard({ menuData }) {
             <p style={errorTextStyle}>{error}</p>
           )}
 
-          {orderUrl && (
-            <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
-              <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Icon icon="lucide:shopping-bag" style={{ color: brand }} />
-                {t('oo.linkTitle')}
-              </label>
-              <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{t('oo.linkDesc')}</p>
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                <canvas ref={orderCanvasRef} width={QR_SIZE} height={QR_SIZE} style={qrStyle} />
-                <div style={{ ...urlRowStyle, flex: 1, minWidth: 220 }}>
-                  <input readOnly value={orderUrl} onFocus={(e) => e.target.select()} style={urlInputStyle} />
-                  <button type="button" onClick={handleCopyOrder} style={{ ...buttonStyle, background: brand }}>
-                    <Icon icon={orderCopied ? 'lucide:check' : 'lucide:copy'} />
-                    {orderCopied ? t('share.copied') : t('share.copy')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Custom Domain Section */}
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: '1px solid var(--border)' }}>
             <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -343,12 +308,12 @@ function MenuShareCard({ menuData }) {
               Dominio Personalizado
             </label>
             <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Usa tu propio dominio (ej. menu.micafe.com).
+              Usa tu propio dominio (ej. {isOrder ? 'pedidos' : 'menu'}.micafe.com).
             </p>
             <div style={urlRowStyle}>
               <input
                 type="text"
-                placeholder="menu.micafe.com"
+                placeholder={`${isOrder ? 'pedidos' : 'menu'}.micafe.com`}
                 value={customDomain}
                 onChange={e => setCustomDomain(e.target.value)}
                 readOnly={!!linkedDomain}
@@ -407,19 +372,19 @@ function MenuShareCard({ menuData }) {
               </p>
 
               <div style={{ marginBottom: 16 }}>
-                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>Opción A: Usar un Subdominio (ej. menu.tu-cafe.com)</strong>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>Opción A: Usar un Subdominio (ej. {isOrder ? 'pedidos' : 'menu'}.tu-cafe.com)</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: '6px 12px', fontSize: '0.8rem', alignItems: 'center', background: 'var(--bg-surface)', padding: 8, borderRadius: 8, border: '1px solid var(--border)' }}>
                   <strong style={{ color: 'var(--text-muted)' }}>Tipo</strong>
                   <strong style={{ color: 'var(--text-muted)' }}>Nombre</strong>
                   <strong style={{ color: 'var(--text-muted)' }}>Valor / Objetivo</strong>
                   
                   <code style={codeStyle}>CNAME</code>
-                  <code style={codeStyle}>menu</code>
+                  <code style={codeStyle}>{isOrder ? 'pedidos' : 'menu'}</code>
                   <code style={codeStyle}>cname.vercel-dns.com.</code>
 
                   <code style={codeStyle}>TXT</code>
-                  <code style={codeStyle}>_tinypos.menu</code>
-                  <code style={codeStyle}>tinypos-ref={projectRef}</code>
+                  <code style={codeStyle}>_tinypos.{isOrder ? 'pedidos' : 'menu'}</code>
+                  <code style={codeStyle}>tinypos-ref={projectRef}{isOrder ? ':order' : ''}</code>
                 </div>
               </div>
 
@@ -436,7 +401,7 @@ function MenuShareCard({ menuData }) {
 
                   <code style={codeStyle}>TXT</code>
                   <code style={codeStyle}>_tinypos</code>
-                  <code style={codeStyle}>tinypos-ref={projectRef}</code>
+                  <code style={codeStyle}>tinypos-ref={projectRef}{isOrder ? ':order' : ''}</code>
                 </div>
               </div>
               </div>

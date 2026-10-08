@@ -5,7 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { createRealtimeChannel } from '../../utils/realtime';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
-import { menuBaseUrl } from '../../utils/customDomainSync';
+import { orderBaseUrl } from '../../utils/customDomainSync';
 import {
   ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus
 } from '../../services/onlineOrders';
@@ -17,7 +17,7 @@ const LIVE = ['requested', 'accepted', 'preparing', 'ready'];
 const trackUrl = (token) => {
   let ref = '';
   try { ref = new URL(localStorage.getItem('tinypos_supabase_url') || '').hostname.split('.')[0]; } catch { /* no cloud url */ }
-  return `${menuBaseUrl()}/order/track/${token}${ref ? `?p=${ref}` : ''}`;
+  return `${orderBaseUrl()}/order/track/${token}${ref ? `?p=${ref}` : ''}`;
 };
 // ponytail: assumes 10-digit numbers are Mexican (+52); others are sent as typed.
 const waPhone = (phone) => { const d = String(phone || '').replace(/\D/g, ''); return d.length === 10 ? `52${d}` : d; };

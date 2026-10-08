@@ -130,7 +130,7 @@ async function resolveDomain(req, res) {
         for (const record of dnsData.Answer) {
           const txtData = record.data.replace(/^"|"$/g, '');
           if (txtData.startsWith('tinypos-ref=')) {
-            projectRef = txtData.split('=')[1].trim();
+            projectRef = txtData.split('=')[1].trim().split(':')[0];
             break;
           }
         }

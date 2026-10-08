@@ -45,8 +45,11 @@ export default async function middleware(req) {
 
   // Custom (café) domain. Build the menu rewrite for a given project ref,
   // preserving the original path + query and pinning ?p=<ref>.
-  const rewriteToMenu = (projectRef) => {
-    const path = url.pathname === '/' ? '/menu' : url.pathname;
+  // The TXT value may carry a landing page: tinypos-ref=<ref>:order makes the
+  // domain's root open the online-ordering page instead of the menu.
+  const rewriteToMenu = (refValue) => {
+    const [projectRef, page] = refValue.split(':');
+    const path = url.pathname === '/' ? (page === 'order' ? '/order' : '/menu') : url.pathname;
     const rewriteUrl = new URL(path, req.url);
     url.searchParams.forEach((val, key) => rewriteUrl.searchParams.set(key, val));
     rewriteUrl.searchParams.set('p', projectRef);
@@ -55,7 +58,7 @@ export default async function middleware(req) {
 
   // Fast path: reuse a ref already resolved for this visitor (cookie-scoped to
   // the custom domain), so navigations don't re-hit Cloudflare DoH.
-  const cached = (req.headers.get('cookie') || '').match(/(?:^|;\s*)tinypos_ref=([^;]+)/)?.[1];
+  const cached = decodeURIComponent((req.headers.get('cookie') || '').match(/(?:^|;\s*)tinypos_ref=([^;]+)/)?.[1] || '');
   if (cached) {
     return rewriteToMenu(cached);
   }
@@ -81,7 +84,7 @@ export default async function middleware(req) {
           for (const record of dnsData.Answer) {
             const txtData = record.data.replace(/^"|"$/g, '');
             if (txtData.startsWith('tinypos-ref=')) {
-              projectRef = txtData.split('=')[1].trim();
+              projectRef = txtData.split('=')[1].trim(); // may include ':order'
               break;
             }
           }
@@ -97,7 +100,7 @@ export default async function middleware(req) {
       // Cache the resolution so the next navigation skips the DNS lookup.
       res.headers.append(
         'Set-Cookie',
-        `tinypos_ref=${projectRef}; Path=/; Max-Age=${REF_COOKIE_MAX_AGE}; SameSite=Lax`
+        `tinypos_ref=${encodeURIComponent(projectRef)}; Path=/; Max-Age=${REF_COOKIE_MAX_AGE}; SameSite=Lax`
       );
       return res;
     }
