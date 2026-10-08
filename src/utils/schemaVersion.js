@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 3.6 — No SQL change: the bump makes Update Schema redeploy the Clip Edge Functions (adds clip-refund).
 // 3.5 — Clip pay-after-accept: online_orders.pay_by; public_place_order accepts 'clip' when Clip is enabled; get_order_status returns payment_status/pay_by.
 // 3.4 — Clip online card payments: clip_credentials (service-role only), clip_status()/set_clip_credentials(), online_orders.payment_status/clip_*.
 // 3.3 — Public order menu exposes whitelisted local delivery areas for the customer map.
@@ -132,4 +133,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '3.5';
+export const APP_SCHEMA_VERSION = '3.6';
