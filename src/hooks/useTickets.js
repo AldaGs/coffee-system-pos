@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { cancelTicketEverywhere, isPaidOnline } from '../services/onlineOrders';
+import { cancelTicketEverywhere, isPaidOnline, refundClipTicket } from '../services/onlineOrders';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 import {
@@ -141,8 +141,16 @@ export function useTickets({
       }, consumePendingAuthorizer());
       clearCurrentTicket();
     };
-    if (confirmed) voidTicket();
-    else showConfirm(t('reg.voidTitle'), t(isPaidOnline(activeTicket) ? 'oo.paidVoidWarn' : 'reg.voidDesc'), voidTicket);
+    // Paid with Clip: refund first; the ticket is voided only once Clip approves.
+    const refundThenVoid = async () => {
+      const r = await refundClipTicket(activeTicket.id, t('oo.voidedReason'));
+      if (!r.ok) return showAlert(t('common.error'), r.message);
+      showToast(t('oo.refundOk'));
+      voidTicket();
+    };
+    const run = isPaidOnline(activeTicket) ? refundThenVoid : voidTicket;
+    if (confirmed) run();
+    else showConfirm(t('reg.voidTitle'), t(isPaidOnline(activeTicket) ? 'oo.paidVoidWarn' : 'reg.voidDesc'), run);
   };
 
   const addToTicket = async (item, modifiers, customPrice) => {

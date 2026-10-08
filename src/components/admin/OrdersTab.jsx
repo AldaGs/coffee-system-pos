@@ -16,7 +16,7 @@ import { isCloudReachable } from '../../utils/network';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { buildDeductionPlan } from '../../utils/inventoryMath';
 import { restoreInventory } from '../../services/inventoryService';
-import { rejectOnlineOrderForRefund } from '../../services/onlineOrders';
+import { rejectOnlineOrderForRefund, refundClipTicket } from '../../services/onlineOrders';
 import { canReopenSale, reopenSale } from '../../services/reopenService';
 import { useMenuStore } from '../../store/useMenuStore';
 import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
@@ -190,6 +190,14 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       rAmt = totalAvailable;
     } else {
       newStatus = 'partial_refund';
+    }
+
+    // Clip sales: the money goes back through Clip first (full refunds only, Clip's
+    // beta API requires the original amount). Nothing is recorded if Clip refuses.
+    if (order.payment_method === 'Clip') {
+      if (newStatus !== 'refunded' || prevRefund > 0) return showAlert(t('common.error'), t('oo.clipFullOnly'));
+      const r = await refundClipTicket(order.ticket_id, t('oo.refundedReason'));
+      if (!r.ok) return showAlert(t('common.error'), r.message);
     }
 
     // Tip refund decision — staff are the trustees of the tip, so we never

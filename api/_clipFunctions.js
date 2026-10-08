@@ -102,8 +102,8 @@ export function makeWebhook(env, fetch) {
         headers: { Authorization: 'Basic ' + btoa(`${creds.api_key}:${creds.api_secret}`) },
       });
       if (!res.ok || !CLIP.isPaid(await res.json().catch(() => null))) return ok();
-      // Idempotent: only rows not yet paid match.
-      await rest(`online_orders?clip_payment_id=eq.${encodeURIComponent(id)}&payment_status=neq.paid`, {
+      // Idempotent: only unpaid rows match (a late webhook must not un-refund an order).
+      await rest(`online_orders?clip_payment_id=eq.${encodeURIComponent(id)}&payment_status=eq.unpaid`, {
         method: 'PATCH', body: JSON.stringify({ payment_status: 'paid' }),
       });
     } catch { /* swallow: always 200 */ }
@@ -111,13 +111,77 @@ export function makeWebhook(env, fetch) {
   };
 }
 
-// verify_jwt=false on both: anon customers call checkout and Clip calls the webhook.
+// Staff-only full refund of a ticket's Clip payment (docs: developer.clip.mx
+// post_refunds / get_refunds-refund-id). The gateway can't tell staff from anon
+// (both carry a JWT), so the caller's token is resolved here and checked
+// against app_users. Clip's refund API is beta: amount must equal the original.
+export function makeRefund(env, fetch) {
+  const CLIP = {
+    status: 'https://api.payclip.com/v2/checkout/',
+    refund: 'https://api.payclip.com/refunds',
+    // payment_id is the transaction behind the checkout link (seen on a real payment).
+    body: (link, reason) => ({ amount: link.amount, reason, reference: { type: 'transaction', id: link.payment_id } }),
+  };
+  const base = env('SUPABASE_URL');
+  const key = env('SUPABASE_SERVICE_ROLE_KEY');
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Content-Type': 'application/json',
+  };
+  const out = (b, s = 200) => new Response(JSON.stringify(b), { status: s, headers: cors });
+  const rest = (path, init = {}) => fetch(`${base}/rest/v1/${path}`, {
+    ...init,
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...init.headers },
+  });
+
+  return async (req) => {
+    if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
+    if (req.method !== 'POST') return out({ error: 'method' }, 405);
+    try {
+      const user = await (await fetch(`${base}/auth/v1/user`, { headers: { apikey: key, Authorization: req.headers.get('Authorization') || '' } })).json().catch(() => null);
+      if (!user?.id) return out({ error: 'unauthorized' }, 401);
+      const staff = (await (await rest(`app_users?auth_user_id=eq.${user.id}&disabled_at=is.null&select=auth_user_id`)).json())?.[0];
+      if (!staff) return out({ error: 'forbidden' }, 403);
+
+      const { ticket_id, reason } = await req.json().catch(() => ({}));
+      if (!/^[0-9]{1,20}$/.test(String(ticket_id ?? ''))) return out({ error: 'bad_ticket' }, 400);
+      const order = (await (await rest(`online_orders?active_ticket_id=eq.${ticket_id}&payment_status=eq.paid&select=id,clip_payment_id`)).json())?.[0];
+      if (!order?.clip_payment_id) return out({ error: 'not_paid' }, 404);
+
+      const creds = (await (await rest('clip_credentials?id=eq.1&select=api_key,api_secret')).json())?.[0];
+      if (!creds?.api_key || !creds.api_secret) return out({ error: 'clip_disabled' }, 403);
+      const auth = 'Basic ' + btoa(`${creds.api_key}:${creds.api_secret}`);
+
+      const link = await (await fetch(CLIP.status + encodeURIComponent(order.clip_payment_id), { headers: { Authorization: auth } })).json().catch(() => null);
+      if (!link?.payment_id || !(link.amount > 0)) return out({ error: 'clip_lookup_failed' }, 502);
+
+      const res = await fetch(CLIP.refund, {
+        method: 'POST',
+        // One-minute idempotency window: a double tap can't refund twice.
+        headers: { Authorization: auth, 'Content-Type': 'application/json', 'idempotency-key': `refund-${order.id}` },
+        body: JSON.stringify(CLIP.body(link, String(reason || 'Reembolso').slice(0, 120))),
+      });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) return out({ error: 'clip_refused', status: res.status, code: r?.error_code || r?.code || null, message: r?.message || r?.detail || null }, 409);
+
+      await rest(`online_orders?id=eq.${order.id}`, { method: 'PATCH', body: JSON.stringify({ payment_status: 'refunded' }) });
+      return out({ ok: true, refund_id: r?.id ?? null, status: r?.status ?? null });
+    } catch {
+      return out({ error: 'internal' }, 500);
+    }
+  };
+}
+
+// verify_jwt=false on all: anon customers call checkout, Clip calls the webhook,
+// and refund checks the staff session itself.
 const edgeSource = (factory) =>
   `Deno.serve((${factory.toString()})((k) => Deno.env.get(k), fetch));\n`;
 
 export const CLIP_FUNCTIONS = {
   'clip-checkout': edgeSource(makeCheckout),
   'clip-webhook': edgeSource(makeWebhook),
+  'clip-refund': edgeSource(makeRefund),
 };
 
 // Management API multi-part deploy. Returns the slugs that failed (empty = ok).

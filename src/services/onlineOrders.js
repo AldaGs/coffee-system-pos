@@ -187,6 +187,24 @@ export async function expireClipOrder(order, reason) {
   return true; // this station won the expiry (others get false)
 }
 
+// Full Clip refund for the online order behind a ticket (clip-refund edge
+// function; staff session required). Resolves to { ok } or { ok: false, message }.
+const CLIP_REFUND_ERRORS = {
+  AI1804: 'El pago está en disputa: Clip no permite reembolsarlo.',
+  AI1806: 'Los pagos a meses (MSI/MCI) no se pueden reembolsar desde aquí.',
+};
+export async function refundClipTicket(ticketId, reason) {
+  const { data, error } = await supabase.functions.invoke('clip-refund', { body: { ticket_id: Number(ticketId), reason } });
+  if (!error && data?.ok) return { ok: true };
+  let body = data;
+  try { body = body || await error?.context?.json(); } catch { /* not json */ }
+  const msg = CLIP_REFUND_ERRORS[body?.code]
+    || (body?.error === 'not_paid' ? 'No se encontró un pago con Clip para este pedido.'
+      : body?.error === 'clip_refused' ? `Clip rechazó el reembolso${body.message ? `: ${body.message}` : ''}. Si es por saldo insuficiente, intenta mañana o reembolsa desde el panel de Clip.`
+        : 'No se pudo hacer el reembolso con Clip. Intenta de nuevo o hazlo desde el panel de Clip.');
+  return { ok: false, message: msg };
+}
+
 // Fully refunding a completed sale reopens nothing, but the customer's tracker
 // should stop saying "completed": mark the linked online order rejected.
 export async function rejectOnlineOrderForRefund(ticketId, reason) {
