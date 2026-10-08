@@ -141,7 +141,7 @@ export const useCheckout = (posState) => {
       tipAmount,
       loyaltySettings,
       onSaved: () => {
-        clearCurrentTicket();
+        clearCurrentTicket({ sold: true });
         // Layouts can override the post-checkout destination (e.g. orders mode
         // wants to land back on the tickets list instead of auto-jumping into
         // whatever ticket clearCurrentTicket happened to select next).

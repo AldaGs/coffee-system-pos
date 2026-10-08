@@ -16,6 +16,7 @@ import { isCloudReachable } from '../../utils/network';
 import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { buildDeductionPlan } from '../../utils/inventoryMath';
 import { restoreInventory } from '../../services/inventoryService';
+import { rejectOnlineOrderForRefund } from '../../services/onlineOrders';
 import { useMenuStore } from '../../store/useMenuStore';
 import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
 import { SortableDataTable } from '../ui/arc';
@@ -229,6 +230,8 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
           reason: newStatus === 'refunded' ? 'full_refund' : 'partial_refund'
         });
       }
+
+      if (newStatus === 'refunded') rejectOnlineOrderForRefund(order.ticket_id, t('oo.refundedReason'));
 
       logActivity('refund_issued', null, {
         full: newStatus === 'refunded',

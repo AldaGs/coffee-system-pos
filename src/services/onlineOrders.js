@@ -120,3 +120,16 @@ export async function cancelTicketEverywhere(ticketId, reason) {
     .then(({ error: e }) => e && console.warn('Could not cancel fulfillment for ticket', ticketId, e));
   await completeOnlineOrderForTicket(ticketId, 'rejected', { reject_reason: reason });
 }
+
+// Fully refunding a completed sale reopens nothing, but the customer's tracker
+// should stop saying "completed": mark the linked online order rejected.
+export async function rejectOnlineOrderForRefund(ticketId, reason) {
+  if (isLocalMode() || ticketId == null) return;
+  try {
+    await supabase.from('online_orders')
+      .update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() })
+      .eq('active_ticket_id', ticketId).eq('status', 'completed');
+  } catch (err) {
+    console.warn('Could not reject online order for refunded ticket', ticketId, err);
+  }
+}

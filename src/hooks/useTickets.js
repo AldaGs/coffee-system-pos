@@ -107,9 +107,13 @@ export function useTickets({
     );
   };
 
-  const clearCurrentTicket = async () => {
+  // Every non-checkout removal (void, empty-ticket cancel) lands here, so it
+  // cancels the linked KDS/logistics row + online order. Checkout passes
+  // { sold: true } and completes the online order itself instead.
+  const clearCurrentTicket = async ({ sold = false } = {}) => {
     if (!activeTicket) return;
     const ticketIdToDelete = activeTicket.id;
+    if (!sold) cancelTicketEverywhere(ticketIdToDelete, t('oo.voidedReason')).catch((e) => console.warn('cancelTicketEverywhere', e));
     await db.active_tickets.delete(ticketIdToDelete);
     await pushActiveTicketDeletion(ticketIdToDelete);
     const remainingTickets = tickets.filter(t => t.id !== ticketIdToDelete);
@@ -135,7 +139,6 @@ export function useTickets({
         ticket_name: activeTicket.name,
         item_count: activeTicket.items.length,
       }, consumePendingAuthorizer());
-      cancelTicketEverywhere(activeTicket.id, t('oo.voidedReason'));
       clearCurrentTicket();
     };
     if (confirmed) voidTicket();
