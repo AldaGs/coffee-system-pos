@@ -16,6 +16,7 @@ import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
 import LegalLinks from './LegalLinks';
+import TransferDetails from './TransferDetails';
 import { useLegal } from '../hooks/useLegal';
 import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk } from '../utils/pickupSlots';
 
@@ -443,9 +444,7 @@ function Order({ client, lang, setLang }) {
         ))}
       </div>
     </div>
-    {pay === 'transfer' && data.shop?.payments?.transferInfo && (
-      <div style={{ marginTop: 8, padding: 10, borderRadius: 10, background: '#f5f5f5', whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{data.shop.payments.transferInfo}</div>
-    )}
+    {pay === 'transfer' && <TransferDetails payments={data.shop?.payments} lang={lang} />}
     {pay === 'cash' && (
       <div style={{ marginTop: 8 }}>
         <label style={{ fontWeight: 700, display: 'block', marginBottom: 6 }}>{s.cashPay}</label>
@@ -808,7 +807,7 @@ function Track({ client, token, lang, setLang }) {
           <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: '#f5f5f5' }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Icon icon={PAY_ICON[order.payment_method]} width="20" />{s.payLabel}: {s[`pay_${order.payment_method}`]}</div>
             {order.payment_method === 'cash' && order.cash_amount_cents != null && <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.cashPaysWith}: {formatForDisplay(order.cash_amount_cents, lang)} · {s.cashChange}: {formatForDisplay(order.cash_amount_cents - order.total_cents, lang)}</div>}
-            {order.payment_method === 'transfer' && shop?.payments?.transferInfo && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{shop.payments.transferInfo}</div>}
+            {order.payment_method === 'transfer' && <TransferDetails payments={shop?.payments} lang={lang} />}
           </div>
         )}
         <OrderTicket style={{ marginTop: 16 }} items={order.items} deliveryFeeCents={order.delivery_fee_cents}

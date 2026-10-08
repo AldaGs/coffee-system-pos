@@ -218,7 +218,15 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             ))}
           </div>
           {pay.methods.includes('transfer') && (
-            <textarea rows={3} maxLength={400} style={input} placeholder={t('oo.transferInfoPh')} value={pay.transferInfo} onChange={e => setPay({ transferInfo: e.target.value })} />
+            <div style={{ display: 'grid', gap: 8 }}>
+              {/* Shown to the customer as three boxes with copy buttons. */}
+              {['bank', 'clabe', 'holder'].map((k) => (
+                <input key={k} style={input} maxLength={k === 'clabe' ? 40 : 80} inputMode={k === 'clabe' ? 'numeric' : undefined}
+                  placeholder={t(`oo.transfer_${k}`)} value={pay.transfer?.[k] || ''}
+                  onChange={e => setPay({ transfer: { ...pay.transfer, [k]: e.target.value } })} />
+              ))}
+              {pay.transferInfo && !pay.transfer && <small style={{ color: 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>{t('oo.transferLegacy')}: {pay.transferInfo}</small>}
+            </div>
           )}
         </Card>
 
