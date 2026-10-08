@@ -132,6 +132,19 @@ const errCode = (error) => {
     'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'invalid_type'].find((c) => m.includes(c)) || null;
 };
 
+// Desktop gets a two-column layout with the cart as a side panel.
+const WIDE_QUERY = '(min-width: 900px)';
+function useWide() {
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia(WIDE_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(WIDE_QUERY);
+    const on = () => setWide(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
 const pageStyle = {
   height: '100dvh', overflowY: 'auto', background: '#fafafa', color: '#222', WebkitOverflowScrolling: 'touch',
   fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
@@ -162,6 +175,8 @@ function Order({ client, lang, setLang }) {
   const [cart, setCart] = useState(() => draft.cart || []); // { key, id, qty, mods: [optionId] }
   const [picking, setPicking] = useState(null); // { item, mods }
   const [checkingOut, setCheckingOut] = useState(false);
+  const wide = useWide();
+  const asideRef = useRef(null);
   const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}), ...draft.customer }));
   const [history, setHistory] = useState(() => readJson(HISTORY_KEY, []));
   const [notes, setNotes] = useState(draft.notes || '');
@@ -226,7 +241,8 @@ function Order({ client, lang, setLang }) {
   const active = categories.find((c) => c.id === activeCat) || categories[0];
   const fmt = (c) => formatForDisplay(c, lang);
 
-  const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} />;
+  const openCart = () => (wide ? asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setCheckingOut(true));
+  const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} cartCount={count} onCart={openCart} cartLabel={s.cart} />;
 
   if (gate) {
     const msg = gate === 'online_orders_paused' ? s.paused : gate === 'online_orders_closed' ? s.closed : s.notOpen;
@@ -285,9 +301,65 @@ function Order({ client, lang, setLang }) {
     window.location.assign(`/order/track/${token}${window.location.search}`);
   };
 
-  return (
-    <div style={pageStyle}>
-      {header}
+  const cartBody = (
+    <>
+    <h3 style={{ marginTop: 0 }}>{s.cart}</h3>
+    {cart.length === 0 && <p style={{ color: '#666' }}>{s.empty}</p>}
+    {cart.map((l) => (
+      <div key={l.key} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700 }}>{itemsById.get(l.id)?.name}</div>
+          <small style={{ color: '#666' }}>{l.mods.map((id) => { for (const g of groups.values()) { const o = g.options.find((x) => x.id === id); if (o) return o.name; } return ''; }).filter(Boolean).join(', ')}</small>
+        </div>
+        <button type="button" onClick={() => setQty(l.key, l.qty - 1)} style={qtyBtn}>−</button>
+        <strong>{l.qty}</strong>
+        <button type="button" onClick={() => setQty(l.key, l.qty + 1)} style={qtyBtn}>+</button>
+        <span style={{ width: 80, textAlign: 'right' }}>{fmt(unitCents(l) * l.qty)}</span>
+      </div>
+    ))}
+    {feeCents != null && (
+      <div style={{ display: 'flex', gap: 8, margin: '12px 0 0' }}>
+        {['pickup', 'delivery'].map((ty) => (
+          <button key={ty} type="button" onClick={() => setOrderType(ty)}
+            style={{ flex: 1, padding: '10px 8px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', border: `1px solid ${brand}`,
+              background: orderType === ty ? brand : 'white', color: orderType === ty ? 'white' : brand }}>
+            {ty === 'pickup' ? s.typePickup : s.typeDelivery}
+          </button>
+        ))}
+      </div>
+    )}
+    {delivery && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 0' }}><span>{s.deliveryFee}</span><span>{fmt(feeCents)}</span></div>
+    )}
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', margin: '12px 0' }}><span>{s.total}</span><span>{fmt(grand)}</span></div>
+
+    <div style={{ display: 'grid', gap: 10 }}>
+      <input style={inputStyle} placeholder={s.name} autoComplete="name" maxLength={80} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+      <input style={inputStyle} placeholder={s.phone} autoComplete="tel" inputMode="tel" maxLength={20} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+      {delivery && <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} />}
+      {delivery && (
+        <Suspense fallback={null}>
+          <PinMap pin={customer.lat != null ? { lat: customer.lat, lng: customer.lng } : null} address={customer.address} s={s}
+            onPin={(lat, lng) => setCustomer((c) => ({ ...c, lat, lng }))} />
+        </Suspense>
+      )}
+      <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      <label style={{ fontSize: '0.85rem', color: '#555' }}>{s.pickup}
+        <input style={inputStyle} type="datetime-local" value={pickup} onChange={(e) => setPickup(e.target.value)} />
+      </label>
+    </div>
+    <p style={{ color: '#666', fontSize: '0.9rem' }}>{delivery ? s.payOnDelivery : s.payAtPickup}</p>
+    {formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
+    <button type="button" disabled={sending || cart.length === 0} onClick={submit}
+      style={{ width: '100%', background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer', opacity: sending || cart.length === 0 ? 0.6 : 1 }}>
+      {sending ? s.sending : s.send}
+    </button>
+    <button type="button" onClick={forget} style={{ background: 'none', border: 'none', color: '#888', marginTop: 12, textDecoration: 'underline', cursor: 'pointer' }}>{s.forget}</button>
+    </>
+  );
+
+  const menuCol = (
+    <div style={{ minWidth: 0 }}>
       {last && !checkingOut && (
         <div style={{ padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" onClick={repeatLast} style={{ ...inputStyle, width: 'auto', cursor: 'pointer', fontWeight: 700, color: brand, border: `1px solid ${brand}` }}>{s.repeat}</button>
@@ -295,7 +367,7 @@ function Order({ client, lang, setLang }) {
         </div>
       )}
 
-      <nav style={{ display: 'flex', overflowX: 'auto', gap: 12, padding: '12px 16px', background: 'white', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 5 }}>
+      <nav style={{ display: 'flex', overflowX: 'auto', gap: 12, padding: wide ? '12px 4px' : '12px 16px', background: wide ? '#fafafa' : 'white', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 5 }}>
         {categories.map((c) => (
           <button key={c.id} type="button" onClick={() => setActiveCat(c.id)}
             style={{ background: 'none', border: 'none', borderBottom: `2px solid ${c.id === active.id ? brand : 'transparent'}`, color: c.id === active.id ? brand : '#555', fontWeight: 700, padding: '8px 4px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
@@ -304,11 +376,14 @@ function Order({ client, lang, setLang }) {
         ))}
       </nav>
 
-      <ul style={{ listStyle: 'none', margin: 0, padding: '8px 16px 140px' }}>
+      <ul style={wide
+        ? { listStyle: 'none', margin: 0, padding: '16px 0 32px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }
+        : { listStyle: 'none', margin: 0, padding: '8px 16px 140px' }}>
         {active.items.map((it) => {
           const out = it.available === false || it.price_type !== 'fixed';
           return (
-            <li key={it.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #eee', opacity: out ? 0.5 : 1 }}>
+            <li key={it.id} style={{ display: 'flex', gap: 12, alignItems: 'center', opacity: out ? 0.5 : 1,
+              ...(wide ? { background: 'white', borderRadius: 14, padding: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' } : { padding: '14px 0', borderBottom: '1px solid #eee' }) }}>
               {it.image_url ? <img src={it.image_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: '1.6rem' }}>{it.emoji}</span>}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700 }}>{it.name}</div>
@@ -319,8 +394,22 @@ function Order({ client, lang, setLang }) {
           );
         })}
       </ul>
+    </div>
+  );
 
-      {count > 0 && !checkingOut && (
+  return (
+    <div style={pageStyle}>
+      {header}
+      {wide ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, maxWidth: 1200, margin: '0 auto', padding: '0 24px', alignItems: 'start' }}>
+          {menuCol}
+          <aside ref={asideRef} style={{ position: 'sticky', top: 16, marginTop: 16, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', background: 'white', borderRadius: 16, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+            {cartBody}
+          </aside>
+        </div>
+      ) : menuCol}
+
+      {!wide && count > 0 && !checkingOut && (
         <button type="button" onClick={() => setCheckingOut(true)}
           style={{ position: 'fixed', left: 16, right: 16, bottom: 16, background: brand, color: 'white', border: 'none', borderRadius: 14, padding: 16, fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
           {s.cart} ({count}) · {fmt(total)}
@@ -347,68 +436,13 @@ function Order({ client, lang, setLang }) {
         </Sheet>
       )}
 
-      {checkingOut && (
-        <Sheet onClose={() => setCheckingOut(false)}>
-          <h3 style={{ marginTop: 0 }}>{s.cart}</h3>
-          {cart.length === 0 && <p style={{ color: '#666' }}>{s.empty}</p>}
-          {cart.map((l) => (
-            <div key={l.key} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700 }}>{itemsById.get(l.id)?.name}</div>
-                <small style={{ color: '#666' }}>{l.mods.map((id) => { for (const g of groups.values()) { const o = g.options.find((x) => x.id === id); if (o) return o.name; } return ''; }).filter(Boolean).join(', ')}</small>
-              </div>
-              <button type="button" onClick={() => setQty(l.key, l.qty - 1)} style={qtyBtn}>−</button>
-              <strong>{l.qty}</strong>
-              <button type="button" onClick={() => setQty(l.key, l.qty + 1)} style={qtyBtn}>+</button>
-              <span style={{ width: 80, textAlign: 'right' }}>{fmt(unitCents(l) * l.qty)}</span>
-            </div>
-          ))}
-          {feeCents != null && (
-            <div style={{ display: 'flex', gap: 8, margin: '12px 0 0' }}>
-              {['pickup', 'delivery'].map((ty) => (
-                <button key={ty} type="button" onClick={() => setOrderType(ty)}
-                  style={{ flex: 1, padding: '10px 8px', borderRadius: 10, fontWeight: 700, cursor: 'pointer', border: `1px solid ${brand}`,
-                    background: orderType === ty ? brand : 'white', color: orderType === ty ? 'white' : brand }}>
-                  {ty === 'pickup' ? s.typePickup : s.typeDelivery}
-                </button>
-              ))}
-            </div>
-          )}
-          {delivery && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 0' }}><span>{s.deliveryFee}</span><span>{fmt(feeCents)}</span></div>
-          )}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', margin: '12px 0' }}><span>{s.total}</span><span>{fmt(grand)}</span></div>
-
-          <div style={{ display: 'grid', gap: 10 }}>
-            <input style={inputStyle} placeholder={s.name} autoComplete="name" maxLength={80} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
-            <input style={inputStyle} placeholder={s.phone} autoComplete="tel" inputMode="tel" maxLength={20} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
-            {delivery && <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} />}
-            {delivery && (
-              <Suspense fallback={null}>
-                <PinMap pin={customer.lat != null ? { lat: customer.lat, lng: customer.lng } : null} address={customer.address} s={s}
-                  onPin={(lat, lng) => setCustomer((c) => ({ ...c, lat, lng }))} />
-              </Suspense>
-            )}
-            <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-            <label style={{ fontSize: '0.85rem', color: '#555' }}>{s.pickup}
-              <input style={inputStyle} type="datetime-local" value={pickup} onChange={(e) => setPickup(e.target.value)} />
-            </label>
-          </div>
-          <p style={{ color: '#666', fontSize: '0.9rem' }}>{delivery ? s.payOnDelivery : s.payAtPickup}</p>
-          {formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
-          <button type="button" disabled={sending || cart.length === 0} onClick={submit}
-            style={{ width: '100%', background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer', opacity: sending || cart.length === 0 ? 0.6 : 1 }}>
-            {sending ? s.sending : s.send}
-          </button>
-          <button type="button" onClick={forget} style={{ background: 'none', border: 'none', color: '#888', marginTop: 12, textDecoration: 'underline', cursor: 'pointer' }}>{s.forget}</button>
-        </Sheet>
-      )}
+      {!wide && checkingOut && <Sheet onClose={() => setCheckingOut(false)}>{cartBody}</Sheet>}
     </div>
   );
 }
 
 // Brand-colored top bar (logo + name + language toggle), shared by /order and the tracker.
-function ShopHeader({ shop, lang, setLang }) {
+function ShopHeader({ shop, lang, setLang, cartCount, onCart, cartLabel }) {
   return (
     <header style={{ background: shop?.brand_color || '#f28b05', color: 'white', padding: '20px 20px', textAlign: 'center', position: 'relative' }}>
       {shop?.logo && <img src={shop.logo} alt="" style={{ display: 'block', margin: '0 auto 8px', maxHeight: 56, maxWidth: 160, objectFit: 'contain' }} />}
@@ -417,6 +451,15 @@ function ShopHeader({ shop, lang, setLang }) {
         style={{ position: 'absolute', right: 12, top: 12, background: 'rgba(255,255,255,0.25)', border: 'none', color: 'white', borderRadius: 8, padding: '4px 10px', fontWeight: 700, cursor: 'pointer' }}>
         {lang === 'es' ? 'EN' : 'ES'}
       </button>
+      {onCart && (
+        <button type="button" onClick={onCart} aria-label={cartLabel}
+          style={{ position: 'absolute', left: 12, top: 10, background: 'rgba(255,255,255,0.25)', border: 'none', color: 'white', borderRadius: 10, width: 42, height: 42, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon icon="lucide:shopping-basket" style={{ fontSize: '1.4rem' }} />
+          {cartCount > 0 && (
+            <span style={{ position: 'absolute', top: -4, right: -4, background: 'white', color: shop?.brand_color || '#f28b05', borderRadius: 999, minWidth: 20, height: 20, fontSize: '0.75rem', fontWeight: 800, lineHeight: '20px', textAlign: 'center', padding: '0 4px', boxSizing: 'border-box' }}>{cartCount}</span>
+          )}
+        </button>
+      )}
     </header>
   );
 }
