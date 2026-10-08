@@ -464,7 +464,8 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
             const rows = [
               { key: 'Cash', label: t('analytics.methodCash'), icon: 'lucide:banknote', color: '#27ae60' },
               { key: 'Card', label: t('analytics.methodCard'), icon: 'lucide:credit-card', color: '#2980b9' },
-              { key: 'Transfer', label: t('analytics.methodTransfer'), icon: 'lucide:arrow-left-right', color: '#8e44ad' }
+              { key: 'Transfer', label: t('analytics.methodTransfer'), icon: 'lucide:arrow-left-right', color: '#8e44ad' },
+              { key: 'Clip', label: 'Clip', icon: 'lucide:link', color: '#e67e22' }
             ];
             const total = rows.reduce((s, r) => s + (salesByMethod[r.key]?.amount || 0), 0);
             if (total === 0) {

@@ -9,6 +9,7 @@ import { gateRegisterAction, showOverrideLock } from '../../utils/actionGate';
 import { supabase } from '../../supabaseClient';
 import { HoldToConfirm, MoneyCounter, SwipeActions, SwipeActionsRow, useToastStack } from '../ui/arc';
 import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
+import { isPaidOnline } from '../../services/onlineOrders';
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -28,7 +29,7 @@ function TicketArea({
     activeTicketId, setActiveTicketId, visibleTickets, handleNewTicket,
     handleWheelScroll, activeTicket, cartSubtotal, cartTotal,
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
-    handleRemoveItem, handleOpenCheckout, handleCancelTicket,
+    handleRemoveItem, handleOpenCheckout, handlePartialPayment, handleCancelTicket,
     requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket,
     posSettings, activeCashier, handleSendToKds,
   } = usePos();
@@ -214,6 +215,11 @@ function TicketArea({
                   <MoneyCounter cents={cartTotal} />
                 </div>
               )}
+              {isPaidOnline(activeTicket) && (
+                <div style={{ marginBottom: '12px', padding: '8px 12px', borderRadius: '8px', background: '#27ae60', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <Icon icon="lucide:badge-check" /> {t('oo.paidBadge')}
+                </div>
+              )}
               <div className="checkout-actions">
                 <button className="options-btn" onClick={() => setIsActionSheetOpen(true)} disabled={activeTicket.items.length === 0} style={{ flex: '0 0 auto', width: '60px', padding: '16px 0', background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)', borderRadius: '8px', fontWeight: 'bold', fontSize: '1.2rem', opacity: activeTicket.items.length === 0 ? 0.5 : 1, cursor: activeTicket.items.length === 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Icon icon="lucide:more-vertical" />
@@ -229,8 +235,9 @@ function TicketArea({
                     <Icon icon="lucide:flame" />
                   </button>
                 )}
-                <button className="charge-btn" onClick={handleOpenCheckout} disabled={activeTicket.items.length === 0} style={{ flex: 1 }}>
-                  {t('ticket.btnPay')}
+                {/* Already paid online: one tap records the sale as 'Clip' for the full total (no cash, no change). */}
+                <button className="charge-btn" onClick={isPaidOnline(activeTicket) ? () => handlePartialPayment(cartTotal, 'Clip') : handleOpenCheckout} disabled={activeTicket.items.length === 0} style={{ flex: 1, ...(isPaidOnline(activeTicket) ? { background: '#27ae60' } : {}) }}>
+                  {isPaidOnline(activeTicket) ? t('oo.closePaid') : t('ticket.btnPay')}
                 </button>
               </div>
             </div>

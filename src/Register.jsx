@@ -612,6 +612,7 @@ function Register() {
   const shiftCashSales = calcTotalByMethod('Cash');
   const shiftCardSales = calcTotalByMethod('Card');
   const shiftTransferSales = calcTotalByMethod('Transfer');
+  const shiftClipSales = calcTotalByMethod('Clip');
 
   // 3. Sum up the CASH expenses that actually left the drawer. Inventory costs
   // paid from the bank or the owner's own pocket are still recorded as expenses
@@ -772,7 +773,7 @@ function Register() {
 
   // --- HOOK DEPENDENCIES (all computed values now available) ---
   const hookDeps = {
-    expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales,
+    expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales, shiftClipSales,
     shiftTotalExpenses, activeCashier, myDeviceId, setIsCorteModalOpen,
     setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm,
     loyaltyModal, setLoyaltyModal, activeTicket: enrichedActiveTicket, menuData, setPhoneError,
@@ -999,7 +1000,7 @@ function Register() {
     activeTicketId, setActiveTicketId, visibleTickets, cartSubtotal,
     autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
     handleNewTicket, handleRenameTicket, handleWheelScroll, handleRemoveItem, handleUpdateItemQty,
-    handleOpenCheckout, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
+    handleOpenCheckout, handlePartialPayment, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
     handleRedeemReward, handleDetachLoyalty, handleAttachCustomer, setLoyaltyModal, loyaltyModal,
     pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket,
     handleSendToKds, setIsHelpModalOpen
@@ -1166,7 +1167,7 @@ function Register() {
 
         <ExpenseModal isExpenseModalOpen={isExpenseModalOpen} setIsExpenseModalOpen={setIsExpenseModalOpen} expenseForm={expenseForm} setExpenseForm={setExpenseForm} handleSaveExpense={handleSaveExpense} isSavingExpense={isSavingExpense} />
 
-        <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
+        <CorteModal isCorteModalOpen={isCorteModalOpen} setIsCorteModalOpen={setIsCorteModalOpen} shiftCashSales={shiftCashSales} shiftCardSales={shiftCardSales} shiftTransferSales={shiftTransferSales} shiftClipSales={shiftClipSales} shiftTotalExpenses={shiftTotalExpenses} expectedCash={expectedCash} countedCash={countedCash} setCountedCash={setCountedCash} handleProcessCorte={handleProcessCorte} />
 
         <PinChallengeModal challenge={pinChallenge} setChallenge={setPinChallenge} activeCashier={activeCashier} showAlert={showAlert} />
 

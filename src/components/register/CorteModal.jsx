@@ -1,7 +1,7 @@
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
-function CorteModal({ isCorteModalOpen, setIsCorteModalOpen, shiftCashSales, shiftCardSales, shiftTransferSales, shiftTotalExpenses, expectedCash, countedCash, setCountedCash, handleProcessCorte }) {
+function CorteModal({ isCorteModalOpen, setIsCorteModalOpen, shiftCashSales, shiftCardSales, shiftTransferSales, shiftClipSales, shiftTotalExpenses, expectedCash, countedCash, setCountedCash, handleProcessCorte }) {
   const { t } = useTranslation();
 
   if (!isCorteModalOpen) return null;
@@ -25,6 +25,11 @@ function CorteModal({ isCorteModalOpen, setIsCorteModalOpen, shiftCashSales, shi
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
             <span>{t('corte.transferSales')}</span> <span>{formatForDisplay(shiftTransferSales)}</span>
           </div>
+          {shiftClipSales > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', color: 'var(--text-main)' }}>
+              <span>Clip:</span> <span>{formatForDisplay(shiftClipSales)}</span>
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: '#e74c3c' }}>
             <span>{t('corte.cashExpenses')}</span> <span style={{color: '#e74c3c'}}>-{formatForDisplay(shiftTotalExpenses)}</span>
           </div>

@@ -1518,7 +1518,7 @@ function Admin() {
   // Mirrors the shift-corte math: full refunds drop out, partial refunds
   // subtract from their tender, and Split sales attribute each leg.
   const salesByMethod = useMemo(() => {
-    const tenders = ['Cash', 'Card', 'Transfer'];
+    const tenders = ['Cash', 'Card', 'Transfer', 'Clip'];
     const totals = Object.fromEntries(tenders.map(m => [m, { amount: 0, count: 0 }]));
     filteredSales.forEach(sale => {
       if (sale.status === 'refunded') return;

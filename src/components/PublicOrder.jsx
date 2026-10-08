@@ -80,7 +80,7 @@ const STR = {
     cashPay: '¿Con cuánto pagas? (opcional)', cashExact: 'Exacto', cashPaysWith: 'Paga con', cashChange: 'Cambio', invalid_cash: 'Escribe un monto igual o mayor al total (máximo $1,000 más).',
     upcomingSlot: 'Próxima entrega disponible hoy: {when}', upcomingSlotPickup: 'Próxima recolección disponible hoy: {when}', noMoreSlots: 'Ya no hay entregas hoy: programado para {when}', noMoreSlotsPickup: 'Ya no hay recolecciones hoy: programado para {when}', pickup_required: 'Elige una fecha y hora de entrega o recolección.',
     payNote: { cash: ['Pagas en efectivo al recoger.', 'Pagas en efectivo al recibir.'], card: ['Pagas con tarjeta en terminal al recoger.', 'Pagas con tarjeta al recibir (el repartidor lleva terminal).'], transfer: ['Transfiere con estos datos y muestra tu comprobante al recoger.', 'Transfiere con estos datos y muestra tu comprobante al recibir.'], clip: ['Cuando aceptemos tu pedido te mostraremos el botón para pagar con tarjeta en línea.', 'Cuando aceptemos tu pedido te mostraremos el botón para pagar con tarjeta en línea.'] },
-    pay_clip: 'Tarjeta en línea', clipWait: 'Te mostraremos el botón para pagar en cuanto aceptemos tu pedido.', payNow: 'Pagar ahora', payBy: 'Paga antes de las', clipPaid: 'Pagado ✓', clipError: 'No se pudo abrir el pago. Intenta de nuevo o llámanos.', clipExpired: 'El tiempo para pagar terminó.', clipHeld: 'Empezamos a preparar tu pedido en cuanto se confirme el pago.',
+    pay_clip: 'Tarjeta en línea', clipWait: 'Te mostraremos el botón para pagar en cuanto aceptemos tu pedido.', payNow: 'Pagar ahora', payBy: 'Paga antes de las', payIn: 'Tiempo para pagar:', clipPaid: 'Pagado ✓', clipError: 'No se pudo abrir el pago. Intenta de nuevo o llámanos.', clipExpired: 'El tiempo para pagar terminó.', clipHeld: 'Empezamos a preparar tu pedido en cuanto se confirme el pago.',
     orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
     invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', delivery_outside: 'Dirección fuera de nuestras zonas de entrega.', pin_required: 'Confirma la entrada con el pin.', quote_changed: 'La cobertura o el precio cambió. Revisa la nueva cotización antes de continuar.', invalid_type: 'Revisa tu pedido.',
   },
@@ -109,7 +109,7 @@ const STR = {
     cashPay: 'How much will you pay with? (optional)', cashExact: 'Exact', cashPaysWith: 'Paying with', cashChange: 'Change', invalid_cash: 'Enter an amount equal to or above the total (at most $1,000 more).',
     upcomingSlot: 'Next delivery available today: {when}', upcomingSlotPickup: 'Next pickup available today: {when}', noMoreSlots: 'No more deliveries today: scheduled for {when}', noMoreSlotsPickup: 'No more pickups today: scheduled for {when}', pickup_required: 'Choose a delivery or pickup date and time.',
     payNote: { cash: ['You pay in cash at pickup.', 'You pay in cash on delivery.'], card: ['You pay by card at the terminal on pickup.', 'You pay by card on delivery (the driver brings a terminal).'], transfer: ['Transfer using these details and show your receipt at pickup.', 'Transfer using these details and show your receipt on delivery.'], clip: ['Once we accept your order you will see a button to pay by card online.', 'Once we accept your order you will see a button to pay by card online.'] },
-    pay_clip: 'Card online', clipWait: 'You will see the pay button as soon as we accept your order.', payNow: 'Pay now', payBy: 'Pay before', clipPaid: 'Paid ✓', clipError: 'Could not open the payment. Try again or call us.', clipExpired: 'The time to pay has run out.', clipHeld: 'We start preparing your order as soon as the payment is confirmed.',
+    pay_clip: 'Card online', clipWait: 'You will see the pay button as soon as we accept your order.', payNow: 'Pay now', payBy: 'Pay before', payIn: 'Time left to pay:', clipPaid: 'Paid ✓', clipError: 'Could not open the payment. Try again or call us.', clipExpired: 'The time to pay has run out.', clipHeld: 'We start preparing your order as soon as the payment is confirmed.',
     orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
     invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', delivery_outside: 'Address outside our delivery areas.', pin_required: 'Confirm the entrance with the pin.', quote_changed: 'Coverage or the price changed. Review the new quote before continuing.', invalid_type: 'Please review your order.',
   },
@@ -805,6 +805,14 @@ function Track({ client, token, lang, setLang }) {
   const prevStatus = useRef(null);
   const [paying, setPaying] = useState(false);
   const [payErr, setPayErr] = useState('');
+  // 1s clock for the Clip countdown; only ticks while a deadline is on screen.
+  const [now, setNow] = useState(() => Date.now());
+  const counting = order?.payment_method === 'clip' && order.payment_status !== 'paid' && !!order.pay_by;
+  useEffect(() => {
+    if (!counting) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [counting]);
   const s = STR[lang] || STR.es;
 
   // Shop info (logo/name/brand) changes rarely: fetch once, not on every poll.
@@ -824,7 +832,7 @@ function Track({ client, token, lang, setLang }) {
       // Clip: buzz when the pay button appears (accepted while the customer waits).
       if (data?.payment_method === 'clip' && data.status === 'accepted' && prevStatus.current === 'requested') navigator.vibrate?.([200, 100, 200]);
       prevStatus.current = data?.status;
-      setOrder(data?.found ? { ...data, polledAt: Date.now() } : null); // polledAt: render-pure clock for the Clip deadline
+      setOrder(data?.found ? data : null);
       const done = !data?.found || ['completed', 'rejected'].includes(data.status);
       if (!done) timer.current = setTimeout(poll, 8000);
     };
@@ -939,7 +947,7 @@ function Track({ client, token, lang, setLang }) {
               ? <div style={{ marginTop: 8, color: '#27ae60', fontWeight: 800 }}>{s.clipPaid}</div>
               : ['requested', 'quote_pending'].includes(order.status)
                 ? <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.clipWait}</div>
-                : order.pay_by && Date.parse(order.pay_by) < order.polledAt
+                : order.pay_by && Date.parse(order.pay_by) <= now
                   ? <div style={{ marginTop: 6, color: '#c0392b' }}>{s.clipExpired}</div>
                   : (
                     <div style={{ marginTop: 8 }}>
@@ -947,7 +955,17 @@ function Track({ client, token, lang, setLang }) {
                         style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: brand, color: 'white', fontWeight: 800, fontSize: '1.1rem', cursor: 'pointer' }}>
                         {paying ? '…' : `${s.payNow} · ${formatForDisplay(order.total_cents, lang)}`}
                       </button>
-                      {order.pay_by && <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.payBy} {new Date(order.pay_by).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })}</div>}
+                      {order.pay_by && (() => {
+                        const left = Math.max(0, Math.ceil((Date.parse(order.pay_by) - now) / 1000));
+                        return (
+                          <div role="timer" aria-live="off" style={{ marginTop: 10, textAlign: 'center' }}>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 800, color: left < 120 ? '#c0392b' : 'inherit' }}>
+                              {s.payIn} {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')}
+                            </div>
+                            <div style={{ fontSize: '0.85rem', color: '#666' }}>{s.payBy} {new Date(order.pay_by).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' })}</div>
+                          </div>
+                        );
+                      })()}
                       <div style={{ marginTop: 4, fontSize: '0.85rem', color: '#666' }}>{s.clipHeld}</div>
                       {payErr && <div style={{ marginTop: 6, color: '#c0392b' }}>{payErr}</div>}
                     </div>

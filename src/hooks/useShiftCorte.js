@@ -7,7 +7,7 @@ import { toCents, formatForDisplay } from '../utils/moneyUtils';
  */
 export const useShiftCorte = (posState) => {
   const {
-    expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales,
+    expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales, shiftClipSales,
     shiftTotalExpenses, activeCashier, myDeviceId, setIsCorteModalOpen,
     setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm
   } = posState;
@@ -35,7 +35,8 @@ export const useShiftCorte = (posState) => {
         sales_breakdown: {
           cash: shiftCashSales,
           card: shiftCardSales,
-          transfer: shiftTransferSales
+          transfer: shiftTransferSales,
+          clip: shiftClipSales || 0
         },
         expenses_total: shiftTotalExpenses
       };
