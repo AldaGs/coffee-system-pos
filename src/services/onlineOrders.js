@@ -91,7 +91,7 @@ export async function sendOrderToLogistics(order, ticket) {
     delivery_address: order.delivery_address,
     delivery_lat: order.delivery_lat ?? null,
     delivery_lng: order.delivery_lng ?? null,
-    delivery_notes: [order.notes, `Tel: ${order.phone}`, order.payment_method && `Pago: ${PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? `, paga con ${peso(order.cash_amount_cents)}, cambio ${peso(order.cash_amount_cents - order.total_cents)}` : ''}`].filter(Boolean).join(' · '),
+    delivery_notes: [order.notes, `Tel: ${String(order.phone).length > 10 ? '+' : ''}${order.phone}`, order.payment_method && `Pago: ${PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? `, paga con ${peso(order.cash_amount_cents)}, cambio ${peso(order.cash_amount_cents - order.total_cents)}` : ''}`].filter(Boolean).join(' · '),
   };
   const { data: updated, error } = await supabase.from('order_fulfillment')
     .update(patch).eq('active_ticket_id', order.active_ticket_id).select('id');

@@ -21,6 +21,11 @@ const trackUrl = (token) => {
 };
 // ponytail: assumes 10-digit numbers are Mexican (+52); others are sent as typed.
 const waPhone = (phone) => { const d = String(phone || '').replace(/\D/g, ''); return d.length === 10 ? `52${d}` : d; };
+// Readable international form: +52 222 123 4567 (older orders stored 10 local digits = Mexico).
+const showPhone = (phone) => {
+  const d = waPhone(phone);
+  return d.startsWith('52') && d.length === 12 ? `+52 ${d.slice(2, 5)} ${d.slice(5, 8)} ${d.slice(8)}` : `+${d}`;
+};
 
 // Short two-tone beep; WebAudio so there is no asset to ship. Browsers may
 // block it until the first user gesture, which is fine (the badge still shows).
@@ -131,6 +136,12 @@ export default function OnlineOrdersInbox({
                   <a href={`https://wa.me/${waPhone(o.phone)}?text=${encodeURIComponent(`${t('oo.trackMsg')} ${trackUrl(o.token)}`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn('#25D366'), textDecoration: 'none' }}>{t('oo.sendTrackLink')}</a>
   </>);
 
+  const [copiedPhone, setCopiedPhone] = useState(null);
+  const copyPhone = async (phone) => {
+    try { await navigator.clipboard.writeText(`+${waPhone(phone)}`); } catch { return showToast(showPhone(phone), 'info'); }
+    setCopiedPhone(phone);
+    setTimeout(() => setCopiedPhone((p) => (p === phone ? null : p)), 1500);
+  };
   const current = activeTicketId != null && orders.find((o) => String(o.active_ticket_id) === String(activeTicketId));
   // The slot lives in TicketArea's footer; look it up after commit so a footer
   // mounted in this same render (ticket just opened) is found.
@@ -143,6 +154,16 @@ export default function OnlineOrdersInbox({
         <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
           <div style={{ fontWeight: 700, marginBottom: 6 }}>{t('oo.inboxTitle')} · {t(`oo.st_${current.status}`)}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions(current)}</div>
+          {/* Contact the customer: copy the number or open a WhatsApp chat. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+            <span style={{ fontWeight: 700, marginRight: 'auto' }}>{current.customer_name} · {showPhone(current.phone)}</span>
+            <button type="button" onClick={() => copyPhone(current.phone)} style={btn('#7f8c8d')}>
+              <Icon icon={copiedPhone === current.phone ? 'lucide:check' : 'lucide:copy'} /> {copiedPhone === current.phone ? t('oo.copied') : t('oo.copyPhone')}
+            </button>
+            <a href={`https://wa.me/${waPhone(current.phone)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn('#25D366'), textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Icon icon="logos:whatsapp-icon" /> WhatsApp
+            </a>
+          </div>
         </div>, slot)}
       <button type="button" onClick={() => setOpen(true)} aria-label={t('oo.inboxTitle')}
         style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 900, width: 52, height: 52, borderRadius: 999, border: 'none', cursor: 'pointer',
@@ -161,7 +182,7 @@ export default function OnlineOrdersInbox({
             {orders.map((o) => (
               <div key={o.id} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                  <strong>{o.customer_name} · {o.phone}</strong>
+                  <strong>{o.customer_name} · {showPhone(o.phone)}</strong>
                   <span style={{ fontWeight: 700 }}>{t(`oo.st_${o.status}`)}</span>
                 </div>
                 {o.order_type === 'delivery' && (
