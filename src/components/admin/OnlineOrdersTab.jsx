@@ -8,7 +8,7 @@ import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
 // every device gets it through the normal posSettings sync.
 // Shape: { enabled, paused, delivery: { enabled, feeCents }, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
-const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false } };
+const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, trackShowcase: { mode: 'off', categories: [], items: [] } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
@@ -18,6 +18,10 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const delivery = form.delivery || DEFAULTS.delivery;
   const setDelivery = (patch) => setForm({ ...form, delivery: { ...delivery, ...patch } });
   const showIva = !!form.ticket?.showIva;
+  const sc = { ...DEFAULTS.trackShowcase, ...(form.trackShowcase || {}) };
+  const setSc = (patch) => setForm({ ...form, trackShowcase: { ...sc, ...patch } });
+  const toggle = (key, v) => setSc({ [key]: sc[key].includes(v) ? sc[key].filter((x) => x !== v) : [...sc[key], v] });
+  const catEntries = Object.entries(menuData?.categories || {});
   // Preview with real menu items: one IVA 16%, one tasa 0, then whatever else; samples if the menu is empty.
   const all = Object.values(menuData?.categories || {}).flat().filter((i) => i?.basePrice > 0);
   const picks = [all.find((i) => i.ivaTreatment === 'iva16'), all.find((i) => i.ivaTreatment !== 'iva16'), ...all]
@@ -107,6 +111,31 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <OrderTicket style={{ maxWidth: 360 }} items={lines} deliveryFeeCents={fee}
             totalCents={lines.reduce((a, l) => a + l.line_cents, 0) + fee}
             showIva={showIva} taxRate={menuData?.receiptSettings?.taxRate || 16} lang={lang} />
+        </div>
+
+        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
+          <strong>{t('oo.showcase')}</strong>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.showcaseDesc')}</small>
+          <select style={input} value={sc.mode} onChange={e => setSc({ mode: e.target.value })}>
+            {['off', 'all', 'categories', 'items'].map(m => <option key={m} value={m}>{t(`oo.showcase_${m}`)}</option>)}
+          </select>
+          {(sc.mode === 'categories' || sc.mode === 'items') && (
+            <div style={{ maxHeight: 240, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10, padding: 10 }}>
+              {sc.mode === 'categories'
+                ? catEntries.map(([name]) => (
+                  <label key={name} style={{ display: 'flex', gap: 8, padding: '4px 0', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={sc.categories.includes(name)} onChange={() => toggle('categories', name)} />{name}
+                  </label>))
+                : catEntries.map(([name, list]) => (
+                  <div key={name}>
+                    <div style={{ fontWeight: 800, margin: '6px 0 2px' }}>{name}</div>
+                    {list.map((i) => (
+                      <label key={i.id} style={{ display: 'flex', gap: 8, padding: '3px 0', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={sc.items.includes(i.id)} onChange={() => toggle('items', i.id)} />{i.name}
+                      </label>))}
+                  </div>))}
+            </div>
+          )}
         </div>
 
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('oo.linkHint')}</p>

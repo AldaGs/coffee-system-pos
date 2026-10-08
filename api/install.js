@@ -1084,6 +1084,7 @@ export default async function handler(req, res) {
         'brand_color', COALESCE((SELECT menu_data->'posSettings'->>'brandColor' FROM public.shop_settings WHERE id = 1), '#f28b05'),
         'language',    COALESCE((SELECT menu_data->'posSettings'->>'language'   FROM public.shop_settings WHERE id = 1), 'es'),
         'timezone',    v_tz,
+        'showcase',    (SELECT menu_data->'posSettings'->'onlineOrders'->'trackShowcase' FROM public.shop_settings WHERE id = 1),
         'logo', COALESCE(NULLIF((SELECT menu_data->'posSettings'->>'appBootLogo' FROM public.shop_settings WHERE id = 1), ''), (SELECT menu_data->'receiptSettings'->>'logo' FROM public.shop_settings WHERE id = 1))
       );
 
@@ -2722,6 +2723,7 @@ export default async function handler(req, res) {
       v_fee int := 0;
       v_lat double precision;
       v_lng double precision;
+      v_cats jsonb;
     BEGIN
       -- 1. Feature gate: opt-in, not paused, inside the schedule (shop timezone).
       SELECT menu_data->'posSettings'->'onlineOrders' INTO v_cfg FROM public.shop_settings WHERE id = 1;
@@ -2794,6 +2796,8 @@ export default async function handler(req, res) {
       END IF;
 
       -- 4. Reprice every line from menu_items; client prices are never read.
+      -- Categories the active menu hides (menu.data.category_names whitelist) are not orderable.
+      v_cats := public.get_active_menu(now())->'menu'->'data'->'category_names';
       FOR v_it IN SELECT value AS j FROM jsonb_array_elements(v_in) LOOP
         BEGIN v_qty := (v_it.j->>'qty')::int;
         EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_items'; END;
@@ -2806,6 +2810,10 @@ export default async function handler(req, res) {
           AND c.public_hidden = false
           AND COALESCE((i.data->>'publicHidden')::boolean, false) = false;
         IF NOT FOUND OR v_item.price_type <> 'fixed' OR NOT public.menu_item_available(v_item.id) THEN
+          RAISE EXCEPTION 'item_unavailable';
+        END IF;
+        IF v_cats IS NOT NULL AND jsonb_typeof(v_cats) = 'array' AND jsonb_array_length(v_cats) > 0
+           AND NOT EXISTS (SELECT 1 FROM public.menu_categories c WHERE c.id = v_item.category_id AND v_cats @> to_jsonb(c.name)) THEN
           RAISE EXCEPTION 'item_unavailable';
         END IF;
 
@@ -2919,7 +2927,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '2.2', now())
+    VALUES ('schema_version', '2.3', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

@@ -17,6 +17,8 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 2.3 — public_place_order rejects items outside the active menu's category_names
+//       whitelist; get_active_menu shop block carries onlineOrders.trackShowcase.
 // 2.2 — Optional delivery map pin: delivery_lat/lng on online_orders and
 //       order_fulfillment; public_place_order validates and stores them.
 // 2.1 — Public logo in the menu RPCs' shop block; get_order_status returns
@@ -117,4 +119,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '2.2';
+export const APP_SCHEMA_VERSION = '2.3';

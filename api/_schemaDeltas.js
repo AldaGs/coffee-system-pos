@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -2990,6 +2990,270 @@ REVOKE ALL ON FUNCTION public.public_place_order(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.public_place_order(jsonb) TO anon, authenticated;
 
 ${stamp('2.2')}`,
+  },
+  {
+    // 2.3 — public_place_order rejects items outside the active menu's category_names
+    // whitelist; get_active_menu's shop block carries onlineOrders.trackShowcase.
+    version: '2.3',
+    sql: `
+CREATE OR REPLACE FUNCTION public.get_active_menu(p_now timestamptz DEFAULT now())
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+DECLARE
+  v_tz text; v_local timestamp;
+  v_menu_id bigint; v_kind text; v_name text; v_data jsonb; v_shop jsonb;
+BEGIN
+  v_tz := public.shop_timezone();
+  v_local := (p_now AT TIME ZONE v_tz)::timestamp;
+
+  SELECT m.id, m.kind, m.name, m.data INTO v_menu_id, v_kind, v_name, v_data
+  FROM public.menus m
+  WHERE m.is_active = true
+    AND (
+      NOT EXISTS (SELECT 1 FROM public.menu_schedules s WHERE s.menu_id = m.id)
+      OR EXISTS (
+        SELECT 1 FROM public.menu_schedules s
+        WHERE s.menu_id = m.id
+          AND public.schedule_matches(s.days_of_week, s.start_time, s.end_time,
+                                      s.start_date, s.end_date, v_local)
+      )
+    )
+  ORDER BY m.priority DESC, m.created_at DESC LIMIT 1;
+
+  IF v_menu_id IS NULL THEN
+    SELECT m.id, m.kind, m.name, m.data INTO v_menu_id, v_kind, v_name, v_data
+    FROM public.menus m WHERE m.kind = 'live' LIMIT 1;
+  END IF;
+
+  v_shop := jsonb_build_object(
+    'name',        COALESCE((SELECT menu_data->'posSettings'->>'name'       FROM public.shop_settings WHERE id = 1), 'Menu'),
+    'brand_color', COALESCE((SELECT menu_data->'posSettings'->>'brandColor' FROM public.shop_settings WHERE id = 1), '#f28b05'),
+    'language',    COALESCE((SELECT menu_data->'posSettings'->>'language'   FROM public.shop_settings WHERE id = 1), 'es'),
+    'timezone',    v_tz,
+    'showcase',    (SELECT menu_data->'posSettings'->'onlineOrders'->'trackShowcase' FROM public.shop_settings WHERE id = 1),
+    'logo', COALESCE(NULLIF((SELECT menu_data->'posSettings'->>'appBootLogo' FROM public.shop_settings WHERE id = 1), ''), (SELECT menu_data->'receiptSettings'->>'logo' FROM public.shop_settings WHERE id = 1))
+  );
+
+  IF v_kind = 'live' OR v_kind = 'designed' THEN
+    RETURN jsonb_build_object(
+      'menu', jsonb_build_object('id', v_menu_id, 'kind', v_kind, 'name', v_name, 'data', v_data),
+      'shop', v_shop,
+      'categories', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', c.id, 'name', c.name, 'sort_order', c.sort_order,
+          'items', COALESCE((
+            SELECT jsonb_agg(jsonb_build_object(
+              'id', i.id, 'name', i.name, 'price_cents', i.base_price_cents,
+              'price_type', i.price_type, 'emoji', i.emoji, 'image_url', i.image_url,
+              'sort_order', i.sort_order,
+              'available', public.menu_item_available(i.id),
+              'roast_date', i.data->>'roastDate', 'whatsapp_url', i.data->>'whatsappUrl',
+              'modifier_group_ids', COALESCE((
+                SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
+                FROM public.menu_item_modifier_groups l
+                JOIN public.menu_modifier_groups g ON g.id = l.group_id
+                WHERE l.item_id = i.id AND g.is_hidden = false
+              ), '[]'::jsonb)
+            ) ORDER BY i.sort_order)
+            FROM public.menu_items i WHERE i.category_id = c.id
+              AND COALESCE((i.data->>'publicHidden')::boolean, false) = false
+          ), '[]'::jsonb)
+        ) ORDER BY c.sort_order)
+        FROM public.menu_categories c WHERE c.public_hidden = false
+      ), '[]'::jsonb),
+      'modifier_groups', COALESCE((
+        SELECT jsonb_agg(jsonb_build_object(
+          'id', g.id, 'name', g.name, 'allow_multiple', g.allow_multiple,
+          'options', COALESCE((
+            SELECT jsonb_agg(jsonb_build_object(
+              'id', o.id, 'name', o.name, 'price_delta_cents', o.price_delta_cents
+            ) ORDER BY o.sort_order)
+            FROM public.menu_modifier_options o WHERE o.group_id = g.id
+          ), '[]'::jsonb)
+        ) ORDER BY g.sort_order)
+        FROM public.menu_modifier_groups g WHERE g.is_hidden = false
+      ), '[]'::jsonb)
+    );
+  ELSE
+    RETURN jsonb_build_object(
+      'menu', jsonb_build_object('id', v_menu_id, 'kind', v_kind, 'name', v_name, 'data', v_data),
+      'shop', v_shop,
+      'categories', '[]'::jsonb,
+      'modifier_groups', '[]'::jsonb
+    );
+  END IF;
+END $$;
+REVOKE ALL ON FUNCTION public.get_active_menu(timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_active_menu(timestamptz) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.public_place_order(payload jsonb)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions
+AS $$
+DECLARE
+  v_cfg jsonb;
+  v_sched jsonb;
+  v_local timestamp;
+  v_phone text := regexp_replace(COALESCE(payload->>'phone', ''), '[^0-9]', '', 'g');
+  v_name text := btrim(COALESCE(payload->>'name', ''));
+  v_notes text := NULLIF(btrim(COALESCE(payload->>'notes', '')), '');
+  v_pickup timestamptz := NULL;
+  v_in jsonb;
+  v_it record;
+  v_item public.menu_items%ROWTYPE;
+  v_qty int;
+  v_mods jsonb;
+  v_mod_ids jsonb;
+  v_opt record;
+  v_unit int;
+  v_out jsonb := '[]'::jsonb;
+  v_total int := 0;
+  v_token text;
+  v_type text := COALESCE(NULLIF(payload->>'order_type', ''), 'pickup');
+  v_addr text := NULLIF(btrim(COALESCE(payload->>'address', '')), '');
+  v_deliv boolean;
+  v_fee_cfg int;
+  v_fee int := 0;
+  v_lat double precision;
+  v_lng double precision;
+  v_cats jsonb;
+BEGIN
+  -- 1. Feature gate: opt-in, not paused, inside the schedule (shop timezone).
+  SELECT menu_data->'posSettings'->'onlineOrders' INTO v_cfg FROM public.shop_settings WHERE id = 1;
+  IF COALESCE((v_cfg->>'enabled')::boolean, false) = false THEN
+    RAISE EXCEPTION 'online_orders_disabled';
+  END IF;
+  IF COALESCE((v_cfg->>'paused')::boolean, false) THEN
+    RAISE EXCEPTION 'online_orders_paused';
+  END IF;
+  v_sched := v_cfg->'schedule';
+  IF v_sched IS NOT NULL AND jsonb_typeof(v_sched) = 'object' THEN
+    v_local := (now() AT TIME ZONE public.shop_timezone())::timestamp;
+    IF NOT public.schedule_matches(
+      COALESCE((v_sched->>'days')::int, 0),
+      NULLIF(v_sched->>'start', '')::time,
+      NULLIF(v_sched->>'end', '')::time,
+      NULL, NULL, v_local
+    ) THEN
+      RAISE EXCEPTION 'online_orders_closed';
+    END IF;
+  END IF;
+
+  -- Availability probe for the page: {"check":true} runs only the gate above.
+
+  v_deliv := COALESCE((v_cfg->'delivery'->>'enabled')::boolean, false);
+  v_fee_cfg := CASE WHEN v_deliv THEN GREATEST(COALESCE((v_cfg->'delivery'->>'feeCents')::int, 0), 0) ELSE 0 END;
+  -- Probe answer: 'open', or 'open:<feeCents>' when delivery is offered.
+  IF COALESCE((payload->>'check')::boolean, false) THEN
+    RETURN CASE WHEN v_deliv THEN 'open:' || v_fee_cfg ELSE 'open' END;
+  END IF;
+
+
+  -- 2. Input validation (the page enforces the same; this is the real check).
+  IF length(v_name) < 1 OR length(v_name) > 80 THEN RAISE EXCEPTION 'invalid_name'; END IF;
+  IF length(v_phone) < 7 OR length(v_phone) > 15 THEN RAISE EXCEPTION 'invalid_phone'; END IF;
+  IF v_notes IS NOT NULL AND length(v_notes) > 300 THEN RAISE EXCEPTION 'invalid_notes'; END IF;
+  IF v_type NOT IN ('pickup', 'delivery') THEN RAISE EXCEPTION 'invalid_type'; END IF;
+  IF v_type = 'delivery' THEN
+    IF NOT v_deliv THEN RAISE EXCEPTION 'delivery_disabled'; END IF;
+    IF v_addr IS NULL OR length(v_addr) < 5 OR length(v_addr) > 250 THEN RAISE EXCEPTION 'invalid_address'; END IF;
+    v_fee := v_fee_cfg;
+    -- Optional map pin: numeric and in range, else dropped (address text stays the source of truth).
+    BEGIN
+      v_lat := (payload->>'lat')::double precision;
+      v_lng := (payload->>'lng')::double precision;
+    EXCEPTION WHEN OTHERS THEN v_lat := NULL; v_lng := NULL; END;
+    IF v_lat IS NULL OR v_lng IS NULL OR v_lat NOT BETWEEN -90 AND 90 OR v_lng NOT BETWEEN -180 AND 180 THEN
+      v_lat := NULL; v_lng := NULL;
+    END IF;
+  ELSE
+    v_addr := NULL;
+  END IF;
+  IF NULLIF(payload->>'pickup_at', '') IS NOT NULL THEN
+    BEGIN v_pickup := (payload->>'pickup_at')::timestamptz;
+    EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_pickup'; END;
+    IF v_pickup < now() - interval '5 minutes' OR v_pickup > now() + interval '7 days' THEN
+      RAISE EXCEPTION 'invalid_pickup';
+    END IF;
+  END IF;
+  v_in := payload->'items';
+  IF v_in IS NULL OR jsonb_typeof(v_in) <> 'array'
+     OR jsonb_array_length(v_in) < 1 OR jsonb_array_length(v_in) > 50 THEN
+    RAISE EXCEPTION 'invalid_items';
+  END IF;
+
+  -- 3. Abuse limits: per phone and shop-wide.
+  IF NOT public.rate_limit_hit('order:' || v_phone, 5, interval '15 minutes')
+     OR NOT public.rate_limit_hit('order:all', 120, interval '1 hour') THEN
+    RAISE EXCEPTION 'rate_limited';
+  END IF;
+
+  -- 4. Reprice every line from menu_items; client prices are never read.
+  -- Categories the active menu hides (menu.data.category_names whitelist) are not orderable.
+  v_cats := public.get_active_menu(now())->'menu'->'data'->'category_names';
+  FOR v_it IN SELECT value AS j FROM jsonb_array_elements(v_in) LOOP
+    BEGIN v_qty := (v_it.j->>'qty')::int;
+    EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_items'; END;
+    IF v_qty IS NULL OR v_qty < 1 OR v_qty > 99 THEN RAISE EXCEPTION 'invalid_items'; END IF;
+
+    SELECT i.* INTO v_item
+    FROM public.menu_items i
+    JOIN public.menu_categories c ON c.id = i.category_id
+    WHERE i.id = (v_it.j->>'id')
+      AND c.public_hidden = false
+      AND COALESCE((i.data->>'publicHidden')::boolean, false) = false;
+    IF NOT FOUND OR v_item.price_type <> 'fixed' OR NOT public.menu_item_available(v_item.id) THEN
+      RAISE EXCEPTION 'item_unavailable';
+    END IF;
+    IF v_cats IS NOT NULL AND jsonb_typeof(v_cats) = 'array' AND jsonb_array_length(v_cats) > 0
+       AND NOT EXISTS (SELECT 1 FROM public.menu_categories c WHERE c.id = v_item.category_id AND v_cats @> to_jsonb(c.name)) THEN
+      RAISE EXCEPTION 'item_unavailable';
+    END IF;
+
+    v_unit := v_item.base_price_cents;
+    v_mods := '[]'::jsonb;
+    v_mod_ids := CASE WHEN jsonb_typeof(v_it.j->'modifiers') = 'array' THEN v_it.j->'modifiers' ELSE '[]'::jsonb END;
+    IF jsonb_array_length(v_mod_ids) > 20 THEN RAISE EXCEPTION 'invalid_items'; END IF;
+
+    FOR v_opt IN
+      SELECT o.id, o.name, o.price_delta_cents, g.id AS group_id
+      FROM jsonb_array_elements_text(v_mod_ids) AS m(id)
+      LEFT JOIN public.menu_modifier_options o ON o.id = m.id
+      LEFT JOIN public.menu_item_modifier_groups l ON l.group_id = o.group_id AND l.item_id = v_item.id
+      LEFT JOIN public.menu_modifier_groups g ON g.id = l.group_id AND g.is_hidden = false
+    LOOP
+      IF v_opt.id IS NULL OR v_opt.group_id IS NULL THEN RAISE EXCEPTION 'item_unavailable'; END IF;
+      v_unit := v_unit + COALESCE(v_opt.price_delta_cents, 0);
+      v_mods := v_mods || jsonb_build_object(
+        'id', v_opt.id, 'name', v_opt.name, 'groupId', v_opt.group_id,
+        'price_cents', COALESCE(v_opt.price_delta_cents, 0));
+    END LOOP;
+    -- Single-choice groups accept at most one option.
+    IF EXISTS (
+      SELECT 1 FROM jsonb_to_recordset(v_mods) AS x(id text, "groupId" text)
+      JOIN public.menu_modifier_groups g ON g.id = x."groupId" AND g.allow_multiple = false
+      GROUP BY x."groupId" HAVING count(*) > 1
+    ) THEN RAISE EXCEPTION 'invalid_items'; END IF;
+
+    v_total := v_total + v_unit * v_qty;
+    v_out := v_out || jsonb_build_object(
+      'id', v_item.id, 'name', v_item.name, 'qty', v_qty,
+      'unit_cents', v_unit, 'base_cents', v_item.base_price_cents,
+      'iva', v_item.data->>'ivaTreatment', 'modifiers', v_mods,
+      'line_cents', v_unit * v_qty);
+  END LOOP;
+
+  INSERT INTO public.online_orders (customer_name, phone, notes, pickup_at, items, total_cents, order_type, delivery_address, delivery_fee_cents, delivery_lat, delivery_lng)
+  VALUES (v_name, v_phone, v_notes, v_pickup, v_out, v_total + v_fee, v_type, v_addr, v_fee, v_lat, v_lng)
+  RETURNING token INTO v_token;
+  RETURN v_token;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.public_place_order(jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.public_place_order(jsonb) TO anon, authenticated;
+
+${stamp('2.3')}`,
   },
 ];
 

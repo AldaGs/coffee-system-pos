@@ -24,6 +24,12 @@ const HISTORY_KEY = 'tinypos_order_history';
 const DRAFT_KEY = 'tinypos_order_draft';
 const MAX_HISTORY = 10;
 
+// Same whitelist the public menu applies: menu.data.category_names (empty = all).
+const visibleCategories = (d) => {
+  const names = d?.menu?.data?.category_names;
+  return (d?.categories || []).filter((c) => !names?.length || names.includes(c.name));
+};
+
 const readJson = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 };
@@ -51,7 +57,7 @@ const STR = {
     rejectedWhy: 'Motivo', st_requested: 'Pedido enviado', st_accepted: 'Aceptado', st_preparing: 'Preparando',
     st_ready: 'Listo para recoger', st_completed: 'Entregado', st_delivered: 'Entregado', st_rejected: 'Rechazado',
     waiting: 'Esperando confirmación del negocio…', updating: 'Actualizando…',
-    typePickup: 'Recoger', pinUseMine: 'Usar mi ubicación', pinSearch: 'Buscar dirección en el mapa', pinClear: 'Quitar pin', pinHint: 'Opcional: toca el mapa o arrastra el pin a tu puerta.', pinNoGeo: 'No pudimos obtener tu ubicación.', pinNeedAddr: 'Escribe tu dirección primero.', pinNotFound: 'No encontramos esa dirección.', pinNeedHttps: 'La ubicación requiere HTTPS: escribe la dirección o mueve el pin.', pinDenied: 'Permiso de ubicación denegado: escribe la dirección o mueve el pin.', pinStreet: 'Calle encontrada: arrastra el pin a tu puerta exacta.', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
+    typePickup: 'Recoger', pinUseMine: 'Usar mi ubicación', pinSearch: 'Buscar dirección en el mapa', pinClear: 'Quitar pin', pinHint: 'Opcional: toca el mapa o arrastra el pin a tu puerta.', pinNoGeo: 'No pudimos obtener tu ubicación.', pinNeedAddr: 'Escribe tu dirección primero.', pinNotFound: 'No encontramos esa dirección.', mightLike: 'También te puede gustar', pinNeedHttps: 'La ubicación requiere HTTPS: escribe la dirección o mueve el pin.', pinDenied: 'Permiso de ubicación denegado: escribe la dirección o mueve el pin.', pinStreet: 'Calle encontrada: arrastra el pin a tu puerta exacta.', typeDelivery: 'Envío a domicilio', address: 'Dirección de entrega', deliveryFee: 'Envío',
     payOnDelivery: 'Pagas al recibir.', orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
     invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', invalid_type: 'Revisa tu pedido.',
   },
@@ -73,7 +79,7 @@ const STR = {
     rejectedWhy: 'Reason', st_requested: 'Order sent', st_accepted: 'Accepted', st_preparing: 'Preparing',
     st_ready: 'Ready for pickup', st_completed: 'Picked up', st_delivered: 'Delivered', st_rejected: 'Rejected',
     waiting: 'Waiting for the shop to confirm…', updating: 'Updating…',
-    typePickup: 'Pickup', pinUseMine: 'Use my location', pinSearch: 'Search address on map', pinClear: 'Remove pin', pinHint: 'Optional: tap the map or drag the pin to your door.', pinNoGeo: 'Could not get your location.', pinNeedAddr: 'Enter your address first.', pinNotFound: 'Address not found.', pinNeedHttps: 'Location needs HTTPS: type the address or move the pin.', pinDenied: 'Location permission denied: type the address or move the pin.', pinStreet: 'Street found: drag the pin to your exact door.', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
+    typePickup: 'Pickup', pinUseMine: 'Use my location', pinSearch: 'Search address on map', pinClear: 'Remove pin', pinHint: 'Optional: tap the map or drag the pin to your door.', pinNoGeo: 'Could not get your location.', pinNeedAddr: 'Enter your address first.', pinNotFound: 'Address not found.', mightLike: 'You might also like', pinNeedHttps: 'Location needs HTTPS: type the address or move the pin.', pinDenied: 'Location permission denied: type the address or move the pin.', pinStreet: 'Street found: drag the pin to your exact door.', typeDelivery: 'Delivery', address: 'Delivery address', deliveryFee: 'Delivery',
     payOnDelivery: 'You pay on delivery.', orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
     invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', invalid_type: 'Please review your order.',
   },
@@ -175,8 +181,9 @@ function Order({ client, lang, setLang }) {
       ]);
       if (cancelled) return;
       if (menu.error) { setLoadErr(menu.error.message); return; }
-      setData(menu.data);
-      setActiveCat(menu.data?.categories?.[0]?.id ?? null);
+      const filtered = { ...menu.data, categories: visibleCategories(menu.data) };
+      setData(filtered);
+      setActiveCat(filtered.categories[0]?.id ?? null);
       if (menu.data?.shop?.language) setLang(menu.data.shop.language === 'en' ? 'en' : 'es');
       const m = /^open:(\d+)$/.exec(String(probe.data || ''));
       setFeeCents(m ? Number(m[1]) : null);
@@ -437,6 +444,7 @@ const STEP_ICON_DELIVERY = { ready: 'lucide:package-check', completed: 'lucide:h
 function Track({ client, token, lang, setLang }) {
   const [order, setOrder] = useState(undefined); // undefined = loading, null = not found
   const [shop, setShop] = useState(null);
+  const [menu, setMenu] = useState(null);
   const [polling, setPolling] = useState(false);
   const timer = useRef(null);
   const s = STR[lang] || STR.es;
@@ -444,7 +452,7 @@ function Track({ client, token, lang, setLang }) {
   // Shop info (logo/name/brand) changes rarely: fetch once, not on every poll.
   useEffect(() => {
     let cancelled = false;
-    client.rpc('get_public_menu').then(({ data }) => { if (!cancelled && data?.shop) setShop(data.shop); });
+    client.rpc('get_public_menu').then(({ data }) => { if (!cancelled && data?.shop) { setShop(data.shop); setMenu(data); } });
     return () => { cancelled = true; };
   }, [client]);
 
@@ -473,6 +481,22 @@ function Track({ client, token, lang, setLang }) {
   const steps = isDelivery ? DELIVERY_STEPS : STEPS;
   const idx = steps.indexOf(order.status);
   const finished = order.status === 'completed';
+  // "You might also like": trackShowcase rides on the menu's shop block (fetched once above),
+  // not on get_order_status, so the 8s poll payload doesn't grow.
+  const sc = shop?.showcase;
+  const picks = !sc?.mode || sc.mode === 'off' ? [] : visibleCategories(menu)
+    .filter((c) => sc.mode !== 'categories' || (sc.categories || []).includes(c.name))
+    .flatMap((c) => c.items)
+    .filter((i) => i.available !== false && i.price_type === 'fixed' && (sc.mode !== 'items' || (sc.items || []).includes(i.id)))
+    .slice(0, 12);
+  const addFromShowcase = (id) => {
+    const d = readJson(DRAFT_KEY, {});
+    const cart = d.cart || [];
+    const key = `${id}|`;
+    const next = cart.some((l) => l.key === key) ? cart.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l)) : [...cart, { key, id, qty: 1, mods: [] }];
+    writeJson(DRAFT_KEY, { ...d, cart: next });
+    window.location.assign(`/order${window.location.search}`);
+  };
   const label = (st) => (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
     <div style={pageStyle}>
@@ -511,6 +535,21 @@ function Track({ client, token, lang, setLang }) {
         {order.status === 'requested' && <p style={{ color: '#666' }}>{s.waiting}</p>}
         <OrderTicket style={{ marginTop: 16 }} items={order.items} deliveryFeeCents={order.delivery_fee_cents}
           totalCents={order.total_cents} showIva={!!order.show_iva} taxRate={order.tax_rate || 16} lang={lang} />
+        {picks.length > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <h3 style={{ margin: '0 0 8px' }}>{s.mightLike}</h3>
+            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
+              {picks.map((it) => (
+                <button key={it.id} type="button" onClick={() => addFromShowcase(it.id)}
+                  style={{ flex: '0 0 120px', border: '1px solid #ddd', borderRadius: 12, background: 'white', padding: 8, cursor: 'pointer', textAlign: 'center' }}>
+                  {it.image_url ? <img src={it.image_url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10 }} /> : <div style={{ fontSize: '2rem', height: 80, lineHeight: '80px' }}>{it.emoji}</div>}
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{it.name}</div>
+                  <div style={{ color: '#666', fontSize: '0.85rem' }}>{formatForDisplay(it.price_cents, lang)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <p style={{ marginTop: 20 }}>{back}</p>
       </div>
     </div>
