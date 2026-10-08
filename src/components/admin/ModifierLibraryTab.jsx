@@ -17,7 +17,8 @@ function ModifierLibraryTab({
   handleRenameModifierGroup,
   handleUpdateModifierOption,
   handleToggleModifierGroupMulti,
-  handleToggleModifierGroupHidden
+  handleToggleModifierGroupHidden,
+  handleToggleModifierGroupPublicHidden
 }) {
   const { t } = useTranslation();
 
@@ -202,6 +203,7 @@ function ModifierLibraryTab({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {Object.keys(menuData.modifierGroups).map(groupKey => {
               const groupHidden = !!menuData.modifierGroupSettings?.[groupKey]?.isHidden;
+              const groupPublicHidden = !!menuData.modifierGroupSettings?.[groupKey]?.publicHidden;
               return (
               <div key={groupKey} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden', opacity: groupHidden ? 0.55 : 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.02)', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
@@ -229,6 +231,11 @@ function ModifierLibraryTab({
                           {t('mods.groupHiddenBadge') || 'hidden'}
                         </span>
                       )}
+                      {!groupHidden && groupPublicHidden && (
+                        <span style={{ marginLeft: '8px', fontSize: '0.7rem', fontWeight: 'bold', color: '#e67e22', textTransform: 'uppercase' }}>
+                          {t('mods.groupCashierOnlyBadge') || 'cashier only'}
+                        </span>
+                      )}
                     </span>
                   )}
 
@@ -243,6 +250,13 @@ function ModifierLibraryTab({
                         />
                         {t('mods.allowMultiple') || 'Allow multiple'}
                       </label>
+                      <button
+                        onClick={() => handleToggleModifierGroupPublicHidden && handleToggleModifierGroupPublicHidden(groupKey)}
+                        style={{ background: groupPublicHidden ? 'rgba(230, 126, 34, 0.15)' : 'rgba(52, 152, 219, 0.1)', border: 'none', color: groupPublicHidden ? '#e67e22' : '#3498db', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        title={groupPublicHidden ? (t('mods.titleShowGroupOnline') || 'Cashier only — click to show on online menu') : (t('mods.titleHideGroupOnline') || 'Make cashier only (hide from online menu)')}
+                      >
+                        <Icon icon={groupPublicHidden ? 'lucide:globe-lock' : 'lucide:globe'} style={{ fontSize: '1.1rem' }} />
+                      </button>
                       <button
                         onClick={() => handleToggleModifierGroupHidden && handleToggleModifierGroupHidden(groupKey)}
                         style={{ background: 'rgba(52, 152, 219, 0.1)', border: 'none', color: '#3498db', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}

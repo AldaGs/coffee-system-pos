@@ -82,7 +82,7 @@ export async function loadMenu() {
   const modifierGroupSettings = {};
   for (const g of groups) {
     modifierGroups[g.id] = [];
-    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple, isHidden: !!g.is_hidden };
+    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple, isHidden: !!g.is_hidden, publicHidden: !!g.public_hidden };
   }
   for (const o of opts) {
     if (!modifierGroups[o.group_id]) continue;
@@ -306,6 +306,13 @@ export async function setModifierGroupAllowMultiple(id, allowMultiple) {
 export async function setModifierGroupHidden(id, isHidden) {
   const { error } = await supabase
     .from('menu_modifier_groups').update({ is_hidden: isHidden }).eq('id', id);
+  if (error) throw error;
+}
+
+// Cashier-only: hide a group from the public menu + online ordering, keep it on the Register.
+export async function setModifierGroupPublicHidden(id, publicHidden) {
+  const { error } = await supabase
+    .from('menu_modifier_groups').update({ public_hidden: publicHidden }).eq('id', id);
   if (error) throw error;
 }
 

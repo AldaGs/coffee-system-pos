@@ -114,7 +114,7 @@ export async function loadMenu() {
   const modifierGroupSettings = {};
   for (const g of groups) {
     modifierGroups[g.id] = [];
-    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple, isHidden: !!g.is_hidden };
+    modifierGroupSettings[g.id] = { allowMultiple: !!g.allow_multiple, isHidden: !!g.is_hidden, publicHidden: !!g.public_hidden };
   }
   for (const o of opts) {
     if (!modifierGroups[o.group_id]) continue;
@@ -269,6 +269,10 @@ export async function setModifierGroupAllowMultiple(id, allowMultiple) {
 
 export async function setModifierGroupHidden(id, isHidden) {
   await db.menu_local.update(id, { is_hidden: isHidden });
+}
+
+export async function setModifierGroupPublicHidden(id, publicHidden) {
+  await db.menu_local.update(id, { public_hidden: publicHidden });
 }
 
 // ---------- MODIFIER OPTION WRITERS -----------------------------------------

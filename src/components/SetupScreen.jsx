@@ -613,6 +613,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         );
         ALTER TABLE public.menu_modifier_groups ADD COLUMN IF NOT EXISTS allow_multiple bool NOT NULL DEFAULT false;
         ALTER TABLE public.menu_modifier_groups ADD COLUMN IF NOT EXISTS is_hidden bool NOT NULL DEFAULT false;
+        -- Cashier-only groups: hidden from the public menu + online ordering, still on the Register.
+        ALTER TABLE public.menu_modifier_groups ADD COLUMN IF NOT EXISTS public_hidden bool NOT NULL DEFAULT false;
         CREATE TABLE IF NOT EXISTS public.menu_modifier_options (
           id text PRIMARY KEY,
           group_id text NOT NULL REFERENCES public.menu_modifier_groups(id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -805,7 +807,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
               ), '[]'::jsonb)) FROM public.menu_modifier_groups g
             ), '{}'::jsonb),
             'modifierGroupSettings', COALESCE((
-              SELECT jsonb_object_agg(g.id, jsonb_build_object('allowMultiple', g.allow_multiple, 'isHidden', g.is_hidden)) FROM public.menu_modifier_groups g
+              SELECT jsonb_object_agg(g.id, jsonb_build_object('allowMultiple', g.allow_multiple, 'isHidden', g.is_hidden, 'publicHidden', g.public_hidden)) FROM public.menu_modifier_groups g
             ), '{}'::jsonb),
             'discountRules', COALESCE((SELECT jsonb_agg(r.payload ORDER BY r.sort_order) FROM public.menu_discount_rules r), '[]'::jsonb)
           );
@@ -1198,7 +1200,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                         SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                         FROM public.menu_item_modifier_groups l
                         JOIN public.menu_modifier_groups g ON g.id = l.group_id
-                        WHERE l.item_id = i.id AND g.is_hidden = false
+                        WHERE l.item_id = i.id AND g.is_hidden = false AND g.public_hidden = false
                       ), '[]'::jsonb)
                     ) ORDER BY i.sort_order)
                     FROM public.menu_items i WHERE i.category_id = c.id
@@ -1214,10 +1216,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                     SELECT jsonb_agg(jsonb_build_object(
                       'id', o.id, 'name', o.name, 'price_delta_cents', o.price_delta_cents
                     ) ORDER BY o.sort_order)
-                    FROM public.menu_modifier_options o WHERE o.group_id = g.id
+                    FROM public.menu_modifier_options o WHERE o.group_id = g.id AND COALESCE((o.data->>'isTextInput')::boolean, false) = false
                   ), '[]'::jsonb)
                 ) ORDER BY g.sort_order)
-                FROM public.menu_modifier_groups g WHERE g.is_hidden = false
+                FROM public.menu_modifier_groups g WHERE g.is_hidden = false AND g.public_hidden = false
               ), '[]'::jsonb)
             );
           ELSE
@@ -1279,7 +1281,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                         SELECT jsonb_agg(l.group_id ORDER BY l.sort_order)
                         FROM public.menu_item_modifier_groups l
                         JOIN public.menu_modifier_groups g ON g.id = l.group_id
-                        WHERE l.item_id = i.id AND g.is_hidden = false
+                        WHERE l.item_id = i.id AND g.is_hidden = false AND g.public_hidden = false
                       ), '[]'::jsonb)
                     ) ORDER BY i.sort_order)
                     FROM public.menu_items i WHERE i.category_id = c.id
@@ -1295,10 +1297,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                     SELECT jsonb_agg(jsonb_build_object(
                       'id', o.id, 'name', o.name, 'price_delta_cents', o.price_delta_cents
                     ) ORDER BY o.sort_order)
-                    FROM public.menu_modifier_options o WHERE o.group_id = g.id
+                    FROM public.menu_modifier_options o WHERE o.group_id = g.id AND COALESCE((o.data->>'isTextInput')::boolean, false) = false
                   ), '[]'::jsonb)
                 ) ORDER BY g.sort_order)
-                FROM public.menu_modifier_groups g WHERE g.is_hidden = false
+                FROM public.menu_modifier_groups g WHERE g.is_hidden = false AND g.public_hidden = false
               ), '[]'::jsonb)
             );
           ELSE
@@ -2955,9 +2957,9 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             FOR v_opt IN
               SELECT o.id, o.name, o.price_delta_cents, g.id AS group_id
               FROM jsonb_array_elements_text(v_mod_ids) AS m(id)
-              LEFT JOIN public.menu_modifier_options o ON o.id = m.id
+              LEFT JOIN public.menu_modifier_options o ON o.id = m.id AND COALESCE((o.data->>'isTextInput')::boolean, false) = false
               LEFT JOIN public.menu_item_modifier_groups l ON l.group_id = o.group_id AND l.item_id = v_item.id
-              LEFT JOIN public.menu_modifier_groups g ON g.id = l.group_id AND g.is_hidden = false
+              LEFT JOIN public.menu_modifier_groups g ON g.id = l.group_id AND g.is_hidden = false AND g.public_hidden = false
             LOOP
               IF v_opt.id IS NULL OR v_opt.group_id IS NULL THEN RAISE EXCEPTION 'item_unavailable'; END IF;
               v_unit := v_unit + COALESCE(v_opt.price_delta_cents, 0);
@@ -3403,9 +3405,9 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             FOR v_opt IN
               SELECT o.id, o.name, o.price_delta_cents, g.id AS group_id
               FROM jsonb_array_elements_text(v_mod_ids) AS m(id)
-              LEFT JOIN public.menu_modifier_options o ON o.id = m.id
+              LEFT JOIN public.menu_modifier_options o ON o.id = m.id AND COALESCE((o.data->>'isTextInput')::boolean, false) = false
               LEFT JOIN public.menu_item_modifier_groups l ON l.group_id = o.group_id AND l.item_id = v_item.id
-              LEFT JOIN public.menu_modifier_groups g ON g.id = l.group_id AND g.is_hidden = false
+              LEFT JOIN public.menu_modifier_groups g ON g.id = l.group_id AND g.is_hidden = false AND g.public_hidden = false
             LOOP
               IF v_opt.id IS NULL OR v_opt.group_id IS NULL THEN RAISE EXCEPTION 'item_unavailable'; END IF;
               v_unit := v_unit + COALESCE(v_opt.price_delta_cents, 0);
@@ -3582,7 +3584,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         -- 3.8: paid-online flag on the ticket (was a name marker staff could rename away).
         ALTER TABLE public.active_tickets ADD COLUMN IF NOT EXISTS online_paid boolean NOT NULL DEFAULT false;
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '3.8', now())
+        VALUES ('schema_version', '3.9', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

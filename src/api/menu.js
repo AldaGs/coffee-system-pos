@@ -35,6 +35,7 @@ export const renameModifierGroup = (...a) => impl().renameModifierGroup(...a);
 export const deleteModifierGroup = (...a) => impl().deleteModifierGroup(...a);
 export const setModifierGroupAllowMultiple = (...a) => impl().setModifierGroupAllowMultiple(...a);
 export const setModifierGroupHidden = (...a) => impl().setModifierGroupHidden(...a);
+export const setModifierGroupPublicHidden = (...a) => impl().setModifierGroupPublicHidden(...a);
 
 export const addModifierOption = (...a) => impl().addModifierOption(...a);
 export const updateModifierOption = (...a) => impl().updateModifierOption(...a);

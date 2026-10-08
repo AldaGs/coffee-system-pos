@@ -15,15 +15,15 @@ const functionSql = (source, name, signature) => {
 
 describe('online order schema mirrors', () => {
   it('keeps the version and latest full schema synchronized', () => {
-    expect(APP_SCHEMA_VERSION).toBe('3.8');
+    expect(APP_SCHEMA_VERSION).toBe('3.9');
     expect(VERSION_ORDER.at(-1)).toBe(APP_SCHEMA_VERSION);
     const install = read('api/install.js');
     const start = install.indexOf('  const schemaQuery = `') + '  const schemaQuery = `'.length;
     const end = install.indexOf('\n  `;', start);
     const mirror = read('db/schema-latest.sql').replace(/^--[^\n]*\n--[^\n]*\n/, '');
     expect(strip(mirror)).toBe(strip(install.slice(start, end)));
-    expect(install).toContain("VALUES ('schema_version', '3.8', now())");
-    expect(read('src/components/SetupScreen.jsx')).toContain("VALUES ('schema_version', '3.8', now())");
+    expect(install).toContain("VALUES ('schema_version', '3.9', now())");
+    expect(read('src/components/SetupScreen.jsx')).toContain("VALUES ('schema_version', '3.9', now())");
   });
 
   it('keeps area, quote and place/status RPCs identical in the migration and both install paths', () => {
@@ -42,11 +42,12 @@ describe('online order schema mirrors', () => {
       ['get_order_status', '(text)'],
     ]) {
       // 3.5 (migration 052) redefined the place/status RPCs for Clip.
-      const ref = ['public_place_order', 'get_order_status'].includes(name) ? read('db/migrations/052_clip_pay_window.sql') : sources[0];
+      // 3.9 (migration 054) redefined place_order to drop cashier-only groups + text options.
+      const ref = name === 'public_place_order' ? read('db/migrations/054_cashier_only_modifiers.sql') : name === 'get_order_status' ? read('db/migrations/052_clip_pay_window.sql') : sources[0];
       const expected = functionSql(ref, name, signature);
       sources.slice(1).forEach((source) => expect(functionSql(source, name, signature)).toBe(expected));
     }
-    const place = functionSql(read('db/migrations/052_clip_pay_window.sql'), 'public_place_order', '(jsonb)');
+    const place = functionSql(read('db/migrations/054_cashier_only_modifiers.sql'), 'public_place_order', '(jsonb)');
     expect(place).toContain("payload->>'expected_quote_kind' IS DISTINCT FROM v_quote->>'kind'");
     expect(place).toContain("payload->>'expected_fee_cents' IS DISTINCT FROM v_quote->>'fee_cents'");
     expect(place).toContain("payload->>'expected_area_id' IS DISTINCT FROM v_quote->'area'->>'id'");

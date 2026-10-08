@@ -6,7 +6,7 @@ import {
   loadMenu,
   addCategory, renameCategory, deleteCategory, reorderCategories, setCategoryHidden, setCategoryPublicHidden,
   addItem, updateItem, deleteItem, setItemHidden,
-  addModifierGroup, renameModifierGroup, deleteModifierGroup, setModifierGroupAllowMultiple, setModifierGroupHidden,
+  addModifierGroup, renameModifierGroup, deleteModifierGroup, setModifierGroupAllowMultiple, setModifierGroupHidden, setModifierGroupPublicHidden,
   addModifierOption, updateModifierOption, deleteModifierOption,
   setItemModifiers,
   addDiscountRule, updateDiscountRule, deleteDiscountRule
@@ -965,6 +965,19 @@ function Admin() {
       }
     };
     runMenuWrite(updatedMenu, () => setModifierGroupHidden(groupKey, next));
+  };
+
+  // Cashier-only toggle: hide a group from the public menu + online orders only.
+  const handleToggleModifierGroupPublicHidden = (groupKey) => {
+    const next = !menuData.modifierGroupSettings?.[groupKey]?.publicHidden;
+    const updatedMenu = {
+      ...menuData,
+      modifierGroupSettings: {
+        ...(menuData.modifierGroupSettings || {}),
+        [groupKey]: { ...(menuData.modifierGroupSettings?.[groupKey] || {}), publicHidden: next }
+      }
+    };
+    runMenuWrite(updatedMenu, () => setModifierGroupPublicHidden(groupKey, next));
   };
 
   // Hide/show a single menu item from the Register (POS) grid only.
@@ -2227,6 +2240,7 @@ function Admin() {
             handleUpdateModifierOption={handleUpdateModifierOption}
             handleToggleModifierGroupMulti={handleToggleModifierGroupMulti}
             handleToggleModifierGroupHidden={handleToggleModifierGroupHidden}
+            handleToggleModifierGroupPublicHidden={handleToggleModifierGroupPublicHidden}
           />
         )}
 
