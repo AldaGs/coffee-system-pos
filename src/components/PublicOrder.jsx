@@ -20,6 +20,8 @@ const PinMap = lazy(() => import('./PinMap'));
 
 const CUSTOMER_KEY = 'tinypos_order_customer';
 const HISTORY_KEY = 'tinypos_order_history';
+// In-progress order (cart + checkout form), so a reload doesn't lose it. Cleared on submit.
+const DRAFT_KEY = 'tinypos_order_draft';
 const MAX_HISTORY = 10;
 
 const readJson = (key, fallback) => {
@@ -150,15 +152,16 @@ function Order({ client, lang, setLang }) {
   const [gate, setGate] = useState(null); // null = open, else an error code
   const [loadErr, setLoadErr] = useState(null);
   const [activeCat, setActiveCat] = useState(null);
-  const [cart, setCart] = useState([]); // { key, id, qty, mods: [optionId] }
+  const draft = useMemo(() => readJson(DRAFT_KEY, {}), []);
+  const [cart, setCart] = useState(() => draft.cart || []); // { key, id, qty, mods: [optionId] }
   const [picking, setPicking] = useState(null); // { item, mods }
   const [checkingOut, setCheckingOut] = useState(false);
-  const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}) }));
+  const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}), ...draft.customer }));
   const [history, setHistory] = useState(() => readJson(HISTORY_KEY, []));
-  const [notes, setNotes] = useState('');
-  const [pickup, setPickup] = useState('');
+  const [notes, setNotes] = useState(draft.notes || '');
+  const [pickup, setPickup] = useState(draft.pickup || '');
   const [feeCents, setFeeCents] = useState(null); // null = delivery not offered
-  const [orderType, setOrderType] = useState('pickup');
+  const [orderType, setOrderType] = useState(draft.orderType || 'pickup');
   const [sending, setSending] = useState(false);
   const [formErr, setFormErr] = useState(null);
   const s = STR[lang] || STR.es;
@@ -188,6 +191,13 @@ function Order({ client, lang, setLang }) {
     (data?.categories || []).forEach((c) => c.items.forEach((i) => m.set(i.id, i)));
     return m;
   }, [data]);
+  useEffect(() => {
+    writeJson(DRAFT_KEY, { cart, customer, notes, pickup, orderType });
+  }, [cart, customer, notes, pickup, orderType]);
+  // Drop restored lines whose item left the menu or sold out since the draft was saved.
+  useEffect(() => {
+    if (data) setCart((prev) => prev.filter((l) => itemsById.has(l.id) && itemsById.get(l.id).available !== false));
+  }, [data, itemsById]);
   const optionPrice = (id) => {
     for (const g of groups.values()) { const o = g.options.find((x) => x.id === id); if (o) return o.price_delta_cents || 0; }
     return 0;
@@ -244,7 +254,7 @@ function Order({ client, lang, setLang }) {
     setCheckingOut(true);
   };
   const forget = () => {
-    removeKey(CUSTOMER_KEY); removeKey(HISTORY_KEY);
+    removeKey(CUSTOMER_KEY); removeKey(HISTORY_KEY); removeKey(DRAFT_KEY);
     setCustomer({ name: '', phone: '', address: '', lat: null, lng: null }); setHistory([]);
     setFormErr(s.forgot);
   };
@@ -263,6 +273,7 @@ function Order({ client, lang, setLang }) {
     setSending(false);
     if (err) { const c = errCode(err); setFormErr(s[c] || (c && c.startsWith('online_orders') ? s.notOpen : s.generic)); return; }
     writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone, address: customer.address || '', lat: customer.lat ?? null, lng: customer.lng ?? null });
+    removeKey(DRAFT_KEY);
     writeJson(HISTORY_KEY, [{ token, total_cents: grand, items: cart.map((l) => ({ id: l.id, qty: l.qty, mods: l.mods })) }, ...history].slice(0, MAX_HISTORY));
     window.location.assign(`/order/track/${token}${window.location.search}`);
   };
