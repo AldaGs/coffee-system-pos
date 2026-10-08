@@ -119,8 +119,11 @@ export function makeRefund(env, fetch) {
   const CLIP = {
     status: 'https://api.payclip.com/v2/checkout/',
     refund: 'https://api.payclip.com/refunds',
-    // payment_id is the transaction behind the checkout link (seen on a real payment).
-    body: (link, reason) => ({ amount: link.amount, reason, reference: { type: 'transaction', id: link.payment_id } }),
+    // A checkout exposes both payment_id and receipt_no. The first live try with
+    // type 'transaction' + payment_id got 404 "Not Found", so receipt_no is tried
+    // when the transaction reference 404s.
+    refs: (link) => [['transaction', link.payment_id], ['receipt', link.receipt_no]].filter(([, id]) => id),
+    body: (link, reason, [type, id]) => ({ amount: link.amount, reason, reference: { type, id } }),
   };
   const base = env('SUPABASE_URL');
   const key = env('SUPABASE_SERVICE_ROLE_KEY');
@@ -154,15 +157,20 @@ export function makeRefund(env, fetch) {
       const auth = 'Basic ' + btoa(`${creds.api_key}:${creds.api_secret}`);
 
       const link = await (await fetch(CLIP.status + encodeURIComponent(order.clip_payment_id), { headers: { Authorization: auth } })).json().catch(() => null);
-      if (!link?.payment_id || !(link.amount > 0)) return out({ error: 'clip_lookup_failed' }, 502);
+      const refs = CLIP.refs(link || {});
+      if (!refs.length || !(link.amount > 0)) return out({ error: 'clip_lookup_failed' }, 502);
 
-      const res = await fetch(CLIP.refund, {
-        method: 'POST',
-        // One-minute idempotency window: a double tap can't refund twice.
-        headers: { Authorization: auth, 'Content-Type': 'application/json', 'idempotency-key': `refund-${order.id}` },
-        body: JSON.stringify(CLIP.body(link, String(reason || 'Reembolso').slice(0, 120))),
-      });
-      const r = await res.json().catch(() => ({}));
+      let res, r;
+      for (const ref of refs) {
+        res = await fetch(CLIP.refund, {
+          method: 'POST',
+          // One-minute idempotency window: a double tap can't refund twice.
+          headers: { Authorization: auth, 'Content-Type': 'application/json', 'idempotency-key': `refund-${order.id}-${ref[0]}` },
+          body: JSON.stringify(CLIP.body(link, String(reason || 'Reembolso').slice(0, 120), ref)),
+        });
+        r = await res.json().catch(() => ({}));
+        if (res.status !== 404) break;
+      }
       if (!res.ok) return out({ error: 'clip_refused', status: res.status, code: r?.error_code || r?.code || null, message: r?.message || r?.detail || null }, 409);
 
       await rest(`online_orders?id=eq.${order.id}`, { method: 'PATCH', body: JSON.stringify({ payment_status: 'refunded' }) });

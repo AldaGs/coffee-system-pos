@@ -82,8 +82,8 @@ describe('clip-refund', () => {
     ['app_users', () => json(staff)],
     ['online_orders?active_ticket_id', () => json([{ id: 9, clip_payment_id: 'pr1' }])],
     ['clip_credentials', () => json([{ api_key: 'k', api_secret: 's' }])],
-    ['v2/checkout/pr1', () => json({ amount: 125.5, payment_id: 'tx1' })],
-    ['payclip.com/refunds', () => clipRefund],
+    ['v2/checkout/pr1', () => json({ amount: 125.5, payment_id: 'tx1', receipt_no: 'RC1' })],
+    ['payclip.com/refunds', () => (typeof clipRefund === 'function' ? clipRefund() : clipRefund)],
     ['online_orders?id=eq.9', () => json([])],
   ];
 
@@ -94,6 +94,15 @@ describe('clip-refund', () => {
     const body = JSON.parse(calls.find((c) => c.url.endsWith('/refunds')).init.body);
     expect(body).toEqual({ amount: 125.5, reason: 'x', reference: { type: 'transaction', id: 'tx1' } });
     expect(JSON.parse(calls.find((c) => c.url.includes('online_orders?id=eq.9')).init.body)).toEqual({ payment_status: 'refunded' });
+  });
+
+  it('retries with the receipt number when Clip 404s the transaction id', async () => {
+    let n = 0;
+    const { f, calls } = fakeFetch(routes([{ auth_user_id: 'u1' }], () => (++n === 1 ? { ok: false, status: 404, json: async () => ({ message: 'Not Found' }) } : { ok: true, status: 200, json: async () => ({ id: 'rf2' }) })));
+    const res = await makeRefund(env, f)(req({ ticket_id: 123 }));
+    expect((await res.json()).ok).toBe(true);
+    const refs = calls.filter((c) => c.url.endsWith('/refunds')).map((c) => JSON.parse(c.init.body).reference);
+    expect(refs).toEqual([{ type: 'transaction', id: 'tx1' }, { type: 'receipt', id: 'RC1' }]);
   });
 
   it('rejects callers who are not staff, and records nothing when Clip refuses', async () => {

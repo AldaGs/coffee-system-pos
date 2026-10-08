@@ -15,15 +15,15 @@ const functionSql = (source, name, signature) => {
 
 describe('online order schema mirrors', () => {
   it('keeps the version and latest full schema synchronized', () => {
-    expect(APP_SCHEMA_VERSION).toBe('3.6');
+    expect(APP_SCHEMA_VERSION).toBe('3.7');
     expect(VERSION_ORDER.at(-1)).toBe(APP_SCHEMA_VERSION);
     const install = read('api/install.js');
     const start = install.indexOf('  const schemaQuery = `') + '  const schemaQuery = `'.length;
     const end = install.indexOf('\n  `;', start);
     const mirror = read('db/schema-latest.sql').replace(/^--[^\n]*\n--[^\n]*\n/, '');
     expect(strip(mirror)).toBe(strip(install.slice(start, end)));
-    expect(install).toContain("VALUES ('schema_version', '3.6', now())");
-    expect(read('src/components/SetupScreen.jsx')).toContain("VALUES ('schema_version', '3.6', now())");
+    expect(install).toContain("VALUES ('schema_version', '3.7', now())");
+    expect(read('src/components/SetupScreen.jsx')).toContain("VALUES ('schema_version', '3.7', now())");
   });
 
   it('keeps area, quote and place/status RPCs identical in the migration and both install paths', () => {

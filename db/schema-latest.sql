@@ -3505,6 +3505,6 @@
     -- 3.5: Clip pay window (set on accept); the Register voids unpaid orders past it.
     ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS pay_by timestamptz;
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '3.6', now())
+    VALUES ('schema_version', '3.7', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
