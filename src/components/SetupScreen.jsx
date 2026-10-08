@@ -1177,6 +1177,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             'slots',       (SELECT menu_data->'posSettings'->'onlineOrders'->'slots' FROM public.shop_settings WHERE id = 1),
             'payments',   (SELECT menu_data->'posSettings'->'onlineOrders'->'payments' FROM public.shop_settings WHERE id = 1),
             'schedule',    (SELECT menu_data->'posSettings'->'onlineOrders'->'schedule' FROM public.shop_settings WHERE id = 1),
+            'open_hours',  (SELECT menu_data->'posSettings'->'onlineOrders'->'openHours' FROM public.shop_settings WHERE id = 1),
             'logo', COALESCE(NULLIF((SELECT menu_data->'posSettings'->>'appBootLogo' FROM public.shop_settings WHERE id = 1), ''), (SELECT menu_data->'receiptSettings'->>'logo' FROM public.shop_settings WHERE id = 1))
           );
           IF v_kind = 'live' OR v_kind = 'designed' THEN
@@ -2782,14 +2783,22 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           IF COALESCE((v_cfg->>'paused')::boolean, false) THEN
             RAISE EXCEPTION 'online_orders_paused';
           END IF;
-          v_sched := v_cfg->'schedule';
-          IF v_sched IS NOT NULL AND jsonb_typeof(v_sched) = 'object' THEN
+          -- Store hours (openHours): open when 'always' or any rule matches now in shop tz.
+          -- Absent openHours = always open. (onlineOrders.schedule is delivery/pickup hours only.)
+          v_sched := v_cfg->'openHours';
+          IF v_sched IS NOT NULL AND jsonb_typeof(v_sched) = 'object'
+             AND COALESCE((v_sched->>'always')::boolean, false) = false THEN
             v_local := (now() AT TIME ZONE public.shop_timezone())::timestamp;
-            IF NOT public.schedule_matches(
-              COALESCE((v_sched->>'days')::int, 0),
-              NULLIF(v_sched->>'start', '')::time,
-              NULLIF(v_sched->>'end', '')::time,
-              NULL, NULL, v_local
+            IF NOT EXISTS (
+              SELECT 1 FROM jsonb_array_elements(
+                CASE WHEN jsonb_typeof(v_sched->'rules') = 'array' THEN v_sched->'rules' ELSE '[]'::jsonb END
+              ) r
+              WHERE public.schedule_matches(
+                COALESCE((r->>'days')::int, 0),
+                NULLIF(r->>'start', '')::time,
+                NULLIF(r->>'end', '')::time,
+                NULL, NULL, v_local
+              )
             ) THEN
               RAISE EXCEPTION 'online_orders_closed';
             END IF;
@@ -3032,7 +3041,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
           FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '2.8', now())
+        VALUES ('schema_version', '2.9', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

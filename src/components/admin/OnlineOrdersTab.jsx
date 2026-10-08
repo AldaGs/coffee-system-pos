@@ -9,8 +9,10 @@ import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
 // every device gets it through the normal posSettings sync.
 // slots: { enabled (default false: any future time),  interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
-// Shape: { enabled, paused, delivery: { enabled, feeCents }, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
-const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
+// openHours: { always, rules: [{ days: bitmask (mon = bit 0, 0 = every day), start: 'HH:MM', end: 'HH:MM' }] } = when orders are accepted (any rule matches; overnight wraps).
+// schedule?: { days, start, end } = delivery/pickup hours only (fallback for slots + ASAP); it no longer gates ordering.
+// Shape: { enabled, paused, delivery: { enabled, feeCents }, openHours, schedule }
+const DEFAULTS = { enabled: false, paused: false, openHours: { always: true, rules: [] }, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
@@ -35,6 +37,9 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const sched = form.schedule || { days: 0, start: '', end: '' };
   const days = bitmaskToDays(sched.days);
 
+  const oh = { ...DEFAULTS.openHours, ...(form.openHours || {}) };
+  const setOh = (patch) => setForm({ ...form, openHours: { ...oh, ...patch } });
+  const setRule = (i, patch) => setOh({ rules: oh.rules.map((x, n) => (n === i ? { ...x, ...patch } : x)) });
   const pay = { ...DEFAULTS.payments, ...(form.payments || {}) };
   const setPay = (patch) => setForm({ ...form, payments: { ...pay, ...patch } });
   const togglePay = (m) => setPay({ methods: pay.methods.includes(m) ? pay.methods.filter((x) => x !== m) : [...pay.methods, m] });
@@ -92,6 +97,60 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
         )}
 
         <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
+          <strong>{t('oo.storeHours')}</strong>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.storeHoursDesc')}</small>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!oh.always}
+              onChange={e => setOh({ always: e.target.checked, rules: !e.target.checked && !oh.rules.length ? [{ days: 0, start: '09:00', end: '21:00' }] : oh.rules })} />
+            <span>{t('oo.alwaysOpen')}</span>
+          </label>
+          {!oh.always && oh.rules.map((rule, i) => {
+            const rd = bitmaskToDays(rule.days);
+            return (
+              <div key={i} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', padding: '8px 0', borderTop: '1px dashed var(--border)' }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {DAY_ORDER.map(d => {
+                    const on = rd.includes(d);
+                    return (
+                      <button key={d} type="button"
+                        onClick={() => setRule(i, { days: daysToBitmask(on ? rd.filter(x => x !== d) : [...rd, d]) })}
+                        style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 800,
+                          background: on ? 'var(--brand-color)' : 'var(--bg-main)', color: on ? 'white' : 'var(--text-main)' }}
+                      >{DAY_ES[d]}</button>
+                    );
+                  })}
+                </div>
+                <input type="time" value={rule.start} onChange={e => setRule(i, { start: e.target.value })} style={input} />
+                <span>–</span>
+                <input type="time" value={rule.end} onChange={e => setRule(i, { end: e.target.value })} style={input} />
+                <button type="button" onClick={() => setOh({ rules: oh.rules.filter((_, n) => n !== i) })}
+                  style={{ ...input, cursor: 'pointer' }}>{t('oo.removeHours')}</button>
+              </div>
+            );
+          })}
+          {!oh.always && (
+            <button type="button" onClick={() => setOh({ rules: [...oh.rules, { days: 0, start: '09:00', end: '21:00' }] })}
+              style={{ ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' }}>+ {t('oo.addHours')}</button>
+          )}
+        </div>
+
+        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
+          <strong>{t('oo.payments')}</strong>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.paymentsDesc')}</small>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {['cash', 'card', 'transfer'].map((m) => (
+              <label key={m} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
+                <input type="checkbox" checked={pay.methods.includes(m)} disabled={pay.methods.length === 1 && pay.methods.includes(m)} onChange={() => togglePay(m)} />
+                <span>{t(`check.${m}`)}</span>
+              </label>
+            ))}
+          </div>
+          {pay.methods.includes('transfer') && (
+            <textarea rows={3} maxLength={400} style={input} placeholder={t('oo.transferInfoPh')} value={pay.transferInfo} onChange={e => setPay({ transferInfo: e.target.value })} />
+          )}
+        </div>
+
+        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
           <strong>{t('oo.schedule')}</strong>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.scheduleDesc')}</small>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -111,22 +170,6 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <span>–</span>
             <input type="time" value={sched.end} onChange={e => setSched({ end: e.target.value })} style={input} />
           </div>
-        </div>
-
-        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
-          <strong>{t('oo.payments')}</strong>
-          <small style={{ color: 'var(--text-muted)' }}>{t('oo.paymentsDesc')}</small>
-          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {['cash', 'card', 'transfer'].map((m) => (
-              <label key={m} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
-                <input type="checkbox" checked={pay.methods.includes(m)} disabled={pay.methods.length === 1 && pay.methods.includes(m)} onChange={() => togglePay(m)} />
-                <span>{t(`check.${m}`)}</span>
-              </label>
-            ))}
-          </div>
-          {pay.methods.includes('transfer') && (
-            <textarea rows={3} maxLength={400} style={input} placeholder={t('oo.transferInfoPh')} value={pay.transferInfo} onChange={e => setPay({ transferInfo: e.target.value })} />
-          )}
         </div>
 
         <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>

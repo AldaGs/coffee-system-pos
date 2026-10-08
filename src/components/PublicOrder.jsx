@@ -9,6 +9,7 @@
 // localStorage only. Connection bootstrap mirrors PublicMenu (?p= ref,
 // custom domain, legacy ?u=&k=).
 
+import { isOpenNow, nextOpening, formatHours } from '../utils/pickupSlots';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
@@ -48,8 +49,8 @@ const PAY_ICON = { cash: 'lucide:banknote', card: 'lucide:credit-card', transfer
 const STR = {
   es: {
     loading: 'Cargando…', notOpen: 'No estamos aceptando pedidos en este momento.',
-    paused: 'Los pedidos en línea están en pausa. Intenta de nuevo en un rato.',
-    closed: 'Fuera del horario de pedidos.', badLink: 'Enlace inválido. Pide al negocio un enlace actualizado.',
+    paused: 'No estamos recibiendo pedidos por el momento.',
+    closed: 'Cerrado por ahora', opensAt: 'Abrimos {when}', today: 'hoy', tomorrow: 'mañana', hoursTitle: 'Horario de la tienda', allDays: 'Todos los días', dayNames: ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'], badLink: 'Enlace inválido. Pide al negocio un enlace actualizado.',
     noMenu: 'El menú no está disponible para pedidos.', soldOut: 'Agotado', add: 'Agregar',
     options: 'Opciones', choose: 'Elige tus opciones', addToCart: 'Agregar al pedido', cancel: 'Cancelar',
     cart: 'Tu pedido', empty: 'Aún no agregas nada.', total: 'Total', checkout: 'Hacer pedido',
@@ -74,8 +75,8 @@ const STR = {
   },
   en: {
     loading: 'Loading…', notOpen: 'We are not accepting orders right now.',
-    paused: 'Online orders are paused. Please try again in a bit.',
-    closed: 'Outside ordering hours.', badLink: 'Invalid link. Ask the shop for an updated link.',
+    paused: 'We are not taking orders right now.',
+    closed: 'Closed for now', opensAt: 'We open {when}', today: 'today', tomorrow: 'tomorrow', hoursTitle: 'Store hours', allDays: 'Every day', dayNames: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], badLink: 'Invalid link. Ask the shop for an updated link.',
     noMenu: 'The menu is not available for ordering.', soldOut: 'Sold out', add: 'Add',
     options: 'Options', choose: 'Choose your options', addToCart: 'Add to order', cancel: 'Cancel',
     cart: 'Your order', empty: 'Nothing added yet.', total: 'Total', checkout: 'Place order',
@@ -227,6 +228,20 @@ function Order({ client, lang, setLang }) {
     return () => { cancelled = true; };
   }, [client, setLang]);
 
+  // Re-check the gate every minute so the page unlocks (or locks) without a reload.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    if (!data) return undefined;
+    const id = setInterval(async () => {
+      const probe = await client.rpc('public_place_order', { payload: { check: true } });
+      const m = /^open:(d+)$/.exec(String(probe.data || ''));
+      setFeeCents(m ? Number(m[1]) : null);
+      setGate(probe.error ? (errCode(probe.error) || 'online_orders_disabled') : null);
+      setTick((n) => n + 1);
+    }, 60000);
+    return () => clearInterval(id);
+  }, [client, data]);
+
   const groups = useMemo(() => new Map((data?.modifier_groups || []).map((g) => [g.id, g])), [data]);
   const itemsById = useMemo(() => {
     const m = new Map();
@@ -269,12 +284,9 @@ function Order({ client, lang, setLang }) {
   const fmt = (c) => formatForDisplay(c, lang);
 
   const openCart = () => (wide ? asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setCheckingOut(true));
-  const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} cartCount={count} onCart={openCart} cartLabel={s.cart} />;
-
-  if (gate) {
-    const msg = gate === 'online_orders_paused' ? s.paused : gate === 'online_orders_closed' ? s.closed : s.notOpen;
-    return <div style={pageStyle}>{header}<div style={{ padding: 32, textAlign: 'center', color: '#555' }}>{msg}</div></div>;
-  }
+  const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} cartCount={count} onCart={gate ? null : openCart} cartLabel={s.cart} />;
+  // Not taking orders (closed / paused / disabled): same menu, read-only, with a banner on top.
+  const banner = gate && <GateBanner s={s} gate={gate} shop={data.shop} />;
   if (categories.length === 0) return <div style={pageStyle}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></div>;
 
   const addLine = (id, mods) => {
@@ -466,7 +478,8 @@ function Order({ client, lang, setLang }) {
 
   const menuCol = (
     <div style={{ minWidth: 0 }}>
-      {last && !checkingOut && (
+      {banner}
+      {last && !gate && !checkingOut && (
         <div style={{ padding: '12px 16px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button type="button" onClick={repeatLast} style={{ ...inputStyle, width: 'auto', cursor: 'pointer', fontWeight: 700, color: brand, border: `1px solid ${brand}` }}>{s.repeat}</button>
           <a href={`/order/track/${last.token}${window.location.search}`} style={{ alignSelf: 'center', color: brand, fontWeight: 700 }}>{s.pastOrders}</a>
@@ -495,7 +508,7 @@ function Order({ client, lang, setLang }) {
                 <div style={{ fontWeight: 700 }}>{it.name}</div>
                 <div style={{ color: '#666' }}>{out && it.available === false ? s.soldOut : fmt(it.price_cents)}</div>
               </div>
-              {!out && <button type="button" onClick={() => onAdd(it)} style={{ background: brand, color: 'white', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 800, cursor: 'pointer' }}>{s.add}</button>}
+              {!out && !gate && <button type="button" onClick={() => onAdd(it)} style={{ background: brand, color: 'white', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 800, cursor: 'pointer' }}>{s.add}</button>}
             </li>
           );
         })}
@@ -507,7 +520,7 @@ function Order({ client, lang, setLang }) {
   return (
     <div style={pageStyle}>
       {header}
-      {wide ? (
+      {wide && !gate ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, maxWidth: 1200, margin: '0 auto', padding: '0 24px', alignItems: 'start' }}>
           {menuCol}
           <aside ref={asideRef} style={{ position: 'sticky', top: 16, marginTop: 16, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', background: 'white', borderRadius: 16, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
@@ -516,14 +529,14 @@ function Order({ client, lang, setLang }) {
         </div>
       ) : menuCol}
 
-      {!wide && count > 0 && !checkingOut && (
+      {!wide && !gate && count > 0 && !checkingOut && (
         <button type="button" onClick={() => setCheckingOut(true)}
           style={{ position: 'fixed', left: 16, right: 16, bottom: 16, background: brand, color: 'white', border: 'none', borderRadius: 14, padding: 16, fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
           {s.cart} ({count}) · {fmt(total)}
         </button>
       )}
 
-      {picking && (
+      {picking && !gate && (
         <Sheet onClose={() => setPicking(null)}>
           <h3 style={{ marginTop: 0 }}>{picking.item.name}</h3>
           {(picking.item.modifier_group_ids || []).map((gid) => groups.get(gid)).filter(Boolean).map((g) => (
@@ -543,7 +556,29 @@ function Order({ client, lang, setLang }) {
         </Sheet>
       )}
 
-      {!wide && checkingOut && <Sheet onClose={() => setCheckingOut(false)}>{cartBody}</Sheet>}
+      {!wide && !gate && checkingOut && <Sheet onClose={() => setCheckingOut(false)}>{cartBody}</Sheet>}
+    </div>
+  );
+}
+
+// Read-only banner: why orders are off, when we open next, and the store hours by day.
+function GateBanner({ s, gate, shop }) {
+  const tz = shop?.timezone || 'America/Mexico_City';
+  let text = gate === 'online_orders_paused' ? s.paused : gate === 'online_orders_closed' ? s.closed : s.notOpen;
+  const lines = gate === 'online_orders_closed' ? formatHours(shop?.open_hours, s.dayNames, s.allDays) : [];
+  if (gate === 'online_orders_closed' && !isOpenNow(shop?.open_hours, { tz })) {
+    const n = nextOpening(shop?.open_hours, { tz });
+    if (n) text += ' · ' + s.opensAt.replace('{when}', `${n.dayOffset === 0 ? s.today : n.dayOffset === 1 ? s.tomorrow : s.dayNames[n.dow]} ${n.time}`);
+  }
+  return (
+    <div role="status" style={{ margin: '12px 16px 0', padding: '14px 16px', borderRadius: 12, background: '#fff4e5', border: '1px solid #f5d9a8', color: '#5a3b00' }}>
+      <div style={{ fontWeight: 800 }}>{text}</div>
+      {lines.length > 0 && (
+        <details open style={{ marginTop: 6 }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>{s.hoursTitle}</summary>
+          <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>{lines.map((l) => <li key={l}>{l}</li>)}</ul>
+        </details>
+      )}
     </div>
   );
 }

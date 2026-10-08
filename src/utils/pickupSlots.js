@@ -82,3 +82,53 @@ export function asapOk(ctx) {
   const f = firstSlot({ ...ctx, now });
   return f == null || f <= now + (r.leadMinutes + r.interval) * 60000;
 }
+
+// ---- Store hours (onlineOrders.openHours): when orders are accepted. Mirrors the server gate in
+// public_place_order (schema 2.9): open = always OR any rule matches the shop-tz wall clock
+// (rule.days bitmask, mon = bit 0, 0 = every day; same start/end semantics incl. overnight wrap).
+// Absent openHours = always open.
+const ruleOpen = (r, dow, t) => {
+  const a = toMin(r.start), b = toMin(r.end);
+  if (r.days && !(r.days & (1 << dow))) return false;
+  return a <= b ? t >= a && t < b : t >= a || t < b;
+};
+const wallNow = (now, tz) => {
+  const p = parts(now, tz);
+  return { dow: (new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay() + 6) % 7, t: p.h * 60 + p.mi };
+};
+export const alwaysOpen = (oh) => !oh || oh.always === true || !Array.isArray(oh.rules);
+
+export function isOpenNow(oh, { now = Date.now(), tz }) {
+  if (alwaysOpen(oh)) return true;
+  const { dow, t } = wallNow(now, tz);
+  return oh.rules.some((r) => ruleOpen(r, dow, t));
+}
+
+// Next opening within 7 days: { dayOffset (0 = today), dow (0 = Mon), time: 'HH:MM' }, or null
+// if always open / never opens. Walks wall-clock minutes (a DST shift can move it by an hour).
+export function nextOpening(oh, { now = Date.now(), tz }) {
+  if (alwaysOpen(oh)) return null;
+  const { dow: d0, t: t0 } = wallNow(now, tz);
+  for (let m = 1; m <= 7 * 1440; m++) {
+    const abs = t0 + m, dayOffset = Math.floor(abs / 1440), t = abs % 1440, dow = (d0 + dayOffset) % 7;
+    if (oh.rules.some((r) => ruleOpen(r, dow, t))) return { dayOffset, dow, time: `${Math.floor(t / 60)}:${p2(t % 60)}` };
+  }
+  return null;
+}
+
+// Human lines per rule, e.g. "Lun–Vie 9:00–14:00". dayNames = 7 labels starting Monday; allDays = label for bitmask 0/127.
+export function formatHours(oh, dayNames, allDays) {
+  if (alwaysOpen(oh)) return [];
+  const hm = (x) => String(x).replace(/^0/, '');
+  return oh.rules.map((r) => {
+    const on = [0, 1, 2, 3, 4, 5, 6].filter((d) => !r.days || r.days & (1 << d));
+    let label;
+    if (on.length === 7) label = allDays;
+    else {
+      const runs = []; // contiguous runs: 3+ days collapse to "A–B"
+      for (const d of on) { const l = runs[runs.length - 1]; if (l && l[1] === d - 1) l[1] = d; else runs.push([d, d]); }
+      label = runs.map(([a, b]) => (b - a >= 2 ? `${dayNames[a]}–${dayNames[b]}` : a === b ? dayNames[a] : `${dayNames[a]}, ${dayNames[b]}`)).join(', ');
+    }
+    return `${label} ${hm(r.start)}–${hm(r.end)}`;
+  });
+}
