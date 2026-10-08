@@ -586,6 +586,8 @@ function Track({ client, token, lang, setLang }) {
     .flatMap((c) => c.items)
     .filter((i) => i.available !== false && i.price_type === 'fixed' && (sc.mode !== 'items' || (sc.items || []).includes(i.id)))
     .slice(0, 12);
+  // One marquee copy holds at least 6 cards so a short list still fills the strip.
+  const loop = picks.length ? Array.from({ length: Math.ceil(6 / picks.length) }, () => picks).flat() : [];
   const addFromShowcase = (id) => {
     const d = readJson(DRAFT_KEY, {});
     const cart = d.cart || [];
@@ -597,7 +599,7 @@ function Track({ client, token, lang, setLang }) {
   const label = (st) => (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
     <div style={pageStyle}>
-      <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.tp-spin{animation:none!important}}'}</style>
+      <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}@keyframes tp-marquee{to{transform:translateX(-50%)}}.tp-track{animation:tp-marquee linear infinite}.tp-marquee:hover .tp-track,.tp-marquee:active .tp-track{animation-play-state:paused}@media (prefers-reduced-motion:reduce){.tp-spin,.tp-track{animation:none!important}.tp-marquee{overflow-x:auto!important}}'}</style>
       <ShopHeader shop={shop || { brand_color: brand }} lang={lang} setLang={setLang} />
       <div style={{ maxWidth: 480, margin: '0 auto', padding: 24 }}>
         <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -635,15 +637,19 @@ function Track({ client, token, lang, setLang }) {
         {picks.length > 0 && (
           <div style={{ marginTop: 24 }}>
             <h3 style={{ margin: '0 0 8px' }}>{s.mightLike}</h3>
-            <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 6 }}>
-              {picks.map((it) => (
-                <button key={it.id} type="button" onClick={() => addFromShowcase(it.id)}
-                  style={{ flex: '0 0 120px', border: '1px solid #ddd', borderRadius: 12, background: 'white', padding: 8, cursor: 'pointer', textAlign: 'center' }}>
-                  {it.image_url ? <img src={it.image_url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10 }} /> : <div style={{ fontSize: '2rem', height: 80, lineHeight: '80px' }}>{it.emoji}</div>}
-                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{it.name}</div>
-                  <div style={{ color: '#666', fontSize: '0.85rem' }}>{formatForDisplay(it.price_cents, lang)}</div>
-                </button>
-              ))}
+            {/* Infinite marquee: the row is rendered twice and slid by exactly one copy (-50%).
+                Short lists repeat to fill the strip; reduced-motion users get a static, scrollable row. */}
+            <div className="tp-marquee" style={{ overflow: 'hidden', paddingBottom: 6 }}>
+              <div className="tp-track" style={{ display: 'flex', width: 'max-content', animationDuration: `${Math.max(loop.length, 3) * 3}s` }}>
+                {[...loop, ...loop].map((it, i) => (
+                  <button key={i} type="button" onClick={() => addFromShowcase(it.id)} aria-hidden={i >= loop.length || undefined} tabIndex={i >= loop.length ? -1 : 0}
+                    style={{ flex: '0 0 120px', marginRight: 10, border: '1px solid #ddd', borderRadius: 12, background: 'white', padding: 8, cursor: 'pointer', textAlign: 'center' }}>
+                    {it.image_url ? <img src={it.image_url} alt="" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10 }} /> : <div style={{ fontSize: '2rem', height: 80, lineHeight: '80px' }}>{it.emoji}</div>}
+                    <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{it.name}</div>
+                    <div style={{ color: '#666', fontSize: '0.85rem' }}>{formatForDisplay(it.price_cents, lang)}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
