@@ -178,10 +178,13 @@ export async function expireClipOrder(order, reason) {
   const { data } = await supabase.from('online_orders')
     .update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() })
     .eq('id', order.id).eq('payment_status', 'unpaid').in('status', ['accepted', 'preparing', 'ready']).select('id');
-  if (!data?.length || order.active_ticket_id == null) return;
-  await cancelTicketEverywhere(order.active_ticket_id, reason);
-  await db.active_tickets.delete(order.active_ticket_id).catch(() => {});
-  await pushActiveTicketDeletion(order.active_ticket_id);
+  if (!data?.length) return false;
+  if (order.active_ticket_id != null) {
+    await cancelTicketEverywhere(order.active_ticket_id, reason);
+    await db.active_tickets.delete(order.active_ticket_id).catch(() => {});
+    await pushActiveTicketDeletion(order.active_ticket_id);
+  }
+  return true; // this station won the expiry (others get false)
 }
 
 // Fully refunding a completed sale reopens nothing, but the customer's tracker

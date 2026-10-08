@@ -396,6 +396,7 @@ function Register() {
   });
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+  const [clipDeadlines, setClipDeadlines] = useState({}); // ticketId -> auto-cancel time (unpaid Clip orders)
 
   useEffect(() => {
     localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue));
@@ -1003,14 +1004,14 @@ function Register() {
     handleOpenCheckout, handlePartialPayment, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
     handleRedeemReward, handleDetachLoyalty, handleAttachCustomer, setLoyaltyModal, loyaltyModal,
     pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket,
-    handleSendToKds, setIsHelpModalOpen
+    handleSendToKds, setIsHelpModalOpen, clipDeadlines
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
     cartTotal, enrichedActiveTicket, menuData, posSettings, activeCashier,
     isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
     activeTicketId, visibleTickets, cartSubtotal,
     autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
-    loyaltyModal, pendingItem
+    loyaltyModal, pendingItem, clipDeadlines
   ]);
 
   // --- 1. LOCK SCREEN GUARD ---
@@ -1176,7 +1177,7 @@ function Register() {
         {posSettings?.onlineOrders?.enabled && !isLocalMode() && (
           <OnlineOrdersInbox
             tickets={tickets} activeCashier={activeCashier} myDeviceId={myDeviceId} menuData={menuData} activeTicketId={activeTicketId} nextOrderNum={nextOrderNum} setNextOrderNum={setNextOrderNum}
-            kdsEnabled={!!posSettings?.kdsEnabled} handleSendToKds={handleSendToKds} clipPayMinutes={posSettings?.onlineOrders?.payments?.clipMinutes}
+            kdsEnabled={!!posSettings?.kdsEnabled} handleSendToKds={handleSendToKds} clipPayMinutes={posSettings?.onlineOrders?.payments?.clipMinutes} setClipDeadlines={setClipDeadlines}
             setActiveTicketId={setActiveTicketId} showAlert={showAlert} showPrompt={showPrompt} showToast={showToast}
           />
         )}

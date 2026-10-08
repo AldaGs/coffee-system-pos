@@ -49,7 +49,7 @@ function beep() {
 // and the preparing/ready steps (manual, or driven by the KDS).
 export default function OnlineOrdersInbox({
   tickets, activeCashier, myDeviceId, menuData, activeTicketId, nextOrderNum, setNextOrderNum, kdsEnabled, handleSendToKds,
-  setActiveTicketId, showAlert, showPrompt, showToast, clipPayMinutes
+  setActiveTicketId, showAlert, showPrompt, showToast, clipPayMinutes, setClipDeadlines
 }) {
   const { t } = useTranslation();
   const [orders, setOrders] = useState([]);
@@ -62,19 +62,29 @@ export default function OnlineOrdersInbox({
   useEffect(() => { ordersRef.current = orders; }, [orders]);
 
   // Clip: a paid order's ticket goes to the kitchen; an unpaid one past its
-  // window is voided. Runs on every order/ticket change plus once a minute, so
+  // window is voided. Runs on every order/ticket change plus every 15s, so
   // it also catches payments that landed while no Register was open.
   // ponytail: every open station runs this; the conditional updates make expiry
   // single-winner, but two stations releasing at once could double-send a delivery.
   const [tick, setTick] = useState(0);
-  useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), 60000); return () => clearInterval(id); }, []);
+  useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), 15000); return () => clearInterval(id); }, []);
+  // Unpaid Clip deadlines by ticket id, for the waiting/overdue banner on the ticket.
+  useEffect(() => {
+    const map = {};
+    orders.forEach((o) => {
+      if (o.payment_method === 'clip' && o.payment_status !== 'paid' && o.pay_by && o.active_ticket_id != null) map[o.active_ticket_id] = Date.parse(o.pay_by) + CLIP_GRACE_MS;
+    });
+    setClipDeadlines?.((prev) => (JSON.stringify(prev) === JSON.stringify(map) ? prev : map));
+  }, [orders, setClipDeadlines]);
   useEffect(() => {
     orders.filter((o) => o.payment_method === 'clip' && o.active_ticket_id != null).forEach((o) => {
       const ticket = tickets.find((tk) => tk.id === o.active_ticket_id);
       if (o.payment_status === 'paid') {
         if (ticket) releaseClipOrder(o, ticket).catch((e) => console.warn('releaseClipOrder', e));
       } else if (o.pay_by && Date.parse(o.pay_by) + CLIP_GRACE_MS < Date.now()) {
-        expireClipOrder(o, t('oo.clipExpired')).catch((e) => console.warn('expireClipOrder', e));
+        expireClipOrder(o, t('oo.clipExpired'))
+          .then((won) => won && showAlert(t('oo.clipExpiredTitle'), t('oo.clipExpiredDesc').replace('{{n}}', o.order_num ?? '').replace('{{name}}', o.customer_name)))
+          .catch((e) => console.warn('expireClipOrder', e));
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps

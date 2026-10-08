@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePos } from '../../utils/PosContext';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Icon } from '@iconify/react';
@@ -10,6 +10,23 @@ import { supabase } from '../../supabaseClient';
 import { HoldToConfirm, MoneyCounter, SwipeActions, SwipeActionsRow, useToastStack } from '../ui/arc';
 import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../utils/cfdiUrl';
 import { isPaidOnline } from '../../services/onlineOrders';
+
+// Unpaid Clip order: amber while the customer can still pay, red once only the
+// grace period is left before the Register cancels it. Own 1s clock so only
+// this strip re-renders.
+function ClipWaitBanner({ cancelAt, t }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
+  const left = Math.max(0, Math.ceil((cancelAt - now) / 1000));
+  const overdue = cancelAt - now <= 5 * 60000; // inside the grace window: the customer's deadline passed
+  const mmss = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+  return (
+    <div style={{ marginBottom: '12px', padding: '8px 12px', borderRadius: '8px', background: overdue ? '#c0392b' : '#f39c12', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+      <Icon icon={overdue ? 'lucide:alarm-clock-off' : 'lucide:hourglass'} />
+      {(overdue ? t('oo.clipOverdue') : t('oo.clipWaiting')).replace('{{t}}', mmss)}
+    </div>
+  );
+}
 
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
@@ -31,7 +48,7 @@ function TicketArea({
     autoDiscountAmount, activeAutoRuleName, manualDiscountAmount,
     handleRemoveItem, handleOpenCheckout, handlePartialPayment, handleCancelTicket,
     requirePin, printRawReceipt, handleSaveAsPNG, handleUpdateItemQty, handleRenameTicket,
-    posSettings, activeCashier, handleSendToKds,
+    posSettings, activeCashier, handleSendToKds, clipDeadlines,
   } = usePos();
 
   const handleShareCFDI = (ticket) => {
@@ -215,6 +232,7 @@ function TicketArea({
                   <MoneyCounter cents={cartTotal} />
                 </div>
               )}
+              {clipDeadlines?.[activeTicket.id] && <ClipWaitBanner cancelAt={clipDeadlines[activeTicket.id]} t={t} />}
               {isPaidOnline(activeTicket) && (
                 <div style={{ marginBottom: '12px', padding: '8px 12px', borderRadius: '8px', background: '#27ae60', color: 'white', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                   <Icon icon="lucide:badge-check" /> {t('oo.paidBadge')}
