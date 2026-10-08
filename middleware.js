@@ -49,7 +49,15 @@ export default async function middleware(req) {
   // domain's root open the online-ordering page instead of the menu.
   const rewriteToMenu = (refValue) => {
     const [projectRef, page] = refValue.split(':');
-    const path = url.pathname === '/' ? (page === 'order' ? '/order' : '/menu') : url.pathname;
+    // Redirect (not rewrite): the SPA routes on the browser's URL, which a
+    // rewrite leaves at "/", so the app would still render the menu.
+    if (url.pathname === '/' && page === 'order') {
+      const to = new URL('/order', req.url);
+      url.searchParams.forEach((val, key) => to.searchParams.set(key, val));
+      to.searchParams.set('p', projectRef);
+      return new Response(null, { status: 307, headers: { Location: to.toString() } }); // mutable headers: Set-Cookie is appended below
+    }
+    const path = url.pathname === '/' ? '/menu' : url.pathname;
     const rewriteUrl = new URL(path, req.url);
     url.searchParams.forEach((val, key) => rewriteUrl.searchParams.set(key, val));
     rewriteUrl.searchParams.set('p', projectRef);
