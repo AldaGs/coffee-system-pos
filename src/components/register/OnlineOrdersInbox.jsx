@@ -165,8 +165,8 @@ export default function OnlineOrdersInbox({
             </a>
           </div>
         </div>, slot)}
-      <button type="button" onClick={() => setOpen(true)} aria-label={t('oo.inboxTitle')}
-        style={{ position: 'fixed', left: 16, bottom: 16, zIndex: 900, width: 52, height: 52, borderRadius: 999, border: 'none', cursor: 'pointer',
+      <button type="button" className="oo-fab" onClick={() => setOpen(true)} aria-label={t('oo.inboxTitle')}
+        style={{ position: 'fixed', left: 16, zIndex: 900, width: 52, height: 52, borderRadius: 999, border: 'none', cursor: 'pointer',
           background: pending ? '#e74c3c' : 'var(--brand-color)', color: 'white', fontSize: '1.4rem', boxShadow: '0 4px 14px rgba(0,0,0,0.3)' }}>
         <Icon icon="lucide:shopping-bag" />
         {orders.length > 0 && (

@@ -86,3 +86,7 @@ button:active {
     grid-template-columns: 1fr !important;
   }
 }
+
+/* Online-orders inbox button: sits above the ticket footer (Subtotal + Cobrar) on phones. */
+.oo-fab { bottom: 16px; }
+@media (max-width: 768px) { .oo-fab { bottom: 150px; } }
