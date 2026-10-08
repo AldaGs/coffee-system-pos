@@ -240,7 +240,7 @@ function Order({ client, lang, setLang }) {
   };
   const total = cart.reduce((a, l) => a + unitCents(l) * l.qty, 0);
   // Offered methods (default all three); a lone method is preselected.
-  const offered = PAY_METHODS.filter((m) => (data.shop?.payments?.methods?.length ? data.shop.payments.methods : PAY_METHODS).includes(m));
+  const offered = PAY_METHODS.filter((m) => (data?.shop?.payments?.methods?.length ? data.shop.payments.methods : PAY_METHODS).includes(m));
   const pay = offered.includes(payment) ? payment : offered.length === 1 ? offered[0] : '';
   const delivery = orderType === 'delivery' && feeCents != null;
   const grand = total + (delivery ? feeCents : 0);
