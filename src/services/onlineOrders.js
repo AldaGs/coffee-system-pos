@@ -53,6 +53,9 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
     cashier_id: activeCashier?.id,
     last_modified_by: myDeviceId,
     created_at: new Date().toISOString(),
+    // ponytail: pre-flagged so KDS immediate mode can't insert a 2nd row while
+    // the logistics insert below is in flight; sendOrderToLogistics rolls it back on failure.
+    ...(order.order_type === 'delivery' ? { kds_sent: true } : {}),
   };
 
   // Loyalty: only attach when the phone already belongs to a customer.
@@ -67,6 +70,11 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
   await db.active_tickets.add(ticket);
   pushActiveTicketCreate(ticket);
   await supabase.from('online_orders').update({ active_ticket_id: ticket.id }).eq('id', order.id);
+  // Delivery: hand it to tinylogistics now, so the courier sees it before payment (pay on delivery).
+  if (order.order_type === 'delivery') {
+    await sendOrderToLogistics({ ...order, active_ticket_id: ticket.id }, ticket)
+      .catch((e) => console.warn('Could not hand delivery order to logistics', e));
+  }
   return ticket.id;
 }
 

@@ -7,7 +7,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { menuBaseUrl } from '../../utils/customDomainSync';
 import {
-  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, sendOrderToLogistics, setOnlineOrderStatus
+  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus
 } from '../../services/onlineOrders';
 
 const LIVE = ['requested', 'accepted', 'preparing', 'ready'];
@@ -111,14 +111,6 @@ export default function OnlineOrdersInbox({
     await setOnlineOrderStatus(o.id, 'preparing');
   });
 
-  const toLogistics = (o) => run(o, async () => {
-    const ticket = tickets.find((tk) => tk.id === o.active_ticket_id);
-    // With the KDS on, go through its send path first so the row is created once.
-    if (ticket && kdsEnabled && !ticket.kds_sent) await handleSendToKds(ticket, { silent: true });
-    await sendOrderToLogistics(o, ticket);
-    showToast(t('oo.sentLogistics'));
-  });
-
   const pending = orders.filter((o) => o.status === 'requested').length;
   const btn = (bg) => ({ background: bg, color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontWeight: 700, cursor: 'pointer' });
 
@@ -134,9 +126,6 @@ export default function OnlineOrdersInbox({
                   </>)}
                   {(o.status === 'accepted' || o.status === 'preparing') && (
                     <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'ready'))} style={btn('#16a085')}>{t('oo.markReady')}</button>
-                  )}
-                  {o.order_type === 'delivery' && o.active_ticket_id != null && o.status !== 'requested' && (
-                    <button type="button" disabled={busy === o.id} onClick={() => toLogistics(o)} style={btn('#d35400')}>{t('oo.sendLogistics')}</button>
                   )}
                   <a href={`https://wa.me/${waPhone(o.phone)}?text=${encodeURIComponent(`${t('oo.trackMsg')} ${trackUrl(o.token)}`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn('#25D366'), textDecoration: 'none' }}>{t('oo.sendTrackLink')}</a>
   </>);
