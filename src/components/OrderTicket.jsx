@@ -6,11 +6,11 @@ import { formatForDisplay } from '../utils/moneyUtils';
 import { calculateItemizedTaxBreakdown } from '../utils/posMath';
 
 const TT = {
-  es: { total: 'Total', delivery: 'Envío', subtotal: 'Subtotal', iva: 'IVA', withIva: 'con IVA', zero: 'tasa 0' },
-  en: { total: 'Total', delivery: 'Delivery', subtotal: 'Subtotal', iva: 'VAT', withIva: 'incl. VAT', zero: '0% rate' },
+  es: { total: 'Total', delivery: 'Envío', subtotal: 'Subtotal', pending: 'Pendiente de confirmar', iva: 'IVA', withIva: 'con IVA', zero: 'tasa 0' },
+  en: { total: 'Total', delivery: 'Delivery', subtotal: 'Subtotal', pending: 'Pending confirmation', iva: 'VAT', withIva: 'incl. VAT', zero: '0% rate' },
 };
 
-function OrderTicket({ items = [], deliveryFeeCents = 0, totalCents, showIva = false, taxRate = 16, lang = 'es', style }) {
+function OrderTicket({ items = [], deliveryFeeCents = 0, totalCents, pendingShipping = false, showIva = false, taxRate = 16, lang = 'es', style }) {
   const tt = TT[lang] || TT.es;
   const fmt = (c) => formatForDisplay(c, lang);
   const fee = deliveryFeeCents || 0;
@@ -31,7 +31,7 @@ function OrderTicket({ items = [], deliveryFeeCents = 0, totalCents, showIva = f
           <span>{fmt(l.line_cents)}</span>
         </div>
       ))}
-      {fee > 0 && <div style={row}><span>{tt.delivery}</span><span>{fmt(fee)}</span></div>}
+      {(fee > 0 || pendingShipping) && <div style={row}><span>{tt.delivery}</span><span>{pendingShipping ? tt.pending : fmt(fee)}</span></div>}
       {tax && (
         <div style={{ borderTop: '1px solid #eee', marginTop: 8, paddingTop: 8, color: '#555' }}>
           <div style={row}><span>{tt.subtotal}</span><span>{fmt(tax.subtotal + (fee ? 0 : 0))}</span></div>
@@ -39,7 +39,7 @@ function OrderTicket({ items = [], deliveryFeeCents = 0, totalCents, showIva = f
         </div>
       )}
       <div style={{ ...row, fontWeight: 800, borderTop: '1px solid #eee', marginTop: 8, paddingTop: 8 }}>
-        <span>{tt.total}</span><span>{fmt(totalCents)}</span>
+        <span>{pendingShipping ? tt.subtotal : tt.total}</span><span>{fmt(totalCents)}</span>
       </div>
     </div>
   );

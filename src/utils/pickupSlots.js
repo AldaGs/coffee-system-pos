@@ -73,6 +73,12 @@ export function firstSlot(ctx) {
   return null;
 }
 
+// An automatic slot later on the shop's current calendar day is upcoming,
+// even when the browser (or UTC) is already on a different date.
+export function autoSlotIsToday(slotMs, now, tz) {
+  return toLocalInput(slotMs, tz).slice(0, 10) === toLocalInput(now, tz).slice(0, 10);
+}
+
 // "As soon as possible" only makes sense if a slot opens within lead + interval minutes.
 // With no slot at all it stays true so the server (hours check) decides.
 export function asapOk(ctx) {
@@ -81,6 +87,16 @@ export function asapOk(ctx) {
   const r = slotRules(ctx.slots, ctx.schedule);
   const f = firstSlot({ ...ctx, now });
   return f == null || f <= now + (r.leadMinutes + r.interval) * 60000;
+}
+
+// Checkout gate for both wizard navigation and final submission. A chosen day
+// without a time is not ASAP; ASAP only applies when no day was selected.
+export function checkoutSlotStatus({ value, selectedDate = '', now, tz, slots, schedule }) {
+  if (!value) return selectedDate ? 'missing-time' : asapOk({ now, tz, slots, schedule }) ? 'valid' : 'asap-unavailable';
+  const ms = Date.parse(value);
+  if (!Number.isFinite(ms) || selectedDate && toLocalInput(ms, tz).slice(0, 10) !== selectedDate) return 'invalid-time';
+  if (slots?.enabled) return slotValid(ms, { now, tz, slots, schedule }) ? 'valid' : 'invalid-time';
+  return ms > now && ms <= now + 14 * 86400000 ? 'valid' : 'invalid-time';
 }
 
 // ---- Store hours (onlineOrders.openHours): when orders are accepted. Mirrors the server gate in

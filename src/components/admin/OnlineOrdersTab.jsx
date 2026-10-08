@@ -1,11 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Icon } from '@iconify/react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useTranslation } from '../../hooks/useTranslation';
-import { toCents, fromCents } from '../../utils/moneyUtils';
+import { toCents, fromCents, formatForDisplay } from '../../utils/moneyUtils';
+import { validDeliveryArea } from '../../utils/deliveryAreas';
 import OrderTicket from '../OrderTicket';
 import LegalSection from './LegalSection';
 import MenuShareCard from './MenuShareCard';
 import { DAY_ORDER, daysToBitmask, bitmaskToDays, loadMenus } from '../../api/menus';
+
+const DeliveryAreaMap = lazy(() => import('./DeliveryAreaMap'));
+const DeliveryCoverageOverview = lazy(() => import('./DeliveryCoverageOverview'));
 
 // Online ordering settings. Stored at posSettings.onlineOrders so the
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
@@ -14,18 +19,41 @@ import { DAY_ORDER, daysToBitmask, bitmaskToDays, loadMenus } from '../../api/me
 // openHours: { always, rules: [{ days: bitmask (mon = bit 0, 0 = every day), start: 'HH:MM', end: 'HH:MM' }] } = when orders are accepted (any rule matches; overnight wraps).
 // schedule?: { days, start, end } = delivery/pickup hours only (fallback for slots + ASAP); it no longer gates ordering.
 // menuId: a Public Menus menu whose categories the order page shows (null = whichever menu is active now).
-// Shape: { enabled, paused, delivery: { enabled, feeCents }, openHours, schedule }
-const DEFAULTS = { enabled: false, paused: false, openHours: { always: true, rules: [] }, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
+// Shape: { enabled, paused, delivery: { enabled, shippingEnabled, areas }, openHours, schedule }
+const DEFAULTS = { enabled: false, paused: false, openHours: { always: true, rules: [] }, schedule: null, delivery: { enabled: false, shippingEnabled: false, areas: [] }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const { t, lang } = useTranslation();
   const saved = { ...DEFAULTS, ...(menuData?.posSettings?.onlineOrders || {}) };
   const [form, setForm] = useState(saved);
+  const persisted = useRef(saved);
+  const busyRef = useRef(false);
+  const [busy, setBusy] = useState(null);
+  const [editingAreaId, setEditingAreaId] = useState(null);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [menus, setMenus] = useState([]);
   useEffect(() => { loadMenus().then(setMenus).catch(() => {}); }, []);
-  const delivery = form.delivery || DEFAULTS.delivery;
+  // A cloud refresh can update settings while this tab holds local drafts.
+  // Keep the persisted base current without replacing any in-progress form edits.
+  useEffect(() => { persisted.current = { ...DEFAULTS, ...(menuData?.posSettings?.onlineOrders || {}) }; }, [menuData?.posSettings?.onlineOrders]);
+  const delivery = { ...DEFAULTS.delivery, ...(form.delivery || {}) };
   const setDelivery = (patch) => setForm({ ...form, delivery: { ...delivery, ...patch } });
+  const areas = delivery.areas || [];
+  const setArea = (id, patch) => setDelivery({ areas: areas.map((a) => a.id === id ? { ...a, ...patch } : a) });
+  const areaText = lang === 'en' ? {
+    title: 'Local delivery areas', desc: 'Set a radius or draw a street boundary. Higher priority wins where areas overlap. A pin on the boundary is inside.', editorHelp: 'Save each zone to keep its changes.',
+    add: 'Add area', openEditor: 'Open editor', closeEditor: 'Done', name: 'Area name', radius: 'Radius', polygon: 'Street boundary', km: 'Radius (km)', priority: 'Priority',
+    charge: 'Delivery charge', remove: 'Delete zone', corner: 'Remove corner', save: 'Save zone', active: 'Enabled', inactive: 'Disabled', unsaved: 'Unsaved changes', new: 'New zone', shipping: 'Offer shipping outside all areas',
+    shippingHelp: 'Outside addresses become requests with a pending shipping price. Staff must contact the customer and confirm the price before accepting the order.',
+    legacy: 'The old flat delivery fee is not used. Add and enable an area to offer local delivery.', invalid: 'Complete each enabled area with a name, price, and valid map boundary.',
+  } : {
+    title: 'Zonas de entrega local', desc: 'Define un radio o dibuja el límite por calles. La prioridad más alta gana si las zonas se superponen. El borde está incluido.', editorHelp: 'Guarda cada zona para conservar sus cambios.',
+    add: 'Agregar zona', openEditor: 'Abrir Editor', closeEditor: 'Listo', name: 'Nombre de zona', radius: 'Radio', polygon: 'Límite por calles', km: 'Radio (km)', priority: 'Prioridad',
+    charge: 'Costo de entrega', remove: 'Eliminar zona', corner: 'Quitar esquina', save: 'Guardar zona', active: 'Activa', inactive: 'Inactiva', unsaved: 'Cambios sin guardar', new: 'Zona nueva', shipping: 'Ofrecer envío fuera de las zonas',
+    shippingHelp: 'Las direcciones fuera de las zonas se reciben con el costo de envío pendiente. El personal debe contactar al cliente y confirmar el precio antes de aceptar el pedido.',
+    legacy: 'La tarifa fija anterior ya no se usa. Agrega y activa una zona para ofrecer entrega local.', invalid: 'Completa cada zona activa con nombre, precio y un límite válido en el mapa.',
+  };
   const showIva = !!form.ticket?.showIva;
   const sc = { ...DEFAULTS.trackShowcase, ...(form.trackShowcase || {}) };
   const setSc = (patch) => setForm({ ...form, trackShowcase: { ...sc, ...patch } });
@@ -38,7 +66,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const sample = picks.length ? picks : [
     { name: 'Americano', basePrice: 4500, ivaTreatment: 'iva16' }, { name: 'Croissant', basePrice: 3500, ivaTreatment: 'tasa0' }];
   const lines = sample.map((i) => ({ qty: 1, name: i.name, modifiers: [], line_cents: i.basePrice, iva: i.ivaTreatment || 'tasa0' }));
-  const fee = delivery.enabled ? delivery.feeCents || 0 : 0;
+  const fee = delivery.enabled ? areas.find((a) => a.enabled)?.feeCents || 0 : 0;
   const sched = form.schedule || { days: 0, start: '', end: '' };
   const days = bitmaskToDays(sched.days);
 
@@ -61,12 +89,57 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
     setForm({ ...form, schedule: (next.days || next.start || next.end) ? next : null });
   };
 
+  const commitSettings = async (nextOnline, busyKey) => {
+    if (busyRef.current) return false;
+    busyRef.current = true;
+    setBusy(busyKey);
+    try {
+      const result = await saveSettingsToCloud({
+        ...menuData,
+        posSettings: { ...menuData.posSettings, onlineOrders: nextOnline }
+      });
+      if (result === false) return false;
+      persisted.current = nextOnline;
+      showAlert(t('common.success'), t('oo.saved'));
+      return true;
+    } catch (error) {
+      showAlert(t('common.error'), error.message || String(error));
+      return false;
+    } finally {
+      busyRef.current = false;
+      setBusy(null);
+    }
+  };
+
   const save = async () => {
-    await saveSettingsToCloud({
-      ...menuData,
-      posSettings: { ...menuData.posSettings, onlineOrders: form }
-    });
-    showAlert(t('common.success'), t('oo.saved'));
+    if (areas.some((a) => a.enabled && !validDeliveryArea(a))) {
+      showAlert(t('common.error'), areaText.invalid);
+      return;
+    }
+    await commitSettings(form, 'all');
+  };
+
+  const saveArea = async (area) => {
+    if (!validDeliveryArea(area)) return showAlert(t('common.error'), areaText.invalid);
+    const baseline = persisted.current;
+    const baseDelivery = { ...DEFAULTS.delivery, ...(baseline.delivery || {}) };
+    const baseAreas = baseDelivery.areas || [];
+    const nextAreas = baseAreas.some((item) => item.id === area.id)
+      ? baseAreas.map((item) => item.id === area.id ? area : item)
+      : [...baseAreas, area];
+    await commitSettings({ ...baseline, delivery: { ...baseDelivery, areas: nextAreas } }, `save:${area.id}`);
+  };
+
+  const deleteArea = async (id) => {
+    const baseline = persisted.current;
+    const baseDelivery = { ...DEFAULTS.delivery, ...(baseline.delivery || {}) };
+    const baseAreas = baseDelivery.areas || [];
+    if (baseAreas.some((item) => item.id === id)) {
+      const nextOnline = { ...baseline, delivery: { ...baseDelivery, areas: baseAreas.filter((item) => item.id !== id) } };
+      if (!await commitSettings(nextOnline, `delete:${id}`)) return;
+    } else if (busyRef.current) return;
+    setForm((previous) => ({ ...previous, delivery: { ...previous.delivery, areas: (previous.delivery?.areas || []).filter((item) => item.id !== id) } }));
+    setEditingAreaId((current) => current === id ? null : current);
   };
 
   const row = { display: 'flex', alignItems: 'center', gap: 12, padding: '6px 0' };
@@ -79,7 +152,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>{t('oo.title')}</h1>
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.1rem' }}>{t('oo.subtitle')}</p>
         </div>
-        <button type="button" onClick={save}
+        <button type="button" onClick={save} disabled={!!busy}
           style={{ flexShrink: 0, padding: '14px 28px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: 16, cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
           <Icon icon="lucide:save" />{t('common.save')}
         </button>
@@ -102,13 +175,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <input type="checkbox" checked={!!delivery.enabled} onChange={e => setDelivery({ enabled: e.target.checked })} />
           <span><strong>{t('oo.deliveryOn')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.deliveryDesc')}</small></span>
         </label>
-        {delivery.enabled && (
-          <label style={{ ...row, paddingTop: 0 }}>
-            <span>{t('oo.deliveryFee')}</span>
-            <input type="number" min="0" step="0.5" style={{ ...input, width: 110 }}
-              value={fromCents(delivery.feeCents)} onChange={e => setDelivery({ feeCents: Math.max(0, toCents(e.target.value)) })} />
-          </label>
-        )}
+        {delivery.enabled && !!delivery.feeCents && !areas.length && <small style={{ color: '#ad6500' }}>{areaText.legacy}</small>}
 
           <label style={{ display: 'grid', gap: 6 }}>
             <strong>{t('oo.menu')}</strong>
@@ -118,6 +185,77 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             </select>
             <small style={{ color: 'var(--text-muted)' }}>{t('oo.menuDesc')}</small>
           </label>
+        </Card>
+
+        <Card icon="lucide:map" title={areaText.title}>
+          <small style={{ color: 'var(--text-muted)' }}>{areaText.desc}</small>
+          <label style={{ ...row, cursor: 'pointer' }}>
+            <input type="checkbox" disabled={!!busy} checked={!!delivery.shippingEnabled} onChange={(e) => setDelivery({ shippingEnabled: e.target.checked })} />
+            <strong>{areaText.shipping}</strong>
+          </label>
+          <small style={{ color: 'var(--text-muted)' }}>{areaText.shippingHelp}</small>
+          {areas.map((area) => <div key={area.id} style={{ borderTop: '1px solid var(--border)', paddingTop: '8px', display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <strong>{area.name || areaText.new}</strong>
+            <span>{area.kind === 'radius' ? areaText.radius : areaText.polygon}</span>
+            <span>{formatForDisplay(area.feeCents || 0, lang)}</span>
+          </div>)}
+          <Dialog.Root open={editorOpen} onOpenChange={setEditorOpen}>
+            <Dialog.Trigger asChild><button type="button" style={{ ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' }}>{areaText.openEditor}</button></Dialog.Trigger>
+            <Dialog.Portal>
+              <Dialog.Overlay style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(0,0,0,0.65)' }} />
+              <Dialog.Content style={{ position: 'fixed', inset: '3vh 3vw', maxWidth: 1100, margin: 'auto', zIndex: 2201, background: 'var(--bg-surface)', color: 'var(--text-main)', borderRadius: 16, boxShadow: '0 18px 50px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, padding: 16 }}>
+                <div style={{ display: 'grid', gap: 8 }}>
+                  <Dialog.Title style={{ margin: 0, fontSize: '1.1rem', lineHeight: 1.3 }}>{areaText.title}</Dialog.Title>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <button type="button" disabled={!!busy} style={{ ...input, cursor: 'pointer', fontWeight: 800 }} onClick={() => { const id = crypto.randomUUID(); setDelivery({ areas: [...areas, { id, name: '', enabled: true, kind: 'radius', center: null, radiusKm: 3, points: [], feeCents: 0, priority: 0 }] }); setEditingAreaId(id); }}>+ {areaText.add}</button>
+                    <Dialog.Close asChild><button type="button" style={{ ...input, cursor: 'pointer' }}>{areaText.closeEditor}</button></Dialog.Close>
+                  </div>
+                </div>
+                <Dialog.Description style={{ color: 'var(--text-muted)', margin: '8px 0 16px' }}>{areaText.desc} {areaText.editorHelp}</Dialog.Description>
+                <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'grid', alignContent: 'start', gap: 12, paddingRight: 4 }}>
+                  <Suspense fallback={<small>…</small>}><DeliveryCoverageOverview areas={areas} lang={lang} /></Suspense>
+                  {areas.map((area) => {
+                    const open = editingAreaId === area.id;
+                    const baselineArea = (persisted.current.delivery?.areas || []).find((item) => item.id === area.id);
+                    const dirty = !baselineArea || JSON.stringify(baselineArea) !== JSON.stringify(area);
+                    const detailsId = `delivery-area-${area.id}`;
+                    return <div key={area.id} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'grid', gap: 10 }}>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', minWidth: 0 }}>
+                        <button type="button" aria-expanded={open} aria-controls={detailsId} disabled={!!busy}
+                          onClick={() => setEditingAreaId((current) => current === area.id ? null : area.id)}
+                          style={{ ...input, cursor: 'pointer', flex: 1, minWidth: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Icon icon={open ? 'lucide:chevron-down' : 'lucide:chevron-right'} style={{ flexShrink: 0 }} />
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><strong>{area.name || areaText.new}</strong><br /><small>{area.kind === 'radius' ? areaText.radius : areaText.polygon} · {formatForDisplay(area.feeCents || 0, lang)} · {area.enabled ? areaText.active : areaText.inactive}{dirty ? ` · ${areaText.unsaved}` : ''}</small></span>
+                        </button>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button type="button" aria-label={`${areaText.save}: ${area.name || areaText.new}`} title={areaText.save} disabled={!!busy} style={{ ...input, cursor: 'pointer', width: 42, minHeight: 42, display: 'grid', placeItems: 'center', padding: 0 }} onClick={() => saveArea(area)}><Icon icon="lucide:save" width="18" /></button>
+                          <button type="button" aria-label={`${areaText.remove}: ${area.name || areaText.new}`} title={areaText.remove} disabled={!!busy} style={{ ...input, cursor: 'pointer', width: 42, minHeight: 42, display: 'grid', placeItems: 'center', padding: 0, color: '#c0392b' }} onClick={() => deleteArea(area.id)}><Icon icon="lucide:trash-2" width="18" /></button>
+                        </div>
+                      </div>
+                      <div id={detailsId} hidden={!open}>
+                        {open && <fieldset disabled={!!busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 10 }}>
+                          <label style={{ ...row, cursor: 'pointer' }}><input type="checkbox" aria-label={`${area.name || areaText.name}: ${lang === 'en' ? 'enabled' : 'activa'}`} checked={!!area.enabled} onChange={(e) => setArea(area.id, { enabled: e.target.checked })} />
+                            <input aria-label={areaText.name} style={{ ...input, flex: 1, minWidth: 100 }} placeholder={areaText.name} maxLength={80} value={area.name} onChange={(e) => setArea(area.id, { name: e.target.value })} /></label>
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            <select aria-label={`${area.name || areaText.name}: ${areaText.radius} / ${areaText.polygon}`} style={input} value={area.kind} onChange={(e) => setArea(area.id, { kind: e.target.value })}>
+                              <option value="radius">{areaText.radius}</option><option value="polygon">{areaText.polygon}</option>
+                            </select>
+                            <label>{areaText.charge} <input style={{ ...input, width: 90 }} type="number" min="0" step="0.5" value={fromCents(area.feeCents)} onChange={(e) => setArea(area.id, { feeCents: Math.max(0, toCents(e.target.value)) })} /></label>
+                            <label>{areaText.priority} <input style={{ ...input, width: 65 }} type="number" step="1" value={area.priority || 0} onChange={(e) => setArea(area.id, { priority: parseInt(e.target.value, 10) || 0 })} /></label>
+                            {area.kind === 'radius' && <label>{areaText.km} <input style={{ ...input, width: 75 }} type="number" min="0.01" step="0.1" value={area.radiusKm || ''} onChange={(e) => setArea(area.id, { radiusKm: Number(e.target.value) })} /></label>}
+                          </div>
+                          {!busy && <Suspense fallback={<small>…</small>}><DeliveryAreaMap area={area} lang={lang} onChange={(next) => { if (!busyRef.current) setArea(area.id, next); }} /></Suspense>}
+                          {area.kind === 'polygon' && (area.points || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                            {area.points.map((_, i) => <button key={i} type="button" aria-label={`${areaText.corner} ${i + 1}`} style={{ ...input, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => setArea(area.id, { points: area.points.filter((__, n) => n !== i) })}><Icon icon="lucide:x" aria-hidden="true" style={{ color: '#c0392b' }} />{lang === 'en' ? 'Corner' : 'Esquina'} {i + 1}</button>)}
+                          </div>}
+                        </fieldset>}
+                      </div>
+                    </div>;
+                  })}
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
         </Card>
 
         <Card icon="lucide:store" title={t('oo.storeHours')}>

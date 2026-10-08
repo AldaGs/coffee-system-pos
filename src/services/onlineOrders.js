@@ -5,7 +5,7 @@ import { pushActiveTicketCreate } from './ticketSync';
 import { cleanPhone } from '../utils/customerCapture';
 
 // Staff-side transitions for online_orders (see docs/online-ordering.md).
-// requested -> accepted | rejected -> preparing -> ready -> completed.
+// quote_pending -> requested (once shipping is agreed) -> accepted | rejected -> preparing -> ready -> completed.
 
 // Spanish labels: they land on the ticket name and the courier's notes.
 export const PAY_LABEL = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
@@ -21,15 +21,31 @@ export const setOnlineOrderStatus = (id, status, extra = {}) =>
 export const rejectOnlineOrder = (id, reason) =>
   setOnlineOrderStatus(id, 'rejected', { reject_reason: reason || null });
 
+// The RPC records the agreement and updates an existing cloud ticket in one
+// transaction. The local register cache is then refreshed for this station.
+export async function confirmShippingQuote(orderId, feeCents) {
+  const { data, error } = await supabase.rpc('set_shipping_quote', {
+    p_order_id: orderId, p_fee_cents: feeCents, p_confirmed: true,
+  });
+  if (error) throw error;
+  if (data?.ticket_id != null && data.ticket_items) {
+    await db.active_tickets.update(data.ticket_id, { items: data.ticket_items });
+  }
+  return data;
+}
+
 // Accept: atomically claim the order (so two stations can't both accept it),
 // then open a real active ticket from the server-priced snapshot and link it.
 // Returns the new ticket id, or null if another station got there first.
 export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menuData, orderNum, feeLabel = 'Envío' }) {
   const { data: claimed, error } = await supabase.from('online_orders')
     .update({ status: 'accepted', order_num: orderNum, updated_at: new Date().toISOString() })
-    .eq('id', order.id).eq('status', 'requested').select('id');
+    .eq('id', order.id).eq('status', 'requested').select('*');
   if (error) throw error;
   if (!claimed?.length) return null;
+  // Use the claimed row: another station may have revised the shipping quote
+  // since this inbox last rendered it.
+  order = claimed[0];
 
   // Spread the local menu item when we have it so inventory links, category and
   // tax treatment ride along; the price always comes from the server snapshot.
@@ -45,7 +61,7 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
 
   // Delivery fee rides on the ticket as a plain priced line (no menu item, no tax).
   if (order.delivery_fee_cents > 0) {
-    items.push({ id: 'online-delivery-fee', name: feeLabel, basePrice: order.delivery_fee_cents, qty: 1, uniqueId: crypto.randomUUID(), selectedModifiers: [] });
+    items.push({ id: order.order_type === 'shipping' ? 'online-shipping-fee' : 'online-delivery-fee', name: feeLabel, basePrice: order.delivery_fee_cents, qty: 1, uniqueId: crypto.randomUUID(), selectedModifiers: [] });
   }
 
   const prefix = (myDeviceId || 'ONL').substring(0, 3).toUpperCase();

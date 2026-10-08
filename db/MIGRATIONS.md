@@ -53,6 +53,13 @@ NOT just "re-connect" in SetupScreen.
 
 ## Migration-authoring conventions
 
+Schema 3.2 adds `049_online_delivery_areas.sql` for point-in-area delivery
+pricing and optional shipping quotes. Schema 3.3 adds
+`050_public_delivery_coverage.sql` for the customer map's whitelisted area
+overlay. The current full schema is mirrored in
+`db/schema-latest.sql`, `api/install.js` and `src/components/SetupScreen.jsx`;
+the in-app upgrade path also includes the same SQL in `api/_schemaDeltas.js`.
+
 `CREATE TABLE IF NOT EXISTS` and `CREATE OR REPLACE FUNCTION` are
 forgiving, but they silently skip if the prior version already exists.
 That means any **column add** or **constraint change** on an existing

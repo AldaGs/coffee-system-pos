@@ -4,14 +4,14 @@ import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
 import { createRealtimeChannel } from '../../utils/realtime';
 import { useTranslation } from '../../hooks/useTranslation';
-import { formatForDisplay } from '../../utils/moneyUtils';
+import { formatForDisplay, toCents, fromCents } from '../../utils/moneyUtils';
 import { orderBaseUrl } from '../../utils/customDomainSync';
 import {
-  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus
+  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus, confirmShippingQuote
 } from '../../services/onlineOrders';
 
 const PAY_ICON = { cash: 'lucide:banknote', card: 'lucide:credit-card', transfer: 'lucide:landmark' };
-const LIVE = ['requested', 'accepted', 'preparing', 'ready'];
+const LIVE = ['quote_pending', 'requested', 'accepted', 'preparing', 'ready'];
 
 // Tracking link the customer can reopen if they lost the page (same shape PublicOrder redirects to).
 const trackUrl = (token) => {
@@ -51,8 +51,21 @@ export default function OnlineOrdersInbox({
   const [orders, setOrders] = useState([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(null);
+  const [quoteDrafts, setQuoteDrafts] = useState({});
+  const [quoteAgreed, setQuoteAgreed] = useState({});
+  const [canQuote, setCanQuote] = useState(false);
   const ordersRef = useRef([]);
   useEffect(() => { ordersRef.current = orders; }, [orders]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: { user } = {} } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from('app_users').select('role,disabled_at').eq('auth_user_id', user.id).maybeSingle();
+      if (!cancelled) setCanQuote(data?.role === 'admin' && !data.disabled_at);
+    })().catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const refetch = useCallback(async () => {
     const { data } = await supabase.from('online_orders').select('*').in('status', LIVE).order('created_at');
@@ -71,7 +84,7 @@ export default function OnlineOrdersInbox({
           return;
         }
         if (!row?.id) return;
-        if (payload.eventType === 'INSERT' && row.status === 'requested') beep();
+        if (payload.eventType === 'INSERT' && ['requested', 'quote_pending'].includes(row.status)) beep();
         setOrders((p) => {
           const rest = p.filter((o) => o.id !== row.id);
           return LIVE.includes(row.status) ? [...rest, row].sort((a, b) => a.created_at.localeCompare(b.created_at)) : rest;
@@ -117,15 +130,39 @@ export default function OnlineOrdersInbox({
     await setOnlineOrderStatus(o.id, 'preparing');
   });
 
-  const pending = orders.filter((o) => o.status === 'requested').length;
+  const quoteInput = (o) => quoteDrafts[o.id] ?? (o.shipping_quote_cents == null ? '' : String(fromCents(o.shipping_quote_cents)));
+  const saveQuote = (o) => run(o, async () => {
+    const typed = quoteInput(o);
+    if (!quoteAgreed[o.id] || typed === '' || !Number.isFinite(Number(typed)) || Number(typed) < 0) {
+      throw new Error(t('oo.quoteNeedAgreement'));
+    }
+    await confirmShippingQuote(o.id, toCents(typed));
+    setQuoteAgreed((p) => ({ ...p, [o.id]: false }));
+    await refetch();
+  });
+
+  const pending = orders.filter((o) => ['requested', 'quote_pending'].includes(o.status)).length;
   const btn = (bg) => ({ background: bg, color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontWeight: 700, cursor: 'pointer' });
 
   // Status/step buttons, shared by the inbox list and the open ticket's footer.
   const actions = (o) => (<>
+                  {o.order_type === 'shipping' && o.status !== 'quote_pending' && <span style={{ fontWeight: 700 }}>{t('oo.shippingQuoted')}: {formatForDisplay(o.shipping_quote_cents || 0)}</span>}
+                  {o.order_type === 'shipping' && canQuote && (
+                    <div style={{ width: '100%', display: 'grid', gap: 6, border: '1px solid var(--border)', borderRadius: 8, padding: 8 }}>
+                      <strong>{o.status === 'quote_pending' ? t('oo.quotePending') : t('oo.reviseShipping')}</strong>
+                      <small>{t('oo.quoteContact')}</small>
+                      <label>{t('oo.shippingPrice')} <input type="number" min="0" step="0.5" value={quoteInput(o)}
+                        onChange={(e) => setQuoteDrafts((p) => ({ ...p, [o.id]: e.target.value }))}
+                        style={{ width: 90, marginLeft: 6, padding: 6 }} /></label>
+                      <label><input type="checkbox" checked={!!quoteAgreed[o.id]} onChange={(e) => setQuoteAgreed((p) => ({ ...p, [o.id]: e.target.checked }))} /> {t('oo.quoteAgreed')}</label>
+                      <button type="button" disabled={busy === o.id || !quoteAgreed[o.id]} onClick={() => saveQuote(o)} style={btn('#2763a6')}>{t('oo.saveQuote')}</button>
+                    </div>
+                  )}
+                  {o.order_type === 'shipping' && !canQuote && <small>{t('oo.quoteAdminOnly')}</small>}
                   {o.status === 'requested' && (<>
                     <button type="button" disabled={busy === o.id} onClick={() => accept(o)} style={btn('#27ae60')}>{t('oo.accept')}</button>
-                    <button type="button" disabled={busy === o.id} onClick={() => reject(o)} style={btn('#e74c3c')}>{t('oo.reject')}</button>
                   </>)}
+                  {['quote_pending', 'requested'].includes(o.status) && <button type="button" disabled={busy === o.id} onClick={() => reject(o)} style={btn('#e74c3c')}>{t('oo.reject')}</button>}
                   {o.status === 'accepted' && (<>
                     {kdsEnabled && <button type="button" disabled={busy === o.id} onClick={() => toKitchen(o)} style={btn('#8e44ad')}>{t('oo.sendKitchen')}</button>}
                     <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'preparing'))} style={btn('#2980b9')}>{t('oo.markPreparing')}</button>
@@ -185,8 +222,8 @@ export default function OnlineOrdersInbox({
                   <strong>{o.customer_name} · {showPhone(o.phone)}</strong>
                   <span style={{ fontWeight: 700 }}>{t(`oo.st_${o.status}`)}</span>
                 </div>
-                {o.order_type === 'delivery' && (
-                  <div style={{ fontWeight: 700 }}>{t('oo.delivery')}: {o.delivery_address}
+                {['delivery', 'shipping'].includes(o.order_type) && (
+                  <div style={{ fontWeight: 700 }}>{o.order_type === 'shipping' ? t('oo.shippingAddress') : t('oo.delivery')}: {o.delivery_address}
                     {o.delivery_lat != null && <> · <a href={`https://www.google.com/maps?q=${o.delivery_lat},${o.delivery_lng}`} target="_blank" rel="noreferrer">{t('oo.map')}</a></>}
                   </div>
                 )}
@@ -198,7 +235,7 @@ export default function OnlineOrdersInbox({
                     <li key={i}>{l.qty}x {l.name}{l.modifiers?.length ? ` (${l.modifiers.map((m) => m.name).join(', ')})` : ''}</li>
                   ))}
                 </ul>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>{formatForDisplay(o.total_cents)}</div>
+                <div style={{ fontWeight: 800, marginBottom: 8 }}>{o.status === 'quote_pending' ? `${t('oo.subtotal')}: ` : ''}{formatForDisplay(o.total_cents)}{o.status === 'quote_pending' && ` · ${t('oo.shippingPrice')}: ${t('oo.quotePending')}`}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {actions(o)}
                   {o.active_ticket_id != null && (

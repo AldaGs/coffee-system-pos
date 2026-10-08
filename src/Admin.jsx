@@ -570,7 +570,7 @@ function Admin() {
           if (c?.pin) await setLocalPin(c.id, c.pin);
         }
         setMenuData(updatedMenu);
-        return;
+        return true;
       }
       const settingsOnly = {
         cashiers: updatedMenu.cashiers,
@@ -581,8 +581,10 @@ function Admin() {
       const { error } = await supabase.from('shop_settings').update({ menu_data: settingsOnly }).eq('id', 1);
       if (error) throw error;
       setMenuData(updatedMenu);
+      return true;
     } catch (error) {
       showAlert(t('common.error'), t('admin.cloudSaveFailPrefix') + error.message);
+      return false;
     } finally {
       setIsSaving(false);
     }

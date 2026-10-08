@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slotValid, toLocalInput, fromLocalInput, timesFor, firstSlot, asapOk, isOpenNow, nextOpening, formatHours } from '../utils/pickupSlots';
+import { slotValid, toLocalInput, fromLocalInput, timesFor, firstSlot, asapOk, autoSlotIsToday, checkoutSlotStatus, isOpenNow, nextOpening, formatHours } from '../utils/pickupSlots';
 
 // 2026-10-07 15:00 UTC = 09:00 in Mexico City (UTC-6, no DST after 2022); a Wednesday
 const now = Date.UTC(2026, 9, 7, 15, 0);
@@ -31,11 +31,44 @@ describe('pickupSlots', () => {
     expect(asapOk({ now: late, tz, slots })).toBe(false);
     expect(asapOk({ now: late, tz, slots: { ...slots, enabled: false } })).toBe(true);
   });
+  it('distinguishes upcoming slots today from next-day slots in the shop timezone', () => {
+    const slots = { enabled: true, interval: 30, daysAhead: 3, leadMinutes: 30, hours: { days: 0, start: '18:00', end: '21:00' } };
+    const beforeOpening = fromLocalInput('2026-10-07T16:00', tz);
+    const today = firstSlot({ now: beforeOpening, tz, slots });
+    expect(toLocalInput(today, tz)).toBe('2026-10-07T18:00');
+    expect(autoSlotIsToday(today, beforeOpening, tz)).toBe(true);
+    const afterClose = fromLocalInput('2026-10-07T22:00', tz);
+    const tomorrow = firstSlot({ now: afterClose, tz, slots });
+    expect(toLocalInput(tomorrow, tz)).toBe('2026-10-08T18:00');
+    expect(autoSlotIsToday(tomorrow, afterClose, tz)).toBe(false);
+    const lateLocalDay = fromLocalInput('2026-10-07T20:00', tz); // UTC is already Oct 8.
+    const overnight = { ...slots, hours: { days: 0, start: '23:00', end: '02:00' } };
+    const tonight = firstSlot({ now: lateLocalDay, tz, slots: overnight });
+    expect(toLocalInput(tonight, tz)).toBe('2026-10-07T23:00');
+    expect(autoSlotIsToday(tonight, lateLocalDay, tz)).toBe(true);
+  });
   it('lists only allowed times for a day', () => {
     const slots = { enabled: true, interval: 60, daysAhead: 7, leadMinutes: 30, hours: { days: 31, start: '09:00', end: '13:00' } };
     expect(timesFor('2026-10-07', { now, tz, slots })).toEqual(['10:00', '11:00', '12:00']); // 09:00 inside lead
     expect(timesFor('2026-10-10', { now, tz, slots })).toEqual([]); // Saturday closed (Mon-Fri)
     expect(timesFor('2026-10-07', { now, tz, slots: null })[0]).toBe('09:15'); // no rules: next 15 min
+  });
+  it('blocks incomplete, closed-day, out-of-hours and stale choices while preserving valid ASAP', () => {
+    const slots = { enabled: true, interval: 30, daysAhead: 3, leadMinutes: 30, hours: { days: 31, start: '09:00', end: '13:00' } };
+    const status = (value, selectedDate = '', time = now, override = slots) => checkoutSlotStatus({ value, selectedDate, now: time, tz, slots: override });
+    const iso = (local) => new Date(fromLocalInput(local, tz)).toISOString();
+    expect(status('', '')).toBe('valid'); // 09:00 shop time: ASAP is available.
+    expect(status('', '2026-10-07')).toBe('missing-time');
+    expect(status('', '2026-10-10')).toBe('missing-time'); // Closed Saturday, even if ASAP is open now.
+    expect(status(iso('2026-10-10T10:00'), '2026-10-10')).toBe('invalid-time');
+    expect(status(iso('2026-10-07T13:00'), '2026-10-07')).toBe('invalid-time');
+    expect(status(iso('2026-10-07T09:00'), '2026-10-07')).toBe('invalid-time'); // Lead time.
+    expect(status(iso('2026-10-11T10:00'), '2026-10-11')).toBe('invalid-time'); // Beyond daysAhead.
+    expect(status(iso('2026-10-07T10:00'), '2026-10-07')).toBe('valid');
+    expect(status(iso('2026-10-07T10:00'), '2026-10-08')).toBe('invalid-time');
+    expect(status('', '', fromLocalInput('2026-10-07T22:00', tz))).toBe('asap-unavailable');
+    expect(status('', '', now, { ...slots, enabled: false })).toBe('valid');
+    expect(status(iso('2026-10-07T08:00'), '2026-10-07', now, { ...slots, enabled: false })).toBe('invalid-time');
   });
 });
 

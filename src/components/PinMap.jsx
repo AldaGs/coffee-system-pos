@@ -7,6 +7,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 // MapLibre finds its worker relative to its own file, which breaks once Vite
 // pre-bundles/moves it (map stays blank gray). Let Vite bundle the worker and hand over its URL.
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
+import { visibleDeliveryCoverage } from '../utils/deliveryCoverage';
+import { formatForDisplay } from '../utils/moneyUtils';
 
 maplibregl.setWorkerUrl(workerUrl);
 
@@ -47,13 +49,15 @@ const normalize = (q) => q
 const PUEBLA = [-98.2063, 19.0414]; // [lng, lat]
 const btn = { padding: '8px 12px', borderRadius: 10, border: '1px solid #ddd', background: 'white', fontSize: '0.9rem', cursor: 'pointer' };
 
-export default function PinMap({ pin, address, onPin, s }) {
+export default function PinMap({ pin, address, onPin, s, areas = [], lang = 'es' }) {
   const el = useRef(null);
   const map = useRef(null);
   const marker = useRef(null);
   const cb = useRef(onPin);
   cb.current = onPin;
   const [msg, setMsg] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  const coverage = visibleDeliveryCoverage(areas);
 
   const addMarker = (lat, lng) => {
     marker.current = new maplibregl.Marker({ draggable: true, color: '#ea4335' }).setLngLat([lng, lat]).addTo(map.current);
@@ -67,7 +71,9 @@ export default function PinMap({ pin, address, onPin, s }) {
   };
 
   useEffect(() => {
-    let m; let dead = false;
+    let m; let dead = false; let customerMovedMap = false;
+    const observer = new ResizeObserver(() => map.current?.resize());
+    observer.observe(el.current);
     fetch(STYLE_URL).then((r) => r.json()).then((style) => {
       if (dead) return;
       m = new maplibregl.Map({
@@ -78,11 +84,35 @@ export default function PinMap({ pin, address, onPin, s }) {
       m.addControl(new maplibregl.NavigationControl({ showCompass: false }));
       map.current = m;
       if (pin) addMarker(pin.lat, pin.lng);
+      m.on('movestart', (event) => { if (event.originalEvent) customerMovedMap = true; });
+      m.on('load', () => {
+        // Draw lower-priority areas first, so the server's winning area is on top.
+        const firstLabel = m.getStyle().layers.find((layer) => layer.type === 'symbol')?.id;
+        [...coverage].reverse().forEach((area, index) => {
+          const sourceId = `delivery-area-${index}`;
+          m.addSource(sourceId, { type: 'geojson', data: { type: 'Feature', properties: {}, geometry: area.geometry } });
+          m.addLayer({ id: `${sourceId}-fill`, type: 'fill', source: sourceId, paint: { 'fill-color': area.color, 'fill-opacity': 0.18 } }, firstLabel);
+          m.addLayer({ id: `${sourceId}-line`, type: 'line', source: sourceId, paint: { 'line-color': area.color, 'line-width': 2.5 } }, firstLabel);
+        });
+        // The first view shows every service area. An existing pin, or any
+        // subsequent customer pan/zoom, always takes precedence over this fit.
+        if (!marker.current && !customerMovedMap && coverage.length) {
+          const coords = coverage.flatMap((area) => area.boundsPoints);
+          const bounds = coords.reduce((box, point) => box.extend(point), new maplibregl.LngLatBounds(coords[0], coords[0]));
+          m.fitBounds(bounds, { padding: 24, maxZoom: 14, duration: 0 });
+        }
+      });
       m.on('click', (e) => place(e.lngLat.lat, e.lngLat.lng));
     }).catch(() => !dead && setMsg(s.pinNotFound));
-    return () => { dead = true; m?.remove(); map.current = null; marker.current = null; };
+    return () => { dead = true; observer.disconnect(); m?.remove(); map.current = null; marker.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Editing the address invalidates a previously confirmed entrance. Remove
+  // its marker so the customer visibly picks the new entrance on the map.
+  useEffect(() => {
+    if (!pin && marker.current) { marker.current.remove(); marker.current = null; }
+  }, [pin]);
 
   const locate = () => {
     setMsg(null);
@@ -126,9 +156,19 @@ export default function PinMap({ pin, address, onPin, s }) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
         <button type="button" style={btn} onClick={locate}>{s.pinUseMine}</button>
         <button type="button" style={btn} onClick={search}>{s.pinSearch}</button>
+        <button type="button" style={btn} aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? s.pinReduce : s.pinExpand}</button>
         {pin && <button type="button" style={btn} onClick={() => { marker.current?.remove(); marker.current = null; cb.current(null, null); }}>{s.pinClear}</button>}
       </div>
-      <div ref={el} style={{ height: 220, borderRadius: 10, border: '1px solid #ddd', zIndex: 0 }} />
+      <div ref={el} style={{ height: expanded ? 'min(65dvh, 600px)' : 220, borderRadius: 10, border: '1px solid #ddd', zIndex: 0 }} />
+      {coverage.length > 0 && <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
+        <small style={{ color: '#555' }}>{s.zoneCostInfo}</small>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {coverage.map((area, index) => <span key={area.id || index} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 7px', borderRadius: 6, border: '1px solid #ddd', fontSize: '0.8rem' }}>
+            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: area.color }} />
+            {area.name}: {formatForDisplay(area.feeCents, lang)}
+          </span>)}
+        </div>
+      </div>}
       <div style={{ fontSize: '0.8rem', color: '#777', marginTop: 4 }}>{msg || s.pinHint}</div>
     </div>
   );
