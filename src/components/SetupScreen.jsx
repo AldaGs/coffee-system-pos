@@ -3579,8 +3579,10 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
 
         -- 3.5: Clip pay window (set on accept); the Register voids unpaid orders past it.
         ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS pay_by timestamptz;
+        -- 3.8: paid-online flag on the ticket (was a name marker staff could rename away).
+        ALTER TABLE public.active_tickets ADD COLUMN IF NOT EXISTS online_paid boolean NOT NULL DEFAULT false;
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '3.7', now())
+        VALUES ('schema_version', '3.8', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

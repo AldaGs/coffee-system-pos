@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 3.8 — active_tickets.online_paid: Clip-paid flag (replaces the ticket-name marker).
 // 3.7 — No SQL change: redeploys clip-refund (falls back to the receipt reference).
 // 3.6 — No SQL change: the bump makes Update Schema redeploy the Clip Edge Functions (adds clip-refund).
 // 3.5 — Clip pay-after-accept: online_orders.pay_by; public_place_order accepts 'clip' when Clip is enabled; get_order_status returns payment_status/pay_by.
@@ -134,4 +135,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '3.7';
+export const APP_SCHEMA_VERSION = '3.8';

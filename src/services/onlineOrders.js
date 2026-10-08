@@ -9,12 +9,12 @@ import { cleanPhone } from '../utils/customerCapture';
 
 // Spanish labels: they land on the ticket name and the courier's notes.
 export const PAY_LABEL = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', clip: 'Clip (pendiente)' };
-// Clip orders are paid before the kitchen starts. The ticket name carries the
-// paid state (active_tickets has no column for it, and unknown keys would break
-// the cloud insert).
-// ponytail: name marker; a real column if staff start renaming these tickets.
+// Clip orders are paid before the kitchen starts. active_tickets.online_paid
+// (schema 3.8) is the paid state; the name still gets "PAGADO (Clip)" so the
+// KDS and the courier see it, but renaming the ticket no longer unprotects it.
+// The name check keeps tickets paid before 3.8 working.
 export const CLIP_PAID_MARK = 'PAGADO (Clip)';
-export const isPaidOnline = (ticket) => !!ticket?.name?.includes(CLIP_PAID_MARK);
+export const isPaidOnline = (ticket) => !!ticket?.online_paid || !!ticket?.name?.includes(CLIP_PAID_MARK);
 const peso = (c) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
 
 export const ONLINE_STATUS_RANK = { requested: 0, accepted: 1, preparing: 2, ready: 3, completed: 4 };
@@ -161,12 +161,12 @@ export async function cancelTicketEverywhere(ticketId, reason) {
 
 // Clip paid: mark the ticket and let it go to the kitchen. Delivery goes to
 // logistics now; pickup just drops the hold so KDS immediate mode (or the
-// manual button) sends it. Idempotent through the name marker.
+// manual button) sends it. Idempotent through online_paid.
 export async function releaseClipOrder(order, ticket) {
   if (isPaidOnline(ticket)) return;
   const name = ticket.name.includes(PAY_LABEL.clip) ? ticket.name.replace(PAY_LABEL.clip, CLIP_PAID_MARK) : `${ticket.name} · ${CLIP_PAID_MARK}`;
   const delivery = order.order_type === 'delivery';
-  const patch = delivery ? { name } : { name, kds_sent: false };
+  const patch = delivery ? { name, online_paid: true } : { name, online_paid: true, kds_sent: false };
   await db.active_tickets.update(ticket.id, patch);
   pushActiveTicketUpdate(ticket.id, patch);
   if (delivery) await sendOrderToLogistics(order, { ...ticket, name });

@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -5790,6 +5790,10 @@ ${stamp('3.5')}` },
   // Clip Edge Functions (install.js deploys them on every update).
   { version: '3.6', sql: `${stamp('3.6')}` },
   { version: '3.7', sql: `${stamp('3.7')}` }, // no SQL: redeploys clip-refund
+  { version: '3.8', sql: `
+-- 3.8: paid-online flag on the ticket (was a name marker staff could rename away).
+ALTER TABLE public.active_tickets ADD COLUMN IF NOT EXISTS online_paid boolean NOT NULL DEFAULT false;
+${stamp('3.8')}` },
 ];
 
 // Returns the concatenated delta SQL to move `fromVersion` up to the latest
