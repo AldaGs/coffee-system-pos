@@ -7,8 +7,9 @@ import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 // Online ordering settings. Stored at posSettings.onlineOrders so the
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
 // every device gets it through the normal posSettings sync.
+// slots: { interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
 // Shape: { enabled, paused, delivery: { enabled, feeCents }, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
-const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, trackShowcase: { mode: 'off', categories: [], items: [] } };
+const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
@@ -32,6 +33,12 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const fee = delivery.enabled ? delivery.feeCents || 0 : 0;
   const sched = form.schedule || { days: 0, start: '', end: '' };
   const days = bitmaskToDays(sched.days);
+
+  const sl = { ...DEFAULTS.slots, ...(form.slots || {}) };
+  const setSl = (patch) => setForm({ ...form, slots: { ...sl, ...patch } });
+  const slHours = sl.hours || { days: 0, start: '', end: '' };
+  const slDays = bitmaskToDays(slHours.days);
+  const num = (k, max) => (e) => setSl({ [k]: Math.min(max, Math.max(0, parseInt(e.target.value, 10) || 0)) });
 
   const setSched = (patch) => {
     const next = { ...sched, ...patch };
@@ -99,6 +106,40 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <span>–</span>
             <input type="time" value={sched.end} onChange={e => setSched({ end: e.target.value })} style={input} />
           </div>
+        </div>
+
+        <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
+          <strong>{t('oo.slots')}</strong>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.slotsDesc')}</small>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <label>{t('oo.slotInterval')} <select style={input} value={sl.interval} onChange={e => setSl({ interval: +e.target.value })}>
+              {[15, 30, 60].map(n => <option key={n} value={n}>{n} min</option>)}</select></label>
+            <label>{t('oo.slotDays')} <input type="number" min="0" max="14" style={{ ...input, width: 80 }} value={sl.daysAhead} onChange={num('daysAhead', 14)} /></label>
+            <label>{t('oo.slotLead')} <input type="number" min="0" max="1440" style={{ ...input, width: 90 }} value={sl.leadMinutes} onChange={num('leadMinutes', 1440)} /></label>
+          </div>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!sl.hours} onChange={e => setSl({ hours: e.target.checked ? null : { days: 0, start: '', end: '' } })} />
+            <span>{t('oo.slotSameHours')}</span>
+          </label>
+          {sl.hours && (<>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {DAY_ORDER.map(d => {
+                const on = slDays.includes(d);
+                return (
+                  <button key={d} type="button"
+                    onClick={() => setSl({ hours: { ...slHours, days: daysToBitmask(on ? slDays.filter(x => x !== d) : [...slDays, d]) } })}
+                    style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 800,
+                      background: on ? 'var(--brand-color)' : 'var(--bg-main)', color: on ? 'white' : 'var(--text-main)' }}
+                  >{DAY_ES[d]}</button>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input type="time" value={slHours.start} onChange={e => setSl({ hours: { ...slHours, start: e.target.value } })} style={input} />
+              <span>–</span>
+              <input type="time" value={slHours.end} onChange={e => setSl({ hours: { ...slHours, end: e.target.value } })} style={input} />
+            </div>
+          </>)}
         </div>
 
         <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>

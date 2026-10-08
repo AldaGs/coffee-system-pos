@@ -1,22 +1,43 @@
-// Optional delivery pin for /order checkout: Leaflet + OpenStreetMap tiles, no
-// API keys. Loaded lazily (React.lazy in PublicOrder) so the menu bundle stays small.
+// Optional delivery pin for /order checkout: MapLibre GL + OpenFreeMap vector tiles
+// (free, no API key), restyled toward Google Maps' palette. Loaded lazily (React.lazy
+// in PublicOrder) so the menu bundle stays small.
 import { useEffect, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import iconUrl from 'leaflet/dist/images/marker-icon.png';
-import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
-import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+import * as maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 
-// Bundlers break Leaflet's runtime icon-path detection (it also prepends an
-// auto-detected imagePath), so use an explicit icon instead of the Default one.
-const pinIcon = L.icon({ iconUrl, iconRetinaUrl, shadowUrl, iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41] });
+const STYLE_URL = 'https://tiles.openfreemap.org/styles/bright';
+const YELLOW = /^(highway|bridge|tunnel)-(motorway|trunk|primary)/;
+
+// Patch the OpenFreeMap "bright" style's paint colors by layer id/type toward Google's palette.
+function googleize(style) {
+  for (const l of style.layers) {
+    const id = l.id;
+    const paint = (l.paint ||= {});
+    const color = (c) => { paint[l.type === 'line' ? 'line-color' : l.type === 'background' ? 'background-color' : 'fill-color'] = c; };
+    if (l.type === 'background') color('#f5f5f5');
+    else if (/^landuse-(residential|suburb|railway|commercial|industrial)/.test(id)) color('#f5f5f5');
+    else if (/^(park|landcover-(grass|wood))/.test(id)) color(id === 'landcover-wood' ? '#b7dfb9' : '#c8e6c9');
+    else if (/^water(way|$|-)/.test(id) && l.type !== 'symbol') color('#aadaff');
+    else if (/^building/.test(id)) color('#e8e8e8');
+    else if (/^(highway|bridge|tunnel)-/.test(id) && l.type !== 'symbol') {
+      if (/-path/.test(id)) color('#dadce0');
+      else if (YELLOW.test(id)) color(id.includes('casing') ? '#f9ab00' : '#fde293');
+      else color(id.includes('casing') ? '#dadce0' : '#ffffff');
+    }
+    if (l.type === 'symbol' && 'text-color' in paint) {
+      paint['text-color'] = /^label_(city|town|state|country)/.test(id) ? '#3c4043' : '#5f6368';
+      paint['text-halo-color'] = '#ffffff';
+    }
+  }
+  return style;
+}
 
 // Expand abbreviations Nominatim's Spanish data doesn't match ("Calle 37B Nte. 1223").
 const normalize = (q) => q
   .replace(/\bNte\.?(?=\s|$)/gi, 'Norte').replace(/\bPte\.?(?=\s|$)/gi, 'Poniente')
   .replace(/\bOte\.?(?=\s|$)/gi, 'Oriente').replace(/\bAv\.?(?=\s|$)/gi, 'Avenida')
   .replace(/\b(\d+)([A-Za-z])\b/g, '$1 $2').replace(/\s+/g, ' ').trim();
-const PUEBLA = [19.0414, -98.2063];
+const PUEBLA = [-98.2063, 19.0414]; // [lng, lat]
 const btn = { padding: '8px 12px', borderRadius: 10, border: '1px solid #ddd', background: 'white', fontSize: '0.9rem', cursor: 'pointer' };
 
 export default function PinMap({ pin, address, onPin, s }) {
@@ -28,24 +49,31 @@ export default function PinMap({ pin, address, onPin, s }) {
   const [msg, setMsg] = useState(null);
 
   const addMarker = (lat, lng) => {
-    marker.current = L.marker([lat, lng], { draggable: true, icon: pinIcon }).addTo(map.current);
-    marker.current.on('dragend', () => { const p = marker.current.getLatLng(); cb.current(p.lat, p.lng); });
+    marker.current = new maplibregl.Marker({ draggable: true, color: '#ea4335' }).setLngLat([lng, lat]).addTo(map.current);
+    marker.current.on('dragend', () => { const p = marker.current.getLngLat(); cb.current(p.lat, p.lng); });
   };
   const place = (lat, lng, zoom) => {
-    if (marker.current) marker.current.setLatLng([lat, lng]); else addMarker(lat, lng);
-    if (zoom) map.current.setView([lat, lng], zoom);
+    if (!map.current) return;
+    if (marker.current) marker.current.setLngLat([lng, lat]); else addMarker(lat, lng);
+    if (zoom) map.current.jumpTo({ center: [lng, lat], zoom });
     cb.current(lat, lng);
   };
 
   useEffect(() => {
-    const m = L.map(el.current).setView(pin ? [pin.lat, pin.lng] : PUEBLA, pin ? 16 : 11);
-    map.current = m;
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    }).addTo(m);
-    if (pin) addMarker(pin.lat, pin.lng);
-    m.on('click', (e) => place(e.latlng.lat, e.latlng.lng));
-    return () => { m.remove(); map.current = null; marker.current = null; };
+    let m; let dead = false;
+    fetch(STYLE_URL).then((r) => r.json()).then((style) => {
+      if (dead) return;
+      m = new maplibregl.Map({
+        container: el.current, style: googleize(style), attributionControl: false,
+        center: pin ? [pin.lng, pin.lat] : PUEBLA, zoom: pin ? 15 : 10,
+      });
+      m.addControl(new maplibregl.AttributionControl({ compact: false }));
+      m.addControl(new maplibregl.NavigationControl({ showCompass: false }));
+      map.current = m;
+      if (pin) addMarker(pin.lat, pin.lng);
+      m.on('click', (e) => place(e.lngLat.lat, e.lngLat.lng));
+    }).catch(() => !dead && setMsg(s.pinNotFound));
+    return () => { dead = true; m?.remove(); map.current = null; marker.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -67,6 +95,7 @@ export default function PinMap({ pin, address, onPin, s }) {
     if (!q) { setMsg(s.pinNeedAddr); return; }
     // Bounded to ~±0.15° around the map center, Mexico only; OSM has streets but
     // rarely house numbers, so retry without the trailing number.
+    if (!map.current) return;
     const c = map.current.getCenter();
     const vb = [c.lng - 0.15, c.lat + 0.15, c.lng + 0.15, c.lat - 0.15].join(',');
     const look = async (text) => {

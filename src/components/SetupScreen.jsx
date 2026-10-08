@@ -1174,6 +1174,8 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             'language', COALESCE((SELECT menu_data->'posSettings'->>'language' FROM public.shop_settings WHERE id = 1), 'es'),
             'timezone', v_tz,
             'showcase', (SELECT menu_data->'posSettings'->'onlineOrders'->'trackShowcase' FROM public.shop_settings WHERE id = 1),
+            'slots',       (SELECT menu_data->'posSettings'->'onlineOrders'->'slots' FROM public.shop_settings WHERE id = 1),
+            'schedule',    (SELECT menu_data->'posSettings'->'onlineOrders'->'schedule' FROM public.shop_settings WHERE id = 1),
             'logo', COALESCE(NULLIF((SELECT menu_data->'posSettings'->>'appBootLogo' FROM public.shop_settings WHERE id = 1), ''), (SELECT menu_data->'receiptSettings'->>'logo' FROM public.shop_settings WHERE id = 1))
           );
           IF v_kind = 'live' OR v_kind = 'designed' THEN
@@ -2745,6 +2747,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           v_name text := btrim(COALESCE(payload->>'name', ''));
           v_notes text := NULLIF(btrim(COALESCE(payload->>'notes', '')), '');
           v_pickup timestamptz := NULL;
+          v_sl jsonb; v_hrs jsonb; v_iv int; v_lead int; v_ahead int; v_ploc timestamp;
           v_in jsonb;
           v_it record;
           v_item public.menu_items%ROWTYPE;
@@ -2819,7 +2822,23 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           IF NULLIF(payload->>'pickup_at', '') IS NOT NULL THEN
             BEGIN v_pickup := (payload->>'pickup_at')::timestamptz;
             EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_pickup'; END;
-            IF v_pickup < now() - interval '5 minutes' OR v_pickup > now() + interval '7 days' THEN
+            -- Slot rules (schema 2.4): lead time, days ahead, hours/days, interval, all in shop tz.
+            v_sl := COALESCE(v_cfg->'slots', '{}'::jsonb);
+            v_iv := CASE WHEN v_sl->>'interval' IN ('15','30','60') THEN (v_sl->>'interval')::int ELSE 30 END;
+            v_lead := LEAST(GREATEST(COALESCE(NULLIF(v_sl->>'leadMinutes', '')::int, 30), 0), 1440);
+            v_ahead := LEAST(GREATEST(COALESCE(NULLIF(v_sl->>'daysAhead', '')::int, 3), 0), 14);
+            v_hrs := CASE WHEN jsonb_typeof(v_sl->'hours') = 'object' THEN v_sl->'hours'
+                          WHEN jsonb_typeof(v_sched) = 'object' THEN v_sched ELSE '{}'::jsonb END;
+            v_ploc := (v_pickup AT TIME ZONE public.shop_timezone())::timestamp;
+            IF v_pickup < now() + (v_lead - 5) * interval '1 minute'
+               OR v_pickup > now() + v_ahead * interval '1 day'
+               OR NOT public.schedule_matches(
+                    COALESCE((v_hrs->>'days')::int, 0),
+                    COALESCE(NULLIF(v_hrs->>'start', ''), '09:00')::time,
+                    COALESCE(NULLIF(v_hrs->>'end', ''), '21:00')::time,
+                    NULL, NULL, v_ploc)
+               OR EXTRACT(second FROM v_ploc) <> 0
+               OR (EXTRACT(hour FROM v_ploc)::int * 60 + EXTRACT(minute FROM v_ploc)::int) % v_iv <> 0 THEN
               RAISE EXCEPTION 'invalid_pickup';
             END IF;
           END IF;
@@ -2966,7 +2985,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         CREATE POLICY "schema_meta_app_users_read" ON public.schema_meta
           FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '2.3', now())
+        VALUES ('schema_version', '2.4', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

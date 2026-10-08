@@ -14,8 +14,9 @@ import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
+import { buildSlots } from '../utils/pickupSlots';
 
-// Leaflet + its CSS only download when a customer picks delivery.
+// MapLibre + its CSS only download when a customer picks delivery.
 const PinMap = lazy(() => import('./PinMap'));
 
 const CUSTOMER_KEY = 'tinypos_order_customer';
@@ -46,11 +47,11 @@ const STR = {
     noMenu: 'El menú no está disponible para pedidos.', soldOut: 'Agotado', add: 'Agregar',
     options: 'Opciones', choose: 'Elige tus opciones', addToCart: 'Agregar al pedido', cancel: 'Cancelar',
     cart: 'Tu pedido', empty: 'Aún no agregas nada.', total: 'Total', checkout: 'Hacer pedido',
-    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickup: 'Hora de recogida (opcional)',
+    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', noSlots: 'No hay horarios disponibles.', today: 'Hoy', clearSlot: 'Quitar horario',
     payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
     repeat: 'Repetir último pedido', forget: 'Olvidar mis datos', forgot: 'Datos borrados de este dispositivo.',
     pastOrders: 'Mis pedidos', view: 'Ver',
-    invalid_name: 'Escribe tu nombre.', invalid_phone: 'Escribe un teléfono válido.', invalid_pickup: 'La hora de recogida no es válida.',
+    invalid_name: 'Escribe tu nombre.', invalid_phone: 'Escribe un teléfono válido.', invalid_pickup: 'Ese horario ya no está disponible, elige otro.',
     invalid_items: 'Revisa tu pedido.', item_unavailable: 'Algún producto ya no está disponible. Actualiza el menú.',
     rate_limited: 'Demasiados intentos. Espera unos minutos.', generic: 'No se pudo enviar el pedido.',
     track: 'Seguimiento de tu pedido', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
@@ -68,11 +69,11 @@ const STR = {
     noMenu: 'The menu is not available for ordering.', soldOut: 'Sold out', add: 'Add',
     options: 'Options', choose: 'Choose your options', addToCart: 'Add to order', cancel: 'Cancel',
     cart: 'Your order', empty: 'Nothing added yet.', total: 'Total', checkout: 'Place order',
-    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickup: 'Pickup time (optional)',
+    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', noSlots: 'No time slots available.', today: 'Today', clearSlot: 'Clear time',
     payAtPickup: 'You pay at pickup.', send: 'Send order', sending: 'Sending…',
     repeat: 'Repeat last order', forget: 'Forget my data', forgot: 'Data erased from this device.',
     pastOrders: 'My orders', view: 'View',
-    invalid_name: 'Enter your name.', invalid_phone: 'Enter a valid phone number.', invalid_pickup: 'Pickup time is not valid.',
+    invalid_name: 'Enter your name.', invalid_phone: 'Enter a valid phone number.', invalid_pickup: 'That time is no longer available, please pick another.',
     invalid_items: 'Please review your order.', item_unavailable: 'An item is no longer available. Refresh the menu.',
     rate_limited: 'Too many attempts. Wait a few minutes.', generic: 'Could not send the order.',
     track: 'Track your order', notFound: 'Order not found.', backToMenu: 'Back to menu',
@@ -180,7 +181,7 @@ function Order({ client, lang, setLang }) {
   const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}), ...draft.customer }));
   const [history, setHistory] = useState(() => readJson(HISTORY_KEY, []));
   const [notes, setNotes] = useState(draft.notes || '');
-  const [pickup, setPickup] = useState(draft.pickup || '');
+  const [pickup, setPickup] = useState(() => (/Z$/.test(draft.pickup || '') && Date.parse(draft.pickup) > Date.now() ? draft.pickup : ''));
   const [feeCents, setFeeCents] = useState(null); // null = delivery not offered
   const [orderType, setOrderType] = useState(draft.orderType || 'pickup');
   const [sending, setSending] = useState(false);
@@ -289,7 +290,7 @@ function Order({ client, lang, setLang }) {
       name: customer.name, phone: customer.phone, notes,
       order_type: delivery ? 'delivery' : 'pickup', address: delivery ? customer.address : null,
       lat: delivery ? customer.lat : null, lng: delivery ? customer.lng : null,
-      pickup_at: pickup ? new Date(pickup).toISOString() : null,
+      pickup_at: pickup || null,
       items: cart.map((l) => ({ id: l.id, qty: l.qty, modifiers: l.mods })),
     };
     const { data: token, error: err } = await client.rpc('public_place_order', { payload });
@@ -344,9 +345,7 @@ function Order({ client, lang, setLang }) {
         </Suspense>
       )}
       <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-      <label style={{ fontSize: '0.85rem', color: '#555' }}>{s.pickup}
-        <input style={inputStyle} type="datetime-local" value={pickup} onChange={(e) => setPickup(e.target.value)} />
-      </label>
+      <SlotPicker label={delivery ? s.deliveryAt : s.pickupAt} value={pickup} onChange={setPickup} shop={data?.shop} lang={lang} s={s} brand={brand} />
     </div>
     <p style={{ color: '#666', fontSize: '0.9rem' }}>{delivery ? s.payOnDelivery : s.payAtPickup}</p>
     {formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
@@ -465,6 +464,45 @@ function ShopHeader({ shop, lang, setLang, cartCount, onCart, cartLabel }) {
 }
 
 const qtyBtn = { width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd', background: 'white', fontSize: '1.1rem', cursor: 'pointer' };
+
+// Optional pickup/delivery time: a button that opens a day + time chip picker (shop timezone).
+function SlotPicker({ label, value, onChange, shop, lang, s, brand }) {
+  const [open, setOpen] = useState(false);
+  const [day, setDay] = useState(null);
+  const tz = shop?.timezone || 'America/Mexico_City';
+  const locale = lang === 'en' ? 'en-US' : 'es-MX';
+  const days = useMemo(() => (open ? buildSlots({ tz, slots: shop?.slots, schedule: shop?.schedule }) : []), [open, tz, shop]);
+  const f = (ms, o) => new Date(ms).toLocaleString(locale, { timeZone: tz, ...o });
+  const dayLabel = (ms) => f(ms, { weekday: 'short', day: 'numeric', month: 'short' });
+  const timeLabel = (ms) => f(ms, { hour: 'numeric', minute: '2-digit' });
+  const cur = days.find((d) => d.key === day) || days[0];
+  const chip = (on) => ({ padding: '8px 12px', borderRadius: 999, border: `1px solid ${brand}`, cursor: 'pointer', fontWeight: 700, background: on ? brand : 'white', color: on ? 'white' : brand });
+  return (
+    <div>
+      <div style={{ fontSize: '0.85rem', color: '#555', marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button type="button" onClick={() => setOpen(true)} style={{ ...inputStyle, flex: 1, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', textAlign: 'left', background: 'white' }}>
+          <Icon icon="lucide:calendar" />{value ? `${dayLabel(Date.parse(value))}, ${timeLabel(Date.parse(value))}` : s.chooseSlot}
+        </button>
+        {value && <button type="button" aria-label={s.clearSlot} onClick={() => onChange('')} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
+      </div>
+      {!value && <small style={{ color: '#777' }}>{s.asap}</small>}
+      {open && (
+        <Sheet onClose={() => setOpen(false)}>
+          <h3 style={{ marginTop: 0 }}>{label}</h3>
+          {!cur ? <p>{s.noSlots}</p> : (<>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              {days.map((d) => <button key={d.key} type="button" style={chip(d === cur)} onClick={() => setDay(d.key)}>{d.today ? s.today : dayLabel(d.ms[0])}</button>)}
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {cur.ms.map((ms) => <button key={ms} type="button" style={chip(value === new Date(ms).toISOString())} onClick={() => { onChange(new Date(ms).toISOString()); setOpen(false); }}>{timeLabel(ms)}</button>)}
+            </div>
+          </>)}
+        </Sheet>
+      )}
+    </div>
+  );
+}
 
 function Sheet({ children, onClose }) {
   return (

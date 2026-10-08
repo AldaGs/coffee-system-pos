@@ -17,6 +17,8 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 2.4 — Pickup/delivery time slots: get_active_menu shop block carries onlineOrders.slots + schedule;
+//       public_place_order validates pickup_at (lead time, days ahead, hours, interval) in shop tz.
 // 2.3 — public_place_order rejects items outside the active menu's category_names
 //       whitelist; get_active_menu shop block carries onlineOrders.trackShowcase.
 // 2.2 — Optional delivery map pin: delivery_lat/lng on online_orders and
@@ -119,4 +121,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '2.3';
+export const APP_SCHEMA_VERSION = '2.4';
