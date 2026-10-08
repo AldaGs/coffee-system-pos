@@ -7,9 +7,15 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 
-// Bundlers break Leaflet's runtime icon-path detection; point it at the assets.
-L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
+// Bundlers break Leaflet's runtime icon-path detection (it also prepends an
+// auto-detected imagePath), so use an explicit icon instead of the Default one.
+const pinIcon = L.icon({ iconUrl, iconRetinaUrl, shadowUrl, iconSize: [25, 41], iconAnchor: [12, 41], shadowSize: [41, 41] });
 
+// Expand abbreviations Nominatim's Spanish data doesn't match ("Calle 37B Nte. 1223").
+const normalize = (q) => q
+  .replace(/\bNte\.?(?=\s|$)/gi, 'Norte').replace(/\bPte\.?(?=\s|$)/gi, 'Poniente')
+  .replace(/\bOte\.?(?=\s|$)/gi, 'Oriente').replace(/\bAv\.?(?=\s|$)/gi, 'Avenida')
+  .replace(/\b(\d+)([A-Za-z])\b/g, '$1 $2').replace(/\s+/g, ' ').trim();
 const PUEBLA = [19.0414, -98.2063];
 const btn = { padding: '8px 12px', borderRadius: 10, border: '1px solid #ddd', background: 'white', fontSize: '0.9rem', cursor: 'pointer' };
 
@@ -22,7 +28,7 @@ export default function PinMap({ pin, address, onPin, s }) {
   const [msg, setMsg] = useState(null);
 
   const addMarker = (lat, lng) => {
-    marker.current = L.marker([lat, lng], { draggable: true }).addTo(map.current);
+    marker.current = L.marker([lat, lng], { draggable: true, icon: pinIcon }).addTo(map.current);
     marker.current.on('dragend', () => { const p = marker.current.getLatLng(); cb.current(p.lat, p.lng); });
   };
   const place = (lat, lng, zoom) => {
@@ -45,10 +51,11 @@ export default function PinMap({ pin, address, onPin, s }) {
 
   const locate = () => {
     setMsg(null);
+    if (!window.isSecureContext) { setMsg(s.pinNeedHttps); return; }
     if (!navigator.geolocation) { setMsg(s.pinNoGeo); return; }
     navigator.geolocation.getCurrentPosition(
       (p) => place(p.coords.latitude, p.coords.longitude, 17),
-      () => setMsg(s.pinNoGeo),
+      (err) => setMsg(err.code === 1 ? s.pinDenied : s.pinNoGeo),
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
@@ -58,10 +65,23 @@ export default function PinMap({ pin, address, onPin, s }) {
     setMsg(null);
     const q = (address || '').trim();
     if (!q) { setMsg(s.pinNeedAddr); return; }
+    // Bounded to ~±0.15° around the map center, Mexico only; OSM has streets but
+    // rarely house numbers, so retry without the trailing number.
+    const c = map.current.getCenter();
+    const vb = [c.lng - 0.15, c.lat + 0.15, c.lng + 0.15, c.lat - 0.15].join(',');
+    const look = async (text) => {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mx&viewbox=${vb}&bounded=1&q=${encodeURIComponent(text)}`);
+      return (await r.json())[0];
+    };
     try {
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`);
-      const [hit] = await r.json();
-      if (hit) place(+hit.lat, +hit.lon, 17); else setMsg(s.pinNotFound);
+      const full = normalize(q);
+      let hit = await look(full);
+      let street = false;
+      const noNum = full.replace(/[\s,#]*(?:no\.?\s*)?\d+\s*[A-Za-z]?\s*$/i, '');
+      if (!hit && noNum && noNum !== full) { hit = await look(noNum); street = !!hit; }
+      if (!hit) { setMsg(s.pinNotFound); return; }
+      place(+hit.lat, +hit.lon, 17);
+      if (street) setMsg(s.pinStreet);
     } catch { setMsg(s.pinNotFound); }
   };
 
