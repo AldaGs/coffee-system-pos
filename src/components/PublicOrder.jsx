@@ -774,6 +774,28 @@ function Track({ client, token, lang, setLang }) {
     return () => { cancelled = true; clearTimeout(timer.current); };
   }, [client, token]);
 
+  // Auto-scroll ~30px/s; pauses while touched/hovered and for 2s after, so a swipe isn't fought.
+  const marqueeRef = useRef(null);
+  useEffect(() => {
+    const el = marqueeRef.current;
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let raf, last = performance.now(), holdUntil = 0, pos = el.scrollLeft;
+    const hold = () => { holdUntil = performance.now() + 2000; };
+    const evs = ['pointerdown', 'touchstart', 'wheel', 'mouseenter', 'mousemove'];
+    evs.forEach((e) => el.addEventListener(e, hold, { passive: true }));
+    const tick = (now) => {
+      const half = el.scrollWidth / 2;
+      if (now < holdUntil) pos = el.scrollLeft;
+      else pos += (now - last) * 0.03;
+      if (half > 0 && pos >= half) pos -= half;
+      if (half > 0 && pos <= 0 && now < holdUntil && el.scrollLeft <= 0) pos = half; // swiped back past the start
+      if (now >= holdUntil || Math.abs(el.scrollLeft - pos) > 1) el.scrollLeft = pos;
+      last = now;
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); evs.forEach((e) => el.removeEventListener(e, hold)); };
+  }, [shop, menu, order]); // strip mounts once the order + menu are in
   if (order === undefined) return <div style={centerStyle}>{s.loading}</div>;
   const back = <a href={`/order${window.location.search}`} style={{ color: '#555' }}>{s.backToMenu}</a>;
   if (order === null) return <div style={centerStyle}><div><p>{s.notFound}</p>{back}</div></div>;
@@ -805,7 +827,7 @@ function Track({ client, token, lang, setLang }) {
   const label = (st) => (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
     <Page client={client} lang={lang}>
-      <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}@keyframes tp-marquee{to{transform:translateX(-50%)}}.tp-track{animation:tp-marquee linear infinite}.tp-marquee:hover .tp-track,.tp-marquee:active .tp-track{animation-play-state:paused}@media (prefers-reduced-motion:reduce){.tp-spin,.tp-track{animation:none!important}.tp-marquee{overflow-x:auto!important}}'}</style>
+      <style>{'@keyframes tp-spin{to{transform:rotate(360deg)}}.tp-marquee{scrollbar-width:none}.tp-marquee::-webkit-scrollbar{display:none}@media (prefers-reduced-motion:reduce){.tp-spin{animation:none!important}}'}</style>
       <ShopHeader shop={shop || { brand_color: brand }} lang={lang} setLang={setLang} />
       <div style={{ maxWidth: 480, width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: 24 }}>
         <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -850,10 +872,10 @@ function Track({ client, token, lang, setLang }) {
         {picks.length > 0 && (
           <div style={{ marginTop: 24 }}>
             <h3 style={{ margin: '0 0 8px' }}>{s.mightLike}</h3>
-            {/* Infinite marquee: the row is rendered twice and slid by exactly one copy (-50%).
+            {/* Infinite marquee: a real scroll row (swipeable) rendered twice; JS nudges scrollLeft and wraps by one copy.
                 Short lists repeat to fill the strip; reduced-motion users get a static, scrollable row. */}
-            <div className="tp-marquee" style={{ overflow: 'hidden', paddingBottom: 6 }}>
-              <div className="tp-track" style={{ display: 'flex', width: 'max-content', animationDuration: `${Math.max(loop.length, 3) * 3}s` }}>
+            <div className="tp-marquee" ref={marqueeRef} style={{ overflowX: 'auto', paddingBottom: 6 }}>
+              <div style={{ display: 'flex', width: 'max-content' }}>
                 {[...loop, ...loop].map((it, i) => (
                   <button key={i} type="button" onClick={() => addFromShowcase(it.id)} aria-hidden={i >= loop.length || undefined} tabIndex={i >= loop.length ? -1 : 0}
                     style={{ flex: '0 0 120px', marginRight: 10, border: '1px solid #ddd', borderRadius: 12, background: 'white', padding: 8, cursor: 'pointer', textAlign: 'center' }}>
