@@ -224,6 +224,15 @@ function Order({ client, lang, setLang }) {
   const [formErr, setFormErr] = useState(null);
   const s = STR[lang] || STR.es;
 
+  // Probe answer: 'open' or 'open:<feeCents>' (delivery offered), or an error code.
+  // One parser for the first load and the 60s re-check (the re-check once had a broken regex
+  // that hid delivery a minute in).
+  const applyProbe = (probe) => {
+    const m = /^open:(\d+)$/.exec(String(probe.data || ''));
+    setFeeCents(m ? Number(m[1]) : null);
+    setGate(probe.error ? (errCode(probe.error) || 'online_orders_disabled') : null);
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -237,9 +246,7 @@ function Order({ client, lang, setLang }) {
       setData(filtered);
       setActiveCat(filtered.categories[0]?.id ?? null);
       if (menu.data?.shop?.language) setLang(menu.data.shop.language === 'en' ? 'en' : 'es');
-      const m = /^open:(\d+)$/.exec(String(probe.data || ''));
-      setFeeCents(m ? Number(m[1]) : null);
-      setGate(probe.error ? (errCode(probe.error) || 'online_orders_disabled') : null);
+      applyProbe(probe);
     })();
     return () => { cancelled = true; };
   }, [client, setLang]);
@@ -250,9 +257,9 @@ function Order({ client, lang, setLang }) {
     if (!data) return undefined;
     const id = setInterval(async () => {
       const probe = await client.rpc('public_place_order', { payload: { check: true } });
-      const m = /^open:(d+)$/.exec(String(probe.data || ''));
-      setFeeCents(m ? Number(m[1]) : null);
-      setGate(probe.error ? (errCode(probe.error) || 'online_orders_disabled') : null);
+      // A network blip (no known error code) keeps the current state instead of locking the page.
+      if (probe.error && !errCode(probe.error)) return;
+      applyProbe(probe);
       setTick((n) => n + 1);
     }, 60000);
     return () => clearInterval(id);
