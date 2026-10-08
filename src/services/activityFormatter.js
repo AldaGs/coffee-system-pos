@@ -130,6 +130,15 @@ const ACTIONS = {
       tip: fmt(m.tip_refunded || 0)
     })
   },
+  ticket_reopened: {
+    icon: 'lucide:undo-2',
+    color: '#2980b9',
+    labelKey: 'activity.action.ticketReopened',
+    describe: (m, t) => interp(t('activity.desc.ticketReopened'), {
+      amount: fmt(m.total_amount),
+      ticket: m.ticket_label || '—'
+    })
+  },
   settings_updated: {
     icon: 'lucide:settings',
     color: '#7f8c8d',

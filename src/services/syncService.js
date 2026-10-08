@@ -254,6 +254,12 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
               : supabase.from('sales').update(update.data).eq('id', update.cloud_id);
             const { error: err } = await query;
             error = err;
+          } else if (update.type === 'sale_delete') {
+            const query = update.local_id
+              ? supabase.from('sales').delete().eq('local_id', update.local_id)
+              : supabase.from('sales').delete().eq('id', update.cloud_id);
+            const { error: err } = await query;
+            error = err;
           } else if (update.type === 'loyalty_increment') {
             const { data: existing, error: readErr } = await supabase
               .from('customers').select('visits').eq('phone', update.data.phone).maybeSingle();
