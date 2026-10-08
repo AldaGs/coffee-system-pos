@@ -2818,7 +2818,8 @@ export default async function handler(req, res) {
       IF v_type NOT IN ('pickup', 'delivery') THEN RAISE EXCEPTION 'invalid_type'; END IF;
       v_pays := v_cfg->'payments'->'methods';
       IF v_pays IS NULL OR jsonb_typeof(v_pays) <> 'array' OR jsonb_array_length(v_pays) = 0 THEN v_pays := '["cash","card","transfer"]'::jsonb; END IF;
-      IF v_pay IS NULL OR v_pay NOT IN ('cash','card','transfer') OR NOT (v_pays @> to_jsonb(v_pay)) THEN RAISE EXCEPTION 'invalid_payment'; END IF;
+      IF v_pay IS NULL OR v_pay NOT IN ('cash','card','transfer','clip') OR NOT (v_pays @> to_jsonb(v_pay))
+     OR (v_pay = 'clip' AND NOT COALESCE((SELECT enabled FROM public.clip_credentials WHERE id = 1), false)) THEN RAISE EXCEPTION 'invalid_payment'; END IF;
       IF v_type = 'delivery' THEN
         IF NOT v_deliv THEN RAISE EXCEPTION 'delivery_disabled'; END IF;
         IF v_addr IS NULL OR length(v_addr) < 5 OR length(v_addr) > 250 THEN RAISE EXCEPTION 'invalid_address'; END IF;
@@ -2990,6 +2991,8 @@ export default async function handler(req, res) {
         'status', v_status,
         'order_type', v_row.order_type,
         'payment_method', v_row.payment_method,
+    'payment_status', v_row.payment_status,
+    'pay_by', v_row.pay_by,
         'cash_amount_cents', v_row.cash_amount_cents,
         'order_num', v_row.order_num,
         'delivery_fee_cents', v_row.delivery_fee_cents,
@@ -3247,7 +3250,8 @@ export default async function handler(req, res) {
       IF v_type NOT IN ('pickup', 'delivery') THEN RAISE EXCEPTION 'invalid_type'; END IF;
       v_pays := v_cfg->'payments'->'methods';
       IF v_pays IS NULL OR jsonb_typeof(v_pays) <> 'array' OR jsonb_array_length(v_pays) = 0 THEN v_pays := '["cash","card","transfer"]'::jsonb; END IF;
-      IF v_pay IS NULL OR v_pay NOT IN ('cash','card','transfer') OR NOT (v_pays @> to_jsonb(v_pay)) THEN RAISE EXCEPTION 'invalid_payment'; END IF;
+      IF v_pay IS NULL OR v_pay NOT IN ('cash','card','transfer','clip') OR NOT (v_pays @> to_jsonb(v_pay))
+     OR (v_pay = 'clip' AND NOT COALESCE((SELECT enabled FROM public.clip_credentials WHERE id = 1), false)) THEN RAISE EXCEPTION 'invalid_payment'; END IF;
       IF v_type = 'delivery' THEN
         IF NOT v_deliv AND NOT COALESCE((v_cfg->'delivery'->>'shippingEnabled')::boolean, false) THEN RAISE EXCEPTION 'delivery_disabled'; END IF;
         IF v_addr IS NULL OR length(v_addr) < 5 OR length(v_addr) > 250 THEN RAISE EXCEPTION 'invalid_address'; END IF;
@@ -3435,6 +3439,8 @@ export default async function handler(req, res) {
         'status', v_status,
         'order_type', v_row.order_type,
         'payment_method', v_row.payment_method,
+    'payment_status', v_row.payment_status,
+    'pay_by', v_row.pay_by,
         'cash_amount_cents', v_row.cash_amount_cents,
         'order_num', v_row.order_num,
         'delivery_fee_cents', v_row.delivery_fee_cents,
@@ -3533,8 +3539,10 @@ export default async function handler(req, res) {
     ALTER TABLE public.online_orders ADD CONSTRAINT online_orders_payment_method_check
       CHECK (payment_method IN ('cash','card','transfer','clip'));
 
+    -- 3.5: Clip pay window (set on accept); the Register voids unpaid orders past it.
+    ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS pay_by timestamptz;
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '3.4', now())
+    VALUES ('schema_version', '3.5', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

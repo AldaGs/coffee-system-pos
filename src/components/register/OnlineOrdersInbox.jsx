@@ -7,10 +7,14 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay, toCents, fromCents } from '../../utils/moneyUtils';
 import { orderBaseUrl } from '../../utils/customDomainSync';
 import {
-  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus, confirmShippingQuote
+  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus, confirmShippingQuote,
+  releaseClipOrder, expireClipOrder
 } from '../../services/onlineOrders';
 
-const PAY_ICON = { cash: 'lucide:banknote', card: 'lucide:credit-card', transfer: 'lucide:landmark' };
+const PAY_ICON = { cash: 'lucide:banknote', card: 'lucide:credit-card', transfer: 'lucide:landmark', clip: 'lucide:link' };
+// The customer's checkout link stops at pay_by; the Register waits this much longer before voiding,
+// so a payment started just before the deadline can still land.
+const CLIP_GRACE_MS = 5 * 60000;
 const LIVE = ['quote_pending', 'requested', 'accepted', 'preparing', 'ready'];
 
 // Tracking link the customer can reopen if they lost the page (same shape PublicOrder redirects to).
@@ -45,7 +49,7 @@ function beep() {
 // and the preparing/ready steps (manual, or driven by the KDS).
 export default function OnlineOrdersInbox({
   tickets, activeCashier, myDeviceId, menuData, activeTicketId, nextOrderNum, setNextOrderNum, kdsEnabled, handleSendToKds,
-  setActiveTicketId, showAlert, showPrompt, showToast
+  setActiveTicketId, showAlert, showPrompt, showToast, clipPayMinutes
 }) {
   const { t } = useTranslation();
   const [orders, setOrders] = useState([]);
@@ -56,6 +60,25 @@ export default function OnlineOrdersInbox({
   const [canQuote, setCanQuote] = useState(false);
   const ordersRef = useRef([]);
   useEffect(() => { ordersRef.current = orders; }, [orders]);
+
+  // Clip: a paid order's ticket goes to the kitchen; an unpaid one past its
+  // window is voided. Runs on every order/ticket change plus once a minute, so
+  // it also catches payments that landed while no Register was open.
+  // ponytail: every open station runs this; the conditional updates make expiry
+  // single-winner, but two stations releasing at once could double-send a delivery.
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTick((n) => n + 1), 60000); return () => clearInterval(id); }, []);
+  useEffect(() => {
+    orders.filter((o) => o.payment_method === 'clip' && o.active_ticket_id != null).forEach((o) => {
+      const ticket = tickets.find((tk) => tk.id === o.active_ticket_id);
+      if (o.payment_status === 'paid') {
+        if (ticket) releaseClipOrder(o, ticket).catch((e) => console.warn('releaseClipOrder', e));
+      } else if (o.pay_by && Date.parse(o.pay_by) + CLIP_GRACE_MS < Date.now()) {
+        expireClipOrder(o, t('oo.clipExpired')).catch((e) => console.warn('expireClipOrder', e));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders, tickets, tick]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -116,7 +139,7 @@ export default function OnlineOrdersInbox({
   };
 
   const accept = (o) => run(o, async () => {
-    const id = await acceptOnlineOrder(o, { activeCashier, myDeviceId, menuData, orderNum: nextOrderNum, feeLabel: t('oo.deliveryFeeLine') });
+    const id = await acceptOnlineOrder(o, { activeCashier, myDeviceId, menuData, orderNum: nextOrderNum, feeLabel: t('oo.deliveryFeeLine'), clipPayMinutes: Math.min(120, Math.max(5, Number(clipPayMinutes) || 15)) });
     if (id == null) return showToast(t('oo.alreadyHandled'), 'warning');
     setNextOrderNum(nextOrderNum + 1);
     setActiveTicketId(id);
@@ -228,7 +251,7 @@ export default function OnlineOrdersInbox({
                   </div>
                 )}
                 {o.pickup_at && <div style={{ color: 'var(--text-muted)' }}>{t('oo.pickupAt')}: {new Date(o.pickup_at).toLocaleString()}</div>}
-                {o.payment_method && <div style={{ fontWeight: 700 }}><Icon icon={PAY_ICON[o.payment_method]} style={{ verticalAlign: '-2px' }} /> {t(`check.${o.payment_method}`)}{o.cash_amount_cents != null && ` · ${t('oo.paysWith')} ${formatForDisplay(o.cash_amount_cents)} · ${t('oo.change')} ${formatForDisplay(o.cash_amount_cents - o.total_cents)}`}</div>}
+                {o.payment_method && <div style={{ fontWeight: 700 }}><Icon icon={PAY_ICON[o.payment_method]} style={{ verticalAlign: '-2px' }} /> {o.payment_method === 'clip' ? `Clip · ${o.payment_status === 'paid' ? 'PAGADO ✓' : 'pendiente de pago'}` : t(`check.${o.payment_method}`)}{o.cash_amount_cents != null && ` · ${t('oo.paysWith')} ${formatForDisplay(o.cash_amount_cents)} · ${t('oo.change')} ${formatForDisplay(o.cash_amount_cents - o.total_cents)}`}</div>}
                 {o.notes && <div style={{ color: 'var(--text-muted)' }}>{o.notes}</div>}
                 <ul style={{ margin: '8px 0', paddingLeft: 18 }}>
                   {(o.items || []).map((l, i) => (

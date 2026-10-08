@@ -1,14 +1,20 @@
 import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
-import { pushActiveTicketCreate } from './ticketSync';
+import { pushActiveTicketCreate, pushActiveTicketUpdate, pushActiveTicketDeletion } from './ticketSync';
 import { cleanPhone } from '../utils/customerCapture';
 
 // Staff-side transitions for online_orders (see docs/online-ordering.md).
 // quote_pending -> requested (once shipping is agreed) -> accepted | rejected -> preparing -> ready -> completed.
 
 // Spanish labels: they land on the ticket name and the courier's notes.
-export const PAY_LABEL = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia' };
+export const PAY_LABEL = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', clip: 'Clip (pendiente)' };
+// Clip orders are paid before the kitchen starts. The ticket name carries the
+// paid state (active_tickets has no column for it, and unknown keys would break
+// the cloud insert).
+// ponytail: name marker; a real column if staff start renaming these tickets.
+export const CLIP_PAID_MARK = 'PAGADO (Clip)';
+export const isPaidOnline = (ticket) => !!ticket?.name?.includes(CLIP_PAID_MARK);
 const peso = (c) => `$${(c / 100).toFixed(c % 100 ? 2 : 0)}`;
 
 export const ONLINE_STATUS_RANK = { requested: 0, accepted: 1, preparing: 2, ready: 3, completed: 4 };
@@ -37,9 +43,11 @@ export async function confirmShippingQuote(orderId, feeCents) {
 // Accept: atomically claim the order (so two stations can't both accept it),
 // then open a real active ticket from the server-priced snapshot and link it.
 // Returns the new ticket id, or null if another station got there first.
-export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menuData, orderNum, feeLabel = 'Envío' }) {
+export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menuData, orderNum, feeLabel = 'Envío', clipPayMinutes = 15 }) {
+  const clip = order.payment_method === 'clip';
   const { data: claimed, error } = await supabase.from('online_orders')
-    .update({ status: 'accepted', order_num: orderNum, updated_at: new Date().toISOString() })
+    .update({ status: 'accepted', order_num: orderNum, updated_at: new Date().toISOString(),
+      ...(clip ? { pay_by: new Date(Date.now() + clipPayMinutes * 60000).toISOString() } : {}) })
     .eq('id', order.id).eq('status', 'requested').select('*');
   if (error) throw error;
   if (!claimed?.length) return null;
@@ -75,7 +83,8 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
     created_at: new Date().toISOString(),
     // ponytail: pre-flagged so KDS immediate mode can't insert a 2nd row while
     // the logistics insert below is in flight; sendOrderToLogistics rolls it back on failure.
-    ...(order.order_type === 'delivery' ? { kds_sent: true } : {}),
+    // Clip: held out of the kitchen (and logistics) until paid; releaseClipOrder sends it.
+    ...(order.order_type === 'delivery' || clip ? { kds_sent: true } : {}),
   };
 
   // Loyalty: only attach when the phone already belongs to a customer.
@@ -91,7 +100,7 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
   pushActiveTicketCreate(ticket);
   await supabase.from('online_orders').update({ active_ticket_id: ticket.id }).eq('id', order.id);
   // Delivery: hand it to tinylogistics now, so the courier sees it before payment (pay on delivery).
-  if (order.order_type === 'delivery') {
+  if (order.order_type === 'delivery' && !clip) {
     await sendOrderToLogistics({ ...order, active_ticket_id: ticket.id }, ticket)
       .catch((e) => console.warn('Could not hand delivery order to logistics', e));
   }
@@ -108,7 +117,7 @@ export async function sendOrderToLogistics(order, ticket) {
     delivery_lat: order.delivery_lat ?? null,
     delivery_lng: order.delivery_lng ?? null,
     delivery_date: order.pickup_at ?? null, // scheduled time; null = ASAP
-    delivery_notes: [order.notes, `Tel: ${String(order.phone).length > 10 ? '+' : ''}${order.phone}`, order.payment_method && `Pago: ${PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? `, paga con ${peso(order.cash_amount_cents)}, cambio ${peso(order.cash_amount_cents - order.total_cents)}` : ''}`].filter(Boolean).join(' · '),
+    delivery_notes: [order.notes, `Tel: ${String(order.phone).length > 10 ? '+' : ''}${order.phone}`, order.payment_method && `Pago: ${order.payment_status === 'paid' ? CLIP_PAID_MARK : PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? `, paga con ${peso(order.cash_amount_cents)}, cambio ${peso(order.cash_amount_cents - order.total_cents)}` : ''}`].filter(Boolean).join(' · '),
   };
   const { data: updated, error } = await supabase.from('order_fulfillment')
     .update(patch).eq('active_ticket_id', order.active_ticket_id).select('id');
@@ -118,7 +127,7 @@ export async function sendOrderToLogistics(order, ticket) {
   await db.active_tickets.update(ticket.id, { kds_sent: true });
   const { error: insErr } = await supabase.from('order_fulfillment').insert({
     active_ticket_id: ticket.id, customer_name: order.customer_name, items: ticket.items,
-    payment_status: 'unpaid', status: 'received', ...patch,
+    payment_status: order.payment_status === 'paid' ? 'paid' : 'unpaid', status: 'received', ...patch,
   });
   if (insErr) { await db.active_tickets.update(ticket.id, { kds_sent: false }).catch(() => {}); throw insErr; }
   await supabase.from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id); // best effort
@@ -148,6 +157,31 @@ export async function cancelTicketEverywhere(ticketId, reason) {
   if (error) await open(supabase.from('order_fulfillment').update({ status: 'cancelled' }))
     .then(({ error: e }) => e && console.warn('Could not cancel fulfillment for ticket', ticketId, e));
   await completeOnlineOrderForTicket(ticketId, 'rejected', { reject_reason: reason });
+}
+
+// Clip paid: mark the ticket and let it go to the kitchen. Delivery goes to
+// logistics now; pickup just drops the hold so KDS immediate mode (or the
+// manual button) sends it. Idempotent through the name marker.
+export async function releaseClipOrder(order, ticket) {
+  if (isPaidOnline(ticket)) return;
+  const name = ticket.name.includes(PAY_LABEL.clip) ? ticket.name.replace(PAY_LABEL.clip, CLIP_PAID_MARK) : `${ticket.name} · ${CLIP_PAID_MARK}`;
+  const delivery = order.order_type === 'delivery';
+  const patch = delivery ? { name } : { name, kds_sent: false };
+  await db.active_tickets.update(ticket.id, patch);
+  pushActiveTicketUpdate(ticket.id, patch);
+  if (delivery) await sendOrderToLogistics(order, { ...ticket, name });
+}
+
+// Unpaid past its window: reject the order only if still unpaid (a payment
+// landing at the same moment wins), then drop the ticket everywhere.
+export async function expireClipOrder(order, reason) {
+  const { data } = await supabase.from('online_orders')
+    .update({ status: 'rejected', reject_reason: reason, updated_at: new Date().toISOString() })
+    .eq('id', order.id).eq('payment_status', 'unpaid').in('status', ['accepted', 'preparing', 'ready']).select('id');
+  if (!data?.length || order.active_ticket_id == null) return;
+  await cancelTicketEverywhere(order.active_ticket_id, reason);
+  await db.active_tickets.delete(order.active_ticket_id).catch(() => {});
+  await pushActiveTicketDeletion(order.active_ticket_id);
 }
 
 // Fully refunding a completed sale reopens nothing, but the customer's tracker

@@ -48,13 +48,14 @@ export function makeCheckout(env, fetch) {
       if (typeof return_url !== 'string' || !/^https?:\/\//.test(return_url)) return out({ error: 'bad_return_url' }, 400);
 
       // The amount ALWAYS comes from the stored order, never from the client.
-      const orders = await (await rest(`online_orders?token=eq.${token}&select=id,order_num,total_cents,status,payment_status`)).json();
+      const orders = await (await rest(`online_orders?token=eq.${token}&select=id,order_num,total_cents,status,payment_status,pay_by`)).json();
       const order = orders?.[0];
       if (!order) return out({ error: 'not_found' }, 404);
       if (order.payment_status === 'paid') return out({ error: 'already_paid' }, 409);
       // Pay-after-accept: no link until staff accepted (no refunds on rejection).
       if (!['accepted', 'preparing', 'ready', 'on_delivery'].includes(order.status) || !(order.total_cents > 0)) return out({ error: 'not_payable' }, 409);
 
+      if (order.pay_by && Date.parse(order.pay_by) < Date.now()) return out({ error: 'expired' }, 409);
       const creds = (await (await rest('clip_credentials?id=eq.1&select=api_key,api_secret,enabled')).json())?.[0];
       if (!creds?.enabled || !creds.api_key || !creds.api_secret) return out({ error: 'clip_disabled' }, 403);
 

@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { cancelTicketEverywhere } from '../services/onlineOrders';
+import { cancelTicketEverywhere, isPaidOnline } from '../services/onlineOrders';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 import {
@@ -142,7 +142,7 @@ export function useTickets({
       clearCurrentTicket();
     };
     if (confirmed) voidTicket();
-    else showConfirm(t('reg.voidTitle'), t('reg.voidDesc'), voidTicket);
+    else showConfirm(t('reg.voidTitle'), t(isPaidOnline(activeTicket) ? 'oo.paidVoidWarn' : 'reg.voidDesc'), voidTicket);
   };
 
   const addToTicket = async (item, modifiers, customPrice) => {
@@ -152,6 +152,7 @@ export function useTickets({
       setPendingItem(null);
       return;
     }
+    if (isPaidOnline(activeTicket)) { setIsModalOpen(false); setPendingItem(null); return showAlert(t('common.error'), t('oo.paidLocked')); }
 
     // Low-stock: non-blocking toast at/under threshold; modal only when an
     // ingredient would actually go negative.
@@ -193,6 +194,7 @@ export function useTickets({
 
   const handleUpdateItemQty = async (itemUniqueId, newQty) => {
     if (!activeTicket) return;
+    if (isPaidOnline(activeTicket)) return showAlert(t('common.error'), t('oo.paidLocked'));
     const updatedItems = newQty === 0
       ? activeTicket.items.filter(i => i.uniqueId !== itemUniqueId)
       : activeTicket.items.map(i => i.uniqueId === itemUniqueId ? { ...i, qty: newQty } : i);
@@ -202,6 +204,7 @@ export function useTickets({
 
   const handleRemoveItem = async (itemUniqueId) => {
     if (!activeTicket) return;
+    if (isPaidOnline(activeTicket)) return showAlert(t('common.error'), t('oo.paidLocked'));
     const updatedItems = activeTicket.items.filter(i => i.uniqueId !== itemUniqueId);
     await db.active_tickets.update(activeTicket.id, { items: updatedItems });
     pushActiveTicketUpdate(activeTicket.id, { items: updatedItems, last_modified_by: myDeviceId });

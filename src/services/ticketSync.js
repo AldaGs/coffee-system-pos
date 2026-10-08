@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
+import { normalizeMenuPrice } from '../utils/moneyUtils';
 
 export const fetchActiveTickets = async () => {
     if (!isCloudReachable()) return;
@@ -102,7 +103,39 @@ export const pushActiveTicketUpdate = async (ticketId, patch) => {
     () => supabase.from('active_tickets').update(patch).eq('id', ticketId),
     { type: 'active_ticket_update', ticketId, data: patch, label: 'active_ticket update' }
   );
+  if (patch.items) syncOnlineOrderItems(ticketId, patch.items);
 };
+
+// Staff edited a ticket that came from an online order: rewrite the order's
+// item snapshot + total so the customer's tracker shows the change. Fee lines
+// stay out (the tracker shows delivery_fee_cents on its own). Paid orders are
+// left alone; the Register blocks those edits.
+// ponytail: total = lines + fee; ticket discounts don't reach the tracker.
+const FEE_LINE_IDS = ['online-delivery-fee', 'online-shipping-fee'];
+export const toOrderItems = (items) => items.filter((i) => !FEE_LINE_IDS.includes(i.id)).map((i) => {
+  const base = normalizeMenuPrice(i.basePrice);
+  const modifiers = (i.selectedModifiers || []).map((m) => ({ id: m.id, name: m.name, groupId: m.groupId, price_cents: normalizeMenuPrice(m.price) }));
+  const unit = base + modifiers.reduce((a, m) => a + m.price_cents, 0);
+  const qty = i.qty || 1;
+  return { id: i.id, name: i.name, qty, unit_cents: unit, base_cents: base, iva: i.ivaTreatment ?? null, modifiers, line_cents: unit * qty };
+});
+
+async function syncOnlineOrderItems(ticketId, items) {
+  try {
+    const { data: order } = await supabase.from('online_orders')
+      .select('id,delivery_fee_cents').eq('active_ticket_id', ticketId)
+      .in('status', ['accepted', 'preparing', 'ready', 'on_delivery']).neq('payment_status', 'paid').maybeSingle();
+    if (!order) return;
+    const lines = toOrderItems(items);
+    await supabase.from('online_orders').update({
+      items: lines,
+      total_cents: lines.reduce((a, l) => a + l.line_cents, 0) + (order.delivery_fee_cents || 0),
+      updated_at: new Date().toISOString(),
+    }).eq('id', order.id).neq('payment_status', 'paid');
+  } catch (err) {
+    console.warn('Could not sync online order items for ticket', ticketId, err);
+  }
+}
 
 // Mirror a newly created active ticket. Queues an UPSERT rather than an UPDATE:
 // if the original INSERT never landed there is no row to patch, and every

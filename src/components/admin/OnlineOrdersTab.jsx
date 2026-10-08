@@ -360,13 +360,20 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
         <Card icon="lucide:wallet" title={t('oo.payments')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.paymentsDesc')}</small>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {['cash', 'card', 'transfer'].map((m) => (
+            {['cash', 'card', 'transfer', 'clip'].map((m) => (
               <label key={m} style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
                 <input type="checkbox" checked={pay.methods.includes(m)} disabled={pay.methods.length === 1 && pay.methods.includes(m)} onChange={() => togglePay(m)} />
-                <span>{t(`check.${m}`)}</span>
+                <span>{m === 'clip' ? 'Clip' : t(`check.${m}`)}</span>
               </label>
             ))}
           </div>
+          {pay.methods.includes('clip') && (
+            <label style={{ display: 'grid', gap: 4 }}>
+              <small>{t('oo.clipPayMinutes')}</small>
+              <input style={input} type="number" min="5" max="120" value={pay.clipMinutes ?? 15}
+                onChange={e => setPay({ clipMinutes: e.target.value === "" ? null : Number(e.target.value) })} />
+            </label>
+          )}
           {pay.methods.includes('transfer') && (
             <div style={{ display: 'grid', gap: 8 }}>
               {/* Shown to the customer as three boxes with copy buttons. */}
