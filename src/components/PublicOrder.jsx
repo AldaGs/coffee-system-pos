@@ -17,7 +17,8 @@ import OrderTicket from './OrderTicket';
 import { buildSlots } from '../utils/pickupSlots';
 
 // MapLibre + its CSS only download when a customer picks delivery.
-const PinMap = lazy(() => import('./PinMap'));
+// The pin is optional: if the map chunk fails to load (bad network, stale deploy) checkout still works.
+const PinMap = lazy(() => import('./PinMap').catch(() => ({ default: () => null })));
 
 const CUSTOMER_KEY = 'tinypos_order_customer';
 const HISTORY_KEY = 'tinypos_order_history';
