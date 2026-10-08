@@ -479,7 +479,9 @@ function SlotPicker({ label, value, onChange, shop, lang, s, brand }) {
   const max = toLocalInput(now + (rules?.daysAhead ?? 14) * 86400000, tz);
   const pick = (e) => {
     const ms = fromLocalInput(e.target.value, tz);
-    if (Number.isNaN(ms)) { onChange(''); return setBad(false); }
+    // Pickers report '' while only the date (or only the time) is set: wait for both
+    // instead of treating it as a clear, which wiped the half-finished pick.
+    if (Number.isNaN(ms)) return;
     if (ms < Date.now() - 60000 || (rules && !slotValid(ms, { tz, slots: shop.slots, schedule: shop.schedule }))) return setBad(true);
     setBad(false);
     onChange(new Date(ms).toISOString());
@@ -494,11 +496,12 @@ function SlotPicker({ label, value, onChange, shop, lang, s, brand }) {
         <button type="button" onClick={open} style={{ ...inputStyle, flex: 1, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', textAlign: 'left', background: 'white' }}>
           <Icon icon="lucide:calendar" />{shown || s.chooseSlot}
         </button>
-        {value && <button type="button" aria-label={s.clearSlot} onClick={() => { onChange(''); setBad(false); }} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
+        {value && <button type="button" aria-label={s.clearSlot} onClick={() => { onChange(''); setBad(false); if (ref.current) ref.current.value = ''; }} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
       </div>
       {/* visually hidden, not display:none (that blocks showPicker in some browsers) */}
-      <input ref={ref} type="datetime-local" tabIndex={-1} aria-hidden="true" value={value ? toLocalInput(Date.parse(value), tz) : ''}
-        min={min} max={max} step={rules ? rules.interval * 60 : 60} onChange={pick}
+      {/* Uncontrolled so React never rewrites it mid-pick; the × clears it directly. */}
+      <input ref={ref} type="datetime-local" tabIndex={-1} aria-hidden="true" defaultValue={value ? toLocalInput(Date.parse(value), tz) : ''}
+        min={min} max={max} step={rules ? rules.interval * 60 : 60} onChange={pick} onBlur={pick}
         style={{ position: 'absolute', left: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0, padding: 0 }} />
       {bad && rules && <small style={{ color: '#c0392b', display: 'block' }}>{s.slotRule.replace('{days}', days).replace('{start}', rules.start).replace('{end}', rules.end).replace('{n}', rules.interval)}</small>}
       {bad && !rules && <small style={{ color: '#c0392b', display: 'block' }}>{s.slotPast}</small>}
