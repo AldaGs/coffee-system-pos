@@ -158,7 +158,8 @@ function GeneralSettingsTab({
           throw new Error(data?.error || t('settings.schemaUpdateFailed'));
         }
         await fetchSchemaVersion();
-        showAlert(t('common.success'), t('settings.schemaUpdateOk'));
+        showAlert(t('common.success'), t('settings.schemaUpdateOk') +
+          (data?.clipFailed?.length ? `\n\nClip: no se pudieron instalar ${data.clipFailed.join(', ')}` : ''));
       } catch (err) {
         setSchemaUpdateError(err.message);
       } finally {
