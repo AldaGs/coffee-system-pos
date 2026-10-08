@@ -2763,6 +2763,8 @@ export default async function handler(req, res) {
           RAISE EXCEPTION 'online_orders_closed';
         END IF;
       END IF;
+      -- From here on v_sched is the delivery/pickup schedule (slot hours fallback).
+      v_sched := v_cfg->'schedule';
 
       -- Availability probe for the page: {"check":true} runs only the gate above.
 
