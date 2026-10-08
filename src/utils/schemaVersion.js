@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 3.1 — get_order_menu(): online orders use posSettings.onlineOrders.menuId; public_place_order validates against it.
 // 3.0 — order_fulfillment.delivery_date: scheduled online-order time for KDS/logistics.
 // 2.9 — Store hours (onlineOrders.openHours) split from delivery/pickup hours; gate + get_active_menu open_hours.
 // 2.8 — get_legal(): public privacy notice + terms (posSettings.legal).
@@ -127,4 +128,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '3.0';
+export const APP_SCHEMA_VERSION = '3.1';

@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { toCents, fromCents } from '../../utils/moneyUtils';
 import OrderTicket from '../OrderTicket';
 import LegalSection from './LegalSection';
 import MenuShareCard from './MenuShareCard';
-import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
+import { DAY_ORDER, daysToBitmask, bitmaskToDays, loadMenus } from '../../api/menus';
 
 // Online ordering settings. Stored at posSettings.onlineOrders so the
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
@@ -13,6 +13,7 @@ import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 // slots: { enabled (default false: any future time),  interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
 // openHours: { always, rules: [{ days: bitmask (mon = bit 0, 0 = every day), start: 'HH:MM', end: 'HH:MM' }] } = when orders are accepted (any rule matches; overnight wraps).
 // schedule?: { days, start, end } = delivery/pickup hours only (fallback for slots + ASAP); it no longer gates ordering.
+// menuId: a Public Menus menu whose categories the order page shows (null = whichever menu is active now).
 // Shape: { enabled, paused, delivery: { enabled, feeCents }, openHours, schedule }
 const DEFAULTS = { enabled: false, paused: false, openHours: { always: true, rules: [] }, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
@@ -21,6 +22,8 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const { t, lang } = useTranslation();
   const saved = { ...DEFAULTS, ...(menuData?.posSettings?.onlineOrders || {}) };
   const [form, setForm] = useState(saved);
+  const [menus, setMenus] = useState([]);
+  useEffect(() => { loadMenus().then(setMenus).catch(() => {}); }, []);
   const delivery = form.delivery || DEFAULTS.delivery;
   const setDelivery = (patch) => setForm({ ...form, delivery: { ...delivery, ...patch } });
   const showIva = !!form.ticket?.showIva;
@@ -107,7 +110,14 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           </label>
         )}
 
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>{t('oo.linkHint')}</p>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <strong>{t('oo.menu')}</strong>
+            <select style={input} value={form.menuId ?? ''} onChange={e => setForm({ ...form, menuId: e.target.value ? Number(e.target.value) : null })}>
+              <option value="">{t('oo.menuActive')}</option>
+              {menus.filter((m) => m.is_active && (m.kind === 'live' || m.kind === 'designed')).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+            <small style={{ color: 'var(--text-muted)' }}>{t('oo.menuDesc')}</small>
+          </label>
         </Card>
 
         <Card icon="lucide:store" title={t('oo.storeHours')}>

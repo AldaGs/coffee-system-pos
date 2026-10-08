@@ -2698,6 +2698,25 @@ export default async function handler(req, res) {
       END IF;
     END $$;
 
+    -- 3.1: the menu the online-order page uses: posSettings.onlineOrders.menuId when
+    -- it names an active menu, else whatever get_active_menu picks. Shop block always
+    -- comes from get_active_menu (it carries the ordering settings).
+    CREATE OR REPLACE FUNCTION public.get_order_menu()
+    RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public STABLE AS $$
+    DECLARE v jsonb; v_id bigint;
+    BEGIN
+      v := public.get_active_menu(now());
+      SELECT CASE WHEN jsonb_typeof(menu_data->'posSettings'->'onlineOrders'->'menuId') = 'number'
+                  THEN (menu_data->'posSettings'->'onlineOrders'->>'menuId')::bigint END
+        INTO v_id FROM public.shop_settings WHERE id = 1;
+      IF v_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.menus WHERE id = v_id AND is_active) THEN
+        RETURN public.get_menu_by_id(v_id) || jsonb_build_object('shop', v->'shop');
+      END IF;
+      RETURN v;
+    END $$;
+    REVOKE ALL ON FUNCTION public.get_order_menu() FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.get_order_menu() TO anon, authenticated;
+
     CREATE OR REPLACE FUNCTION public.public_place_order(payload jsonb)
     RETURNS text
     LANGUAGE plpgsql
@@ -2852,8 +2871,8 @@ export default async function handler(req, res) {
       END IF;
 
       -- 4. Reprice every line from menu_items; client prices are never read.
-      -- Categories the active menu hides (menu.data.category_names whitelist) are not orderable.
-      v_cats := public.get_active_menu(now())->'menu'->'data'->'category_names';
+      -- Categories the order menu (get_order_menu) hides (menu.data.category_names whitelist) are not orderable.
+      v_cats := public.get_order_menu()->'menu'->'data'->'category_names';
       FOR v_it IN SELECT value AS j FROM jsonb_array_elements(v_in) LOOP
         BEGIN v_qty := (v_it.j->>'qty')::int;
         EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_items'; END;
@@ -3005,7 +3024,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '3.0', now())
+    VALUES ('schema_version', '3.1', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

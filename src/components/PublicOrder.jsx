@@ -22,6 +22,12 @@ import { CALLING_CODES, exactLength } from '../utils/callingCodes';
 import { useLegal } from '../hooks/useLegal';
 import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk } from '../utils/pickupSlots';
 
+// The menu chosen for online orders (schema 3.1+); older schemas lack the RPC, so fall back to the active menu.
+const orderMenu = async (client) => {
+  const r = await client.rpc('get_order_menu');
+  return r.error ? client.rpc('get_active_menu') : r;
+};
+
 // MapLibre + its CSS only download when a customer picks delivery.
 // The pin is optional: if the map chunk fails to load (bad network, stale deploy) checkout still works.
 const PinMap = lazy(() => import('./PinMap').catch(() => ({ default: () => null })));
@@ -247,7 +253,7 @@ function Order({ client, lang, setLang }) {
     let cancelled = false;
     (async () => {
       const [menu, probe] = await Promise.all([
-        client.rpc('get_active_menu'),
+        orderMenu(client),
         client.rpc('public_place_order', { payload: { check: true } }),
       ]);
       if (cancelled) return;
@@ -749,7 +755,7 @@ function Track({ client, token, lang, setLang }) {
   // Shop info (logo/name/brand) changes rarely: fetch once, not on every poll.
   useEffect(() => {
     let cancelled = false;
-    client.rpc('get_public_menu').then(({ data }) => { if (!cancelled && data?.shop) { setShop(data.shop); setMenu(data); } });
+    orderMenu(client).then(({ data }) => { if (!cancelled && data?.shop) { setShop(data.shop); setMenu(data); } });
     return () => { cancelled = true; };
   }, [client]);
 
