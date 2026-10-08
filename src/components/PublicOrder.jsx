@@ -14,7 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
-import { buildSlots } from '../utils/pickupSlots';
+import { slotRules, slotValid, toLocalInput, fromLocalInput } from '../utils/pickupSlots';
 
 // MapLibre + its CSS only download when a customer picks delivery.
 // The pin is optional: if the map chunk fails to load (bad network, stale deploy) checkout still works.
@@ -48,7 +48,7 @@ const STR = {
     noMenu: 'El menú no está disponible para pedidos.', soldOut: 'Agotado', add: 'Agregar',
     options: 'Opciones', choose: 'Elige tus opciones', addToCart: 'Agregar al pedido', cancel: 'Cancelar',
     cart: 'Tu pedido', empty: 'Aún no agregas nada.', total: 'Total', checkout: 'Hacer pedido',
-    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', noSlots: 'No hay horarios disponibles.', today: 'Hoy', clearSlot: 'Quitar horario',
+    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario',
     payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
     repeat: 'Repetir último pedido', forget: 'Olvidar mis datos', forgot: 'Datos borrados de este dispositivo.',
     pastOrders: 'Mis pedidos', view: 'Ver',
@@ -70,7 +70,7 @@ const STR = {
     noMenu: 'The menu is not available for ordering.', soldOut: 'Sold out', add: 'Add',
     options: 'Options', choose: 'Choose your options', addToCart: 'Add to order', cancel: 'Cancel',
     cart: 'Your order', empty: 'Nothing added yet.', total: 'Total', checkout: 'Place order',
-    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', noSlots: 'No time slots available.', today: 'Today', clearSlot: 'Clear time',
+    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time',
     payAtPickup: 'You pay at pickup.', send: 'Send order', sending: 'Sending…',
     repeat: 'Repeat last order', forget: 'Forget my data', forgot: 'Data erased from this device.',
     pastOrders: 'My orders', view: 'View',
@@ -466,41 +466,43 @@ function ShopHeader({ shop, lang, setLang, cartCount, onCart, cartLabel }) {
 
 const qtyBtn = { width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd', background: 'white', fontSize: '1.1rem', cursor: 'pointer' };
 
-// Optional pickup/delivery time: a button that opens a day + time chip picker (shop timezone).
+// Optional pickup/delivery time: native datetime-local (shop timezone) behind the same button.
+// Always blocks the past; with slots.enabled it also applies lead/range/step and re-checks the rules on pick.
 function SlotPicker({ label, value, onChange, shop, lang, s, brand }) {
-  const [open, setOpen] = useState(false);
-  const [day, setDay] = useState(null);
+  const ref = useRef(null);
+  const [bad, setBad] = useState(false);
   const tz = shop?.timezone || 'America/Mexico_City';
   const locale = lang === 'en' ? 'en-US' : 'es-MX';
-  const days = useMemo(() => (open ? buildSlots({ tz, slots: shop?.slots, schedule: shop?.schedule }) : []), [open, tz, shop]);
-  const f = (ms, o) => new Date(ms).toLocaleString(locale, { timeZone: tz, ...o });
-  const dayLabel = (ms) => f(ms, { weekday: 'short', day: 'numeric', month: 'short' });
-  const timeLabel = (ms) => f(ms, { hour: 'numeric', minute: '2-digit' });
-  const cur = days.find((d) => d.key === day) || days[0];
-  const chip = (on) => ({ padding: '8px 12px', borderRadius: 999, border: `1px solid ${brand}`, cursor: 'pointer', fontWeight: 700, background: on ? brand : 'white', color: on ? 'white' : brand });
+  const rules = shop?.slots?.enabled ? slotRules(shop.slots, shop.schedule) : null;
+  const now = Date.now();
+  const min = toLocalInput(now + (rules?.leadMinutes || 0) * 60000, tz);
+  const max = toLocalInput(now + (rules?.daysAhead ?? 14) * 86400000, tz);
+  const pick = (e) => {
+    const ms = fromLocalInput(e.target.value, tz);
+    if (Number.isNaN(ms)) { onChange(''); return setBad(false); }
+    if (ms < Date.now() - 60000 || (rules && !slotValid(ms, { tz, slots: shop.slots, schedule: shop.schedule }))) return setBad(true);
+    setBad(false);
+    onChange(new Date(ms).toISOString());
+  };
+  const open = () => { const el = ref.current; try { el.showPicker(); } catch { el.focus(); el.click(); } };
+  const days = rules && (rules.days ? [0, 1, 2, 3, 4, 5, 6].filter((i) => rules.days & (1 << i)).map((i) => new Date(Date.UTC(2024, 0, 1 + i)).toLocaleDateString(locale, { weekday: 'short', timeZone: 'UTC' })).join(', ') : s.everyDay);
+  const shown = value && new Date(value).toLocaleString(locale, { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
       <div style={{ fontSize: '0.85rem', color: '#555', marginBottom: 4 }}>{label}</div>
       <div style={{ display: 'flex', gap: 6 }}>
-        <button type="button" onClick={() => setOpen(true)} style={{ ...inputStyle, flex: 1, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', textAlign: 'left', background: 'white' }}>
-          <Icon icon="lucide:calendar" />{value ? `${dayLabel(Date.parse(value))}, ${timeLabel(Date.parse(value))}` : s.chooseSlot}
+        <button type="button" onClick={open} style={{ ...inputStyle, flex: 1, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', textAlign: 'left', background: 'white' }}>
+          <Icon icon="lucide:calendar" />{shown || s.chooseSlot}
         </button>
-        {value && <button type="button" aria-label={s.clearSlot} onClick={() => onChange('')} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
+        {value && <button type="button" aria-label={s.clearSlot} onClick={() => { onChange(''); setBad(false); }} style={{ ...qtyBtn, width: 44, height: 'auto' }}><Icon icon="lucide:x" /></button>}
       </div>
-      {!value && <small style={{ color: '#777' }}>{s.asap}</small>}
-      {open && (
-        <Sheet onClose={() => setOpen(false)}>
-          <h3 style={{ marginTop: 0 }}>{label}</h3>
-          {!cur ? <p>{s.noSlots}</p> : (<>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              {days.map((d) => <button key={d.key} type="button" style={chip(d === cur)} onClick={() => setDay(d.key)}>{d.today ? s.today : dayLabel(d.ms[0])}</button>)}
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {cur.ms.map((ms) => <button key={ms} type="button" style={chip(value === new Date(ms).toISOString())} onClick={() => { onChange(new Date(ms).toISOString()); setOpen(false); }}>{timeLabel(ms)}</button>)}
-            </div>
-          </>)}
-        </Sheet>
-      )}
+      {/* visually hidden, not display:none (that blocks showPicker in some browsers) */}
+      <input ref={ref} type="datetime-local" tabIndex={-1} aria-hidden="true" value={value ? toLocalInput(Date.parse(value), tz) : ''}
+        min={min} max={max} step={rules ? rules.interval * 60 : 60} onChange={pick}
+        style={{ position: 'absolute', left: 0, bottom: 0, width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0, padding: 0 }} />
+      {bad && rules && <small style={{ color: '#c0392b', display: 'block' }}>{s.slotRule.replace('{days}', days).replace('{start}', rules.start).replace('{end}', rules.end).replace('{n}', rules.interval)}</small>}
+      {bad && !rules && <small style={{ color: '#c0392b', display: 'block' }}>{s.slotPast}</small>}
+      {!value && !bad && <small style={{ color: '#777' }}>{s.asap}</small>}
     </div>
   );
 }

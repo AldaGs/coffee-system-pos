@@ -2782,24 +2782,27 @@ export default async function handler(req, res) {
       IF NULLIF(payload->>'pickup_at', '') IS NOT NULL THEN
         BEGIN v_pickup := (payload->>'pickup_at')::timestamptz;
         EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION 'invalid_pickup'; END;
-        -- Slot rules (schema 2.4): lead time, days ahead, hours/days, interval, all in shop tz.
+        -- Pickup is always a real near-future time (schema 2.5); slot rules only when slots.enabled.
+        IF v_pickup < now() - interval '5 minutes' OR v_pickup > now() + interval '14 days' THEN RAISE EXCEPTION 'invalid_pickup'; END IF;
         v_sl := COALESCE(v_cfg->'slots', '{}'::jsonb);
-        v_iv := CASE WHEN v_sl->>'interval' IN ('15','30','60') THEN (v_sl->>'interval')::int ELSE 30 END;
-        v_lead := LEAST(GREATEST(COALESCE(NULLIF(v_sl->>'leadMinutes', '')::int, 30), 0), 1440);
-        v_ahead := LEAST(GREATEST(COALESCE(NULLIF(v_sl->>'daysAhead', '')::int, 3), 0), 14);
-        v_hrs := CASE WHEN jsonb_typeof(v_sl->'hours') = 'object' THEN v_sl->'hours'
-                      WHEN jsonb_typeof(v_sched) = 'object' THEN v_sched ELSE '{}'::jsonb END;
-        v_ploc := (v_pickup AT TIME ZONE public.shop_timezone())::timestamp;
-        IF v_pickup < now() + (v_lead - 5) * interval '1 minute'
-           OR v_pickup > now() + v_ahead * interval '1 day'
-           OR NOT public.schedule_matches(
-                COALESCE((v_hrs->>'days')::int, 0),
-                COALESCE(NULLIF(v_hrs->>'start', ''), '09:00')::time,
-                COALESCE(NULLIF(v_hrs->>'end', ''), '21:00')::time,
-                NULL, NULL, v_ploc)
-           OR EXTRACT(second FROM v_ploc) <> 0
-           OR (EXTRACT(hour FROM v_ploc)::int * 60 + EXTRACT(minute FROM v_ploc)::int) % v_iv <> 0 THEN
-          RAISE EXCEPTION 'invalid_pickup';
+        IF COALESCE((v_sl->>'enabled')::boolean, false) THEN
+          v_iv := CASE WHEN v_sl->>'interval' IN ('15','30','60') THEN (v_sl->>'interval')::int ELSE 30 END;
+          v_lead := LEAST(GREATEST(COALESCE(NULLIF(v_sl->>'leadMinutes', '')::int, 30), 0), 1440);
+          v_ahead := LEAST(GREATEST(COALESCE(NULLIF(v_sl->>'daysAhead', '')::int, 3), 0), 14);
+          v_hrs := CASE WHEN jsonb_typeof(v_sl->'hours') = 'object' THEN v_sl->'hours'
+                        WHEN jsonb_typeof(v_sched) = 'object' THEN v_sched ELSE '{}'::jsonb END;
+          v_ploc := (v_pickup AT TIME ZONE public.shop_timezone())::timestamp;
+          IF v_pickup < now() + (v_lead - 5) * interval '1 minute'
+             OR v_pickup > now() + v_ahead * interval '1 day'
+             OR NOT public.schedule_matches(
+                  COALESCE((v_hrs->>'days')::int, 0),
+                  COALESCE(NULLIF(v_hrs->>'start', ''), '09:00')::time,
+                  COALESCE(NULLIF(v_hrs->>'end', ''), '21:00')::time,
+                  NULL, NULL, v_ploc)
+             OR EXTRACT(second FROM v_ploc) <> 0
+             OR (EXTRACT(hour FROM v_ploc)::int * 60 + EXTRACT(minute FROM v_ploc)::int) % v_iv <> 0 THEN
+            RAISE EXCEPTION 'invalid_pickup';
+          END IF;
         END IF;
       END IF;
       v_in := payload->'items';
@@ -2946,7 +2949,7 @@ export default async function handler(req, res) {
       FOR SELECT TO authenticated USING (public.is_app_user((select auth.uid())));
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '2.4', now())
+    VALUES ('schema_version', '2.5', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;

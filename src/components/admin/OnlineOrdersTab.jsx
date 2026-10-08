@@ -7,9 +7,9 @@ import { DAY_ORDER, daysToBitmask, bitmaskToDays } from '../../api/menus';
 // Online ordering settings. Stored at posSettings.onlineOrders so the
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
 // every device gets it through the normal posSettings sync.
-// slots: { interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
+// slots: { enabled (default false: any future time),  interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
 // Shape: { enabled, paused, delivery: { enabled, feeCents }, schedule?: { days: bitmask (0 = every day), start: 'HH:MM', end: 'HH:MM' } }
-const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] } };
+const DEFAULTS = { enabled: false, paused: false, schedule: null, delivery: { enabled: false, feeCents: 0 }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
@@ -110,7 +110,12 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
 
         <div style={{ ...row, flexDirection: 'column', alignItems: 'stretch' }}>
           <strong>{t('oo.slots')}</strong>
-          <small style={{ color: 'var(--text-muted)' }}>{t('oo.slotsDesc')}</small>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!sl.enabled} onChange={e => setSl({ enabled: e.target.checked })} />
+            <span>{t('oo.slotsEnable')}</span>
+          </label>
+          <small style={{ color: 'var(--text-muted)' }}>{sl.enabled ? t('oo.slotsDesc') : t('oo.slotsOffDesc')}</small>
+          {sl.enabled && (<>
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <label>{t('oo.slotInterval')} <select style={input} value={sl.interval} onChange={e => setSl({ interval: +e.target.value })}>
               {[15, 30, 60].map(n => <option key={n} value={n}>{n} min</option>)}</select></label>
@@ -139,6 +144,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
               <span>–</span>
               <input type="time" value={slHours.end} onChange={e => setSl({ hours: { ...slHours, end: e.target.value } })} style={input} />
             </div>
+          </>)}
           </>)}
         </div>
 
