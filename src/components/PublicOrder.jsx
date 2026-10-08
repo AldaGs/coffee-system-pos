@@ -51,7 +51,7 @@ const STR = {
     noMenu: 'El menú no está disponible para pedidos.', soldOut: 'Agotado', add: 'Agregar',
     options: 'Opciones', choose: 'Elige tus opciones', addToCart: 'Agregar al pedido', cancel: 'Cancelar',
     cart: 'Tu pedido', empty: 'Aún no agregas nada.', total: 'Total', checkout: 'Hacer pedido',
-    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario', chooseTime: 'Elige la hora', noTimes: 'No hay horarios disponibles ese día.',
+    name: 'Nombre', phone: 'Teléfono', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario', step_cart: 'Tu pedido', step_location: 'Ubicación de entrega', step_time: 'Fecha y hora', step_pay: 'Tus datos y pago', stepOf: 'Paso {n} de {m}', next: 'Siguiente', back: 'Atrás', chooseTime: 'Elige la hora', noTimes: 'No hay horarios disponibles ese día.',
     payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
     repeat: 'Repetir último pedido', forget: 'Olvidar mis datos', forgot: 'Datos borrados de este dispositivo.',
     pastOrders: 'Mis pedidos', view: 'Ver',
@@ -77,7 +77,7 @@ const STR = {
     noMenu: 'The menu is not available for ordering.', soldOut: 'Sold out', add: 'Add',
     options: 'Options', choose: 'Choose your options', addToCart: 'Add to order', cancel: 'Cancel',
     cart: 'Your order', empty: 'Nothing added yet.', total: 'Total', checkout: 'Place order',
-    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time', chooseTime: 'Choose a time', noTimes: 'No times available that day.',
+    name: 'Name', phone: 'Phone', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time', step_cart: 'Your order', step_location: 'Delivery location', step_time: 'Date & time', step_pay: 'Your details & payment', stepOf: 'Step {n} of {m}', next: 'Next', back: 'Back', chooseTime: 'Choose a time', noTimes: 'No times available that day.',
     payAtPickup: 'You pay at pickup.', send: 'Send order', sending: 'Sending…',
     repeat: 'Repeat last order', forget: 'Forget my data', forgot: 'Data erased from this device.',
     pastOrders: 'My orders', view: 'View',
@@ -188,6 +188,7 @@ function Order({ client, lang, setLang }) {
   const [cart, setCart] = useState(() => draft.cart || []); // { key, id, qty, mods: [optionId] }
   const [picking, setPicking] = useState(null); // { item, mods }
   const [checkingOut, setCheckingOut] = useState(false);
+  const [stepId, setStepId] = useState('cart'); // checkout wizard step
   const wide = useWide();
   const asideRef = useRef(null);
   const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}), ...draft.customer }));
@@ -326,9 +327,27 @@ function Order({ client, lang, setLang }) {
     window.location.assign(`/order/track/${token}${window.location.search}`);
   };
 
+  // Checkout wizard: items + type + notes -> location (delivery only) -> date/time -> details + payment.
+  // Earlier steps stay reachable (Back / step dots) until the order is sent.
+  const steps = ['cart', ...(delivery ? ['location'] : []), 'time', 'pay'];
+  const stepIdx = Math.max(steps.indexOf(stepId), 0);
+  const step = steps[stepIdx];
+  const stepBlock = { cart: cart.length === 0, location: (customer.address || '').trim().length < 5 }[step];
+  const go = (i) => { setFormErr(null); setStepId(steps[i]); };
+  const nextBtn = { flex: 1, background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer' };
+  const backBtn = { flex: '0 0 auto', background: 'white', color: brand, border: `1px solid ${brand}`, borderRadius: 12, padding: '14px 18px', fontWeight: 800, cursor: 'pointer' };
   const cartBody = (
     <>
-    <h3 style={{ marginTop: 0 }}>{s.cart}</h3>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+      {steps.map((st, i) => (
+        <button key={st} type="button" aria-label={s[`step_${st}`]} disabled={i > stepIdx} onClick={() => go(i)}
+          style={{ flex: 1, height: 6, borderRadius: 999, border: 'none', padding: 0, background: i <= stepIdx ? brand : '#e5e5e5', cursor: i < stepIdx ? 'pointer' : 'default' }} />
+      ))}
+    </div>
+    <small style={{ color: '#888' }}>{s.stepOf.replace('{n}', stepIdx + 1).replace('{m}', steps.length)}</small>
+    <h3 style={{ margin: '4px 0 12px' }}>{s[`step_${step}`]}</h3>
+
+    {step === 'cart' && (<>
     {cart.length === 0 && <p style={{ color: '#666' }}>{s.empty}</p>}
     {cart.map((l) => (
       <div key={l.key} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee' }}>
@@ -353,24 +372,34 @@ function Order({ client, lang, setLang }) {
         ))}
       </div>
     )}
-    {delivery && (
-      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 0' }}><span>{s.deliveryFee}</span><span>{fmt(feeCents)}</span></div>
-    )}
-    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', margin: '12px 0' }}><span>{s.total}</span><span>{fmt(grand)}</span></div>
+    <div style={{ marginTop: 12 }}>
+      <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+    </div>
+    </>)}
 
-    <div style={{ display: 'grid', gap: 10 }}>
-      <input style={inputStyle} placeholder={s.name} autoComplete="name" maxLength={80} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
-      <input style={inputStyle} placeholder={s.phone} autoComplete="tel" inputMode="tel" maxLength={20} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
-      {delivery && <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} />}
+    {step === 'location' && (
+      <div style={{ display: 'grid', gap: 10 }}>
+      <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} />
       {delivery && (
         <Suspense fallback={null}>
           <PinMap pin={customer.lat != null ? { lat: customer.lat, lng: customer.lng } : null} address={customer.address} s={s}
             onPin={(lat, lng) => setCustomer((c) => ({ ...c, lat, lng }))} />
         </Suspense>
       )}
-      <textarea style={inputStyle} placeholder={s.notes} maxLength={300} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+      </div>
+    )}
+
+    {step === 'time' && (
+      <div style={{ display: 'grid', gap: 10 }}>
       <SlotPicker delivery={delivery} label={delivery ? s.deliveryAt : s.pickupAt} value={pickup} onChange={setPickup} shop={data?.shop} lang={lang} s={s} brand={brand} />
-    </div>
+      </div>
+    )}
+
+    {step === 'pay' && (<>
+      <div style={{ display: 'grid', gap: 10 }}>
+      <input style={inputStyle} placeholder={s.name} autoComplete="name" maxLength={80} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+      <input style={inputStyle} placeholder={s.phone} autoComplete="tel" inputMode="tel" maxLength={20} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+      </div>
     <div role="radiogroup" aria-label={s.payLabel} style={{ margin: '12px 0 0' }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{s.payLabel}</div>
       <div style={{ display: 'flex', gap: 8 }}>
@@ -404,12 +433,25 @@ function Order({ client, lang, setLang }) {
       </div>
     )}
     <p style={{ color: '#666', fontSize: '0.9rem' }}>{pay ? s.payNote[pay][delivery ? 1 : 0] : delivery ? s.payOnDelivery : s.payAtPickup}</p>
-    {formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
-    <button type="button" disabled={sending || cart.length === 0} onClick={submit}
-      style={{ width: '100%', background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer', opacity: sending || cart.length === 0 ? 0.6 : 1 }}>
-      {sending ? s.sending : s.send}
-    </button>
-    <button type="button" onClick={forget} style={{ background: 'none', border: 'none', color: '#888', marginTop: 12, textDecoration: 'underline', cursor: 'pointer' }}>{s.forget}</button>
+    </>)}
+
+    {delivery && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 0' }}><span>{s.deliveryFee}</span><span>{fmt(feeCents)}</span></div>
+    )}
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', margin: '12px 0' }}><span>{s.total}</span><span>{fmt(grand)}</span></div>
+    {step === 'location' && stepBlock && <small style={{ color: '#888', display: 'block', marginBottom: 8 }}>{s.invalid_address}</small>}
+    {step === 'pay' && formErr && <p style={{ color: '#c0392b', fontWeight: 600 }}>{formErr}</p>}
+    <div style={{ display: 'flex', gap: 8 }}>
+      {stepIdx > 0 && <button type="button" disabled={sending} onClick={() => go(stepIdx - 1)} style={backBtn}>{s.back}</button>}
+      {step !== 'pay' ? (
+        <button type="button" disabled={stepBlock} onClick={() => go(stepIdx + 1)} style={{ ...nextBtn, opacity: stepBlock ? 0.6 : 1 }}>{s.next}</button>
+      ) : (
+        <button type="button" disabled={sending || cart.length === 0} onClick={submit} style={{ ...nextBtn, opacity: sending || cart.length === 0 ? 0.6 : 1 }}>
+          {sending ? s.sending : s.send}
+        </button>
+      )}
+    </div>
+    {step === 'cart' && <button type="button" onClick={forget} style={{ background: 'none', border: 'none', color: '#888', marginTop: 12, textDecoration: 'underline', cursor: 'pointer' }}>{s.forget}</button>}
     </>
   );
 
