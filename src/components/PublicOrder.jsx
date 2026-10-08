@@ -17,6 +17,8 @@ import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
 import LegalLinks from './LegalLinks';
 import TransferDetails from './TransferDetails';
+import CountryPicker from './CountryPicker';
+import { CALLING_CODES, exactLength } from '../utils/callingCodes';
 import { useLegal } from '../hooks/useLegal';
 import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk } from '../utils/pickupSlots';
 
@@ -55,7 +57,7 @@ const STR = {
     noMenu: 'El menú no está disponible para pedidos.', soldOut: 'Agotado', add: 'Agregar',
     options: 'Opciones', choose: 'Elige tus opciones', addToCart: 'Agregar al pedido', cancel: 'Cancelar',
     cart: 'Tu pedido', empty: 'Aún no agregas nada.', total: 'Total', checkout: 'Hacer pedido',
-    name: 'Nombre', phone: 'Teléfono', country: 'País', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario', step_cart: 'Tu pedido', step_location: 'Ubicación de entrega', step_time: 'Fecha y hora', step_pay: 'Tus datos y pago', stepOf: 'Paso {n} de {m}', next: 'Siguiente', back: 'Atrás', chooseTime: 'Elige la hora', noTimes: 'No hay horarios disponibles ese día.',
+    name: 'Nombre', phone: 'Teléfono', phone10: 'Teléfono (10 dígitos)', phoneDigits: 'El teléfono debe tener {n} dígitos.', country: 'País', notes: 'Notas (opcional)', pickupAt: 'Fecha y hora de recolección', deliveryAt: 'Fecha y hora de entrega', chooseSlot: 'Escoge Fecha y Hora', asap: 'Lo antes posible', slotRule: 'Elige un horario disponible: {days} de {start} a {end}, cada {n} min', slotPast: 'Elige una fecha y hora futuras.', everyDay: 'todos los días', clearSlot: 'Quitar horario', step_cart: 'Tu pedido', step_location: 'Ubicación de entrega', step_time: 'Fecha y hora', step_pay: 'Tus datos y pago', stepOf: 'Paso {n} de {m}', next: 'Siguiente', back: 'Atrás', chooseTime: 'Elige la hora', noTimes: 'No hay horarios disponibles ese día.',
     legalA: 'Al enviar tu pedido aceptas el ', legalB: ' y los ', payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
     repeat: 'Repetir último pedido', forget: 'Olvidar mis datos', forgot: 'Datos borrados de este dispositivo.',
     pastOrders: 'Mis pedidos', view: 'Ver',
@@ -81,7 +83,7 @@ const STR = {
     noMenu: 'The menu is not available for ordering.', soldOut: 'Sold out', add: 'Add',
     options: 'Options', choose: 'Choose your options', addToCart: 'Add to order', cancel: 'Cancel',
     cart: 'Your order', empty: 'Nothing added yet.', total: 'Total', checkout: 'Place order',
-    name: 'Name', phone: 'Phone', country: 'Country', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time', step_cart: 'Your order', step_location: 'Delivery location', step_time: 'Date & time', step_pay: 'Your details & payment', stepOf: 'Step {n} of {m}', next: 'Next', back: 'Back', chooseTime: 'Choose a time', noTimes: 'No times available that day.',
+    name: 'Name', phone: 'Phone', phone10: 'Phone (10 digits)', phoneDigits: 'Phone must have {n} digits.', country: 'Country', notes: 'Notes (optional)', pickupAt: 'Pickup date & time', deliveryAt: 'Delivery date & time', chooseSlot: 'Choose date & time', asap: 'As soon as possible', slotRule: 'Pick an available time: {days}, {start} to {end}, every {n} min', slotPast: 'Pick a future date and time.', everyDay: 'every day', clearSlot: 'Clear time', step_cart: 'Your order', step_location: 'Delivery location', step_time: 'Date & time', step_pay: 'Your details & payment', stepOf: 'Step {n} of {m}', next: 'Next', back: 'Back', chooseTime: 'Choose a time', noTimes: 'No times available that day.',
     payAtPickup: 'You pay at pickup.', send: 'Send order', sending: 'Sending…',
     legalA: 'By sending your order you accept the ', legalB: ' and the ',
     repeat: 'Repeat last order', forget: 'Forget my data', forgot: 'Data erased from this device.',
@@ -178,13 +180,8 @@ function Page({ client, lang, bottomPad = 16, children }) {
   );
 }
 
-// Phone country codes for checkout (Mexico first/default). Digits only, no '+'.
-const COUNTRIES = [['52', '🇲🇽'], ['1', '🇺🇸'], ['34', '🇪🇸'], ['57', '🇨🇴'], ['54', '🇦🇷'], ['56', '🇨🇱'], ['51', '🇵🇪'], ['502', '🇬🇹'], ['503', '🇸🇻'], ['506', '🇨🇷'], ['593', '🇪🇨'], ['58', '🇻🇪'], ['55', '🇧🇷'], ['44', '🇬🇧'], ['49', '🇩🇪'], ['33', '🇫🇷']];
-// Full international number: country code + local digits (not doubled if the customer typed it).
-const fullPhone = (cc, phone) => {
-  const d = String(phone || '').replace(/\D/g, '');
-  return d.length > 10 && d.startsWith(cc) ? d : cc + d;
-};
+// Customer phone: country (ISO, Mexico default) + local digits only; stored as calling code + digits.
+const fullPhone = (iso, phone) => (CALLING_CODES[iso] || '52') + String(phone || '').replace(/\D/g, '');
 
 const pageStyle = {
   height: '100dvh', overflowY: 'auto', background: '#fafafa', color: '#222', WebkitOverflowScrolling: 'touch',
@@ -220,7 +217,12 @@ function Order({ client, lang, setLang }) {
   const legal = useLegal(client); // consent line only when the shop wrote both texts
   const wide = useWide();
   const asideRef = useRef(null);
-  const [customer, setCustomer] = useState(() => ({ name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}), ...draft.customer }));
+  const [customer, setCustomer] = useState(() => {
+    const c = { name: '', phone: '', address: '', lat: null, lng: null, ...readJson(CUSTOMER_KEY, {}), ...draft.customer };
+    // Older saved phones may hold spaces/dashes or a leading 52: keep the local 10 digits.
+    const d = String(c.phone || '').replace(/\D/g, '');
+    return { ...c, phone: !c.iso && d.length === 12 && d.startsWith('52') ? d.slice(2) : d };
+  });
   const [history, setHistory] = useState(() => readJson(HISTORY_KEY, []));
   const [notes, setNotes] = useState(draft.notes || '');
   const [pickup, setPickup] = useState(() => (/Z$/.test(draft.pickup || '') && Date.parse(draft.pickup) > Date.now() ? draft.pickup : ''));
@@ -352,14 +354,20 @@ function Order({ client, lang, setLang }) {
     setFormErr(s.forgot);
   };
 
+  // Phone: exactly 10 digits for Mexico/+1, else 6–12 (digits only; the input strips the rest).
+  const phoneLen = exactLength(customer.iso || 'MX');
+  const phoneDigits = String(customer.phone || '').replace(/\D/g, '');
+  const phoneOk = phoneLen ? phoneDigits.length === phoneLen : phoneDigits.length >= 6 && phoneDigits.length <= 12;
+  const phoneBad = phoneDigits.length > 0 && !phoneOk;
   const submit = async () => {
     setFormErr(null);
+    if (!phoneOk) { setFormErr(s.phoneDigits.replace('{n}', phoneLen || '6–12')); return; }
     if (!pay) { setFormErr(s.invalid_payment); return; }
     if (cashBad) { setFormErr(s.invalid_cash); return; }
     if (!pickup && !asapOk({ tz: data.shop?.timezone || 'America/Mexico_City', slots: data.shop?.slots, schedule: data.shop?.schedule })) { setFormErr(s.pickup_required); return; }
     setSending(true);
     const payload = {
-      name: customer.name, phone: fullPhone(customer.cc || '52', customer.phone), notes,
+      name: customer.name, phone: fullPhone(customer.iso || 'MX', customer.phone), notes,
       order_type: delivery ? 'delivery' : 'pickup', address: delivery ? customer.address : null,
       lat: delivery ? customer.lat : null, lng: delivery ? customer.lng : null,
       pickup_at: pickup || null, payment_method: pay, cash_amount_cents: cashCents,
@@ -368,7 +376,7 @@ function Order({ client, lang, setLang }) {
     const { data: token, error: err } = await client.rpc('public_place_order', { payload });
     setSending(false);
     if (err) { const c = errCode(err); setFormErr(s[c] || (c && c.startsWith('online_orders') ? s.notOpen : s.generic)); return; }
-    writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone, cc: customer.cc || '52', address: customer.address || '', lat: customer.lat ?? null, lng: customer.lng ?? null });
+    writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone, iso: customer.iso || 'MX', address: customer.address || '', lat: customer.lat ?? null, lng: customer.lng ?? null });
     removeKey(DRAFT_KEY);
     writeJson(HISTORY_KEY, [{ token, total_cents: grand, items: cart.map((l) => ({ id: l.id, qty: l.qty, mods: l.mods })) }, ...history].slice(0, MAX_HISTORY));
     window.location.assign(`/order/track/${token}${window.location.search}`);
@@ -446,12 +454,12 @@ function Order({ client, lang, setLang }) {
       <div style={{ display: 'grid', gap: 10 }}>
       <input style={inputStyle} placeholder={s.name} autoComplete="name" maxLength={80} value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
       <div style={{ display: 'flex', gap: 8 }}>
-        <select aria-label={s.country} value={customer.cc || '52'} onChange={(e) => setCustomer({ ...customer, cc: e.target.value })}
-          style={{ ...inputStyle, width: 'auto', flexShrink: 0, cursor: 'pointer' }}>
-          {COUNTRIES.map(([cc, flag]) => <option key={cc + flag} value={cc}>{flag} +{cc}</option>)}
-        </select>
-        <input style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder={s.phone} autoComplete="tel-national" inputMode="tel" maxLength={20} value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
+        <CountryPicker value={customer.iso || 'MX'} lang={lang} label={s.country} onChange={(iso) => setCustomer({ ...customer, iso })} />
+        <input style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder={phoneLen ? s.phone10 : s.phone} autoComplete="tel-national" inputMode="numeric"
+          maxLength={phoneLen || 12} value={customer.phone}
+          onChange={(e) => setCustomer({ ...customer, phone: e.target.value.replace(/\D/g, '').slice(0, phoneLen || 12) })} />
       </div>
+      {phoneBad && <small style={{ color: '#c0392b' }}>{s.phoneDigits.replace('{n}', phoneLen || '6–12')}</small>}
       </div>
     <div role="radiogroup" aria-label={s.payLabel} style={{ margin: '12px 0 0' }}>
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{s.payLabel}</div>
