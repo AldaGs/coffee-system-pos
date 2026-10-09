@@ -140,6 +140,22 @@ const en = [
 
   // ------------------------------------------------------------------- Admin
   {
+    id: 'register-online-orders',
+    group: 'register',
+    icon: 'lucide:shopping-bag',
+    badges: ['advanced', 'cloud'],
+    title: 'Online orders inbox',
+    what: 'New pickup and delivery orders from your online order page arrive in the register\'s online-orders inbox, where staff accept or reject them and move them through each step.',
+    how: 'The inbox button sits above the ticket footer. Accepting an order opens it as a normal ticket, so it goes to the kitchen, prints, and checks out like any sale; the step buttons (Preparing, Ready) also appear in the open ticket\'s footer, and each step shows live on the customer\'s tracker. Edits to the ticket reach the tracker too. Accepted delivery orders go to logistics automatically, with the customer\'s map pin. Voiding or removing the ticket without checking it out cancels the online order, and a full refund rejects it. If the order is outside every delivery zone, it arrives with "Shipping quote pending": contact the customer, agree on a price, and have an admin confirm it before you accept. Orders paid online with Clip get a "Paid online" badge and a countdown while payment is pending. When payment is confirmed you can close the ticket in one tap. Their items are locked, so charge any extras on a separate ticket. Voiding a Clip-paid ticket, or refunding the sale, refunds the full amount to the customer\'s card.',
+    do: [
+      { action: 'Accept or reject', steps: 'Open the inbox, review the order, and tap Accept, or tap Reject and give an optional reason that the customer will see.' },
+      { action: 'Advance the order', steps: 'Use Preparing and Ready in the inbox or the ticket footer; the customer\'s tracker updates live.' },
+      { action: 'Contact the customer', steps: 'On the online-order ticket, use the copy-number or WhatsApp buttons.' },
+      { action: 'Confirm a shipping quote', steps: 'Call the customer, enter the agreed shipping price, tick that they agreed, and then accept (needs an admin).' },
+      { action: 'Close a Clip-paid order', steps: 'Use the one-tap close on the paid ticket. If the payment window expires, the tracker shows it as overdue, and you are alerted if an unpaid order gets cancelled.' },
+    ],
+  },
+  {
     id: 'analytics',
     group: 'admin',
     icon: 'lucide:bar-chart-3',
@@ -291,6 +307,25 @@ const en = [
       { action: 'Schedule it', steps: 'Set the weekly and time-of-day schedule so the right menu shows automatically.' },
       { action: 'Share', steps: 'Open the share card for the QR code and copy-link; TV mode lives at /menu/tv.' },
       { action: 'Set priority', steps: 'Raise or lower a menu\'s priority so it wins (or yields) when schedules overlap.' },
+    ],
+  },
+  {
+    id: 'onlineOrders',
+    group: 'admin',
+    icon: 'lucide:shopping-bag',
+    badges: ['advanced', 'cloud'],
+    title: 'Online Orders',
+    what: 'Your own online ordering page (/order). Customers build a cart from your menu, choose pickup or delivery and a time, pay how you allow, and follow the order on a live tracker. There are no marketplace fees.',
+    how: 'Ordering is off until you turn it on, and Pause stops new orders for a while. The order page uses the Public Menus menu you pick, so it shows only that menu\'s categories and respects its hidden items. Orders are checked against that menu on the server. Checkout goes in steps: items, order type, and notes; delivery location; date and time; then details and payment. The customer\'s phone has a country-code picker (Mexico by default), and their cart survives a reload. Store hours decide when orders are accepted. Outside them, the page shows the menu read-only with a closed banner, and overnight hours such as 20:00–02:00 work. Delivery and pickup hours, plus optional time slots (interval, days ahead, lead time), decide which times customers can pick, in the shop\'s timezone. "As soon as possible" is not offered outside delivery hours. For delivery, the customer confirms their entrance on a map pin. Local delivery areas, set as a radius or a drawn boundary, decide what\'s in range; where areas overlap, the higher priority wins. If you enable shipping requests, addresses outside every area can still order and get a shipping quote. Payment options are cash (with "pays with" and change), card, transfer (with your account details), and Clip online card checkout. With Clip, the customer pays after you accept, within the number of minutes you set; the money goes to your own Clip account. Only modifier options marked for online ordering appear on the order page: cashier-only groups and text-input options stay off it.',
+    do: [
+      { action: 'Turn ordering on', steps: 'Admin → Online Orders: enable it, choose the menu, decide if delivery is offered, and save.' },
+      { action: 'Share the order page', steps: 'Use the link and QR card. It can run on your own custom domain, which redirects to the order page and stays in sync across devices.' },
+      { action: 'Set hours and time slots', steps: 'Fill in Store hours (when orders are accepted) and the Delivery/pickup schedule; turn on time slots and set the interval, how many days ahead, and the minimum lead time.' },
+      { action: 'Define delivery areas', steps: 'In Local delivery areas, add a radius or draw a boundary, set its priority, and save each zone. Turn on shipping requests to accept addresses outside them with a quoted price.' },
+      { action: 'Choose payment methods', steps: 'Under Payments, tick cash, card, transfer, or Clip (at least one); add your transfer details and the Clip payment window in minutes.' },
+      { action: 'Connect Clip', steps: 'Create an app at developer.clip.mx, paste its API key and secret in the Clip card, turn it on, and save. Run Update Schema if prompted so the Clip functions are deployed.' },
+      { action: 'Customize the tracker', steps: 'In Customer ticket, choose whether IVA is shown (with a live preview). In Showcase, pick products to suggest while customers wait.' },
+      { action: 'Edit legal texts', steps: 'Edit the privacy notice and terms (templates included); they are linked at the bottom of the order, tracker, and CFDI pages.' },
     ],
   },
   {
@@ -546,6 +581,22 @@ const es = [
 
   // ------------------------------------------------------------------- Admin
   {
+    id: 'register-online-orders',
+    group: 'register',
+    icon: 'lucide:shopping-bag',
+    badges: ['advanced', 'cloud'],
+    title: 'Bandeja de pedidos en línea',
+    what: 'Los pedidos para recoger o entregar que llegan de tu página de pedidos en línea aparecen en la bandeja de pedidos en línea de la caja. Ahí el personal los acepta o rechaza y los avanza paso a paso.',
+    how: 'El botón de la bandeja está arriba del pie del ticket. Al aceptar un pedido se abre como un ticket normal, así que va a cocina, se imprime y se cobra como cualquier venta. Los botones de paso (Preparando, Listo) también aparecen en el pie del ticket abierto, y cada paso se ve en vivo en el seguimiento del cliente. Los cambios al ticket también llegan al seguimiento. Los pedidos a domicilio aceptados pasan solos a logística, con el pin del mapa del cliente. Si anulas o quitas el ticket sin cobrarlo, el pedido en línea se cancela, y un reembolso total lo rechaza. Si la dirección está fuera de todas las zonas de entrega, el pedido llega con "Cotización de envío pendiente": contacta al cliente, acuerda el precio y pide a un administrador que lo confirme antes de aceptar. Los pedidos pagados en línea con Clip muestran la etiqueta "Pagado en línea" y una cuenta regresiva mientras el pago está pendiente. Cuando se confirma el pago, puedes cerrar el ticket con un toque. Sus productos quedan bloqueados, así que cobra los extras en otro ticket. Al anular un ticket pagado con Clip, o al reembolsar la venta, se devuelve el total a la tarjeta del cliente.',
+    do: [
+      { action: 'Aceptar o rechazar', steps: 'Abre la bandeja, revisa el pedido y toca Aceptar, o toca Rechazar con un motivo opcional que verá el cliente.' },
+      { action: 'Avanzar el pedido', steps: 'Usa Preparando y Listo en la bandeja o en el pie del ticket; el seguimiento del cliente se actualiza en vivo.' },
+      { action: 'Contactar al cliente', steps: 'En el ticket del pedido en línea, usa los botones de copiar número o WhatsApp.' },
+      { action: 'Confirmar una cotización de envío', steps: 'Llama al cliente, escribe el costo de envío acordado, marca que aceptó y después acepta el pedido (requiere un administrador).' },
+      { action: 'Cerrar un pedido pagado con Clip', steps: 'Usa el cierre de un toque en el ticket pagado. Si vence el plazo de pago, el seguimiento lo muestra como vencido, y recibes una alerta si se cancela un pedido sin pagar.' },
+    ],
+  },
+  {
     id: 'analytics',
     group: 'admin',
     icon: 'lucide:bar-chart-3',
@@ -697,6 +748,25 @@ const es = [
       { action: 'Programarlo', steps: 'Define el horario semanal y por hora para que el menú correcto aparezca solo.' },
       { action: 'Compartir', steps: 'Abre la tarjeta para el QR y copiar enlace; el modo TV vive en /menu/tv.' },
       { action: 'Definir prioridad', steps: 'Sube o baja la prioridad de un menú para que gane (o ceda) cuando los horarios se traslapan.' },
+    ],
+  },
+  {
+    id: 'onlineOrders',
+    group: 'admin',
+    icon: 'lucide:shopping-bag',
+    badges: ['advanced', 'cloud'],
+    title: 'Pedidos en línea',
+    what: 'Tu propia página de pedidos en línea (/order). El cliente arma su carrito con tu menú, elige recoger o entrega a domicilio y una hora, paga como tú permitas y sigue su pedido en vivo. No hay comisiones de plataformas.',
+    how: 'Los pedidos están apagados hasta que los actives, y Pausar detiene los pedidos nuevos por un rato. La página de pedidos usa el menú de Menús Públicos que elijas, así que solo muestra sus categorías y respeta sus productos ocultos. Los pedidos se validan contra ese menú en el servidor. El pago va por pasos: productos, tipo de pedido y notas; ubicación de entrega; fecha y hora; y al final datos y pago. El teléfono del cliente tiene selector de lada (México por defecto), y el carrito se conserva si se recarga la página. El horario de la tienda decide cuándo se aceptan pedidos. Fuera de él, la página muestra el menú sin poder pedir y un aviso de cerrado; se permiten horarios nocturnos como 20:00–02:00. El horario de entrega y recolección, más los intervalos opcionales (intervalo, días de anticipación y tiempo mínimo), deciden qué horas puede elegir el cliente, en la zona horaria del negocio. "Lo antes posible" no se ofrece fuera del horario de entrega. Para entregas, el cliente confirma su entrada con un pin en el mapa. Las zonas de entrega local, por radio o con un límite dibujado, deciden qué queda dentro; si se superponen, gana la de mayor prioridad. Si activas las solicitudes de envío, las direcciones fuera de todas las zonas pueden pedir igual y reciben una cotización de envío. Los métodos de pago son efectivo (con "paga con" y cambio), tarjeta, transferencia (con tus datos) y pago con tarjeta en línea por Clip. Con Clip, el cliente paga después de que aceptas, dentro de los minutos que configures; el dinero llega a tu propia cuenta de Clip. En la página de pedidos solo aparecen las opciones de modificadores marcadas para pedidos en línea: los grupos solo de caja y las opciones de texto libre no se muestran.',
+    do: [
+      { action: 'Activar los pedidos', steps: 'Admin → Pedidos en línea: actívalos, elige el menú, decide si hay entrega a domicilio y guarda.' },
+      { action: 'Compartir la página', steps: 'Usa la tarjeta de enlace y QR. Puede funcionar en tu propio dominio, que redirige a la página de pedidos y se sincroniza entre dispositivos.' },
+      { action: 'Configurar horarios e intervalos', steps: 'Llena el Horario de la tienda (cuándo se aceptan pedidos) y el Horario de entrega/recolección; activa los intervalos y define el intervalo, cuántos días de anticipación y el tiempo mínimo.' },
+      { action: 'Definir zonas de entrega', steps: 'En Zonas de entrega local, agrega un radio o dibuja un límite, ponle prioridad y guarda cada zona. Activa las solicitudes de envío para aceptar direcciones fuera de ellas con un precio cotizado.' },
+      { action: 'Elegir métodos de pago', steps: 'En Pagos, marca efectivo, tarjeta, transferencia o Clip (al menos uno); agrega tus datos de transferencia y los minutos para pagar con Clip.' },
+      { action: 'Conectar Clip', steps: 'Crea una app en developer.clip.mx, pega su API key y secret en la tarjeta de Clip, actívala y guarda. Si se te pide, ejecuta Actualizar esquema para que se desplieguen las funciones de Clip.' },
+      { action: 'Personalizar el seguimiento', steps: 'En Ticket del cliente, elige si se muestra el IVA (con vista previa en vivo). En Escaparate, elige productos para sugerir mientras el cliente espera.' },
+      { action: 'Editar textos legales', steps: 'Edita el aviso de privacidad y los términos (incluyen plantillas); se enlazan al pie de las páginas de pedidos, seguimiento y CFDI.' },
     ],
   },
   {
