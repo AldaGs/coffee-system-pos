@@ -117,7 +117,7 @@ export default function ItemPicker({ menuData, onPick, onClose }) {
         </div>
 
         <p style={{ margin: 0, color: '#888', fontSize: '0.78rem' }}>
-          Los nodos vinculados muestran datos en vivo del catálogo: si cambias el nombre o el precio, el menú se actualiza solo.
+          Los campos de producto muestran nombre y precio en vivo. Los vínculos de pedido o visibilidad no cambian el texto ni las imágenes que editaste a mano.
         </p>
       </div>
     </div>

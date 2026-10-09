@@ -595,7 +595,8 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       const pad = 40 + (showRulers ? RULER : 0);
       const aw = el.clientWidth - pad;
       const ah = el.clientHeight - pad;
-      setFitScale(Math.min(aw / pageW, ah / pageH));
+      // Clamp: a wrapper smaller than its padding would go negative and crash Konva.
+      setFitScale(Math.max(0.01, Math.min(aw / pageW, ah / pageH)));
     }
     recalc();
     window.addEventListener('resize', recalc);
@@ -2753,6 +2754,10 @@ function NodeProperties({ node, onUpdate, onUngroup, onSetFont, onDelete, onForw
       {node.type === 'whatsapp-button' && <WhatsAppProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} />}
       {node.type === 'date-field' && <DateFieldProps node={node} onUpdate={onUpdate} onSetFont={onSetFont} openItemPicker={openItemPicker} menuData={menuData} />}
 
+      {(node.type === 'text' || node.type === 'image' || (node.type === 'shape' && ['rect', 'circle'].includes(node.shape))) && (
+        <OrderActionLink node={node} onUpdate={onUpdate} openItemPicker={openItemPicker} menuData={menuData} />
+      )}
+
       {/* Opacity (all nodes) + drop shadow (leaf shapes we can render it on). */}
       <AppearanceProps node={node} onUpdate={onUpdate} />
 
@@ -3302,6 +3307,28 @@ function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData })
       </Row>
     </>
   );
+}
+
+function OrderActionLink({ node, onUpdate, openItemPicker, menuData }) {
+  const item = Object.values(menuData?.categories || {}).flat().find(it => it.id === node.order_item_id);
+  return <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <p style={{ ...panelTitle, margin: 0, fontSize: '0.75rem' }}>Acción de pedido</p>
+    <Row label="Producto al tocar en Pedidos online">
+      <button type="button" onClick={() => openItemPicker?.(ids => { if (ids[0]) onUpdate({ order_item_id: ids[0] }); })}
+        style={{ ...smallBtn, justifyContent: 'flex-start' }}>
+        <Icon icon="lucide:shopping-cart" />
+        {node.order_item_id ? item?.name || `Producto eliminado (${node.order_item_id})` : 'Vincular producto'}
+      </button>
+      {node.order_item_id && <button type="button" onClick={() => onUpdate({ order_item_id: null })} style={smallBtn}>Quitar acción de pedido</button>}
+      {node.link?.itemId && node.link.itemId !== node.order_item_id && <button type="button"
+        onClick={() => onUpdate({ order_item_id: node.link.itemId })} style={smallBtn}>Usar producto de visibilidad para pedir</button>}
+    </Row>
+    <p style={{ margin: 0, fontSize: '0.72rem', color: '#8b949e' }}>
+      La acción agrega el producto al carrito; el vínculo de visibilidad solo controla si se muestra.
+      Los precios escritos a mano no se sincronizan. El carrito usa el precio y modificadores actuales.
+      Solo se puede pedir si el producto está disponible, tiene precio fijo y pertenece a las categorías públicas del menú elegido en Pedidos online.
+    </p>
+  </div>;
 }
 
 // Ties any node's visibility to a catalog item's stock: when the item sells

@@ -3,7 +3,7 @@
 //   /order?p=REF                  menu + cart + checkout
 //   /order/track/<token>?p=REF    live status of one order
 //
-// Talks to Supabase only through the anon key and two RPCs: get_active_menu
+// Talks to Supabase only through the anon key and RPCs: get_order_menu
 // (menu), public_place_order (submit; server reprices) and get_order_status
 // (token lookup). Customer details and past orders live in this browser's
 // localStorage only. Connection bootstrap mirrors PublicMenu (?p= ref,
@@ -15,18 +15,16 @@ import { createClient } from '@supabase/supabase-js';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
+import OrderCatalog from './ordering/OrderCatalog';
+import OrderDesignView from './ordering/OrderDesignView';
 import LegalLinks from './LegalLinks';
 import TransferDetails from './TransferDetails';
 import CountryPicker from './CountryPicker';
 import { CALLING_CODES, exactLength } from '../utils/callingCodes';
 import { useLegal } from '../hooks/useLegal';
 import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk, autoSlotIsToday, checkoutSlotStatus } from '../utils/pickupSlots';
-
-// The menu chosen for online orders (schema 3.1+); older schemas lack the RPC, so fall back to the active menu.
-const orderMenu = async (client) => {
-  const r = await client.rpc('get_order_menu');
-  return r.error ? client.rpc('get_active_menu') : r;
-};
+import { fetchOrderMenu } from '../utils/orderMenu';
+import { canOrderItem } from '../utils/canvasOrdering';
 
 // MapLibre + its CSS only download when a customer picks delivery.
 // The pin is optional: if the map chunk fails to load (bad network, stale deploy) checkout still works.
@@ -268,7 +266,7 @@ function Order({ client, lang, setLang }) {
     let cancelled = false;
     (async () => {
       const [menu, probe] = await Promise.all([
-        orderMenu(client),
+        fetchOrderMenu(client),
         client.rpc('public_place_order', { payload: { check: true } }),
       ]);
       if (cancelled) return;
@@ -318,7 +316,7 @@ function Order({ client, lang, setLang }) {
   }, [cart, customer, notes, pickup, orderType, payment, cash]);
   // Drop restored lines whose item left the menu or sold out since the draft was saved.
   useEffect(() => {
-    if (data) setCart((prev) => prev.filter((l) => itemsById.has(l.id) && itemsById.get(l.id).available !== false));
+    if (data) setCart((prev) => prev.filter((l) => canOrderItem(l.id, itemsById)));
   }, [data, itemsById]);
   const optionPrice = (id) => {
     for (const g of groups.values()) { const o = g.options.find((x) => x.id === id); if (o) return o.price_delta_cents || 0; }
@@ -354,9 +352,9 @@ function Order({ client, lang, setLang }) {
   const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} cartCount={count} onCart={gate ? null : openCart} cartLabel={s.cart} />;
   // Not taking orders (closed / paused / disabled): same menu, read-only, with a banner on top.
   const banner = gate && <GateBanner s={s} gate={gate} shop={data.shop} />;
-  if (categories.length === 0) return <Page client={client} lang={lang}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></Page>;
 
   const addLine = (id, mods) => {
+    if (!canOrderItem(id, itemsById, gate)) return;
     const key = `${id}|${[...mods].sort().join(',')}`;
     setCart((prev) => {
       const found = prev.find((l) => l.key === key);
@@ -364,6 +362,8 @@ function Order({ client, lang, setLang }) {
     });
   };
   const onAdd = (item) => {
+    if (!canOrderItem(item.id, itemsById, gate)) return;
+    item = itemsById.get(item.id);
     const hasMods = (item.modifier_group_ids || []).some((gid) => groups.get(gid));
     if (hasMods) setPicking({ item, mods: [] });
     else addLine(item.id, []);
@@ -377,8 +377,8 @@ function Order({ client, lang, setLang }) {
 
   const last = history[0];
   const repeatLast = () => {
-    if (!last) return;
-    const lines = last.items.filter((l) => itemsById.get(l.id)?.available !== false && itemsById.has(l.id));
+    if (!last || gate) return;
+    const lines = last.items.filter((l) => canOrderItem(l.id, itemsById, gate));
     setCart(lines.map((l) => ({ key: `${l.id}|${[...l.mods].sort().join(',')}`, id: l.id, qty: l.qty, mods: l.mods })));
     setCheckingOut(true);
   };
@@ -586,33 +586,8 @@ function Order({ client, lang, setLang }) {
         </div>
       )}
 
-      <nav style={{ display: 'flex', overflowX: 'auto', gap: 12, padding: wide ? '12px 4px' : '12px 16px', background: wide ? '#fafafa' : 'white', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 5 }}>
-        {categories.map((c) => (
-          <button key={c.id} type="button" onClick={() => setActiveCat(c.id)}
-            style={{ background: 'none', border: 'none', borderBottom: `2px solid ${c.id === active.id ? brand : 'transparent'}`, color: c.id === active.id ? brand : '#555', fontWeight: 700, padding: '8px 4px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
-            {c.name}
-          </button>
-        ))}
-      </nav>
-
-      <ul style={wide
-        ? { listStyle: 'none', margin: 0, padding: '16px 0 32px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }
-        : { listStyle: 'none', margin: 0, padding: '8px 16px 16px' }}>
-        {active.items.map((it) => {
-          const out = it.available === false || it.price_type !== 'fixed';
-          return (
-            <li key={it.id} style={{ display: 'flex', gap: 12, alignItems: 'center', opacity: out ? 0.5 : 1,
-              ...(wide ? { background: 'white', borderRadius: 14, padding: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' } : { padding: '14px 0', borderBottom: '1px solid #eee' }) }}>
-              {it.image_url ? <img src={it.image_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: '1.6rem' }}>{it.emoji}</span>}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700 }}>{it.name}</div>
-                <div style={{ color: '#666' }}>{out && it.available === false ? s.soldOut : fmt(it.price_cents)}</div>
-              </div>
-              {!out && !gate && <button type="button" onClick={() => onAdd(it)} style={{ background: brand, color: 'white', border: 'none', borderRadius: 10, padding: '10px 16px', fontWeight: 800, cursor: 'pointer' }}>{s.add}</button>}
-            </li>
-          );
-        })}
-      </ul>
+      <OrderDesignView data={data} lang={lang} brand={brand} gate={gate} onSelectItem={onAdd}
+        catalog={categories.length ? <OrderCatalog categories={categories} active={active} setActiveCat={setActiveCat} wide={wide} brand={brand} gate={gate} s={s} fmt={fmt} onAdd={onAdd} /> : <div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div>} />
     </div>
   );
 
@@ -818,7 +793,7 @@ function Track({ client, token, lang, setLang }) {
   // Shop info (logo/name/brand) changes rarely: fetch once, not on every poll.
   useEffect(() => {
     let cancelled = false;
-    orderMenu(client).then(({ data }) => { if (!cancelled && data?.shop) { setShop(data.shop); setMenu(data); } });
+    fetchOrderMenu(client).then(({ data }) => { if (!cancelled && data?.shop) { setShop(data.shop); setMenu(data); } });
     return () => { cancelled = true; };
   }, [client]);
 

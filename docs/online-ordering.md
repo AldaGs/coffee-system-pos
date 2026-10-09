@@ -4,12 +4,30 @@ Customers order from a shared link, track the order live, and the shop receives 
 
 ## Decisions
 
-- **Two links**: `/menu` stays display-only (unchanged). `/order` is the same menu + cart.
+- **Two links**: `/menu` stays display-only (unchanged). `/order` uses the menu selected in Online Orders, with the existing cart and checkout.
 - **Activation**: `advancedOnly` admin tab (same lock as other advanced features, `Admin.jsx` `isAdvancedMode`) + cloud mode required + its own `enabled` toggle. Off → `/order` shows "not accepting orders" and the RPC rejects.
 - **Manual accept**: every order waits for staff Accept/Reject; the customer sees it.
 - **Pickup** (phase 1) and **delivery** via tinylogistics (phase 2, opt-in under `onlineOrders.delivery`).
 - **No customer accounts**: customer data is remembered in the customer's browser (localStorage). Shop side links orders to existing customers by phone.
-- **No online payment**: the customer picks cash / card / bank transfer at checkout (schema 2.6), but still pays at pickup/delivery.
+- **Payment**: cash, card at pickup/delivery, and bank transfer remain available when configured. Shops configured for Clip can also offer online card payment after staff acceptance; canvas ordering reuses these existing choices.
+
+## Selected menus and canvas ordering
+
+In **Online Orders**, choose an active catalog or designed menu. This stores `onlineOrders.menuId`; it does not edit the menu document or the public display schedule. `/order` loads `get_order_menu()`. A `?m=` on an ordering link does not override the shop selection. `/menu` continues using the scheduled active menu or its explicit display pin.
+
+An empty selection follows the currently active menu. If a selected menu is inactive or deleted, the existing server resolver also falls back to the active menu; deleting a selection does not close ordering. Older schemas missing `get_order_menu` retain the legacy active-menu fallback. Permission, network, and internal RPC failures display an error instead of silently changing the selection.
+
+For a valid saved canvas document, customers start in **Design / Diseño**. Existing product fields (`item-binding.item_id`) become order buttons without resaving. They show current catalog values. Text, images, rectangles, and circles can receive an explicit **Acción de pedido** from the editor's existing product picker. Link, replace, or clear the product; only `order_item_id` is stored. Paths, lines, dates, and WhatsApp buttons do not receive this action. WhatsApp retains its external link.
+
+An ordering action is separate from the stock visibility link (`link.itemId`). A visibility-only element stays decorative. The editor offers an explicit shortcut to use the visibility-linked product for ordering, and never converts an old visibility link automatically. Hidden nodes and stock-hidden nodes stay hidden. Visible actions for unavailable, deleted, filtered, or non-fixed-price products cannot activate.
+
+Handwritten names and prices remain artwork: linking an action does not synchronize their content. The existing cart and modifier selector resolve the live product, price, and public modifiers. A plain product adds one unit; modifier-bearing products open the same option picker. Add, confirmation, restored drafts, and repeat-order paths enforce current catalog eligibility; confirmation also rechecks the current ordering gate.
+
+**Catalog / Catálogo** offers larger controls and the same eligible products. Switching presentations preserves the cart and checkout. The selected public category whitelist is the ordering boundary, not the set of products painted on the canvas: leaving an eligible product off the artwork does not prohibit ordering it. Owners narrow eligibility with existing category selection.
+
+Template-only designed menus keep the catalog presentation. Empty, unsupported-version, or structurally invalid documents use the catalog with an explanation. A valid design with no visible eligible actions starts in Catalog and offers Design for viewing. A render failure affects only artwork; the catalog and cart remain available. Closed/paused/disabled shops keep artwork visible with actions disabled. Public display, editor preview, TV, and print remain read-only. PDF/image menus are excluded from the Online Orders selector; clickable PDF regions are outside this implementation.
+
+Submission still uses `public_place_order`: no artwork text, copied price, or new cart payload fields are submitted. The server validates availability, public/category filters and modifiers and computes prices. A schedule, selection, or catalog change may make an open session stale; submission rejection keeps the cart editable and tells the customer to refresh/review. This feature adds no background selection switch, schema migration, document version bump, or second checkout flow.
 
 ## Customer status timeline
 
@@ -37,7 +55,7 @@ Customers order from a shared link, track the order live, and the shop receives 
 - `MenuShareCard`: second QR/link for `/order` when enabled.
 
 ### 3. Customer page
-- `/order`: menu from `get_public_menu`, cart, checkout (name, phone, notes, optional pickup time).
+- `/order`: menu from `get_order_menu`, cart, checkout (name, phone, notes, optional pickup time).
 - Remember name/phone and past orders in localStorage; "Repeat last order"; "forget my data".
 - `/order/track/<token>`: polls `get_order_status`, shows timeline.
 
@@ -53,7 +71,7 @@ Customers order from a shared link, track the order live, and the shop receives 
 - **Schema 2.0**: `online_orders` + `order_type` ('pickup'|'delivery'), `delivery_address`, `delivery_fee_cents`, `order_num`; `order_fulfillment` + `delivery_address`, `delivery_notes` (IF NOT EXISTS, same columns tinylogistics uses). `public_place_order` accepts `order_type` + `address`, rejects delivery when disabled or address missing, adds the server-side fee to `total_cents`. `get_order_status` also returns `order_type`, `order_num`, `delivery_fee_cents`, and for delivery orders maps fulfillment `in_transit` -> `on_delivery` and `completed` -> `completed` (so it works with the Register closed). Anon lockdown unchanged.
 - **/order**: pickup/delivery toggle (only when offered), address remembered in localStorage (cleared by "forget my data"), fee in totals, "Order #N" and the `on_delivery` step on the tracker for delivery orders.
 - **Register**: accept stores `order_num`; the fee becomes a ticket line (`id: online-delivery-fee`, untaxed, no inventory link). Inbox shows type + address and a "Send to logistics" button for delivery orders: updates the existing `order_fulfillment` row (ticket already sent to KDS) with address + notes + phone, else inserts it (and marks the ticket `kds_sent`).
-- **Not done**: Register inbox does not mirror `in_transit` into `online_orders.status` (customer view is derived server-side); online payment and customer accounts remain out of scope.
+- **Not done**: Register inbox does not mirror `in_transit` into `online_orders.status` (customer view is derived server-side); customer accounts remain out of scope; the later Clip integration supplies configured online card payment.
 
 ## Delivery areas and optional shipping (schema 3.2)
 
@@ -76,7 +94,7 @@ Customers order from a shared link, track the order live, and the shop receives 
 - **Address search**: Nominatim with `countrycodes=mx`, a `bounded=1` viewbox of about 0.15 degrees around the map center, abbreviations expanded (Nte./Pte./Ote./Av., "37B" to "37 B"). No hit retries without the trailing house number and shows "Street found, drag the pin to your exact door". "Use my location" says HTTPS is required when `!isSecureContext` and distinguishes permission denied.
 - **Delivery to logistics is automatic**: accepting a delivery order calls `sendOrderToLogistics` (inserts the `order_fulfillment` row with address, notes + phone, lat/lng). The ticket is created with `kds_sent: true` so KDS immediate mode cannot add a second row; the manual "Send to logistics" button is gone. Remaining race: a failed logistics insert rolls `kds_sent` back locally only; the cloud ticket flag stays true until the next KDS send/edit.
 - **Voids**: `clearCurrentTicket` (useTickets) is the single non-checkout removal path and calls `cancelTicketEverywhere`; checkout passes `{ sold: true }` and completes the order itself. Fully refunding a sale in Orders marks the linked online order (via `sales.ticket_id`) rejected, reason "refunded" (`rejectOnlineOrderForRefund`). Remote DELETE events from other stations do not cancel (the originating station already did).
-- **Public menu whitelist**: `/order` applies `menu.data.category_names` like `/menu`; `public_place_order` rejects (`item_unavailable`) items whose category is outside a non-empty whitelist, reading it from `get_active_menu(now())`.
+- **Public menu whitelist**: `/order` applies `menu.data.category_names` like `/menu`; `public_place_order` rejects (`item_unavailable`) items whose category is outside a non-empty whitelist, reading it from `get_order_menu()`.
 - **Tracking showcase**: Online Orders tab, "Show products on the tracking screen": `posSettings.onlineOrders.trackShowcase = { mode: off|all|categories|items, categories:[names], items:[ids] }`. Exposed as `shop.showcase` in `get_active_menu`, not `get_order_status`: Track already fetches the menu once, while the status RPC is polled every 8 s. Track shows "You might also like" (available, fixed-price, public, whitelist-respecting items, max 12); tapping one adds it to the `tinypos_order_draft` cart and opens `/order`.
 
 ## Time slots (schema 2.4, opt-in since 2.5)
@@ -86,7 +104,7 @@ Customers order from a shared link, track the order live, and the shop receives 
 
 ## Payment method (schema 2.6)
 - **Settings**: `posSettings.onlineOrders.payments = { methods: ['cash','card','transfer'], transferInfo: '' }` (default all three; at least one). Admin: Online orders > "Payment methods" (transfer details textarea appears when transfer is offered).
-- **Server**: `online_orders.payment_method` (CHECK cash/card/transfer, NULL on old rows). `public_place_order` requires `payload.payment_method` to be one of the offered methods (no config = all three) else `invalid_payment`. `get_order_status` returns `payment_method`; `get_active_menu` shop block carries `payments` (read once at load; the tracker takes `transferInfo` from `get_public_menu`, not the 8s poll).
+- **Server**: `online_orders.payment_method` (CHECK cash/card/transfer, NULL on old rows). `public_place_order` requires `payload.payment_method` to be one of the offered methods (no config = all three) else `invalid_payment`. `get_order_status` returns `payment_method`; `get_active_menu` shop block carries `payments` (read once at load; the tracker takes `transferInfo` from `get_order_menu`, not the 8s poll).
 - **Page**: required segmented choice (banknote / credit-card / landmark icons) saved in the draft; transfer shows `transferInfo`; the pay-at-pickup line is method-aware; tracker shows the method (+ transfer details).
 - **Shop**: inbox card shows the method; the accepted ticket name gets ` · Efectivo|Tarjeta|Transferencia`; `sendOrderToLogistics` adds `Pago: <método>` to `delivery_notes`. The Register checkout modal is not pre-selected (its buttons are one-shot actions with no method state).
 

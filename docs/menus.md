@@ -13,6 +13,16 @@ the conventions to maintain, and what's still on the roadmap.
 
 ---
 
+## Canvas designs in Online Orders
+
+Public menus and Online Orders have independent selection. Keep several saved menus and choose an active catalog/designed menu in Online Orders; this changes `onlineOrders.menuId`, not any document or public display schedule. `/order` uses `get_order_menu()` and ignores a display-style `?m=` pin. Empty, inactive, or deleted selections retain the server's existing active-menu fallback. See [online-ordering.md](online-ordering.md#selected-menus-and-canvas-ordering) for selection and checkout behavior.
+
+A selected canvas is an ordering presentation with a Design/Catalog switch. Product-binding nodes automatically order their existing `item_id`. For text, images, rectangles, and circles, use **Acción de pedido** in the properties panel to select, replace, or clear a product. The optional `order_item_id` survives normal save/reload, duplicate, clipboard and history operations as document JSON; it does not require a version migration. Dates, lines, paths, and WhatsApp buttons keep their existing roles.
+
+Stock visibility and ordering are independent. A stock link may target a different product, and it does not create an order action. Handwritten content stays unchanged: only catalog-bound product fields synchronize their displayed names/prices. Checkout resolves current price and public modifiers from the catalog. Hidden/unavailable/non-fixed/deleted/out-of-category actions cannot add a product.
+
+The eligible catalog is defined by public products and the chosen menu's category selection. Artwork is not an item whitelist; products absent from the art remain available through Catalog when their categories are allowed. Template-only designs use Catalog. Invalid or empty artwork and render failures fall back safely; no-action designs start in Catalog with optional Design viewing. PDF/image menus and clickable PDF regions are not supported for ordering. `/menu`, editor previews, TV and print do not expose order actions.
+
 ## 1. User-facing surface
 
 ### URLs

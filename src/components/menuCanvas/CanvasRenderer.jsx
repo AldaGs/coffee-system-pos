@@ -12,8 +12,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontLoadSpecs, pathToSvgD, fitTextFontSize, formatDateField } from '../../utils/canvasDocument';
 import { formatForDisplay } from '../../utils/moneyUtils';
+import { orderItemId, resolveOrderTarget } from '../../utils/canvasOrdering';
 
-export default function CanvasRenderer({ document, data, lang, isTv = false, tvPageIndex = 0, isPrint = false }) {
+export default function CanvasRenderer({ document, data, lang, isTv = false, tvPageIndex = 0, isPrint = false, ordering = null }) {
   // Load any web fonts the document declares (e.g. the chalkboard template's
   // Permanent Marker) so style.fontFamily stacks resolve to the real face.
   //
@@ -66,7 +67,7 @@ export default function CanvasRenderer({ document, data, lang, isTv = false, tvP
       </div>
     );
   }
-  return <PageStack pages={document.pages} pageW={pageW} pageH={pageH} itemIndex={itemIndex} lang={lang} fit="width" />;
+  return <PageStack pages={document.pages} pageW={pageW} pageH={pageH} itemIndex={itemIndex} lang={lang} fit="width" ordering={ordering} />;
 }
 
 // Renders every page at native pixel size with page-break-after between
@@ -118,11 +119,12 @@ function PrintStack({ document, itemIndex, lang }) {
 }
 
 
-function PageStack({ pages, pageW, pageH, itemIndex, lang, fit }) {
+function PageStack({ pages, pageW, pageH, itemIndex, lang, fit, ordering }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, padding: '24px 0', background: '#0a0a0a' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, padding: '24px 0', background: '#0a0a0a', ...(ordering ? { '--tp-order-color': ordering.brand || '#f28b05' } : null) }}>
+      {ordering && <style>{'.tp-canvas-order-action:not(:disabled){outline:1px dotted var(--tp-order-color);outline-offset:1px}.tp-canvas-order-action:not(:disabled):hover{outline:2px solid var(--tp-order-color);outline-offset:2px}.tp-canvas-order-action:not(:disabled):focus-visible{outline:4px solid var(--tp-order-color);outline-offset:3px}'}</style>}
       {pages.map((p, i) => (
-        <ScaledPage key={i} page={p} pageW={pageW} pageH={pageH} itemIndex={itemIndex} lang={lang} fit={fit} />
+        <ScaledPage key={i} page={p} pageW={pageW} pageH={pageH} itemIndex={itemIndex} lang={lang} fit={fit} ordering={ordering} />
       ))}
     </div>
   );
@@ -131,7 +133,7 @@ function PageStack({ pages, pageW, pageH, itemIndex, lang, fit }) {
 // Wraps a page at its native size inside a viewport-fitting container and
 // applies a single transform: scale() so all nodes inside use the authored
 // pixel values without recomputation.
-function ScaledPage({ page, pageW, pageH, itemIndex, lang, fit }) {
+function ScaledPage({ page, pageW, pageH, itemIndex, lang, fit, ordering }) {
   const wrapRef = useRef(null);
   const [scale, setScale] = useState(1);
 
@@ -153,7 +155,11 @@ function ScaledPage({ page, pageW, pageH, itemIndex, lang, fit }) {
     }
     recalc();
     window.addEventListener('resize', recalc);
-    return () => window.removeEventListener('resize', recalc);
+    // Ordering can share its container with checkout. Observe that container
+    // rather than relying only on a window resize; TV sizing stays unchanged.
+    const observer = fit === 'width' && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(recalc) : null;
+    if (wrapRef.current?.parentElement) observer?.observe(wrapRef.current.parentElement);
+    return () => { window.removeEventListener('resize', recalc); observer?.disconnect(); };
   }, [pageW, pageH, fit]);
 
   const sortedNodes = [...(page.nodes || [])].sort((a, b) => (a.z || 0) - (b.z || 0));
@@ -171,14 +177,14 @@ function ScaledPage({ page, pageW, pageH, itemIndex, lang, fit }) {
         }}
       >
         {sortedNodes.map(node => (
-          <NodeView key={node.id} node={node} itemIndex={itemIndex} lang={lang} />
+          <NodeView key={node.id} node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} />
         ))}
       </div>
     </div>
   );
 }
 
-function NodeView({ node, itemIndex, lang }) {
+function NodeView({ node, itemIndex, lang, ordering }) {
   if (node.hidden) return null;
   // Visibility link: any node can be tied to a catalog item's stock so
   // decorative elements (badges, callouts, background photos) disappear
@@ -197,7 +203,8 @@ function NodeView({ node, itemIndex, lang }) {
     height: node.h || 0,
     transform: node.rotation ? `rotate(${node.rotation}deg)` : undefined,
     transformOrigin: 'center center',
-    opacity: node.opacity ?? 1
+    opacity: node.opacity ?? 1,
+    ...(ordering ? { pointerEvents: 'none' } : null)
   };
 
   if (node.type === 'text') {
@@ -206,9 +213,9 @@ function NodeView({ node, itemIndex, lang }) {
     // differences clipping the last letter).
     if (node.autoWidth) {
       return (
-        <div style={{ ...baseStyle, width: 'auto', height: 'auto', whiteSpace: 'nowrap', ...textStyle(node.style), ...cssShadow(node.shadow, 'text') }}>
+        <NodeBox node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} style={{ ...baseStyle, width: 'auto', height: 'auto', whiteSpace: 'nowrap', ...textStyle(node.style), ...cssShadow(node.shadow, 'text') }}>
           {node.text || ''}
-        </div>
+        </NodeBox>
       );
     }
     // Auto-fit: shrink the font to fit the fixed box (authored size = cap).
@@ -223,7 +230,7 @@ function NodeView({ node, itemIndex, lang }) {
           maxSize: ts.fontSize || 24,
         })
       : null;
-    return <div style={{ ...baseStyle, ...textStyle(node.style), ...(fitted ? { fontSize: fitted } : null), ...cssShadow(node.shadow, 'text'), display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(node.style?.align) }}>{node.text || ''}</div>;
+    return <NodeBox node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} style={{ ...baseStyle, ...textStyle(node.style), ...(fitted ? { fontSize: fitted } : null), ...cssShadow(node.shadow, 'text'), display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(node.style?.align) }}>{node.text || ''}</NodeBox>;
   }
 
   if (node.type === 'image') {
@@ -233,14 +240,14 @@ function NodeView({ node, itemIndex, lang }) {
       ? `scaleX(${node.flipH ? -1 : 1}) scaleY(${node.flipV ? -1 : 1})`
       : undefined;
     return (
-      <div style={baseStyle}>
+      <NodeBox node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} style={baseStyle}>
         <img
           src={node.src}
           alt=""
           loading="lazy"
           style={{ width: '100%', height: '100%', objectFit: node.fit || 'cover', display: 'block', borderRadius: node.style?.borderRadius || 0, transform: flip, ...cssShadow(node.shadow, 'filter') }}
         />
-      </div>
+      </NodeBox>
     );
   }
 
@@ -252,7 +259,7 @@ function NodeView({ node, itemIndex, lang }) {
     const x = node.x || 0, y = node.y || 0, w = Math.max(1, node.w || 1), h = Math.max(1, node.h || 1);
     return (
       <svg
-        style={{ position: 'absolute', left: x, top: y, width: w, height: h, overflow: 'visible', opacity: node.opacity ?? 1, ...cssShadow(node.shadow, 'filter') }}
+        style={{ position: 'absolute', left: x, top: y, width: w, height: h, overflow: 'visible', opacity: node.opacity ?? 1, ...(ordering ? { pointerEvents: 'none' } : null), ...cssShadow(node.shadow, 'filter') }}
         viewBox={`${x} ${y} ${w} ${h}`}
       >
         <path
@@ -276,15 +283,15 @@ function NodeView({ node, itemIndex, lang }) {
       : node.shape === 'line'
       ? { ...baseStyle, background: fillCss || s.fill || s.stroke || '#000', ...shadowStyle }
       : { ...baseStyle, background: fillCss || s.fill || 'transparent', border: s.stroke ? `${s.strokeWidth || 1}px solid ${s.stroke}` : undefined, borderRadius: s.borderRadius || 0, ...shadowStyle };
-    if (!node.label) return <div style={shapeStyle} />;
+    if (!node.label) return <NodeBox node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} style={shapeStyle} />;
     // Centered label rides inside the shape box.
     const ls = node.labelStyle || {};
     return (
-      <div style={{ ...shapeStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' }}>
+      <NodeBox node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} style={{ ...shapeStyle, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px', boxSizing: 'border-box' }}>
         <span style={{ fontFamily: ls.fontFamily || 'Georgia, serif', fontSize: ls.fontSize || 32, fontWeight: ls.fontWeight || 700, color: ls.color || '#ffffff', textAlign: 'center', lineHeight: 1.15 }}>
           {node.label}
         </span>
-      </div>
+      </NodeBox>
     );
   }
 
@@ -294,7 +301,7 @@ function NodeView({ node, itemIndex, lang }) {
       // Item was deleted from the catalog after the doc was authored. Show
       // a discrete "(no disponible)" so the layout doesn't reflow — owner
       // sees it on next preview and re-binds.
-      return <div style={{ ...baseStyle, ...textStyle(node.style), opacity: 0.35 }}>(no disponible)</div>;
+      return <NodeBox node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} style={{ ...baseStyle, ...textStyle(node.style), opacity: 0.35 }}>(no disponible)</NodeBox>;
     }
     // Out-of-stock handling: hide entirely if hide_when_out_of_stock is set,
     // otherwise dim + strikethrough so the slot is visible but obviously
@@ -302,9 +309,9 @@ function NodeView({ node, itemIndex, lang }) {
     // — the editor opts in per binding.
     if (item.available === false) {
       if (node.hide_when_out_of_stock) return null;
-      return <ItemBindingView node={node} item={item} lang={lang} outOfStock />;
+      return <ItemBindingView node={node} item={item} lang={lang} ordering={ordering} itemIndex={itemIndex} outOfStock />;
     }
-    return <ItemBindingView node={node} item={item} lang={lang} />;
+    return <ItemBindingView node={node} item={item} lang={lang} ordering={ordering} itemIndex={itemIndex} />;
   }
 
   if (node.type === 'whatsapp-button') {
@@ -320,6 +327,7 @@ function NodeView({ node, itemIndex, lang }) {
         onClick={e => { if (!href) e.preventDefault(); e.stopPropagation(); }}
         style={{
           ...baseStyle,
+          ...(ordering ? { pointerEvents: 'auto' } : null),
           display: 'flex', alignItems: 'center', justifyContent: justifyFromAlign(s.align) === 'flex-start' ? 'center' : justifyFromAlign(s.align),
           gap: Math.max(6, (s.fontSize || 28) * 0.35),
           padding: s.padding ?? 12,
@@ -373,7 +381,22 @@ function WhatsAppGlyph({ size = 20 }) {
   );
 }
 
-function ItemBindingView({ node, item, lang, outOfStock = false }) {
+function NodeBox({ node, itemIndex, lang, ordering, style, children }) {
+  const id = orderItemId(node);
+  if (!ordering || id == null) return <div style={style}>{children}</div>;
+  const item = itemIndex.get(id);
+  const target = resolveOrderTarget(node, itemIndex, ordering.gate);
+  const name = item?.name || (lang === 'en' ? 'Unavailable product' : 'Producto no disponible');
+  const label = `${target ? (lang === 'en' ? 'Add' : 'Agregar') : (lang === 'en' ? 'Unavailable:' : 'No disponible:')} ${name}`;
+  return <button type="button" className="tp-canvas-order-action" disabled={!target} aria-label={label} title={label}
+    onClick={() => { if (target) ordering.onSelectItem(target); }}
+    style={{ appearance: 'none', margin: 0, padding: 0, border: 'none', background: 'transparent', boxShadow: 'none', borderRadius: 0, boxSizing: 'content-box', color: 'inherit', font: 'inherit', textAlign: 'inherit', ...style,
+      transform: style.transform || 'none', transition: 'none', opacity: target || ordering.gate ? style.opacity : Math.min(style.opacity ?? 1, 0.5), pointerEvents: 'auto', cursor: target ? 'pointer' : 'not-allowed' }}>
+    {children}
+  </button>;
+}
+
+function ItemBindingView({ node, item, lang, ordering, itemIndex, outOfStock = false }) {
   const fields = node.fields && node.fields.length > 0 ? node.fields : ['name', 'price'];
   const layout = node.layout === 'stacked' ? 'column' : 'row';
   const s = node.style || {};
@@ -417,7 +440,7 @@ function ItemBindingView({ node, item, lang, outOfStock = false }) {
     ...(outOfStock ? { textDecoration: 'line-through' } : null)
   };
 
-  return <div style={baseStyle}>{parts}</div>;
+  return <NodeBox node={node} itemIndex={itemIndex} lang={lang} ordering={ordering} style={baseStyle}>{parts}</NodeBox>;
 }
 
 function textStyle(s = {}) {
