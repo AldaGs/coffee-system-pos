@@ -16,7 +16,7 @@
 
 [![Vitest](https://img.shields.io/badge/Tested-Vitest-yellow.svg)](https://vitest.dev/)
 
-[![Schema](https://img.shields.io/badge/Schema-v1.6-blue.svg)](db/MIGRATIONS.md)
+[![Schema](https://img.shields.io/badge/Schema-v3.9-blue.svg)](db/MIGRATIONS.md)
 
 
 
@@ -93,6 +93,8 @@ A second sign-up path (design in [`docs/local-first-mode-plan.md`](docs/local-fi
 | **TinyPOS Frontend** *(this repo)* | The barista-facing register + admin dashboard | React 19, Vite, Dexie, Zustand |
 
 | **TinyLogistics Sidecar** | Kanban fulfillment board for roasters / shipping, fed by Postgres triggers | React + Supabase Realtime |
+
+| **TinyKDS** *(sibling app)* | Kitchen display; receives accepted online orders and reports `preparing` / `ready` | Supabase-shared |
 
 | **Local Print Bridge** | Node.js daemon bridging the browser to USB/Network thermal printers (80mm/58mm) | Node.js |
 
@@ -179,6 +181,8 @@ All of these share a single Supabase project per tenant.
 
 A full multi-menu platform layered on top of TinyPOS, served from the same deploy. Menus are built in the Admin → Menus tab and published at `/menu`.
 
+**Public routes** — `/menu`, `/menu/tv`, `/order`, `/order/track/<token>`, `/cfdi/<ticket>`, `/enroll`, `/authorize`.
+
 **Public URL** — menus are served via base64-encoded `u`/`k` query params (`/menu?u=…&k=…`) so a single Vercel deploy serves every shop tenant. Short aliases can be registered in `config.json`. All routes are offline-capable via the service worker.
 
 **Multi-menu + Scheduling** — a shop can have multiple named menus (breakfast, lunch, seasonal) and a weekly + time-of-day schedule picks the active one automatically. Timezone is configurable from General Settings.
@@ -217,6 +221,26 @@ A full multi-menu platform layered on top of TinyPOS, served from the same deplo
 
 **Per-menu deep links + share UI** — each menu has a shareable card with a QR code and a copy-link button. The Settings tab shows a "Tu menú público" panel with the same share UI.
 
+### 🛍️ Online Orders (`/order`)
+
+Opt-in customer ordering from a shareable link — **off by default**. Admin → **Online Orders** is an Advanced-Mode, cloud-only tab with its own `enabled` toggle; `/menu` stays display-only and `/order` is the same menu plus a cart. Full design notes in [`docs/online-ordering.md`](docs/online-ordering.md).
+
+**Customer side** ([`src/components/PublicOrder.jsx`](src/components/PublicOrder.jsx))
+- No accounts: name, phone and address are remembered in the customer's browser (with *Repeat last order* and *Forget my data*).
+- **Pickup, local delivery or shipping.** Delivery requires a map pin ([`PinMap.jsx`](src/components/PinMap.jsx) — MapLibre + OpenFreeMap, no API keys; "use my location", tap/drag, address search) and the page overlays the shop's delivery coverage.
+- **Payment choice:** cash (with optional "pays with" amount and change), card, bank transfer (with your transfer details), or **Clip** online card checkout.
+- **Delivery/pickup time slots** (interval, lead time, days ahead), separate **store hours** that make the page read-only with the next opening when closed, and a pause switch.
+- **Live tracker** at `/order/track/<token>`: `requested → accepted → preparing → ready → (on_delivery) → completed` (or `rejected` with reason), plus an optional "You might also like" showcase.
+- **Privacy notice + terms** editable in the admin, with a Spanish starter template ([`utils/legalTemplates.js`](src/utils/legalTemplates.js)).
+
+**Shop side**
+- **Register inbox** ([`OnlineOrdersInbox.jsx`](src/components/register/OnlineOrdersInbox.jsx), [`services/onlineOrders.js`](src/services/onlineOrders.js)): realtime badge + sound, then **Accept** (atomically claimed so two stations can't both accept; opens a normal ticket from the server-priced snapshot, linked by phone to an existing customer for loyalty) or **Reject** with a reason. Preparing/ready come from the KDS or manual buttons; charging the ticket completes the order. Voiding or fully refunding the sale rejects the linked order.
+- **Delivery areas** ([`utils/deliveryAreas.js`](src/utils/deliveryAreas.js)): any number of named zones (radius or drawn polygon) with per-zone fee and priority. The server resolves the pin to a zone and fee — client prices are ignored. Outside every zone, optional **shipping**: the order waits in `quote_pending` until staff agree a price with the customer (`set_shipping_quote`, with full revision history).
+- Accepted delivery orders are pushed to **TinyLogistics** (`order_fulfillment`) with address, notes, payment method and map coordinates.
+- **Clip payments** ([`api/_clipFunctions.js`](api/_clipFunctions.js)): each business uses its own Clip credentials (stored in `clip_credentials`, readable only by the service role). Three Supabase Edge Functions — `clip-checkout`, `clip-webhook`, `clip-refund` — are deployed into the tenant's own project by **Update Schema**. Clip orders are pay-after-accept inside a pay window; paid tickets show a badge and close in one tap, unpaid ones are voided past the window, and void / refund triggers a full Clip refund.
+
+**Security model:** the public page never touches tables. It uses `SECURITY DEFINER` RPCs — `get_order_menu`, `get_delivery_quote`, `public_place_order` (re-prices everything from `menu_items`, validates hours/slots/area/payment, rate-limited), `get_order_status` (token only) and `get_legal` — with no `anon` table access. Cashier-only modifier groups and free-text modifier options never appear online (schema 3.9).
+
 ### 🧾 CFDI Portal (Mexico)
 
 Receipts can carry a **CFDI QR** (Receipt Settings). The customer scans it and lands on a public portal ([`src/components/PublicCFDI.jsx`](src/components/PublicCFDI.jsx)) that collects their fiscal data — RFC, razón social, régimen, CP, uso CFDI — or extracts most of it from an uploaded **Constancia de Situación Fiscal PDF** ([`src/utils/constanciaFiscal.js`](src/utils/constanciaFiscal.js)). The request lands in Admin → CFDI as *Pending*; the operator issues the actual invoice in the SAT/PAC (the POS does **not** stamp CFDIs) and records the folio to mark it *Issued*. **Factura Global** periods (migration `033`) close a month so its tickets can no longer be requested individually, with a reconciliation summary before closing. The portal reaches the database only through `cfdi_lookup_ticket` / `cfdi_request_invoice` RPCs (`039`), rate-limited per ticket reference.
@@ -237,7 +261,7 @@ Lot-tracked inventory items (roasted coffee, in-house syrups, prepped food) get 
 
 ### 🆘 In-app Help ([`src/utils/helpContent.js`](src/utils/helpContent.js))
 
-A bilingual (ES/EN) Help tab covering every register flow and admin tab — what it is, how it works, and step-by-step *do this* recipes, with per-field glossaries for Analytics and Inventory. The same content drives the contextual help modals. Spanish tutorial scripts for recording walkthroughs live in [`scripts/`](scripts).
+A bilingual (ES/EN) Help tab covering every register flow and admin tab (including Online Orders and Clip) — what it is, how it works, and step-by-step *do this* recipes, with per-field glossaries for Analytics and Inventory. The same content drives the contextual help modals. Spanish tutorial scripts for recording walkthroughs live in [`scripts/`](scripts).
 
 ### 📱 Loyalty + Receipts
 
@@ -253,7 +277,7 @@ A bilingual (ES/EN) Help tab covering every register flow and admin tab — what
 
 
 
-## 🔐 Role-Based Access & Maintenance (schema `1.6`)
+## 🔐 Role-Based Access & Maintenance
 
 Opt-in privilege gating for shops that need it; transparent for shops that don't.
 
@@ -368,7 +392,7 @@ The canonical DDL is **not** a single `install.sql` — it is kept in **three sy
 
 **Tables**
 
-`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`, `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options`, `menus`, `menu_schedules`, `menu_versions`, `vendors`, `vendor_payouts`, `floor_plan`, `fiscal_profiles`, `cfdi_global_periods`, `inventory_lots`, `lot_consumptions`, `inventory_deductions_applied`, `auth_attempts`.
+`shop_settings`, `active_tickets`, `customers`, `expenses`, `inventory`, `inventory_logs`, `activity_logs`, `recipes`, `sales`, `cashier_pins`, `tip_payouts`, `tip_events`, `app_users`, `schema_meta`, `menu_categories`, `menu_items`, `menu_modifier_groups`, `menu_modifier_options`, `menus`, `menu_schedules`, `menu_versions`, `vendors`, `vendor_payouts`, `floor_plan`, `fiscal_profiles`, `cfdi_global_periods`, `inventory_lots`, `lot_consumptions`, `inventory_deductions_applied`, `auth_attempts`, `online_orders`, `clip_credentials`, `menu_discount_rules`, `menu_item_modifier_groups`.
 
 
 
@@ -387,6 +411,14 @@ The canonical DDL is **not** a single `install.sql` — it is kept in **three sy
 - `claim_or_bootstrap_app_user()` — `SECURITY DEFINER`, **called by the client on every successful sign-in** (it replaces the prior `AFTER INSERT ON auth.users` trigger — no trigger on `auth.users` anymore). Links a pending `app_users` row to the caller's JWT, seeds `role='device'` for `@device.tinypos.com` emails, and promotes the first user to `admin` when no admin exists. Returns the caller's effective row.
 
 - `award_loyalty_visits()` — body of the `trg_award_loyalty` `AFTER INSERT ON sales` trigger; applies the net of `loyalty_stars_awarded − loyalty_stars_redeemed`, with one-time-program freeze semantics.
+
+**Online-ordering RPCs** (anon-callable, `SECURITY DEFINER`)
+
+- `get_order_menu()` / `get_active_menu(...)` — menu + shop block (hours, slots, payments, delivery areas, showcase) for `/order`.
+- `get_delivery_quote(lat, lng)` — resolves the winning delivery area and fee for a pin.
+- `public_place_order(payload)` — validates and re-prices an order, returns the tracking token.
+- `get_order_status(token)` — status, totals, payment state for the tracker.
+- `get_legal()` — privacy notice and terms. Staff-side: `set_shipping_quote(...)`, `clip_status()`, `set_clip_credentials(...)`.
 
 **Menu RPCs**
 
@@ -471,6 +503,16 @@ If you installed before the latest schema version, apply these **in order**:
 | `044_rate_limit_pin_and_cfdi.sql` | `auth_attempts` — rate-limits `verify_pin` and the CFDI ticket lookup |
 | `045_rate_limit_feedback.sql` | Returns *why* and *for how long* a call was refused, so a locked-out cashier sees a countdown |
 | `046_function_search_path.sql` | Pins `search_path` on the remaining `SECURITY DEFINER` functions |
+| `047_disk_io_rls_initplan_and_indexes.sql` | Indexes hot paths and stops re-evaluating `auth.*` per row (Disk IO fix) |
+| `048_cfdi_profile_per_request.sql` | One `fiscal_profiles` row per CFDI request (drops UNIQUE on RFC) |
+| `049_online_delivery_areas.sql` | Online-order delivery areas, `shipping` order type and shipping-quote workflow (schema 3.2) |
+| `050_public_delivery_coverage.sql` | Publishes delivery areas to the customer map (3.3) |
+| `051_clip_payments.sql` | `clip_credentials`, `clip_status()` / `set_clip_credentials()`, Clip payment columns (3.4) |
+| `052_clip_pay_window.sql` | `online_orders.pay_by` pay window; `public_place_order` accepts `clip` (3.5) |
+| `053_active_ticket_online_paid.sql` | `active_tickets.online_paid` Clip-paid flag (3.8) |
+| `054_cashier_only_modifiers.sql` | `menu_modifier_groups.public_hidden`; text-input options stay off online ordering (3.9) |
+
+> The online-ordering tables, RPCs and settings (schema 2.0–3.1) have no standalone migration files; they ship in `schema-latest.sql`, `api/install.js`, `SetupScreen.jsx` and the `api/_schemaDeltas.js` deltas.
 
 
 
@@ -501,6 +543,8 @@ If you installed before the latest schema version, apply these **in order**:
 | `POST /api/add-device` | Creates a new hardware Auth user for an additional terminal |
 
 | `GET/POST /api/domains` | Resolves, links and unlinks custom domains (public menu + CFDI portal) via the Vercel Domains API |
+
+| *(Supabase Edge Functions, not Vercel)* `clip-checkout`, `clip-webhook`, `clip-refund` | Clip card payments for online orders — deployed into each tenant's project by Update Schema ([`api/_clipFunctions.js`](api/_clipFunctions.js)) |
 
 | `POST /api/log-error` | Lightweight error-reporting sink (webhook) |
 
