@@ -108,8 +108,8 @@ export default function PinMap({ pin, address, onPin, s, areas = [], lang = 'es'
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Editing the address invalidates a previously confirmed entrance. Remove
-  // its marker so the customer visibly picks the new entrance on the map.
+  // Pin cleared by the parent (e.g. "Remove pin"): drop the marker too. Typing
+  // the address keeps the pin; only the map/search moves it.
   useEffect(() => {
     if (!pin && marker.current) { marker.current.remove(); marker.current = null; }
   }, [pin]);

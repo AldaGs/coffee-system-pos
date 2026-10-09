@@ -484,7 +484,7 @@ function Order({ client, lang, setLang }) {
       <div style={{ display: 'grid', gap: 10 }}>
       <label style={{ display: 'grid', gap: 6 }}>
         <strong>{s.addressRequired}</strong>
-        <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" required maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value, lat: null, lng: null })} />
+        <textarea style={inputStyle} placeholder={s.address} autoComplete="street-address" required maxLength={250} rows={2} value={customer.address} onChange={(e) => setCustomer({ ...customer, address: e.target.value })} />
       </label>
       {delivery && (
         <Suspense fallback={null}>
