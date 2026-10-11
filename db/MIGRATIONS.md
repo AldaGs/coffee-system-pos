@@ -56,7 +56,8 @@ NOT just "re-connect" in SetupScreen.
 Schema 3.2 adds `049_online_delivery_areas.sql` for point-in-area delivery
 pricing and optional shipping quotes. Schema 3.3 adds
 `050_public_delivery_coverage.sql` for the customer map's whitelisted area
-overlay. The current full schema is mirrored in
+overlay. Schema 4.0 adds `055_order_alerts.sql` (pg_net trigger → the
+`order-alert` Edge Function for Telegram / Web Push new-order alerts). The current full schema is mirrored in
 `db/schema-latest.sql`, `api/install.js` and `src/components/SetupScreen.jsx`;
 the in-app upgrade path also includes the same SQL in `api/_schemaDeltas.js`.
 
