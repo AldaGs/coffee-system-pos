@@ -9,6 +9,17 @@ import MenuHistoryPanel from './MenuHistoryPanel';
 import { MAX_SOURCE_BYTES } from '../../api/menuImages';
 import { isLocalMode } from '../../utils/appMode';
 import { isMenuItemSoldOut } from '../../utils/inventoryMath';
+import { orderBaseUrl } from '../../utils/customDomainSync';
+import { itemOrderLink } from '../../utils/orderDeepLink';
+
+// Base /order URL for this shop (custom order domain when linked). ?p= always
+// works, on any host, and skips the domain lookup.
+function orderPageUrl() {
+  try {
+    const ref = new URL(localStorage.getItem('tinypos_supabase_url') || '').hostname.split('.')[0];
+    return ref ? `${orderBaseUrl()}/order?p=${ref}` : null;
+  } catch { return null; }
+}
 
 // Full public URL → storage path ("assets/<hash>.webp"). Lets us match an
 // item's image_url back to the storage object so we know which assets are used.
@@ -37,6 +48,13 @@ function MenuEditorTab({
   // Effective payout split for the item being edited (override or vendor default).
   const itemSplit = newItemForm.vendorSplitType || vendors.find(v => String(v.id) === String(newItemForm.vendorId))?.splitType;
   const { showPrompt, showAlert, showConfirm } = useDialog();
+  const copyOrderLink = async (itemId) => {
+    const base = orderPageUrl();
+    if (!base) return;
+    const link = itemOrderLink(base, itemId);
+    try { await navigator.clipboard.writeText(link); showAlert?.(t('menu.orderLinkCopied'), link); }
+    catch { showPrompt?.(t('menu.titleCopyOrderLink'), '', () => {}, link); }
+  };
   const fileInputRef = useRef(null);
   // Refs to drive auto-scroll between the editor form and the item in the list.
   // The scroll container is `.admin-main` (not the window), so scrollIntoView —
@@ -632,6 +650,15 @@ function MenuEditorTab({
                               >
                                 <Icon icon={item.publicHidden ? 'lucide:lock' : 'lucide:globe'} />
                               </button>
+                              {!isLocalMode() && (
+                                <button
+                                  onClick={() => copyOrderLink(item.id)}
+                                  style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                  title={t('menu.titleCopyOrderLink')}
+                                >
+                                  <Icon icon="lucide:link" />
+                                </button>
+                              )}
                               <button onClick={() => handleDeleteDrink(category, item.id, item.name)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.2)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                                 <Icon icon="lucide:trash-2" />
                               </button>
