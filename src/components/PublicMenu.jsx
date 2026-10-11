@@ -28,6 +28,12 @@ import { createClient } from '@supabase/supabase-js';
 import { formatForDisplay } from '../utils/moneyUtils';
 import { applyTheme, syncGoogleFontLink } from '../utils/menuTheme';
 import CanvasRenderer from './menuCanvas/CanvasRenderer';
+import { createPageTracker } from '../utils/pageTracker';
+
+// One public menu per page load, so the tracker can live at module scope and
+// deep buttons (WhatsApp) reach it without prop drilling. Null on TV/print.
+let menuTracker = null;
+const trackMenu = (event, extra) => menuTracker?.track(event, extra);
 
 // Standard base64 → string. Tolerates URL-safe variants in case the link was
 // rewritten by a QR scanner or messaging app.
@@ -64,6 +70,13 @@ function PublicMenu() {
 
     let cancelled = false;
 
+    // Kiosk (TV) and print renders aren't visitors, so they never count.
+    const startTracking = (client) => {
+      if (isTvMode || isPrintMode || menuTracker) return;
+      menuTracker = createPageTracker(client, 'menu');
+      trackMenu('page_view', { detail: isCustomDomain ? 'custom_domain' : undefined });
+    };
+
     const loadMenuFromRef = async (projectRef) => {
       const supabaseUrl = `https://${projectRef}.supabase.co`;
       const configUrl = `${supabaseUrl}/storage/v1/object/public/menu/config.json`;
@@ -79,6 +92,7 @@ function PublicMenu() {
         const client = createClient(supabaseUrl, publishableKey, {
           auth: { persistSession: false, autoRefreshToken: false }
         });
+        startTracking(client);
 
         async function fetchMenu() {
           const { data, error } = pinnedId
@@ -131,6 +145,7 @@ function PublicMenu() {
       const client = createClient(supabaseUrl, publishableKey, {
         auth: { persistSession: false, autoRefreshToken: false }
       });
+      startTracking(client);
 
       async function fetchLegacyMenu() {
         const { data, error } = pinnedId
@@ -152,8 +167,10 @@ function PublicMenu() {
     return () => {
       cancelled = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
+      menuTracker?.stop();
+      menuTracker = null;
     };
-  }, []);
+  }, [isTvMode, isPrintMode]);
 
   const groupsById = useMemo(() => {
     const m = new Map();
@@ -259,7 +276,7 @@ function PublicMenu() {
               return (
                 <button
                   key={c.id}
-                  onClick={() => setActiveCategoryId(c.id)}
+                  onClick={() => { setActiveCategoryId(c.id); trackMenu('category_view', { categoryId: c.id }); }}
                   style={{
                     ...navButtonStyle,
                     color: isActive ? brand : '#555',
@@ -320,7 +337,7 @@ function ItemList({ items, groupsById, lang, brand, showModifiers = true }) {
                 <ItemModifiers groupIds={item.modifier_group_ids} groupsById={groupsById} lang={lang} brand={brand} />
               )}
               {item.whatsapp_url && (
-                <WhatsAppButton url={item.whatsapp_url} lang={lang} />
+                <WhatsAppButton url={item.whatsapp_url} lang={lang} itemId={item.id} />
               )}
             </div>
           </div>
@@ -365,13 +382,13 @@ function formatRoastDate(value, lang) {
 
 // "Order on WhatsApp" button. Opens the owner-pasted catalog/wa.me link in a
 // new tab. Stops click bubbling so it never triggers surrounding row handlers.
-function WhatsAppButton({ url, lang }) {
+function WhatsAppButton({ url, lang, itemId }) {
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={e => e.stopPropagation()}
+      onClick={e => { e.stopPropagation(); trackMenu('whatsapp_click', { itemId }); }}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8,
         padding: '7px 12px', borderRadius: 999, background: '#25D366', color: 'white',
@@ -637,7 +654,7 @@ function ListTemplate({ shopName, menuName, categories, groupsById, theme, lang,
                       </div>
                     )}
                     <RoastLine roastDate={it.roast_date} lang={lang} />
-                    {it.whatsapp_url && <WhatsAppButton url={it.whatsapp_url} lang={lang} />}
+                    {it.whatsapp_url && <WhatsAppButton url={it.whatsapp_url} lang={lang} itemId={it.id} />}
                   </div>
                   <div style={{ fontWeight: 800, whiteSpace: 'nowrap' }}>
                     {it.price_type === 'open' ? '—' : formatForDisplay(it.price_cents, lang)}
@@ -687,7 +704,7 @@ function CardsTemplate({ shopName, menuName, categories, groupsById, theme, lang
                       </div>
                     )}
                     <RoastLine roastDate={it.roast_date} lang={lang} />
-                    {it.whatsapp_url && <WhatsAppButton url={it.whatsapp_url} lang={lang} />}
+                    {it.whatsapp_url && <WhatsAppButton url={it.whatsapp_url} lang={lang} itemId={it.id} />}
                   </div>
                 </article>
               ))}

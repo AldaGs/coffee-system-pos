@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 4.2 — Cookieless public-page analytics: page_events + track_page_events (anon) + get_page_analytics (owner).
 // 4.1 — Alert devices move to order_alert_devices (push_subscriptions collided with a sibling app); restores its grants.
 // 4.0 — Online-order alerts with no POS open: order_alerts/push_subscriptions, pg_net trigger → order-alert Edge Function (Telegram + Web Push).
 // 3.9 — menu_modifier_groups.public_hidden (cashier-only groups); public menu + public_place_order drop those groups and text-input options.
@@ -138,4 +139,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '4.1';
+export const APP_SCHEMA_VERSION = '4.2';

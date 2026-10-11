@@ -4,6 +4,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay, millicentsToCents, normalizeUnitCostToMillicents } from '../../utils/moneyUtils';
 import { computeCogsAndWastage } from '../../utils/cogsMath';
 import SalesTrends from './SalesTrends';
+import PublicPageTraffic from './PublicPageTraffic';
 
 function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [], salesByMethod = {} }) {
   const { t } = useTranslation();
@@ -293,6 +294,9 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
       {/* --- SALES TRENDS (Arc charts) --- */}
       <SalesTrends filteredSales={filteredSales} allSales={allSales} />
+
+      {/* --- PUBLIC MENU / ORDER TRAFFIC (cookieless, schema 4.2) --- */}
+      <PublicPageTraffic timeFilter={timeFilter} dateRange={dateRange} />
 
       {/* --- ROW 1: MENU HEALTH --- */}
       <h3 style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', fontSize: '1.2rem' }}>
