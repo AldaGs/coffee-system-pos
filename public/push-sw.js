@@ -7,7 +7,8 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(data.title || 'TinyPOS', {
     body: data.body || '',
     icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    // Android masks the badge to one color: it must be a transparent silhouette.
+    badge: '/badge-96.png',
     tag: 'online-order',
     renotify: true,
     requireInteraction: true,
