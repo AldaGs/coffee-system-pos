@@ -3690,6 +3690,8 @@
     GRANT EXECUTE ON FUNCTION public.track_page_events(jsonb) TO anon, authenticated;
 
     -- Owner read path: everything the Analytics card shows, aggregated server-side.
+    -- 4.3: drop the 4.2 two-argument overload (see migration 058).
+    DROP FUNCTION IF EXISTS public.get_page_analytics(timestamptz, timestamptz);
     CREATE OR REPLACE FUNCTION public.get_page_analytics(p_from timestamptz, p_to timestamptz, p_page text DEFAULT NULL)
     RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public AS $$
     DECLARE v_tz text := public.shop_timezone();
@@ -3746,6 +3748,6 @@
     REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) TO authenticated;
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '4.2', now())
+    VALUES ('schema_version', '4.3', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;

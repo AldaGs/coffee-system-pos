@@ -59,7 +59,7 @@ pricing and optional shipping quotes. Schema 3.3 adds
 overlay. Schema 4.0 adds `055_order_alerts.sql` (pg_net trigger → the
 `order-alert` Edge Function for Telegram / Web Push new-order alerts); 4.1 adds `056_order_alert_devices.sql` (device table renamed off a
 sibling app's `push_subscriptions`); 4.2 adds `057_page_events.sql` (cookieless
-public-page analytics). The current full schema is mirrored in
+public-page analytics); 4.3 adds `058_page_analytics_page_filter.sql` (per-page filter). The current full schema is mirrored in
 `db/schema-latest.sql`, `api/install.js` and `src/components/SetupScreen.jsx`;
 the in-app upgrade path also includes the same SQL in `api/_schemaDeltas.js`.
 

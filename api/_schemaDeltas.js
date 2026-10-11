@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -6583,6 +6583,70 @@ REVOKE ALL ON FUNCTION public.track_page_events(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.track_page_events(jsonb) TO anon, authenticated;
 
 -- Owner read path: everything the Analytics card shows, aggregated server-side.
+CREATE OR REPLACE FUNCTION public.get_page_analytics(p_from timestamptz, p_to timestamptz)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public AS $$
+DECLARE v_tz text := public.shop_timezone();
+BEGIN
+  IF NOT public.is_app_user((select auth.uid())) THEN RAISE EXCEPTION 'forbidden'; END IF;
+  RETURN (
+    WITH ev AS (
+      SELECT * FROM public.page_events WHERE created_at >= p_from AND created_at < p_to
+    )
+    SELECT jsonb_build_object(
+      'totals', (SELECT jsonb_build_object(
+        'menu_visits',  count(DISTINCT visit) FILTER (WHERE page = 'menu'),
+        'order_visits', count(DISTINCT visit) FILTER (WHERE page = 'order'),
+        'events', count(*)) FROM ev),
+      'funnel', (SELECT jsonb_build_object(
+        'visits',    count(DISTINCT visit) FILTER (WHERE event = 'page_view'),
+        'added',     count(DISTINCT visit) FILTER (WHERE event = 'add_to_cart'),
+        'checkout',  count(DISTINCT visit) FILTER (WHERE event = 'checkout_start'),
+        'placed',    count(DISTINCT visit) FILTER (WHERE event = 'order_placed')) FROM ev WHERE page = 'order'),
+      'steps', COALESCE((SELECT jsonb_object_agg(detail, n) FROM (
+        SELECT detail, count(DISTINCT visit) AS n FROM ev
+        WHERE event = 'checkout_step' AND detail IS NOT NULL GROUP BY detail) s), '{}'::jsonb),
+      'errors', COALESCE((SELECT jsonb_object_agg(detail, n) FROM (
+        SELECT COALESCE(detail, 'unknown') AS detail, count(*) AS n FROM ev
+        WHERE event = 'order_error' GROUP BY 1) s), '{}'::jsonb),
+      'daily', COALESCE((SELECT jsonb_agg(d ORDER BY d->>'day') FROM (
+        SELECT jsonb_build_object(
+          'day', to_char(created_at AT TIME ZONE v_tz, 'YYYY-MM-DD'),
+          'menu', count(DISTINCT visit) FILTER (WHERE page = 'menu'),
+          'order', count(DISTINCT visit) FILTER (WHERE page = 'order')) AS d
+        FROM ev WHERE event = 'page_view' GROUP BY to_char(created_at AT TIME ZONE v_tz, 'YYYY-MM-DD')) s), '[]'::jsonb),
+      'hours', COALESCE((SELECT jsonb_object_agg(h, n) FROM (
+        SELECT extract(hour FROM created_at AT TIME ZONE v_tz)::int AS h, count(DISTINCT visit) AS n
+        FROM ev WHERE event = 'page_view' GROUP BY 1) s), '{}'::jsonb),
+      'items', COALESCE((SELECT jsonb_agg(i ORDER BY (i->>'opens')::int + (i->>'adds')::int DESC) FROM (
+        SELECT jsonb_build_object(
+          'id', ev.item_id, 'name', COALESCE(mi.name, ev.item_id),
+          'opens',    count(*) FILTER (WHERE event = 'item_open'),
+          'adds',     count(*) FILTER (WHERE event = 'add_to_cart'),
+          'removes',  count(*) FILTER (WHERE event = 'remove_from_cart'),
+          'whatsapp', count(*) FILTER (WHERE event = 'whatsapp_click')) AS i
+        FROM ev LEFT JOIN public.menu_items mi ON mi.id = ev.item_id
+        WHERE ev.item_id IS NOT NULL GROUP BY ev.item_id, mi.name LIMIT 200) s), '[]'::jsonb),
+      'categories', COALESCE((SELECT jsonb_agg(c ORDER BY (c->>'views')::int DESC) FROM (
+        SELECT jsonb_build_object('id', ev.category_id, 'name', COALESCE(mc.name, ev.category_id::text),
+          'views', count(DISTINCT ev.visit)) AS c
+        FROM ev LEFT JOIN public.menu_categories mc ON mc.id = ev.category_id
+        WHERE ev.event = 'category_view' AND ev.category_id IS NOT NULL
+        GROUP BY ev.category_id, mc.name) s), '[]'::jsonb)
+    )
+  );
+END $$;
+REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz) TO authenticated;
+${stamp('4.2')}` },
+  {
+    // 4.3 — get_page_analytics(p_from, p_to, p_page) per-page filter for the
+    // Public Menus / Online Orders traffic dialogs (migration 058).
+    version: '4.3',
+    sql: `
+-- 4.3: get_page_analytics gains an optional p_page filter so the Public Menus and
+-- Online Orders dialogs each report only their own page. The 4.2 two-argument
+-- signature is dropped so the old overload doesn't linger.
+DROP FUNCTION IF EXISTS public.get_page_analytics(timestamptz, timestamptz);
 CREATE OR REPLACE FUNCTION public.get_page_analytics(p_from timestamptz, p_to timestamptz, p_page text DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public AS $$
 DECLARE v_tz text := public.shop_timezone();
@@ -6638,7 +6702,7 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) TO authenticated;
-${stamp('4.2')}` },
+${stamp('4.3')}` },
 ];
 
 // Returns the concatenated delta SQL to move `fromVersion` up to the latest
