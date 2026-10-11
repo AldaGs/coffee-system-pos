@@ -12,6 +12,7 @@
 import { isOpenNow, nextOpening, formatHours } from '../utils/pickupSlots';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { createPageTracker } from '../utils/pageTracker';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
@@ -156,6 +157,15 @@ function useClient() {
   return state;
 }
 
+// One tracker per anon client (i.e. per page load), created on first use.
+const trackers = new WeakMap();
+const trackerFor = (client) => {
+  if (!trackers.has(client)) trackers.set(client, { tracker: createPageTracker(client, 'order'), once: new Set() });
+  return trackers.get(client).tracker;
+};
+const onceFor = (client) => { trackerFor(client); return trackers.get(client).once; };
+const releaseTracker = (client) => { trackers.get(client)?.tracker.stop(); trackers.delete(client); };
+
 const errCode = (error) => {
   const m = String(error?.message || '');
   return ['online_orders_disabled', 'online_orders_paused', 'online_orders_closed', 'invalid_name', 'invalid_phone',
@@ -256,6 +266,18 @@ function Order({ client, lang, setLang }) {
   const [formErr, setFormErr] = useState(null);
   const s = STR[lang] || STR.es;
 
+  // Cookieless visit analytics (see utils/pageTracker.js). `once` keeps
+  // per-visit milestones (checkout start, each step) from counting twice.
+  useEffect(() => () => releaseTracker(client), [client]);
+  const track = (event, extra) => trackerFor(client).track(event, extra);
+  const trackOnce = (event, extra) => {
+    const seen = onceFor(client);
+    const k = `${event}:${extra?.detail ?? ''}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    track(event, extra);
+  };
+
   // Probe answer: 'open' or 'open:delivery' (address service offered).
   // One parser for the first load and the 60s re-check (the re-check once had a broken regex
   // that hid delivery a minute in).
@@ -276,6 +298,7 @@ function Order({ client, lang, setLang }) {
       const filtered = { ...menu.data, categories: visibleCategories(menu.data) };
       setData(filtered);
       setActiveCat(filtered.categories[0]?.id ?? null);
+      trackerFor(client).track('page_view', { detail: probe.error ? 'closed' : 'open' });
       if (menu.data?.shop?.language) setLang(menu.data.shop.language === 'en' ? 'en' : 'es');
       applyProbe(probe);
     })();
@@ -357,6 +380,7 @@ function Order({ client, lang, setLang }) {
   if (categories.length === 0) return <Page client={client} lang={lang}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></Page>;
 
   const addLine = (id, mods) => {
+    track('add_to_cart', { itemId: id });
     const key = `${id}|${[...mods].sort().join(',')}`;
     setCart((prev) => {
       const found = prev.find((l) => l.key === key);
@@ -365,7 +389,7 @@ function Order({ client, lang, setLang }) {
   };
   const onAdd = (item) => {
     const hasMods = (item.modifier_group_ids || []).some((gid) => groups.get(gid));
-    if (hasMods) setPicking({ item, mods: [] });
+    if (hasMods) { track('item_open', { itemId: item.id }); setPicking({ item, mods: [] }); }
     else addLine(item.id, []);
   };
   const toggleMod = (g, optId) => setPicking((p) => {
@@ -373,7 +397,13 @@ function Order({ client, lang, setLang }) {
     const others = g.allow_multiple ? p.mods : p.mods.filter((m) => !g.options.some((o) => o.id === m));
     return { ...p, mods: has ? p.mods.filter((m) => m !== optId) : [...others, optId] };
   });
-  const setQty = (key, qty) => setCart((prev) => prev.flatMap((l) => (l.key !== key ? [l] : qty > 0 ? [{ ...l, qty }] : [])));
+  const setQty = (key, qty) => {
+    const line = cart.find((l) => l.key === key);
+    if (line && qty > line.qty) track('add_to_cart', { itemId: line.id });
+    if (line && qty < line.qty) track('remove_from_cart', { itemId: line.id });
+    changeQty(key, qty);
+  };
+  const changeQty = (key, qty) => setCart((prev) => prev.flatMap((l) => (l.key !== key ? [l] : qty > 0 ? [{ ...l, qty }] : [])));
 
   const last = history[0];
   const repeatLast = () => {
@@ -419,9 +449,11 @@ function Order({ client, lang, setLang }) {
     };
     const { data: token, error: err } = await client.rpc('public_place_order', { payload });
     setSending(false);
-    if (err) { const c = errCode(err); setFormErr(s[c] || (c && c.startsWith('online_orders') ? s.notOpen : s.generic));
+    if (err) { const c = errCode(err); track('order_error', { detail: c || 'unknown' }); setFormErr(s[c] || (c && c.startsWith('online_orders') ? s.notOpen : s.generic));
       if (c === 'quote_changed') { setQuoteRevision((n) => n + 1); setStepId('location'); }
       return; }
+    track('order_placed', { detail: delivery ? 'delivery' : 'pickup' });
+    releaseTracker(client);
     writeJson(CUSTOMER_KEY, { name: customer.name, phone: customer.phone, iso: customer.iso || 'MX', address: customer.address || '', lat: customer.lat ?? null, lng: customer.lng ?? null });
     removeKey(DRAFT_KEY);
     writeJson(HISTORY_KEY, [{ token, total_cents: grand, items: cart.map((l) => ({ id: l.id, qty: l.qty, mods: l.mods })) }, ...history].slice(0, MAX_HISTORY));
@@ -435,7 +467,10 @@ function Order({ client, lang, setLang }) {
   const step = steps[stepIdx];
   const locationBlocked = (customer.address || '').trim().length < 5 || customer.lat == null || customer.lng == null || !['delivery', 'shipping'].includes(quote?.kind);
   const stepBlock = { cart: cart.length === 0, location: locationBlocked, time: slotStatus !== 'valid', pay: delivery && locationBlocked || slotStatus !== 'valid' }[step];
-  const go = (i) => { setFormErr(null); setStepId(steps[i]); };
+  const go = (i) => {
+    setFormErr(null); setStepId(steps[i]);
+    if (i > 0) { trackOnce('checkout_start'); trackOnce('checkout_step', { detail: steps[i] }); }
+  };
   const nextBtn = { flex: 1, background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer' };
   const backBtn = { flex: '0 0 auto', background: 'white', color: brand, border: `1px solid ${brand}`, borderRadius: 12, padding: '14px 18px', fontWeight: 800, cursor: 'pointer' };
   const cartBody = (
@@ -588,7 +623,7 @@ function Order({ client, lang, setLang }) {
 
       <nav style={{ display: 'flex', overflowX: 'auto', gap: 12, padding: wide ? '12px 4px' : '12px 16px', background: wide ? '#fafafa' : 'white', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 5 }}>
         {categories.map((c) => (
-          <button key={c.id} type="button" onClick={() => setActiveCat(c.id)}
+          <button key={c.id} type="button" onClick={() => { setActiveCat(c.id); track('category_view', { categoryId: c.id }); }}
             style={{ background: 'none', border: 'none', borderBottom: `2px solid ${c.id === active.id ? brand : 'transparent'}`, color: c.id === active.id ? brand : '#555', fontWeight: 700, padding: '8px 4px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
             {c.name}
           </button>
