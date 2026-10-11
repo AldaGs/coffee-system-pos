@@ -87,6 +87,11 @@ button:active {
   }
 }
 
-/* Online-orders inbox button: sits above the ticket footer (Subtotal + Cobrar) on phones. */
+/* Online-orders inbox button: bottom-left corner. On phones it lines up with the
+   floating cart pill and hides while the ticket sheet is open, so it never covers
+   the ticket's footer buttons (Subtotal + Cobrar). */
 .oo-fab { bottom: 16px; }
-@media (max-width: 768px) { .oo-fab { bottom: 150px; } }
+@media (max-width: 768px) {
+  .oo-fab { bottom: 24px; }
+  body:has(.ticket-area.open) .oo-fab { display: none; }
+}

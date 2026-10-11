@@ -7,6 +7,8 @@
 // self-contained Deno source that deployClipFunctions() uploads. A factory must
 // therefore not reference anything outside itself.
 
+import { makeOrderAlert } from './_orderAlertFunction.js';
+
 // ponytail: every Clip field name below (endpoint paths, request body, response
 // ids/urls/status, webhook payload id) is UNVERIFIED against developer.clip.mx
 // (createnewpaymentlink). Fix them in the CLIP block of each factory only.
@@ -182,7 +184,8 @@ export function makeRefund(env, fetch) {
 }
 
 // verify_jwt=false on all: anon customers call checkout, Clip calls the webhook,
-// and refund checks the staff session itself.
+// refund checks the staff session itself, and order-alert is called by the DB
+// trigger (shared secret) or staff (checks the session itself).
 const edgeSource = (factory) =>
   `Deno.serve((${factory.toString()})((k) => Deno.env.get(k), fetch));\n`;
 
@@ -190,6 +193,7 @@ export const CLIP_FUNCTIONS = {
   'clip-checkout': edgeSource(makeCheckout),
   'clip-webhook': edgeSource(makeWebhook),
   'clip-refund': edgeSource(makeRefund),
+  'order-alert': edgeSource(makeOrderAlert),
 };
 
 // Management API multi-part deploy. Returns the slugs that failed (empty = ok).

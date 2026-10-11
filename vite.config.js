@@ -13,6 +13,8 @@ export default defineConfig({
       workbox: {
         clientsClaim: true, // Takes control of the client immediately
         cleanupOutdatedCaches: true,
+        // Online-order push notifications (public/push-sw.js).
+        importScripts: ['push-sw.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         // The main bundle (Konva-powered canvas editor + app) sits just past
         // workbox's default 2 MiB per-file precache cap; without this the SW
