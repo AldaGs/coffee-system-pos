@@ -18,12 +18,12 @@ const DeliveryCoverageOverview = lazy(() => import('./DeliveryCoverageOverview')
 // Online ordering settings. Stored at posSettings.onlineOrders so the
 // public_place_order RPC can read it server-side (shop_settings.menu_data) and
 // every device gets it through the normal posSettings sync.
-// slots: { enabled (default false: any future time),  interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
+// slots: { enabled (default false: any future time), oneDeliveryPerSlot (one local delivery per slot, schema 4.4),  interval 15|30|60, daysAhead (<=14), leadMinutes, hours: {days,start,end}|null (null = same as schedule) }
 // openHours: { always, rules: [{ days: bitmask (mon = bit 0, 0 = every day), start: 'HH:MM', end: 'HH:MM' }] } = when orders are accepted (any rule matches; overnight wraps).
 // schedule?: { days, start, end } = delivery/pickup hours only (fallback for slots + ASAP); it no longer gates ordering.
 // menuId: a Public Menus menu whose categories the order page shows (null = whichever menu is active now).
 // Shape: { enabled, paused, delivery: { enabled, shippingEnabled, areas }, openHours, schedule }
-const DEFAULTS = { enabled: false, paused: false, openHours: { always: true, rules: [] }, schedule: null, delivery: { enabled: false, shippingEnabled: false, areas: [] }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
+const DEFAULTS = { enabled: false, paused: false, openHours: { always: true, rules: [] }, schedule: null, delivery: { enabled: false, shippingEnabled: false, areas: [] }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null, oneDeliveryPerSlot: false }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
 const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
@@ -332,6 +332,11 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <label>{t('oo.slotDays')} <input type="number" min="0" max="14" style={{ ...input, width: 80 }} value={sl.daysAhead} onChange={num('daysAhead', 14)} /></label>
             <label>{t('oo.slotLead')} <input type="number" min="0" max="1440" style={{ ...input, width: 90 }} value={sl.leadMinutes} onChange={num('leadMinutes', 1440)} /></label>
           </div>
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!sl.oneDeliveryPerSlot} onChange={e => setSl({ oneDeliveryPerSlot: e.target.checked })} />
+            <span>{t('oo.oneDeliveryPerSlot')}</span>
+          </label>
+          <small style={{ color: 'var(--text-muted)' }}>{t('oo.oneDeliveryPerSlotDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" checked={!sl.hours} onChange={e => setSl({ hours: e.target.checked ? null : { days: 0, start: '', end: '' } })} />
             <span>{t('oo.slotSameHours')}</span>

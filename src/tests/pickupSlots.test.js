@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { slotValid, toLocalInput, fromLocalInput, timesFor, firstSlot, asapOk, autoSlotIsToday, checkoutSlotStatus, isOpenNow, nextOpening, formatHours } from '../utils/pickupSlots';
+import { slotValid, toLocalInput, fromLocalInput, timesFor, firstSlot, asapOk, autoSlotIsToday, checkoutSlotStatus, isOpenNow, nextOpening, formatHours, deliverySlotCap } from '../utils/pickupSlots';
 
 // 2026-10-07 15:00 UTC = 09:00 in Mexico City (UTC-6, no DST after 2022); a Wednesday
 const now = Date.UTC(2026, 9, 7, 15, 0);
@@ -99,5 +99,23 @@ describe('openHours', () => {
     const d = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     expect(formatHours(oh, d, 'Todos')).toEqual(['Lun–Vie 9:00–14:00', 'Sáb 10:00–20:00']);
     expect(formatHours({ rules: [{ days: 0, start: '08:00', end: '20:00' }] }, d, 'Todos')).toEqual(['Todos 8:00–20:00']);
+  });
+});
+
+describe('one delivery per slot', () => {
+  const tz = 'America/Mexico_City';
+  const slots = { enabled: true, interval: 60, daysAhead: 3, leadMinutes: 0, hours: { days: 0, start: '09:00', end: '21:00' }, oneDeliveryPerSlot: true };
+  const now = fromLocalInput('2026-10-12T08:00', tz);
+  const ten = fromLocalInput('2026-10-12T10:00', tz);
+  it('hides taken slots from the time list and rejects them', () => {
+    expect(timesFor('2026-10-12', { now, tz, slots })).toContain('10:00');
+    expect(timesFor('2026-10-12', { now, tz, slots, taken: new Set([ten]) })).not.toContain('10:00');
+    expect(slotValid(ten, { now, tz, slots, taken: new Set([ten]) })).toBe(false);
+    expect(checkoutSlotStatus({ value: new Date(ten).toISOString(), now, tz, slots, taken: new Set([ten]) })).toBe('invalid-time');
+  });
+  it('requires a concrete slot (no ASAP)', () => {
+    expect(checkoutSlotStatus({ value: '', now, tz, slots, noAsap: true })).toBe('asap-unavailable');
+    expect(deliverySlotCap(slots)).toBe(true);
+    expect(deliverySlotCap({ ...slots, enabled: false })).toBe(false);
   });
 });

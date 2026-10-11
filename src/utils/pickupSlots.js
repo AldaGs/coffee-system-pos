@@ -39,7 +39,9 @@ export function slotRules(slots, schedule) {
 }
 
 // Same checks as public_place_order: lead, range, day bitmask, start <= t < end (overnight wraps), interval.
-export function slotValid(ms, { now = Date.now(), tz, slots, schedule }) {
+// `taken` (Set of UTC ms) = slots already holding a delivery when slots.oneDeliveryPerSlot is on.
+export function slotValid(ms, { now = Date.now(), tz, slots, schedule, taken }) {
+  if (taken?.has(ms)) return false;
   const r = slotRules(slots, schedule);
   if (!(ms >= now + r.leadMinutes * 60000 && ms <= now + r.daysAhead * 86400000)) return false;
   const p = parts(ms, tz);
@@ -50,13 +52,13 @@ export function slotValid(ms, { now = Date.now(), tz, slots, schedule }) {
 
 // Times ('HH:MM') a customer may pick on `date` ('YYYY-MM-DD', shop tz). With rules: every
 // interval inside the hours that passes slotValid. Without: every 15 min that is still ahead.
-export function timesFor(date, { now = Date.now(), tz, slots, schedule }) {
+export function timesFor(date, { now = Date.now(), tz, slots, schedule, taken }) {
   const step = slots?.enabled ? slotRules(slots, schedule).interval : 15;
   const out = [];
   for (let t = 0; t < 1440; t += step) {
     const hhmm = `${p2(Math.floor(t / 60))}:${p2(t % 60)}`;
     const ms = fromLocalInput(`${date}T${hhmm}`, tz);
-    if (slots?.enabled ? slotValid(ms, { now, tz, slots, schedule }) : ms > now && ms <= now + 14 * 86400000) out.push(hhmm);
+    if (slots?.enabled ? slotValid(ms, { now, tz, slots, schedule, taken }) : ms > now && ms <= now + 14 * 86400000) out.push(hhmm);
   }
   return out;
 }
@@ -81,7 +83,9 @@ export function autoSlotIsToday(slotMs, now, tz) {
 
 // "As soon as possible" only makes sense if a slot opens within lead + interval minutes.
 // With no slot at all it stays true so the server (hours check) decides.
+// `noAsap`: one-delivery-per-slot deliveries must name a slot.
 export function asapOk(ctx) {
+  if (ctx.noAsap) return false;
   if (!ctx.slots?.enabled) return true;
   const now = ctx.now ?? Date.now();
   const r = slotRules(ctx.slots, ctx.schedule);
@@ -91,11 +95,11 @@ export function asapOk(ctx) {
 
 // Checkout gate for both wizard navigation and final submission. A chosen day
 // without a time is not ASAP; ASAP only applies when no day was selected.
-export function checkoutSlotStatus({ value, selectedDate = '', now, tz, slots, schedule }) {
-  if (!value) return selectedDate ? 'missing-time' : asapOk({ now, tz, slots, schedule }) ? 'valid' : 'asap-unavailable';
+export function checkoutSlotStatus({ value, selectedDate = '', now, tz, slots, schedule, taken, noAsap }) {
+  if (!value) return selectedDate ? 'missing-time' : asapOk({ now, tz, slots, schedule, noAsap }) ? 'valid' : 'asap-unavailable';
   const ms = Date.parse(value);
   if (!Number.isFinite(ms) || selectedDate && toLocalInput(ms, tz).slice(0, 10) !== selectedDate) return 'invalid-time';
-  if (slots?.enabled) return slotValid(ms, { now, tz, slots, schedule }) ? 'valid' : 'invalid-time';
+  if (slots?.enabled) return slotValid(ms, { now, tz, slots, schedule, taken }) ? 'valid' : 'invalid-time';
   return ms > now && ms <= now + 14 * 86400000 ? 'valid' : 'invalid-time';
 }
 
@@ -148,3 +152,6 @@ export function formatHours(oh, dayNames, allDays) {
     return `${label} ${hm(r.start)}–${hm(r.end)}`;
   });
 }
+
+// One local delivery per slot applies only with slot rules on.
+export const deliverySlotCap = (slots) => !!(slots?.enabled && slots?.oneDeliveryPerSlot);
