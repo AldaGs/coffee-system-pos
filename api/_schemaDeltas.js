@@ -6583,7 +6583,7 @@ REVOKE ALL ON FUNCTION public.track_page_events(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.track_page_events(jsonb) TO anon, authenticated;
 
 -- Owner read path: everything the Analytics card shows, aggregated server-side.
-CREATE OR REPLACE FUNCTION public.get_page_analytics(p_from timestamptz, p_to timestamptz)
+CREATE OR REPLACE FUNCTION public.get_page_analytics(p_from timestamptz, p_to timestamptz, p_page text DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public AS $$
 DECLARE v_tz text := public.shop_timezone();
 BEGIN
@@ -6591,6 +6591,7 @@ BEGIN
   RETURN (
     WITH ev AS (
       SELECT * FROM public.page_events WHERE created_at >= p_from AND created_at < p_to
+        AND (p_page IS NULL OR page = p_page)
     )
     SELECT jsonb_build_object(
       'totals', (SELECT jsonb_build_object(
@@ -6635,8 +6636,8 @@ BEGIN
     )
   );
 END $$;
-REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz) TO authenticated;
+REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) TO authenticated;
 ${stamp('4.2')}` },
 ];
 

@@ -17,6 +17,7 @@ import {
 } from '../../api/menus';
 import { uploadMenuFile, deleteMenuUploads, MAX_PDF_BYTES, MAX_IMAGE_BYTES } from '../../api/menuUploads';
 import MenuShareCard from './MenuShareCard';
+import PublicPageTraffic from './PublicPageTraffic';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 import { FONT_PRESETS } from '../../utils/menuTheme';
 import { sampleDocument, templateDoc } from '../../utils/canvasDocument';
@@ -190,6 +191,8 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
       </div>
 
       <MenuShareCard menuData={menuData} />
+
+      <PublicPageTraffic page="menu" />
 
       <ConflictBanner conflicts={findScheduleConflicts(menus)} />
 

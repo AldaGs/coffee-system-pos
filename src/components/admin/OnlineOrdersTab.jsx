@@ -8,6 +8,7 @@ import { validDeliveryArea } from '../../utils/deliveryAreas';
 import OrderTicket from '../OrderTicket';
 import LegalSection from './LegalSection';
 import MenuShareCard from './MenuShareCard';
+import PublicPageTraffic from './PublicPageTraffic';
 import * as alerts from '../../services/orderAlerts';
 import { DAY_ORDER, daysToBitmask, bitmaskToDays, loadMenus } from '../../api/menus';
 
@@ -429,6 +430,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
       </div>
 
       {menuData?.posSettings?.onlineOrders?.enabled && <MenuShareCard menuData={menuData} kind="order" />}
+      {menuData?.posSettings?.onlineOrders?.enabled && <PublicPageTraffic page="order" />}
       <LegalSection menuData={menuData} saveSettingsToCloud={saveSettingsToCloud} showAlert={showAlert} />
     </div>
   );
