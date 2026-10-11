@@ -45,6 +45,17 @@ const visibleCategories = (d) => {
   return (d?.categories || []).filter((c) => !names?.length || names.includes(c.name));
 };
 
+// Colors from the menu's design (menu.data.theme, as on /menu). Only values the owner
+// set explicitly are used, so an unstyled menu keeps the default order page look.
+const menuColors = (d) => {
+  const t = d?.menu?.data?.theme || {};
+  return {
+    accent: t.accent || d?.menu?.data?.accent_color || d?.shop?.brand_color || '#f28b05',
+    background: t.background || '#fafafa',
+    text: t.text || '#222',
+  };
+};
+
 const readJson = (key, fallback) => {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 };
@@ -187,9 +198,9 @@ function useWide() {
 
 // Page wrapper: the content column fills at least the viewport so the legal links
 // always sit at the very bottom (below short pages, after everything on long ones).
-function Page({ client, lang, bottomPad = 16, children }) {
+function Page({ client, lang, colors, bottomPad = 16, children }) {
   return (
-    <div style={pageStyle}>
+    <div style={colors ? { ...pageStyle, background: colors.background, color: colors.text } : pageStyle}>
       <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
         {children}
         <footer style={{ marginTop: 'auto', textAlign: 'center', color: '#888', fontSize: '0.8rem', padding: `24px 16px ${bottomPad}px` }}>
@@ -368,16 +379,17 @@ function Order({ client, lang, setLang }) {
   if (loadErr) return <div style={centerStyle}>{loadErr}</div>;
   if (!data) return <Loading text={s.loading} />;
 
-  const brand = data.shop?.brand_color || '#f28b05';
+  const colors = menuColors(data);
+  const brand = colors.accent;
   const categories = (data.categories || []).filter((c) => c.items.length > 0);
   const active = categories.find((c) => c.id === activeCat) || categories[0];
   const fmt = (c) => formatForDisplay(c, lang);
 
   const openCart = () => (wide ? asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setCheckingOut(true));
-  const header = <ShopHeader shop={data.shop} lang={lang} setLang={setLang} cartCount={count} onCart={gate ? null : openCart} cartLabel={s.cart} />;
+  const header = <ShopHeader shop={{ ...data.shop, brand_color: brand }} lang={lang} setLang={setLang} cartCount={count} onCart={gate ? null : openCart} cartLabel={s.cart} />;
   // Not taking orders (closed / paused / disabled): same menu, read-only, with a banner on top.
   const banner = gate && <GateBanner s={s} gate={gate} shop={data.shop} />;
-  if (categories.length === 0) return <Page client={client} lang={lang}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></Page>;
+  if (categories.length === 0) return <Page client={client} lang={lang} colors={colors}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></Page>;
 
   const addLine = (id, mods) => {
     track('add_to_cart', { itemId: id });
@@ -621,7 +633,7 @@ function Order({ client, lang, setLang }) {
         </div>
       )}
 
-      <nav style={{ display: 'flex', overflowX: 'auto', gap: 12, padding: wide ? '12px 4px' : '12px 16px', background: wide ? '#fafafa' : 'white', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 5 }}>
+      <nav style={{ display: 'flex', overflowX: 'auto', gap: 12, padding: wide ? '12px 4px' : '12px 16px', background: wide ? colors.background : 'white', color: wide ? colors.text : '#222', borderBottom: '1px solid #eee', position: 'sticky', top: 0, zIndex: 5 }}>
         {categories.map((c) => (
           <button key={c.id} type="button" onClick={() => { setActiveCat(c.id); track('category_view', { categoryId: c.id }); }}
             style={{ background: 'none', border: 'none', borderBottom: `2px solid ${c.id === active.id ? brand : 'transparent'}`, color: c.id === active.id ? brand : '#555', fontWeight: 700, padding: '8px 4px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
@@ -637,7 +649,7 @@ function Order({ client, lang, setLang }) {
           const out = it.available === false || it.price_type !== 'fixed';
           return (
             <li key={it.id} style={{ display: 'flex', gap: 12, alignItems: 'center', opacity: out ? 0.5 : 1,
-              ...(wide ? { background: 'white', borderRadius: 14, padding: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' } : { padding: '14px 0', borderBottom: '1px solid #eee' }) }}>
+              ...(wide ? { background: 'white', color: '#222', borderRadius: 14, padding: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.05)' } : { padding: '14px 0', borderBottom: '1px solid #eee' }) }}>
               {it.image_url ? <img src={it.image_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10 }} /> : <span style={{ fontSize: '1.6rem' }}>{it.emoji}</span>}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700 }}>{it.name}</div>
@@ -652,12 +664,12 @@ function Order({ client, lang, setLang }) {
   );
 
   return (
-    <Page client={client} lang={lang} bottomPad={!wide && !gate && count > 0 && !checkingOut ? 96 : 16}>
+    <Page client={client} lang={lang} colors={colors} bottomPad={!wide && !gate && count > 0 && !checkingOut ? 96 : 16}>
       {header}
       {wide && !gate ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 380px', gap: 24, maxWidth: 1200, width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: '0 24px', alignItems: 'start' }}>
           {menuCol}
-          <aside ref={asideRef} style={{ position: 'sticky', top: 16, marginTop: 16, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', background: 'white', borderRadius: 16, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
+          <aside ref={asideRef} style={{ position: 'sticky', top: 16, marginTop: 16, maxHeight: 'calc(100dvh - 32px)', overflowY: 'auto', background: 'white', color: '#222', borderRadius: 16, padding: 20, boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}>
             {cartBody}
           </aside>
         </div>
@@ -815,7 +827,7 @@ function SlotPicker({ label, value, onChange, date, onDateChange, shop, lang, s,
 function Sheet({ children, onClose }) {
   return (
     <div onClick={onClose} className="tp-dim" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 20, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={(e) => e.stopPropagation()} className="tp-up" style={{ background: 'white', width: '100%', maxWidth: 520, maxHeight: '90dvh', overflowY: 'auto', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box' }}>
+      <div onClick={(e) => e.stopPropagation()} className="tp-up" style={{ background: 'white', color: '#222', width: '100%', maxWidth: 520, maxHeight: '90dvh', overflowY: 'auto', borderRadius: '18px 18px 0 0', padding: 20, boxSizing: 'border-box' }}>
         {children}
       </div>
     </div>
@@ -901,7 +913,8 @@ function Track({ client, token, lang, setLang }) {
   const back = <a href={`/order${window.location.search}`} style={{ color: '#555' }}>{s.backToMenu}</a>;
   if (order === null) return <div style={centerStyle}><div><p>{s.notFound}</p>{back}</div></div>;
 
-  const brand = shop?.brand_color || '#f28b05';
+  const colors = menu ? menuColors(menu) : null;
+  const brand = colors?.accent || shop?.brand_color || '#f28b05';
   const rejected = order.status === 'rejected';
   const isDelivery = order.order_type === 'delivery';
   const isShipping = order.order_type === 'shipping';
@@ -938,9 +951,9 @@ function Track({ client, token, lang, setLang }) {
     : isShipping && st === 'completed' ? s.shippingDone
       : (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
   return (
-    <Page client={client} lang={lang}>
+    <Page client={client} lang={lang} colors={colors}>
       <style>{'.tp-marquee{scrollbar-width:none}.tp-marquee::-webkit-scrollbar{display:none}'}</style>
-      <ShopHeader shop={shop || { brand_color: brand }} lang={lang} setLang={setLang} />
+      <ShopHeader shop={{ ...shop, brand_color: brand }} lang={lang} setLang={setLang} />
       <div style={{ maxWidth: 480, width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: 24 }}>
         <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           {s.track}
@@ -974,7 +987,7 @@ function Track({ client, token, lang, setLang }) {
         {order.status === 'requested' && <p style={{ color: '#666' }}>{s.waiting}</p>}
         {order.status === 'quote_pending' && <p style={{ color: '#666' }}>{s.shippingPending}</p>}
         {order.payment_method && (
-          <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: '#f5f5f5' }}>
+          <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: '#f5f5f5', color: '#222' }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Icon icon={PAY_ICON[order.payment_method]} width="20" />{s.payLabel}: {s[`pay_${order.payment_method}`]}</div>
             {order.payment_method === 'cash' && order.cash_amount_cents != null && <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.cashPaysWith}: {formatForDisplay(order.cash_amount_cents, lang)} · {s.cashChange}: {formatForDisplay(order.cash_amount_cents - order.total_cents, lang)}</div>}
             {order.payment_method === 'transfer' && !(isShipping && order.shipping_quote_cents == null) && <TransferDetails payments={shop?.payments} lang={lang} />}
