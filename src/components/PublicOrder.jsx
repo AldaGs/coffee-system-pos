@@ -22,7 +22,7 @@ import { parseAddParam } from '../utils/orderDeepLink';
 import CountryPicker from './CountryPicker';
 import { CALLING_CODES, exactLength } from '../utils/callingCodes';
 import { useLegal } from '../hooks/useLegal';
-import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk, autoSlotIsToday, checkoutSlotStatus } from '../utils/pickupSlots';
+import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk, autoSlotIsToday, checkoutSlotStatus, deliverySlotCap } from '../utils/pickupSlots';
 
 // The menu chosen for online orders (schema 3.1+); older schemas lack the RPC, so fall back to the active menu.
 const orderMenu = async (client) => {
@@ -81,7 +81,7 @@ const STR = {
     legalA: 'Al enviar tu pedido aceptas el ', legalB: ' y los ', payAtPickup: 'Pagas al recoger.', send: 'Enviar pedido', sending: 'Enviando…',
     repeat: 'Repetir último pedido', forget: 'Olvidar mis datos', forgot: 'Datos borrados de este dispositivo.',
     pastOrders: 'Mis pedidos', view: 'Ver',
-    invalid_name: 'Escribe tu nombre.', invalid_phone: 'Escribe un teléfono válido.', invalid_pickup: 'Ese horario ya no está disponible, elige otro.',
+    invalid_name: 'Escribe tu nombre.', invalid_phone: 'Escribe un teléfono válido.', invalid_pickup: 'Ese horario ya no está disponible, elige otro.', slot_taken: 'Alguien acaba de reservar esa hora de entrega, elige otra.',
     invalid_items: 'Revisa tu pedido.', item_unavailable: 'Algún producto ya no está disponible. Actualiza el menú.',
     rate_limited: 'Demasiados intentos. Espera unos minutos.', generic: 'No se pudo enviar el pedido.',
     track: 'Seguimiento de tu pedido', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
@@ -110,7 +110,7 @@ const STR = {
     legalA: 'By sending your order you accept the ', legalB: ' and the ',
     repeat: 'Repeat last order', forget: 'Forget my data', forgot: 'Data erased from this device.',
     pastOrders: 'My orders', view: 'View',
-    invalid_name: 'Enter your name.', invalid_phone: 'Enter a valid phone number.', invalid_pickup: 'That time is no longer available, please pick another.',
+    invalid_name: 'Enter your name.', invalid_phone: 'Enter a valid phone number.', invalid_pickup: 'That time is no longer available, please pick another.', slot_taken: 'Someone just booked that delivery time, please pick another.',
     invalid_items: 'Please review your order.', item_unavailable: 'An item is no longer available. Refresh the menu.',
     rate_limited: 'Too many attempts. Wait a few minutes.', generic: 'Could not send the order.',
     track: 'Track your order', notFound: 'Order not found.', backToMenu: 'Back to menu',
@@ -181,7 +181,7 @@ const releaseTracker = (client) => { trackers.get(client)?.tracker.stop(); track
 const errCode = (error) => {
   const m = String(error?.message || '');
   return ['online_orders_disabled', 'online_orders_paused', 'online_orders_closed', 'invalid_name', 'invalid_phone',
-    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'delivery_outside', 'pin_required', 'quote_changed', 'invalid_type', 'invalid_payment', 'invalid_cash', 'pickup_required'].find((c) => m.includes(c)) || null;
+    'invalid_pickup', 'invalid_items', 'item_unavailable', 'rate_limited', 'invalid_address', 'delivery_disabled', 'delivery_outside', 'pin_required', 'quote_changed', 'invalid_type', 'invalid_payment', 'invalid_cash', 'pickup_required', 'slot_taken'].find((c) => m.includes(c)) || null;
 };
 
 // Desktop gets a two-column layout with the cart as a side panel.
@@ -342,6 +342,20 @@ function Order({ client, lang, setLang }) {
     return () => { cancelled = true; };
   }, [client, feeCents, customer.lat, customer.lng, quoteRevision]);
 
+  // One local delivery per slot: slots that already hold a delivery are hidden. Refreshed with
+  // the slot clock (30s) and after a 'slot_taken' rejection; the server trigger has the final say.
+  const capOn = deliverySlotCap(data?.shop?.slots) && orderType === 'delivery';
+  const [taken, setTaken] = useState(() => new Set());
+  const [takenRevision, setTakenRevision] = useState(0);
+  useEffect(() => {
+    if (!capOn) return undefined;
+    let cancelled = false;
+    client.rpc('get_taken_delivery_slots').then(({ data: rows, error }) => {
+      if (!cancelled && !error) setTaken(new Set((rows || []).map((t) => Date.parse(t))));
+    });
+    return () => { cancelled = true; };
+  }, [client, capOn, slotNow, takenRevision]);
+
   const groups = useMemo(() => new Map((data?.modifier_groups || []).map((g) => [g.id, g])), [data]);
   const itemsById = useMemo(() => {
     const m = new Map();
@@ -467,7 +481,9 @@ function Order({ client, lang, setLang }) {
   const phoneOk = phoneLen ? phoneDigits.length === phoneLen : phoneDigits.length >= 6 && phoneDigits.length <= 12;
   const phoneBad = phoneDigits.length > 0 && !phoneOk;
   const slotDateIntent = slotDate || (pickup ? toLocalInput(Date.parse(pickup), data.shop?.timezone || 'America/Mexico_City').slice(0, 10) : '');
-  const slotContext = { tz: data.shop?.timezone || 'America/Mexico_City', slots: data.shop?.slots, schedule: data.shop?.schedule };
+  // Shipping (quote kind 'shipping') is stored as its own order type, so the cap is local delivery only.
+  const slotCap = capOn && delivery && !shipping ? { taken, noAsap: true } : {};
+  const slotContext = { tz: data.shop?.timezone || 'America/Mexico_City', slots: data.shop?.slots, schedule: data.shop?.schedule, ...slotCap };
   const slotStatus = checkoutSlotStatus({ value: pickup, selectedDate: slotDateIntent, now: slotNow, ...slotContext });
   const slotHint = (status, at) => status === 'missing-time'
     ? timesFor(slotDateIntent, { ...slotContext, now: at }).length ? s.chooseTime : s.noTimes
@@ -494,6 +510,7 @@ function Order({ client, lang, setLang }) {
     setSending(false);
     if (err) { const c = errCode(err); track('order_error', { detail: c || 'unknown' }); setFormErr(s[c] || (c && c.startsWith('online_orders') ? s.notOpen : s.generic));
       if (c === 'quote_changed') { setQuoteRevision((n) => n + 1); setStepId('location'); }
+      if (c === 'slot_taken') { setTakenRevision((n) => n + 1); setPickup(''); setStepId('time'); }
       return; }
     track('order_placed', { detail: delivery ? 'delivery' : 'pickup' });
     releaseTracker(client);
@@ -577,7 +594,7 @@ function Order({ client, lang, setLang }) {
 
     {step === 'time' && (
       <div style={{ display: 'grid', gap: 10 }}>
-      <SlotPicker delivery={delivery} label={delivery ? s.deliveryAt : s.pickupAt} value={pickup} onChange={setPickup} date={slotDateIntent} onDateChange={setSlotDate} shop={data?.shop} lang={lang} s={s} />
+      <SlotPicker delivery={delivery} label={delivery ? s.deliveryAt : s.pickupAt} value={pickup} onChange={setPickup} date={slotDateIntent} onDateChange={setSlotDate} shop={data?.shop} cap={slotCap} lang={lang} s={s} />
       </div>
     )}
 
@@ -789,12 +806,12 @@ const qtyBtn = { width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd
 // Always blocks the past; with slots.enabled it also applies lead/range/step and re-checks the rules on pick.
 // Date via the native calendar, then a time list holding only times that are actually
 // allowed that day (native pickers can't block hours, so they accepted then rejected).
-function SlotPicker({ label, value, onChange, date, onDateChange, shop, lang, s, delivery }) {
+function SlotPicker({ label, value, onChange, date, onDateChange, shop, cap, lang, s, delivery }) {
   const ref = useRef(null);
   const tz = shop?.timezone || 'America/Mexico_City';
   const locale = lang === 'en' ? 'en-US' : 'es-MX';
   const rules = shop?.slots?.enabled ? slotRules(shop.slots, shop.schedule) : null;
-  const ctx = { tz, slots: shop?.slots, schedule: shop?.schedule };
+  const ctx = { tz, slots: shop?.slots, schedule: shop?.schedule, ...cap };
   // Clock read on open (not during render); the time list is refreshed each time the calendar opens.
   const [now, setNow] = useState(() => Date.now());
   const minDate = toLocalInput(now, tz).slice(0, 10);

@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3', '4.4'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -6703,6 +6703,47 @@ END $$;
 REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) TO authenticated;
 ${stamp('4.3')}` },
+  { version: '4.4', sql: `
+-- 4.4: optional "one local delivery per time slot" (onlineOrders.slots.oneDeliveryPerSlot,
+-- only with slots.enabled) so far-apart deliveries can't pile onto the same slot.
+-- Enforced by a trigger so public_place_order is untouched; rejected orders free the slot.
+CREATE OR REPLACE FUNCTION public.delivery_slot_cap_on()
+RETURNS boolean LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT COALESCE((menu_data->'posSettings'->'onlineOrders'->'slots'->>'enabled')::boolean, false)
+     AND COALESCE((menu_data->'posSettings'->'onlineOrders'->'slots'->>'oneDeliveryPerSlot')::boolean, false)
+  FROM public.shop_settings WHERE id = 1;
+$$;
+REVOKE ALL ON FUNCTION public.delivery_slot_cap_on() FROM PUBLIC;
+CREATE OR REPLACE FUNCTION public.enforce_delivery_slot_cap()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.order_type <> 'delivery' OR NOT COALESCE(public.delivery_slot_cap_on(), false) THEN RETURN NEW; END IF;
+  -- With the cap on, a delivery needs a concrete slot (no open-ended ASAP).
+  IF NEW.pickup_at IS NULL THEN RAISE EXCEPTION 'pickup_required'; END IF;
+  -- Serialize concurrent checkouts for the same slot.
+  PERFORM pg_advisory_xact_lock(hashtext('delivery_slot'), hashtext(NEW.pickup_at::text));
+  IF EXISTS (SELECT 1 FROM public.online_orders o
+             WHERE o.order_type = 'delivery' AND o.pickup_at = NEW.pickup_at
+               AND o.status <> 'rejected' AND o.id IS DISTINCT FROM NEW.id) THEN
+    RAISE EXCEPTION 'slot_taken';
+  END IF;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS online_orders_delivery_slot_cap ON public.online_orders;
+CREATE TRIGGER online_orders_delivery_slot_cap BEFORE INSERT ON public.online_orders
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_delivery_slot_cap();
+-- Upcoming taken delivery slots (times only, no order data) so checkout can hide them.
+CREATE OR REPLACE FUNCTION public.get_taken_delivery_slots()
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT CASE WHEN COALESCE(public.delivery_slot_cap_on(), false) THEN COALESCE((
+    SELECT jsonb_agg(DISTINCT pickup_at) FROM public.online_orders
+    WHERE order_type = 'delivery' AND status <> 'rejected'
+      AND pickup_at > now() - interval '1 hour' AND pickup_at < now() + interval '15 days'), '[]'::jsonb)
+  ELSE '[]'::jsonb END;
+$$;
+REVOKE ALL ON FUNCTION public.get_taken_delivery_slots() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_taken_delivery_slots() TO anon, authenticated;
+${stamp('4.4')}` },
 ];
 
 // Returns the concatenated delta SQL to move `fromVersion` up to the latest

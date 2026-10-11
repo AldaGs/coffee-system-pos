@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 4.4 — Optional one local delivery per slot (slots.oneDeliveryPerSlot): BEFORE INSERT trigger on online_orders + get_taken_delivery_slots (anon).
 // 4.3 — get_page_analytics takes an optional p_page filter (per-page traffic dialogs in Menus / Online Orders).
 // 4.2 — Cookieless public-page analytics: page_events + track_page_events (anon) + get_page_analytics (owner).
 // 4.1 — Alert devices move to order_alert_devices (push_subscriptions collided with a sibling app); restores its grants.
@@ -140,4 +141,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '4.3';
+export const APP_SCHEMA_VERSION = '4.4';
