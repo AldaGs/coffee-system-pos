@@ -18,6 +18,7 @@ import { formatForDisplay } from '../utils/moneyUtils';
 import OrderTicket from './OrderTicket';
 import LegalLinks from './LegalLinks';
 import TransferDetails from './TransferDetails';
+import { parseAddParam } from '../utils/orderDeepLink';
 import CountryPicker from './CountryPicker';
 import { CALLING_CODES, exactLength } from '../utils/callingCodes';
 import { useLegal } from '../hooks/useLegal';
@@ -354,6 +355,36 @@ function Order({ client, lang, setLang }) {
   useEffect(() => {
     if (data) setCart((prev) => prev.filter((l) => itemsById.has(l.id) && itemsById.get(l.id).available !== false));
   }, [data, itemsById]);
+  // ?add=ID[:QTY],... (e.g. an "Ordena aquí" button on the shop's site) pre-fills the
+  // basket once the menu loads. Items with options open the picker instead of guessing.
+  // The param is stripped so a reload doesn't add it again; closed shops add nothing.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (!data || deepLinked.current) return;
+    deepLinked.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const wanted = parseAddParam(params.get('add'));
+    if (!wanted.length) return;
+    params.delete('add');
+    const qs = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`);
+    if (gate) return;
+    const plain = [];
+    wanted.forEach(({ id, qty }) => {
+      const item = itemsById.get(id);
+      if (!item || item.available === false) return;
+      if ((item.modifier_group_ids || []).some((gid) => groups.get(gid))) setPicking((p) => p || { item, mods: [] });
+      else plain.push({ id, qty });
+    });
+    if (!plain.length) return;
+    plain.forEach(({ id }) => track('add_to_cart', { itemId: id, detail: 'deep_link' }));
+    setCart((prev) => plain.reduce((acc, { id, qty }) => {
+      const key = `${id}|`;
+      return acc.some((l) => l.key === key)
+        ? acc.map((l) => (l.key === key ? { ...l, qty: Math.max(l.qty, qty) } : l))
+        : [...acc, { key, id, qty, mods: [] }];
+    }, prev));
+  }, [data, gate, itemsById, groups]); // eslint-disable-line react-hooks/exhaustive-deps
   const optionPrice = (id) => {
     for (const g of groups.values()) { const o = g.options.find((x) => x.id === id); if (o) return o.price_delta_cents || 0; }
     return 0;
