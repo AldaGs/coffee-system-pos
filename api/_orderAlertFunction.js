@@ -87,7 +87,7 @@ export function makeOrderAlert(env, fetch) {
     }).catch(() => null);
     // Gone/expired subscription: forget it so the next order doesn't retry it.
     if (res && (res.status === 404 || res.status === 410)) {
-      await rest(`push_subscriptions?endpoint=eq.${encodeURIComponent(sub.endpoint)}`, { method: 'DELETE' });
+      await rest(`order_alert_devices?endpoint=eq.${encodeURIComponent(sub.endpoint)}`, { method: 'DELETE' });
     }
     return !!res?.ok;
   };
@@ -116,7 +116,7 @@ export function makeOrderAlert(env, fetch) {
       }
     }
     if (cfg.vapid_public && cfg.vapid_private) {
-      const subs = await rows('push_subscriptions?select=endpoint,p256dh,auth');
+      const subs = await rows('order_alert_devices?select=endpoint,p256dh,auth');
       const payload = JSON.stringify({ title: msg.title, body: msg.body, url: '/' });
       const sent = await Promise.all(subs.map((s) => sendPush(cfg, s, payload)));
       push = sent.filter(Boolean).length;

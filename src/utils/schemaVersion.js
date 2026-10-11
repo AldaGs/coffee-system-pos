@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 4.1 — Alert devices move to order_alert_devices (push_subscriptions collided with a sibling app); restores its grants.
 // 4.0 — Online-order alerts with no POS open: order_alerts/push_subscriptions, pg_net trigger → order-alert Edge Function (Telegram + Web Push).
 // 3.9 — menu_modifier_groups.public_hidden (cashier-only groups); public menu + public_place_order drop those groups and text-input options.
 // 3.8 — active_tickets.online_paid: Clip-paid flag (replaces the ticket-name marker).
@@ -137,4 +138,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '4.0';
+export const APP_SCHEMA_VERSION = '4.1';
