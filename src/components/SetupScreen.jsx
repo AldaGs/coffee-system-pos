@@ -3587,7 +3587,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         -- An AFTER INSERT trigger on online_orders calls this project's own
         -- "order-alert" Edge Function through pg_net; the function sends Telegram
         -- (the shop's own bot) and Web Push (VAPID keys the shop generated itself).
-        -- order_alerts / push_subscriptions are service-role only, like
+        -- order_alerts / order_alert_devices are service-role only, like
         -- clip_credentials: staff go through the SECURITY DEFINER RPCs below.
         DO $$ BEGIN
           CREATE EXTENSION IF NOT EXISTS pg_net;
@@ -3609,16 +3609,16 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         REVOKE ALL ON TABLE public.order_alerts FROM anon, authenticated;
         GRANT ALL ON TABLE public.order_alerts TO service_role;
 
-        CREATE TABLE IF NOT EXISTS public.push_subscriptions (
+        CREATE TABLE IF NOT EXISTS public.order_alert_devices (
           endpoint   text PRIMARY KEY,
           p256dh     text NOT NULL,
           auth       text NOT NULL,
           label      text,
           created_at timestamptz NOT NULL DEFAULT now()
         );
-        ALTER TABLE public.push_subscriptions ENABLE ROW LEVEL SECURITY;
-        REVOKE ALL ON TABLE public.push_subscriptions FROM anon, authenticated;
-        GRANT ALL ON TABLE public.push_subscriptions TO service_role;
+        ALTER TABLE public.order_alert_devices ENABLE ROW LEVEL SECURITY;
+        REVOKE ALL ON TABLE public.order_alert_devices FROM anon, authenticated;
+        GRANT ALL ON TABLE public.order_alert_devices TO service_role;
 
         -- Flags only; the bot token and VAPID private key never leave the database.
         CREATE OR REPLACE FUNCTION public.order_alerts_status()
@@ -3628,7 +3628,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
             'telegram', coalesce(a.telegram_token <> '', false),
             'chats', coalesce(cardinality(a.telegram_chat_ids), 0),
             'vapid_public', a.vapid_public,
-            'devices', (SELECT count(*) FROM public.push_subscriptions),
+            'devices', (SELECT count(*) FROM public.order_alert_devices),
             'pg_net', EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_net'))
           ELSE NULL END
           FROM (SELECT 1) one LEFT JOIN public.order_alerts a ON a.id = 1;
@@ -3677,7 +3677,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         BEGIN
           IF NOT public.is_app_user((select auth.uid())) THEN RAISE EXCEPTION 'forbidden'; END IF;
           IF p_endpoint !~ '^https://' THEN RAISE EXCEPTION 'invalid_endpoint'; END IF;
-          INSERT INTO public.push_subscriptions (endpoint, p256dh, auth, label) VALUES (p_endpoint, p_p256dh, p_auth, left(p_label, 80))
+          INSERT INTO public.order_alert_devices (endpoint, p256dh, auth, label) VALUES (p_endpoint, p_p256dh, p_auth, left(p_label, 80))
           ON CONFLICT (endpoint) DO UPDATE SET p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, label = EXCLUDED.label;
         END $$;
         REVOKE ALL ON FUNCTION public.save_push_subscription(text, text, text, text) FROM PUBLIC;
@@ -3687,7 +3687,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
         BEGIN
           IF NOT public.is_app_user((select auth.uid())) THEN RAISE EXCEPTION 'forbidden'; END IF;
-          DELETE FROM public.push_subscriptions WHERE endpoint = p_endpoint;
+          DELETE FROM public.order_alert_devices WHERE endpoint = p_endpoint;
         END $$;
         REVOKE ALL ON FUNCTION public.delete_push_subscription(text) FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION public.delete_push_subscription(text) TO authenticated;
@@ -3709,11 +3709,18 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
           RETURN NEW;
         END $$;
         REVOKE ALL ON FUNCTION public.notify_online_order() FROM PUBLIC;
+        -- 4.1: give a sibling app's same-named push_subscriptions its client grants back (see migration 056).
+        DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = 'public' AND table_name = 'push_subscriptions' AND column_name = 'user_id') THEN
+            GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.push_subscriptions TO authenticated;
+          END IF;
+        END $$;
         DROP TRIGGER IF EXISTS online_orders_notify ON public.online_orders;
         CREATE TRIGGER online_orders_notify AFTER INSERT ON public.online_orders
           FOR EACH ROW EXECUTE FUNCTION public.notify_online_order();
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '4.0', now())
+        VALUES ('schema_version', '4.1', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

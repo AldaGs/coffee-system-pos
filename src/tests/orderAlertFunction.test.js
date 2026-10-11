@@ -70,7 +70,7 @@ describe('order-alert', () => {
     const { f, calls } = fakeFetch([
       ['order_alerts', () => json([cfg])],
       ['online_orders?id=eq.9', () => json([ORDER])],
-      ['push_subscriptions', () => json([sub.row])],
+      ['order_alert_devices', () => json([sub.row])],
       ['api.telegram.org/botT/sendMessage', () => json({ ok: true })],
       ['fcm.googleapis.com', () => json({}, 201)],
     ]);
@@ -105,7 +105,7 @@ describe('order-alert', () => {
     const { f, calls } = fakeFetch([
       ['order_alerts', () => json([cfg])],
       ['online_orders?id=eq.1', () => json([ORDER])],
-      ['push_subscriptions', (init) => json(init.method === 'DELETE' ? null : [sub.row])],
+      ['order_alert_devices', (init) => json(init.method === 'DELETE' ? null : [sub.row])],
       ['push.example', () => json({}, 410)],
     ]);
     await makeOrderAlert(env, f)(post({ order_id: 1, secret: 's' }));
