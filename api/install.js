@@ -3727,7 +3727,9 @@ export default async function handler(req, res) {
     GRANT EXECUTE ON FUNCTION public.track_page_events(jsonb) TO anon, authenticated;
 
     -- Owner read path: everything the Analytics card shows, aggregated server-side.
-    CREATE OR REPLACE FUNCTION public.get_page_analytics(p_from timestamptz, p_to timestamptz)
+    -- 4.3: drop the 4.2 two-argument overload (see migration 058).
+    DROP FUNCTION IF EXISTS public.get_page_analytics(timestamptz, timestamptz);
+    CREATE OR REPLACE FUNCTION public.get_page_analytics(p_from timestamptz, p_to timestamptz, p_page text DEFAULT NULL)
     RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER STABLE SET search_path = public AS $$
     DECLARE v_tz text := public.shop_timezone();
     BEGIN
@@ -3735,6 +3737,7 @@ export default async function handler(req, res) {
       RETURN (
         WITH ev AS (
           SELECT * FROM public.page_events WHERE created_at >= p_from AND created_at < p_to
+            AND (p_page IS NULL OR page = p_page)
         )
         SELECT jsonb_build_object(
           'totals', (SELECT jsonb_build_object(
@@ -3779,10 +3782,10 @@ export default async function handler(req, res) {
         )
       );
     END $$;
-    REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz) TO authenticated;
+    REVOKE ALL ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) FROM PUBLIC;
+    GRANT EXECUTE ON FUNCTION public.get_page_analytics(timestamptz, timestamptz, text) TO authenticated;
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '4.2', now())
+    VALUES ('schema_version', '4.3', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
   `;
