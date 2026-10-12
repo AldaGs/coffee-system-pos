@@ -373,6 +373,9 @@ function Order({ client, lang, setLang }) {
   // basket once the menu loads. Items with options open the picker instead of guessing.
   // The param is stripped so a reload doesn't add it again; closed shops add nothing.
   const deepLinked = useRef(false);
+  // Basket opens after a deep-link add; for an item with options, once the customer confirms it.
+  const openAfterPick = useRef(false);
+  const [deepOpen, setDeepOpen] = useState(0);
   useEffect(() => {
     if (!data || deepLinked.current) return;
     deepLinked.current = true;
@@ -384,13 +387,16 @@ function Order({ client, lang, setLang }) {
     window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`);
     if (gate) return;
     const plain = [];
+    let picker = false;
     wanted.forEach(({ id, qty }) => {
       const item = itemsById.get(id);
       if (!item || item.available === false) return;
-      if ((item.modifier_group_ids || []).some((gid) => groups.get(gid))) setPicking((p) => p || { item, mods: [] });
+      if ((item.modifier_group_ids || []).some((gid) => groups.get(gid))) { picker = true; setPicking((p) => p || { item, mods: [] }); }
       else plain.push({ id, qty });
     });
+    openAfterPick.current = picker;
     if (!plain.length) return;
+    if (!picker) setDeepOpen((n) => n + 1);
     plain.forEach(({ id }) => track('add_to_cart', { itemId: id, detail: 'deep_link' }));
     setCart((prev) => plain.reduce((acc, { id, qty }) => {
       const key = `${id}|`;
@@ -399,6 +405,13 @@ function Order({ client, lang, setLang }) {
         : [...acc, { key, id, qty, mods: [] }];
     }, prev));
   }, [data, gate, itemsById, groups]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Mobile: the checkout sheet (cart step). Desktop: scroll to the side cart once it has rendered.
+  useEffect(() => {
+    if (!deepOpen) return undefined;
+    if (!wide) { setStepId('cart'); setCheckingOut(true); return undefined; }
+    const id = setTimeout(() => asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    return () => clearTimeout(id);
+  }, [deepOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   const optionPrice = (id) => {
     for (const g of groups.values()) { const o = g.options.find((x) => x.id === id); if (o) return o.price_delta_cents || 0; }
     return 0;
@@ -731,7 +744,7 @@ function Order({ client, lang, setLang }) {
       )}
 
       {picking && !gate && (
-        <Sheet onClose={() => setPicking(null)}>
+        <Sheet onClose={() => { openAfterPick.current = false; setPicking(null); }}>
           <h3 style={{ marginTop: 0 }}>{picking.item.name}</h3>
           {(picking.item.modifier_group_ids || []).map((gid) => groups.get(gid)).filter(Boolean).map((g) => (
             <div key={g.id} style={{ marginBottom: 12 }}>
@@ -745,7 +758,7 @@ function Order({ client, lang, setLang }) {
               ))}
             </div>
           ))}
-          <button type="button" onClick={() => { addLine(picking.item.id, picking.mods); setPicking(null); }}
+          <button type="button" onClick={() => { addLine(picking.item.id, picking.mods); setPicking(null); if (openAfterPick.current) { openAfterPick.current = false; setDeepOpen((n) => n + 1); } }}
             style={{ width: '100%', background: brand, color: 'white', border: 'none', borderRadius: 12, padding: 14, fontWeight: 800, cursor: 'pointer' }}>{s.addToCart}</button>
         </Sheet>
       )}
