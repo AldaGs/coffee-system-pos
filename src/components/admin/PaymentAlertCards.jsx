@@ -18,6 +18,9 @@ export function ClipCard({ input, showAlert }) {
   const [secret, setSecret] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Once keys are stored the inputs collapse (they'd only ever show empty, since
+  // the secret never comes back); blank inputs keep the stored keys on save.
+  const [editKeys, setEditKeys] = useState(false);
   const load = () => supabase.rpc('clip_status').then(({ data }) => { if (data) { setStatus(data); setEnabled(!!data.enabled); } });
   useEffect(() => { load(); }, []);
   const save = async () => {
@@ -25,15 +28,20 @@ export function ClipCard({ input, showAlert }) {
     const { error } = await supabase.rpc('set_clip_credentials', { p_key: key, p_secret: secret, p_enabled: enabled });
     setSaving(false);
     if (error) return showAlert(t('common.error'), error.message);
-    setKey(''); setSecret(''); load();
+    setKey(''); setSecret(''); setEditKeys(false); load();
     showAlert(t('common.success'), t('oo.clipSaved'));
   };
   return (
     <Card icon="lucide:credit-card" title={t('oo.clip')}>
       <small style={{ color: 'var(--text-muted)' }}>{t('oo.clipHint')}</small>
       {status?.configured && <strong style={{ color: 'var(--brand-color)' }}>{t('oo.clipConfigured')} ✓</strong>}
-      <input style={input} autoComplete="off" placeholder={t('oo.clipKey')} value={key} onChange={e => setKey(e.target.value)} />
-      <input style={input} type="password" autoComplete="new-password" placeholder={t('oo.clipSecret')} value={secret} onChange={e => setSecret(e.target.value)} />
+      {status?.configured && !editKeys
+        ? <button type="button" onClick={() => setEditKeys(true)} style={{ ...input, cursor: 'pointer', alignSelf: 'flex-start' }}><Icon icon="lucide:key-round" /> {t('oo.clipChangeKeys')}</button>
+        : <>
+            <input style={input} autoComplete="off" placeholder={t('oo.clipKey')} value={key} onChange={e => setKey(e.target.value)} />
+            <input style={input} type="password" autoComplete="new-password" placeholder={t('oo.clipSecret')} value={secret} onChange={e => setSecret(e.target.value)} />
+            {status?.configured && <button type="button" onClick={() => { setKey(''); setSecret(''); setEditKeys(false); }} style={{ ...input, cursor: 'pointer', alignSelf: 'flex-start' }}>{t('common.cancel')}</button>}
+          </>}
       <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
         <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
         <span>{t('oo.clipEnabled')}</span>
@@ -51,6 +59,8 @@ export function AlertsCard({ input, showAlert }) {
   const [token, setToken] = useState('');
   const [pushHere, setPushHere] = useState(false);
   const [busy, setBusy] = useState(null);
+  // Same collapse as Clip: once a bot is linked, hide the setup steps and token field.
+  const [editToken, setEditToken] = useState(false);
   const load = () => alerts.loadAlertStatus().then(setStatus).catch(() => {});
   useEffect(() => { load(); alerts.isPushOnHere().then(setPushHere); }, []);
   const run = async (name, fn) => {
@@ -71,11 +81,15 @@ export function AlertsCard({ input, showAlert }) {
       </label>
 
       <strong style={{ marginTop: 8 }}><Icon icon="logos:telegram" /> Telegram</strong>
-      <small style={{ color: 'var(--text-muted)', whiteSpace: 'pre-line' }}>{t('alerts.telegramSteps')}</small>
       {status.telegram && <strong style={{ color: 'var(--brand-color)' }}>{t('alerts.telegramLinked').replace('{n}', status.chats)}</strong>}
-      <input style={input} type="password" autoComplete="new-password" placeholder={t('alerts.botToken')} value={token} onChange={e => setToken(e.target.value)} />
+      {(!status.telegram || editToken) && <>
+        <small style={{ color: 'var(--text-muted)', whiteSpace: 'pre-line' }}>{t('alerts.telegramSteps')}</small>
+        <input style={input} type="password" autoComplete="new-password" placeholder={t('alerts.botToken')} value={token} onChange={e => setToken(e.target.value)} />
+      </>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        {token && <button type="button" style={btn} disabled={!!busy} onClick={() => run('token', async () => { await save(true, { telegramToken: token }); setToken(''); })}>{t('common.save')}</button>}
+        {token && <button type="button" style={btn} disabled={!!busy} onClick={() => run('token', async () => { await save(true, { telegramToken: token }); setToken(''); setEditToken(false); })}>{t('common.save')}</button>}
+        {status.telegram && !editToken && <button type="button" style={btn} disabled={!!busy} onClick={() => setEditToken(true)}><Icon icon="lucide:key-round" /> {t('alerts.changeToken')}</button>}
+        {status.telegram && editToken && <button type="button" style={btn} disabled={!!busy} onClick={() => { setToken(''); setEditToken(false); }}>{t('common.cancel')}</button>}
         {status.telegram && <button type="button" style={btn} disabled={!!busy} onClick={() => run('detect', async () => {
           const r = await alerts.detectTelegramChats();
           showAlert(t('common.success'), t('alerts.detected').replace('{n}', r.chats).replace('{bot}', r.bot ? '@' + r.bot : ''));
