@@ -8,7 +8,7 @@ import { formatForDisplay, toCents, fromCents } from '../../utils/moneyUtils';
 import { orderBaseUrl } from '../../utils/customDomainSync';
 import {
   ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus, confirmShippingQuote,
-  releaseClipOrder, expireClipOrder
+  releaseClipOrder, expireClipOrder, updateOnlineOrderContact
 } from '../../services/onlineOrders';
 
 const PAY_ICON = { cash: 'lucide:banknote', card: 'lucide:credit-card', transfer: 'lucide:landmark', clip: 'lucide:link' };
@@ -56,6 +56,7 @@ export default function OnlineOrdersInbox({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(null);
   const [quoteDrafts, setQuoteDrafts] = useState({});
+  const [contactDrafts, setContactDrafts] = useState({});
   const [quoteAgreed, setQuoteAgreed] = useState({});
   const [canQuote, setCanQuote] = useState(false);
   const ordersRef = useRef([]);
@@ -174,6 +175,16 @@ export default function OnlineOrdersInbox({
     await refetch();
   });
 
+  const editContact = (o) => setContactDrafts((p) => ({ ...p, [o.id]: { phone: o.phone || '', address: o.delivery_address || '' } }));
+  const setContact = (o, k, v) => setContactDrafts((p) => ({ ...p, [o.id]: { ...p[o.id], [k]: v } }));
+  const saveContact = (o) => run(o, async () => {
+    const d = contactDrafts[o.id];
+    if (!d.phone.trim() || (o.order_type !== 'pickup' && !d.address.trim())) throw new Error(t('oo.contactRequired'));
+    await updateOnlineOrderContact(o, { phone: d.phone, address: o.order_type === 'pickup' ? null : d.address });
+    setContactDrafts(({ [o.id]: _, ...rest }) => rest);
+    await refetch();
+  });
+
   const pending = orders.filter((o) => ['requested', 'quote_pending'].includes(o.status)).length;
   const btn = (bg) => ({ background: bg, color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontWeight: 700, cursor: 'pointer' });
 
@@ -203,6 +214,16 @@ export default function OnlineOrdersInbox({
                   {(o.status === 'accepted' || o.status === 'preparing') && (
                     <button type="button" disabled={busy === o.id} onClick={() => run(o, () => setOnlineOrderStatus(o.id, 'ready'))} style={btn('#16a085')}>{t('oo.markReady')}</button>
                   )}
+                  {['accepted', 'preparing', 'ready'].includes(o.status) && (contactDrafts[o.id] ? (
+                    <div style={{ width: '100%', display: 'grid', gap: 6, border: '1px solid var(--border)', borderRadius: 8, padding: 8 }}>
+                      <label>{t('oo.phone')} <input type="tel" value={contactDrafts[o.id].phone} onChange={(e) => setContact(o, 'phone', e.target.value)} style={{ width: '100%', padding: 6 }} /></label>
+                      {o.order_type !== 'pickup' && <label>{t('oo.address')} <textarea rows={2} value={contactDrafts[o.id].address} onChange={(e) => setContact(o, 'address', e.target.value)} style={{ width: '100%', padding: 6 }} /></label>}
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button type="button" disabled={busy === o.id} onClick={() => saveContact(o)} style={btn('#2763a6')}>{t('oo.saveContact')}</button>
+                        <button type="button" onClick={() => setContactDrafts(({ [o.id]: _, ...rest }) => rest)} style={btn('#7f8c8d')}>{t('reg.btnCancel')}</button>
+                      </div>
+                    </div>
+                  ) : <button type="button" disabled={busy === o.id} onClick={() => editContact(o)} style={btn('#7f8c8d')}>{t('oo.editContact')}</button>)}
                   <a href={`https://wa.me/${waPhone(o.phone)}?text=${encodeURIComponent(`${t('oo.trackMsg')} ${trackUrl(o.token)}`)}`} target="_blank" rel="noopener noreferrer" style={{ ...btn('#25D366'), textDecoration: 'none' }}>{t('oo.sendTrackLink')}</a>
   </>);
 

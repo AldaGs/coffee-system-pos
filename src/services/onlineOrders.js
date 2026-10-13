@@ -133,6 +133,23 @@ export async function sendOrderToLogistics(order, ticket) {
   await supabase.from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id); // best effort
 }
 
+// Staff corrects the phone/address after a customer calls. A changed address
+// drops the old map pin (couriers fall back to the address text), and a
+// delivery already handed to logistics gets the new address + phone too.
+export async function updateOnlineOrderContact(order, { phone, address }) {
+  const patch = { phone: phone.trim(), updated_at: new Date().toISOString() };
+  if (address != null && address.trim() !== (order.delivery_address || '')) {
+    Object.assign(patch, { delivery_address: address.trim(), delivery_lat: null, delivery_lng: null });
+  }
+  const { error } = await supabase.from('online_orders').update(patch).eq('id', order.id);
+  if (error) throw error;
+  if (order.order_type === 'delivery' && order.active_ticket_id != null) {
+    // No ticket passed: updates an existing logistics row only, never creates one.
+    await sendOrderToLogistics({ ...order, ...patch }, null)
+      .catch((e) => { if (e.message !== 'ticket_missing') throw e; });
+  }
+}
+
 // Called after a ticket is charged: closes the linked online order, if any.
 export async function completeOnlineOrderForTicket(ticketId, status = 'completed', extra = {}) {
   if (isLocalMode() || ticketId == null) return;
