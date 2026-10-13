@@ -660,7 +660,12 @@ function Order({ client, lang, setLang }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', margin: '12px 0 0' }}><span>{s.deliveryFee}</span><span>{shipping ? s.pendingPrice : quote?.kind === 'delivery' ? fmt(quotedFee) : '—'}</span></div>
     )}
     <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: '1.1rem', margin: '12px 0' }}><span>{shipping ? s.subtotal : s.total}</span><span>{fmt(grand)}</span></div>
-    {step === 'location' && stepBlock && <small style={{ color: '#888', display: 'block', marginBottom: 8 }}>{(customer.address || '').trim().length < 5 ? s.invalid_address : customer.lat == null ? s.pinRequired : quote?.kind === 'unavailable' ? s.areaUnavailable : quote?.kind === 'error' ? s.quoteError : s.quoteChecking}</small>}
+    {step === 'location' && stepBlock && (() => {
+      const missing = [(customer.address || '').trim().length < 5 && s.invalid_address, customer.lat == null && s.pinRequired].filter(Boolean);
+      const msg = missing.length ? missing.join(' ') : quote?.kind === 'unavailable' ? s.areaUnavailable : quote?.kind === 'error' ? s.quoteError : s.quoteChecking;
+      const bad = missing.length || ['unavailable', 'error'].includes(quote?.kind);
+      return <small role="status" style={{ color: bad ? '#c0392b' : '#888', fontWeight: bad ? 700 : 400, display: 'block', marginBottom: 8 }}>{msg}</small>;
+    })()}
     {step === 'time' && slotStatus !== 'valid' && <small style={{ color: '#c0392b', display: 'block', marginBottom: 8 }}>{slotHint(slotStatus, slotNow)}</small>}
     {step === 'time' && formErr && <small style={{ color: '#c0392b', display: 'block', marginBottom: 8 }}>{formErr}</small>}
     {step === 'pay' && slotStatus !== 'valid' && <small style={{ color: '#c0392b', display: 'block', marginBottom: 8 }}>{slotHint(slotStatus, slotNow)}</small>}
