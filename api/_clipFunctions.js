@@ -45,16 +45,17 @@ export function makeCheckout(env, fetch) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (req.method !== 'POST') return out({ error: 'method' }, 405);
     try {
-      const { token, return_url, amount_cents, description } = await req.json().catch(() => ({}));
+      const { token, return_url, amount_cents, description, ticket_id } = await req.json().catch(() => ({}));
 
-      // Staff mode: a one-off link for a POS ticket. Not tracked by the webhook,
-      // the cashier confirms the payment in Clip and closes the ticket as 'Clip'.
+      // Staff mode: a link for a POS ticket. Its payment id is stored on the
+      // ticket so clip-webhook can flip online_paid (realtime → every register).
       if (amount_cents != null) {
         const user = await (await fetch(`${base}/auth/v1/user`, { headers: { apikey: key, Authorization: req.headers.get('Authorization') || '' } })).json().catch(() => null);
         if (!user?.id) return out({ error: 'unauthorized' }, 401);
         const staff = (await (await rest(`app_users?auth_user_id=eq.${user.id}&disabled_at=is.null&select=auth_user_id`)).json())?.[0];
         if (!staff) return out({ error: 'forbidden' }, 403);
         if (!Number.isInteger(amount_cents) || amount_cents <= 0 || amount_cents > 10000000) return out({ error: 'bad_amount' }, 400);
+        if (!/^[0-9]{1,20}$/.test(String(ticket_id ?? ''))) return out({ error: 'bad_ticket' }, 400);
         const creds = (await (await rest('clip_credentials?id=eq.1&select=api_key,api_secret,enabled')).json())?.[0];
         if (!creds?.enabled || !creds.api_key || !creds.api_secret) return out({ error: 'clip_disabled' }, 403);
         const ret = typeof return_url === 'string' && /^https?:\/\//.test(return_url) ? return_url : 'https://www.clip.mx';
@@ -64,8 +65,10 @@ export function makeCheckout(env, fetch) {
           body: JSON.stringify(CLIP.body({ id: 'pos', order_num: String(description || 'POS').slice(0, 60), total_cents: amount_cents }, ret, `${base}/functions/v1/clip-webhook`)),
         });
         const link = await res.json().catch(() => ({}));
-        const url = CLIP.payUrl(link);
-        if (!res.ok || !url) return out({ error: 'clip_error' }, 502);
+        const id = CLIP.paymentId(link), url = CLIP.payUrl(link);
+        if (!res.ok || !id || !url) return out({ error: 'clip_error' }, 502);
+        // A newer link replaces the old one; a not-yet-synced ticket just isn't auto-tracked.
+        await rest(`active_tickets?id=eq.${ticket_id}`, { method: 'PATCH', body: JSON.stringify({ clip_payment_id: id }) });
         return out({ url });
       }
 
@@ -130,6 +133,10 @@ export function makeWebhook(env, fetch) {
       // Idempotent: only unpaid rows match (a late webhook must not un-refund an order).
       await rest(`online_orders?clip_payment_id=eq.${encodeURIComponent(id)}&payment_status=eq.unpaid`, {
         method: 'PATCH', body: JSON.stringify({ payment_status: 'paid' }),
+      });
+      // Or a link made from the POS for an open ticket.
+      await rest(`active_tickets?clip_payment_id=eq.${encodeURIComponent(id)}&online_paid=eq.false`, {
+        method: 'PATCH', body: JSON.stringify({ online_paid: true }),
       });
     } catch { /* swallow: always 200 */ }
     return ok();

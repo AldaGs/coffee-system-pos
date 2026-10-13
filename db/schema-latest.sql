@@ -3508,6 +3508,8 @@
     ALTER TABLE public.online_orders ADD COLUMN IF NOT EXISTS pay_by timestamptz;
     -- 3.8: paid-online flag on the ticket (was a name marker staff could rename away).
     ALTER TABLE public.active_tickets ADD COLUMN IF NOT EXISTS online_paid boolean NOT NULL DEFAULT false;
+    -- 4.6: Clip link generated from the POS for this ticket; the webhook flips online_paid.
+    ALTER TABLE public.active_tickets ADD COLUMN IF NOT EXISTS clip_payment_id text;
     -- 4.0: new-online-order alerts that work with no TinyPOS open anywhere.
     -- An AFTER INSERT trigger on online_orders calls this project's own
     -- "order-alert" Edge Function through pg_net; the function sends Telegram
@@ -3787,6 +3789,6 @@
     REVOKE ALL ON FUNCTION public.get_taken_delivery_slots() FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION public.get_taken_delivery_slots() TO anon, authenticated;
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '4.5', now())
+    VALUES ('schema_version', '4.6', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;

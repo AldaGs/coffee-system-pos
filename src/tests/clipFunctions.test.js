@@ -51,15 +51,18 @@ describe('clip-checkout staff link', () => {
     ['app_users', () => json([{ auth_user_id: 'u1' }])],
     ['clip_credentials', () => json([{ api_key: 'k', api_secret: 's', enabled: true }])],
     ['api.payclip.com', () => json({ payment_request_id: 'pr9', payment_request_url: 'https://clip/pos' })],
+    ['active_tickets', () => json([])],
   ];
 
   it('creates a link for the given amount for staff only', async () => {
     const { f, calls } = fakeFetch(routes());
-    const res = await makeCheckout(env, f)(req({ amount_cents: 4550, description: 'Mesa 3' }));
+    const res = await makeCheckout(env, f)(req({ amount_cents: 4550, ticket_id: 12, description: 'Mesa 3' }));
     expect(await res.json()).toEqual({ url: 'https://clip/pos' });
+    const save = calls.find((c) => c.url.includes('active_tickets?id=eq.12'));
+    expect(JSON.parse(save.init.body)).toEqual({ clip_payment_id: 'pr9' });
     expect(JSON.parse(calls.find((c) => c.url.includes('payclip')).init.body).amount).toBe(45.5);
-    expect((await makeCheckout(env, fakeFetch(routes({})).f)(req({ amount_cents: 100 }))).status).toBe(401);
-    expect((await makeCheckout(env, f)(req({ amount_cents: -1 }))).status).toBe(400);
+    expect((await makeCheckout(env, fakeFetch(routes({})).f)(req({ amount_cents: 100, ticket_id: 1 }))).status).toBe(401);
+    expect((await makeCheckout(env, f)(req({ amount_cents: -1, ticket_id: 1 }))).status).toBe(400);
   });
 });
 
@@ -69,6 +72,7 @@ describe('clip-webhook', () => {
       ['clip_credentials', () => json([{ api_key: 'k', api_secret: 's' }])],
       ['api.payclip.com/v2/checkout/pr1', () => clipRes],
       ['online_orders?clip_payment_id', () => json([])],
+      ['active_tickets?clip_payment_id', () => json([])],
     ]);
     const res = await makeWebhook(env, f)(post({ payment_request_id: 'pr1', status: 'COMPLETED' }));
     return { res, patches: calls.filter((c) => c.init.method === 'PATCH') };
@@ -77,8 +81,10 @@ describe('clip-webhook', () => {
   it('marks paid only when Clip itself says COMPLETED (never the body)', async () => {
     const paid = await run(json({ status: 'CHECKOUT_COMPLETED' }));
     expect(paid.res.status).toBe(200);
-    expect(paid.patches).toHaveLength(1);
+    expect(paid.patches).toHaveLength(2);
     expect(paid.patches[0].url).toContain('payment_status=eq.unpaid'); // idempotent
+    expect(paid.patches[1].url).toContain('active_tickets?clip_payment_id=eq.pr1&online_paid=eq.false');
+    expect(JSON.parse(paid.patches[1].init.body)).toEqual({ online_paid: true });
     expect((await run(json({ status: 'PENDING' }))).patches).toHaveLength(0);
     expect((await run(json({}, false))).patches).toHaveLength(0);
   });

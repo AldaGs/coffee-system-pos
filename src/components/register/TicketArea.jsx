@@ -79,12 +79,12 @@ function TicketArea({
     }
   };
 
-  // One-off Clip payment link for this ticket's total (clip-checkout, staff mode).
-  // Not auto-tracked: once Clip shows it paid, close the ticket with method Clip.
+  // Clip payment link for this ticket's total (clip-checkout, staff mode). When
+  // paid, clip-webhook sets online_paid and the green "close paid" button appears.
   const handleClipLink = async (ticket) => {
     toast({ title: 'Generando link de pago Clip…' });
     const { data, error } = await supabase.functions.invoke('clip-checkout', {
-      body: { amount_cents: Math.round(cartTotal), description: ticket.name || `Ticket ${ticket.id}` },
+      body: { amount_cents: Math.round(cartTotal), ticket_id: ticket.id, description: ticket.name || `Ticket ${ticket.id}` },
     });
     if (error || !data?.url) {
       let body = data;
