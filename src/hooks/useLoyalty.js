@@ -4,6 +4,7 @@ import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
 import { cleanPhone, isValidPhone } from '../utils/customerCapture';
 import { pushActiveTicketUpdate } from '../services/ticketSync';
+import { isPaidOnline } from '../services/onlineOrders';
 
 export const computeStarsForTicket = (ticket, loyaltySettings) => {
   if (!ticket || !loyaltySettings) return 0;
@@ -175,6 +176,8 @@ export const useLoyalty = (posState) => {
 
   const handleRedeemReward = async () => {
     if (!activeTicket) return;
+    // Zeroing a line would change the total the customer already paid via Clip.
+    if (isPaidOnline(activeTicket)) return showAlert(t('common.error'), t('oo.paidLocked'));
     const data = loyaltyModal.data;
     if (!data || !data.canRedeem) return;
 
