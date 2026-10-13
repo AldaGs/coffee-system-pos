@@ -89,7 +89,7 @@ function TicketArea({
     if (error || !data?.url) {
       let body = data;
       try { body = body || await error?.context?.json(); } catch { /* not json */ }
-      toast({ type: 'error', title: body?.error === 'clip_disabled' ? 'Clip no está activado (Admin → Pedidos en línea).' : 'No se pudo generar el link de Clip.' });
+      toast({ type: 'error', title: body?.error === 'clip_disabled' ? 'Clip no está activado (Admin → Configuración General → Pagos – Clip).' : 'No se pudo generar el link de Clip.' });
       return;
     }
     const copy = () => navigator.clipboard.writeText(data.url).then(() => toast({ type: 'success', title: 'Link de pago copiado' }));
