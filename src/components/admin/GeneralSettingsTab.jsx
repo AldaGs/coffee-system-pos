@@ -15,6 +15,7 @@ import { isCloudReachable } from '../../utils/network';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
 import { getBusinessProfile } from '../../utils/businessProfile';
+import { ClipCard, AlertsCard } from './PaymentAlertCards';
 
 // Session keys used by the schema-update OAuth round-trip. Mirror the
 // burn-after-reading pattern from DevicesTab — the Management token stays in an
@@ -37,6 +38,8 @@ function projectRefFromUrl(url) {
   try { return new URL(url).hostname.split('.')[0] || null; }
   catch { return null; }
 }
+
+const integrationInput = { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' };
 
 function GeneralSettingsTab({
   generalSettings,
@@ -1105,6 +1108,13 @@ function GeneralSettingsTab({
         </div>
 
       </div>
+
+      {!isLocalMode() && (
+        <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '32px', alignItems: 'start', marginTop: '32px' }}>
+          <ClipCard input={integrationInput} showAlert={showAlert} />
+          <AlertsCard input={integrationInput} showAlert={showAlert} />
+        </div>
+      )}
 
       {pinChallenge.isOpen && (
         <SharedPinPad
