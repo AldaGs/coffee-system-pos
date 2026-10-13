@@ -169,7 +169,12 @@ function PublicCFDI({ ticketId }) {
   }, [retryIn]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name } = e.target;
+    let { value } = e.target;
+    // Mobile keyboards/autofill add spaces or odd characters; strip them so
+    // validation doesn't fail on invisible input.
+    if (name === 'rfc') value = value.replace(/[\s-]/g, '').toUpperCase();
+    if (name === 'cp') value = value.replace(/\D/g, '');
     setFormData(prev => ({ ...prev, [name]: value }));
     if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: undefined }));
   };
@@ -601,7 +606,7 @@ function PublicCFDI({ ticketId }) {
 
               <button 
                 type="submit" 
-                disabled={!isEditable || !formComplete || isSubmitting}
+                disabled={!isEditable || isSubmitting}
                 style={{
                   marginTop: '10px',
                   padding: '16px',
