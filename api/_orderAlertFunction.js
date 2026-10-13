@@ -141,6 +141,19 @@ export function makeOrderAlert(env, fetch) {
         return out({ ok: true, ...(await fanOut(cfg, describe(order))) });
       }
 
+      // 1b) The DB trigger: a customer requested a factura (CFDI) for a sale.
+      if (body.cfdi_sale_id != null) {
+        if (typeof body.secret !== 'string' || body.secret !== cfg.hook_secret) return out({ error: 'forbidden' }, 403);
+        if (!cfg.enabled || !/^[0-9]{1,20}$/.test(String(body.cfdi_sale_id))) return out({ ok: true, skipped: true });
+        const sale = (await rows(`sales?id=eq.${body.cfdi_sale_id}&select=order_name,fiscal_profiles(rfc,razon_social)`))[0];
+        if (!sale) return out({ error: 'not_found' }, 404);
+        const fp = sale.fiscal_profiles || {};
+        return out({ ok: true, ...(await fanOut(cfg, {
+          title: '🧾 Nueva solicitud de factura',
+          body: [sale.order_name || `Venta #${body.cfdi_sale_id}`, [fp.rfc, fp.razon_social].filter(Boolean).join(' · ')].filter(Boolean).join('\n'),
+        })) });
+      }
+
       // 2) Staff actions from Admin.
       const user = await (await fetch(`${base}/auth/v1/user`, { headers: { apikey: key, Authorization: req.headers.get('Authorization') || '' } })).json().catch(() => null);
       if (!user?.id) return out({ error: 'unauthorized' }, 401);

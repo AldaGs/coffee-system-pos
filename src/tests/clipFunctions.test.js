@@ -44,6 +44,25 @@ describe('clip-checkout', () => {
   });
 });
 
+describe('clip-checkout staff link', () => {
+  const req = (body, auth = 'Bearer jwt') => ({ method: 'POST', json: async () => body, headers: { get: () => auth } });
+  const routes = (user = { id: 'u1' }) => [
+    ['auth/v1/user', () => json(user)],
+    ['app_users', () => json([{ auth_user_id: 'u1' }])],
+    ['clip_credentials', () => json([{ api_key: 'k', api_secret: 's', enabled: true }])],
+    ['api.payclip.com', () => json({ payment_request_id: 'pr9', payment_request_url: 'https://clip/pos' })],
+  ];
+
+  it('creates a link for the given amount for staff only', async () => {
+    const { f, calls } = fakeFetch(routes());
+    const res = await makeCheckout(env, f)(req({ amount_cents: 4550, description: 'Mesa 3' }));
+    expect(await res.json()).toEqual({ url: 'https://clip/pos' });
+    expect(JSON.parse(calls.find((c) => c.url.includes('payclip')).init.body).amount).toBe(45.5);
+    expect((await makeCheckout(env, fakeFetch(routes({})).f)(req({ amount_cents: 100 }))).status).toBe(401);
+    expect((await makeCheckout(env, f)(req({ amount_cents: -1 }))).status).toBe(400);
+  });
+});
+
 describe('clip-webhook', () => {
   const run = async (clipRes) => {
     const { f, calls } = fakeFetch([

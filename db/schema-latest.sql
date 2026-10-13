@@ -3787,6 +3787,6 @@
     REVOKE ALL ON FUNCTION public.get_taken_delivery_slots() FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION public.get_taken_delivery_slots() TO anon, authenticated;
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '4.4', now())
+    VALUES ('schema_version', '4.5', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;

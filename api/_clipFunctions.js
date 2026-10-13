@@ -45,7 +45,30 @@ export function makeCheckout(env, fetch) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
     if (req.method !== 'POST') return out({ error: 'method' }, 405);
     try {
-      const { token, return_url } = await req.json().catch(() => ({}));
+      const { token, return_url, amount_cents, description } = await req.json().catch(() => ({}));
+
+      // Staff mode: a one-off link for a POS ticket. Not tracked by the webhook,
+      // the cashier confirms the payment in Clip and closes the ticket as 'Clip'.
+      if (amount_cents != null) {
+        const user = await (await fetch(`${base}/auth/v1/user`, { headers: { apikey: key, Authorization: req.headers.get('Authorization') || '' } })).json().catch(() => null);
+        if (!user?.id) return out({ error: 'unauthorized' }, 401);
+        const staff = (await (await rest(`app_users?auth_user_id=eq.${user.id}&disabled_at=is.null&select=auth_user_id`)).json())?.[0];
+        if (!staff) return out({ error: 'forbidden' }, 403);
+        if (!Number.isInteger(amount_cents) || amount_cents <= 0 || amount_cents > 10000000) return out({ error: 'bad_amount' }, 400);
+        const creds = (await (await rest('clip_credentials?id=eq.1&select=api_key,api_secret,enabled')).json())?.[0];
+        if (!creds?.enabled || !creds.api_key || !creds.api_secret) return out({ error: 'clip_disabled' }, 403);
+        const ret = typeof return_url === 'string' && /^https?:\/\//.test(return_url) ? return_url : 'https://www.clip.mx';
+        const res = await fetch(CLIP.create, {
+          method: 'POST',
+          headers: { Authorization: 'Basic ' + btoa(`${creds.api_key}:${creds.api_secret}`), 'Content-Type': 'application/json' },
+          body: JSON.stringify(CLIP.body({ id: 'pos', order_num: String(description || 'POS').slice(0, 60), total_cents: amount_cents }, ret, `${base}/functions/v1/clip-webhook`)),
+        });
+        const link = await res.json().catch(() => ({}));
+        const url = CLIP.payUrl(link);
+        if (!res.ok || !url) return out({ error: 'clip_error' }, 502);
+        return out({ url });
+      }
+
       if (typeof token !== 'string' || !/^[a-f0-9]{32}$/.test(token)) return out({ error: 'bad_token' }, 400);
       if (typeof return_url !== 'string' || !/^https?:\/\//.test(return_url)) return out({ error: 'bad_return_url' }, 400);
 

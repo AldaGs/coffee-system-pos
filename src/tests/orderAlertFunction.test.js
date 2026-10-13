@@ -63,6 +63,20 @@ describe('order-alert', () => {
     expect(calls.some((c) => c.url.includes('telegram'))).toBe(false);
   });
 
+  it('alerts on a CFDI request (secret-checked)', async () => {
+    const cfg = { enabled: true, hook_secret: 's3cret', telegram_token: 'T', telegram_chat_ids: ['42'] };
+    const { f, calls } = fakeFetch([
+      ['order_alerts', () => json([cfg])],
+      ['sales?id=eq.5', () => json([{ order_name: 'Mesa 3', fiscal_profiles: { rfc: 'XAXX010101000', razon_social: 'ACME' } }])],
+      ['api.telegram.org/botT/sendMessage', () => json({ ok: true })],
+    ]);
+    expect((await makeOrderAlert(env, f)(post({ cfdi_sale_id: 5, secret: 'no' }))).status).toBe(403);
+    expect(await (await makeOrderAlert(env, f)(post({ cfdi_sale_id: 5, secret: 's3cret' }))).json()).toEqual({ ok: true, telegram: 1, push: 0 });
+    const text = JSON.parse(calls.find((c) => c.url.includes('sendMessage')).init.body).text;
+    expect(text).toContain('factura');
+    expect(text).toContain('XAXX010101000');
+  });
+
   it('sends Telegram + an encrypted, VAPID-signed push for a new order', async () => {
     const keys = await vapidKeys();
     const sub = await browserSub('https://fcm.googleapis.com/fcm/send/abc');

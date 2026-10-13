@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3', '4.4'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -6744,6 +6744,30 @@ $$;
 REVOKE ALL ON FUNCTION public.get_taken_delivery_slots() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_taken_delivery_slots() TO anon, authenticated;
 ${stamp('4.4')}` },
+  { version: '4.5', sql: `
+-- 4.5: push/Telegram alert when a customer requests a factura (CFDI). Reuses the
+-- order-alert pipeline (same hook URL + secret); fires when cfdi_status becomes 'requested'.
+CREATE OR REPLACE FUNCTION public.notify_cfdi_request()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_url text; v_secret text;
+BEGIN
+  IF NEW.cfdi_status = 'requested' AND OLD.cfdi_status IS DISTINCT FROM 'requested' THEN
+    SELECT hook_url, hook_secret INTO v_url, v_secret FROM public.order_alerts WHERE id = 1 AND enabled;
+    IF v_url IS NOT NULL THEN
+      BEGIN
+        PERFORM net.http_post(url := v_url, body := jsonb_build_object('cfdi_sale_id', NEW.id, 'secret', v_secret),
+          headers := '{"Content-Type": "application/json"}'::jsonb);
+      EXCEPTION WHEN OTHERS THEN NULL;
+      END;
+    END IF;
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.notify_cfdi_request() FROM PUBLIC;
+DROP TRIGGER IF EXISTS sales_cfdi_notify ON public.sales;
+CREATE TRIGGER sales_cfdi_notify AFTER UPDATE OF cfdi_status ON public.sales
+  FOR EACH ROW EXECUTE FUNCTION public.notify_cfdi_request();
+${stamp('4.5')}` },
 ];
 
 // Returns the concatenated delta SQL to move `fromVersion` up to the latest

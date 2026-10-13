@@ -79,6 +79,24 @@ function TicketArea({
     }
   };
 
+  // One-off Clip payment link for this ticket's total (clip-checkout, staff mode).
+  // Not auto-tracked: once Clip shows it paid, close the ticket with method Clip.
+  const handleClipLink = async (ticket) => {
+    toast({ title: 'Generando link de pago Clip…' });
+    const { data, error } = await supabase.functions.invoke('clip-checkout', {
+      body: { amount_cents: Math.round(cartTotal), description: ticket.name || `Ticket ${ticket.id}` },
+    });
+    if (error || !data?.url) {
+      let body = data;
+      try { body = body || await error?.context?.json(); } catch { /* not json */ }
+      toast({ type: 'error', title: body?.error === 'clip_disabled' ? 'Clip no está activado (Admin → Pedidos en línea).' : 'No se pudo generar el link de Clip.' });
+      return;
+    }
+    const copy = () => navigator.clipboard.writeText(data.url).then(() => toast({ type: 'success', title: 'Link de pago copiado' }));
+    if (navigator.share) navigator.share({ title: 'Pago con Clip', url: data.url }).catch((e) => { if (e?.name !== 'AbortError') copy(); });
+    else copy();
+  };
+
   const lockHint = showOverrideLock(posSettings, activeCashier);
 
   return (
@@ -328,6 +346,9 @@ function TicketArea({
                 </div>
                 <button style={{ width: '100%', padding: '16px', background: 'var(--bg-main)', color: '#34495e', border: '1px solid #34495e', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={() => { setIsActionSheetOpen(false); handleShareCFDI(activeTicket); }}>
                   <Icon icon="lucide:file-text" /> Factura / CFDI
+                </button>
+                <button style={{ width: '100%', padding: '16px', background: 'var(--bg-main)', color: '#e67e22', border: '1px solid #e67e22', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} onClick={() => { setIsActionSheetOpen(false); handleClipLink(activeTicket); }}>
+                  <Icon icon="lucide:link" /> Link de pago Clip
                 </button>
               </div>
             </div>
