@@ -24,13 +24,36 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const fieldErrorStyle = { color: '#c0392b', fontSize: '0.8rem' };
 
+function rfcProblem(rfc) {
+  if (!rfc) return 'Falta el RFC. Escríbelo tal como aparece en tu Constancia de Situación Fiscal.';
+  if (/[^A-ZÑ&0-9]/.test(rfc)) return 'El RFC solo puede tener letras y números (sin espacios, guiones ni símbolos).';
+  if (rfc.length < 12) return `El RFC tiene ${rfc.length} caracteres y le faltan ${12 - rfc.length}. Debe tener 12 (empresa) o 13 (persona física).`;
+  if (RFC_RE.test(rfc)) return null;
+  const lettersLen = rfc.length === 12 ? 3 : 4;
+  const letters = rfc.slice(0, lettersLen);
+  const date = rfc.slice(lettersLen, lettersLen + 6);
+  if (!/^[A-ZÑ&]+$/.test(letters)) return `Los primeros ${lettersLen} caracteres del RFC deben ser letras.`;
+  if (!/^[0-9]{6}$/.test(date)) return `Después de las ${lettersLen} letras deben ir 6 dígitos de la fecha (AAMMDD), por ejemplo 010101.`;
+  const mm = Number(date.slice(2, 4));
+  const dd = Number(date.slice(4, 6));
+  if (mm < 1 || mm > 12) return `La fecha del RFC no es válida: el mes "${date.slice(2, 4)}" no existe.`;
+  if (dd < 1 || dd > 31) return `La fecha del RFC no es válida: el día "${date.slice(4, 6)}" no existe.`;
+  return 'La homoclave (los últimos 3 caracteres) no es válida: el último debe ser un número o la letra A.';
+}
+
 function validateFiscal(data) {
   const errors = {};
   const rfc = (data.rfc || '').trim().toUpperCase();
-  if (!RFC_RE.test(rfc)) errors.rfc = 'RFC inválido. Verifica que tenga 12 o 13 caracteres.';
-  if (!(data.razon_social || '').trim()) errors.razon_social = 'Ingresa la razón social.';
-  if (!CP_RE.test((data.cp || '').trim())) errors.cp = 'El código postal debe tener 5 dígitos.';
-  if (!EMAIL_RE.test((data.email || '').trim())) errors.email = 'Ingresa un correo electrónico válido.';
+  const rfcErr = rfcProblem(rfc);
+  if (rfcErr) errors.rfc = rfcErr;
+  if (!(data.razon_social || '').trim()) errors.razon_social = 'Falta la razón social (nombre o empresa) tal como aparece en tu constancia.';
+  const cp = (data.cp || '').trim();
+  if (!cp) errors.cp = 'Falta el código postal de tu domicilio fiscal.';
+  else if (!CP_RE.test(cp)) errors.cp = `El código postal tiene ${cp.length} dígitos; debe tener exactamente 5.`;
+  const email = (data.email || '').trim();
+  if (!email) errors.email = 'Falta el correo donde recibirás la factura.';
+  else if (!email.includes('@')) errors.email = 'Al correo le falta el "@". Ejemplo: nombre@correo.com';
+  else if (!EMAIL_RE.test(email)) errors.email = 'El correo está incompleto o tiene espacios. Ejemplo: nombre@correo.com';
   if (!(data.regimen_fiscal || '').trim()) errors.regimen_fiscal = 'Selecciona un régimen fiscal.';
   if (!(data.uso_cfdi || '').trim()) errors.uso_cfdi = 'Selecciona el uso de CFDI.';
   return errors;
@@ -38,6 +61,13 @@ function validateFiscal(data) {
 
 // True only when every required fiscal field passes validation.
 const isFiscalComplete = (data) => Object.keys(validateFiscal(data)).length === 0;
+
+// Fiscal data remembered on this device only (never sent anywhere), like the
+// online-order page remembers the customer. The customer can erase it.
+const SAVED_KEY = 'tinypos_cfdi_customer';
+const readSaved = () => {
+  try { return JSON.parse(localStorage.getItem(SAVED_KEY)) || null; } catch { return null; }
+};
 
 function PublicCFDI({ ticketId }) {
   const [supabase, setSupabase] = useState(null);
@@ -60,14 +90,17 @@ function PublicCFDI({ ticketId }) {
   const [retryIn, setRetryIn] = useState(0);
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [hasSaved, setHasSaved] = useState(() => !!readSaved());
+  const [forgotMsg, setForgotMsg] = useState(false);
+  const [formData, setFormData] = useState(() => ({
     rfc: '',
     razon_social: '',
     regimen_fiscal: '601', // General de Ley Personas Morales
     uso_cfdi: 'G03', // Gastos en general
     cp: '',
-    email: ''
-  });
+    email: '',
+    ...readSaved(),
+  }));
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -179,6 +212,16 @@ function PublicCFDI({ ticketId }) {
     if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: undefined }));
   };
 
+  const handleForget = () => {
+    try { localStorage.removeItem(SAVED_KEY); } catch { /* ignore */ }
+    setHasSaved(false);
+    setFormData({ rfc: '', razon_social: '', regimen_fiscal: '601', uso_cfdi: 'G03', cp: '', email: '' });
+    setFieldErrors({});
+    setConstanciaState({ status: 'idle', message: '' });
+    setForgotMsg(true);
+    setTimeout(() => setForgotMsg(false), 3000);
+  };
+
   const handleCopyFolio = async () => {
     const folio = sale?.cfdi_folio;
     if (!folio) return;
@@ -244,6 +287,8 @@ function PublicCFDI({ ticketId }) {
     const errors = validateFiscal(formData);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
+      setError(`Revisa ${Object.keys(errors).length === 1 ? 'el campo marcado' : 'los campos marcados'} en rojo: ${Object.keys(errors).length === 1 ? 'hay 1 dato' : `hay ${Object.keys(errors).length} datos`} por corregir.`);
+      setTimeout(() => document.querySelector('[data-field-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
       return;
     }
     setFieldErrors({});
@@ -281,6 +326,17 @@ function PublicCFDI({ ticketId }) {
         throw new Error(messages[data?.reason] || 'No se pudo registrar la solicitud.');
       }
 
+      try {
+        localStorage.setItem(SAVED_KEY, JSON.stringify({
+          rfc: formData.rfc.trim().toUpperCase(),
+          razon_social: formData.razon_social.trim().toUpperCase(),
+          regimen_fiscal: formData.regimen_fiscal,
+          uso_cfdi: formData.uso_cfdi,
+          cp: formData.cp.trim(),
+          email: formData.email.trim().toLowerCase(),
+        }));
+        setHasSaved(true);
+      } catch { /* private mode */ }
       setSuccess(true);
       setSale(prev => ({
         ...prev,
@@ -522,7 +578,7 @@ function PublicCFDI({ ticketId }) {
 
           {/* Form */}
           {(!success && !isIssued && !isCanceled && !blockedByGlobal) && (
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <form noValidate onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
 
               {/* Constancia upload — prefills RFC, razón social, CP y régimen. */}
               {isEditable && (
@@ -551,25 +607,25 @@ function PublicCFDI({ ticketId }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>RFC</label>
                 <input required disabled={!isEditable} type="text" name="rfc" value={formData.rfc} onChange={handleChange} maxLength={13} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="XAXX010101000" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.rfc ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
-                {fieldErrors.rfc && <span style={fieldErrorStyle}>{fieldErrors.rfc}</span>}
+                {fieldErrors.rfc && <span data-field-error="true" style={fieldErrorStyle}>{fieldErrors.rfc}</span>}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                 <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Razón Social</label>
                 <input required disabled={!isEditable} type="text" name="razon_social" value={formData.razon_social} onChange={handleChange} placeholder="Empresa S.A. de C.V." style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.razon_social ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none', textTransform: 'uppercase' }} />
-                {fieldErrors.razon_social && <span style={fieldErrorStyle}>{fieldErrors.razon_social}</span>}
+                {fieldErrors.razon_social && <span data-field-error="true" style={fieldErrorStyle}>{fieldErrors.razon_social}</span>}
               </div>
 
               <div className="cfdi-row" style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
                   <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Código Postal</label>
                   <input required disabled={!isEditable} type="text" inputMode="numeric" name="cp" value={formData.cp} onChange={handleChange} maxLength={5} placeholder="12345" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.cp ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
-                  {fieldErrors.cp && <span style={fieldErrorStyle}>{fieldErrors.cp}</span>}
+                  {fieldErrors.cp && <span data-field-error="true" style={fieldErrorStyle}>{fieldErrors.cp}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 2 }}>
                   <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.9rem' }}>Email para Factura</label>
                   <input required disabled={!isEditable} type="email" autoCapitalize="none" name="email" value={formData.email} onChange={(e) => { const v = e.target.value; setFormData(prev => ({ ...prev, email: v })); if (fieldErrors.email) setFieldErrors(prev => ({ ...prev, email: undefined })); }} placeholder="correo@ejemplo.com" style={{ padding: '12px', borderRadius: '8px', border: `1px solid ${fieldErrors.email ? '#e74c3c' : '#bdc3c7'}`, fontSize: '1rem', outline: 'none' }} />
-                  {fieldErrors.email && <span style={fieldErrorStyle}>{fieldErrors.email}</span>}
+                  {fieldErrors.email && <span data-field-error="true" style={fieldErrorStyle}>{fieldErrors.email}</span>}
                 </div>
               </div>
 
@@ -622,6 +678,12 @@ function PublicCFDI({ ticketId }) {
               >
                 {isSubmitting ? 'Enviando...' : isRequested ? 'Factura solicitada' : !isPaid ? 'Esperando Pago' : isReopened ? 'Reenviar Datos' : 'Solicitar Factura'}
               </button>
+              {(hasSaved || forgotMsg) && (
+                <button type="button" onClick={handleForget} disabled={!hasSaved} style={{ background: 'none', border: 'none', padding: 0, color: forgotMsg ? '#27ae60' : '#7f8c8d', fontSize: '0.85rem', textDecoration: forgotMsg ? 'none' : 'underline', cursor: hasSaved ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  <Icon icon={forgotMsg ? 'lucide:check' : 'lucide:trash-2'} />
+                  {forgotMsg ? 'Datos borrados de este dispositivo.' : 'Olvidar mis datos'}
+                </button>
+              )}
               {legal?.privacy && <small style={{ color: '#888', textAlign: 'center' }}>Al enviar aceptas el <LegalLinks client={supabase} only="privacy" />.</small>}
             </form>
           )}
