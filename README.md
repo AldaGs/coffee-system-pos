@@ -237,7 +237,9 @@ Opt-in customer ordering from a shareable link — **off by default**. Admin →
 - **Register inbox** ([`OnlineOrdersInbox.jsx`](src/components/register/OnlineOrdersInbox.jsx), [`services/onlineOrders.js`](src/services/onlineOrders.js)): realtime badge + sound, then **Accept** (atomically claimed so two stations can't both accept; opens a normal ticket from the server-priced snapshot, linked by phone to an existing customer for loyalty) or **Reject** with a reason. Preparing/ready come from the KDS or manual buttons; charging the ticket completes the order. Voiding or fully refunding the sale rejects the linked order.
 - **Delivery areas** ([`utils/deliveryAreas.js`](src/utils/deliveryAreas.js)): any number of named zones (radius or drawn polygon) with per-zone fee and priority. The server resolves the pin to a zone and fee — client prices are ignored. Outside every zone, optional **shipping**: the order waits in `quote_pending` until staff agree a price with the customer (`set_shipping_quote`, with full revision history).
 - Accepted delivery orders are pushed to **TinyLogistics** (`order_fulfillment`) with address, notes, payment method and map coordinates.
-- **Clip payments** ([`api/_clipFunctions.js`](api/_clipFunctions.js)): each business uses its own Clip credentials (stored in `clip_credentials`, readable only by the service role). Three Supabase Edge Functions — `clip-checkout`, `clip-webhook`, `clip-refund` — are deployed into the tenant's own project by **Update Schema**. Clip orders are pay-after-accept inside a pay window; paid tickets show a badge and close in one tap, unpaid ones are voided past the window, and void / refund triggers a full Clip refund.
+- **Clip payments** ([`api/_clipFunctions.js`](api/_clipFunctions.js)): each business uses its own Clip credentials (stored in `clip_credentials`, readable only by the service role), entered in **General Settings → Payments - Clip** ([`PaymentAlertCards.jsx`](src/components/admin/PaymentAlertCards.jsx)); the Online Orders tab only ticks Clip as a payment method and sets the pay window. Three Supabase Edge Functions — `clip-checkout`, `clip-webhook`, `clip-refund` — are deployed into the tenant's own project by **Update Schema**. Clip orders are pay-after-accept inside a pay window; paid tickets show a badge and close in one tap, unpaid ones are voided past the window, and void / refund triggers a full Clip refund.
+- **Clip payment link from the register:** any open ticket's options include **Link de pago Clip**, which calls `clip-checkout` in staff mode for the ticket's total and shares/copies the link. The payment id is stored on `active_tickets.clip_payment_id`; when Clip confirms, `clip-webhook` sets `online_paid`, so the ticket turns green and closes as a `Clip` sale in one tap. Loyalty rewards can't be redeemed on a Clip-paid ticket.
+- **Alerts (orders and invoices)** — General Settings → Alerts: a Telegram message (the shop's own bot) and/or Web Push for every new online order and every CFDI request, even with TinyPOS closed everywhere. Database triggers call the tenant's `order-alert` Edge Function through `pg_net`.
 
 **Security model:** the public page never touches tables. It uses `SECURITY DEFINER` RPCs — `get_order_menu`, `get_delivery_quote`, `public_place_order` (re-prices everything from `menu_items`, validates hours/slots/area/payment, rate-limited), `get_order_status` (token only) and `get_legal` — with no `anon` table access. Cashier-only modifier groups and free-text modifier options never appear online (schema 3.9).
 
@@ -261,7 +263,7 @@ Lot-tracked inventory items (roasted coffee, in-house syrups, prepped food) get 
 
 ### 🆘 In-app Help ([`src/utils/helpContent.js`](src/utils/helpContent.js))
 
-A bilingual (ES/EN) Help tab covering every register flow and admin tab (including Online Orders and Clip) — what it is, how it works, and step-by-step *do this* recipes, with per-field glossaries for Analytics and Inventory. The same content drives the contextual help modals. Spanish tutorial scripts for recording walkthroughs live in [`scripts/`](scripts).
+A bilingual (ES/EN) Help tab covering every register flow and admin tab (including Online Orders, Clip payment links and alerts) — what it is, how it works, and step-by-step *do this* recipes, with per-field glossaries for Analytics and Inventory. The same content drives the contextual help modals. Spanish tutorial scripts for recording walkthroughs live in [`scripts/`](scripts).
 
 ### 📱 Loyalty + Receipts
 
@@ -511,6 +513,13 @@ If you installed before the latest schema version, apply these **in order**:
 | `052_clip_pay_window.sql` | `online_orders.pay_by` pay window; `public_place_order` accepts `clip` (3.5) |
 | `053_active_ticket_online_paid.sql` | `active_tickets.online_paid` Clip-paid flag (3.8) |
 | `054_cashier_only_modifiers.sql` | `menu_modifier_groups.public_hidden`; text-input options stay off online ordering (3.9) |
+| `055_order_alerts.sql` | New-online-order alerts: trigger → `order-alert` Edge Function via `pg_net` (Telegram + Web Push) (4.0) |
+| `056_order_alert_devices.sql` | Renames the push device table to avoid clashing with sibling apps (4.1) |
+| `057_page_events.sql` | Cookieless traffic analytics for `/menu` and `/order` (4.2) |
+| `058_page_analytics_page_filter.sql` | `get_page_analytics` optional page filter (4.3) |
+| `059_one_delivery_per_slot.sql` | Optional one local delivery per time slot (4.4) |
+| `060_cfdi_request_alert.sql` | Push/Telegram alert when a customer requests a CFDI (4.5) |
+| `061_ticket_clip_link.sql` | `active_tickets.clip_payment_id` for register Clip links; webhook flips `online_paid` (4.6) |
 
 > The online-ordering tables, RPCs and settings (schema 2.0–3.1) have no standalone migration files; they ship in `schema-latest.sql`, `api/install.js`, `SetupScreen.jsx` and the `api/_schemaDeltas.js` deltas.
 
@@ -544,7 +553,7 @@ If you installed before the latest schema version, apply these **in order**:
 
 | `GET/POST /api/domains` | Resolves, links and unlinks custom domains (public menu + CFDI portal) via the Vercel Domains API |
 
-| *(Supabase Edge Functions, not Vercel)* `clip-checkout`, `clip-webhook`, `clip-refund` | Clip card payments for online orders — deployed into each tenant's project by Update Schema ([`api/_clipFunctions.js`](api/_clipFunctions.js)) |
+| *(Supabase Edge Functions, not Vercel)* `clip-checkout`, `clip-webhook`, `clip-refund` | Clip card payments for online orders and register payment links — deployed into each tenant's project by Update Schema ([`api/_clipFunctions.js`](api/_clipFunctions.js)) |
 
 | `POST /api/log-error` | Lightweight error-reporting sink (webhook) |
 
