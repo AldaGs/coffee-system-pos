@@ -151,7 +151,7 @@ function TicketArea({
 
             {activeTicket.items.length === 0 ? (
               <ul className="ticket-items">
-                orderFlowMode ? (
+                {orderFlowMode ? (
                   <li className="order-flow-empty-ticket">
                     <Icon icon="lucide:coffee" style={{ fontSize: '2.4rem', opacity: 0.25 }} />
                     <h3 style={{ margin: '6px 0 2px' }}>{t('register.emptyTicketTitle')}</h3>
@@ -163,7 +163,7 @@ function TicketArea({
                   </li>
                 ) : (
                   <li className="empty-cart">{t('ticket.empty')}</li>
-                )
+                )}
               </ul>
             ) : (
               <div className="ticket-items">
