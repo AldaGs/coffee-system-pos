@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 4.9 — No SQL change: redeploys order-alert (Admin test shows push errors; VAPID token lives 1h for Apple).
 // 4.8 — Per-destination alert events: order_alert_devices.events, order_alerts.telegram_events, get/set_alert_prefs; redeploys order-alert.
 // 4.7 — Clip auto-accept (payments.clipAutoAccept, BEFORE INSERT trigger when in stock) + paid-with-Clip alert; redeploys order-alert.
 // 4.6 — active_tickets.clip_payment_id: POS Clip links auto-mark the ticket paid via clip-webhook.
@@ -145,4 +146,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '4.8';
+export const APP_SCHEMA_VERSION = '4.9';

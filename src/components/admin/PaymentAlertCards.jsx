@@ -116,7 +116,7 @@ export function AlertsCard({ input, showAlert }) {
       {(status.chats > 0 || status.devices > 0) && (
         <button type="button" style={btn} disabled={!!busy || !status.enabled} onClick={() => run('test', async () => {
           const r = await alerts.sendTestAlert();
-          showAlert(t('common.success'), t('alerts.testSent').replace('{t}', r.telegram).replace('{p}', r.push));
+          showAlert(t('common.success'), t('alerts.testSent').replace('{t}', r.telegram).replace('{p}', r.push) + (r.errors?.length ? '\n' + r.errors.join('\n') : ''));
         })}>{busy === 'test' ? '…' : t('alerts.test')}</button>
       )}
     </Card>

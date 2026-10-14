@@ -71,7 +71,7 @@ describe('order-alert', () => {
       ['api.telegram.org/botT/sendMessage', () => json({ ok: true })],
     ]);
     expect((await makeOrderAlert(env, f)(post({ cfdi_sale_id: 5, secret: 'no' }))).status).toBe(403);
-    expect(await (await makeOrderAlert(env, f)(post({ cfdi_sale_id: 5, secret: 's3cret' }))).json()).toEqual({ ok: true, telegram: 1, push: 0 });
+    expect(await (await makeOrderAlert(env, f)(post({ cfdi_sale_id: 5, secret: 's3cret' }))).json()).toEqual({ ok: true, telegram: 1, push: 0, errors: [] });
     const text = JSON.parse(calls.find((c) => c.url.includes('sendMessage')).init.body).text;
     expect(text).toContain('factura');
     expect(text).toContain('XAXX010101000');
@@ -84,7 +84,7 @@ describe('order-alert', () => {
       ['api.telegram.org/botT/sendMessage', () => json({ ok: true })],
     ]);
     expect((await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 'no' }))).status).toBe(403);
-    expect(await (await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 's3cret' }))).json()).toEqual({ ok: true, telegram: 1, push: 0 });
+    expect(await (await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 's3cret' }))).json()).toEqual({ ok: true, telegram: 1, push: 0, errors: [] });
     const text = JSON.parse(calls.find((c) => c.url.includes('sendMessage')).init.body).text;
     expect(text).toContain('Pagado con Clip #3');
     expect(text).toContain('$99.00');
@@ -100,7 +100,7 @@ describe('order-alert', () => {
       ['api.telegram.org/botT/sendMessage', () => json({ ok: true })],
       ['fcm.googleapis.com', () => json({}, 201)],
     ]);
-    expect(await (await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 's' }))).json()).toEqual({ ok: true, telegram: 0, push: 1 });  });
+    expect(await (await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 's' }))).json()).toEqual({ ok: true, telegram: 0, push: 1, errors: [] });  });
 
   it('sends Telegram + an encrypted, VAPID-signed push for a new order', async () => {
     const keys = await vapidKeys();
@@ -114,7 +114,7 @@ describe('order-alert', () => {
       ['fcm.googleapis.com', () => json({}, 201)],
     ]);
     const res = await makeOrderAlert(env, f)(post({ order_id: 9, secret: 's3cret' }));
-    expect(await res.json()).toEqual({ ok: true, telegram: 1, push: 1 });
+    expect(await res.json()).toEqual({ ok: true, telegram: 1, push: 1, errors: [] });
 
     const tgCall = calls.find((c) => c.url.includes('sendMessage'));
     const tgBody = JSON.parse(tgCall.init.body);

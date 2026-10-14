@@ -3968,7 +3968,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
         REVOKE ALL ON FUNCTION public.set_alert_prefs(text, text[], text[]) FROM PUBLIC;
         GRANT EXECUTE ON FUNCTION public.set_alert_prefs(text, text[], text[]) TO authenticated;
         INSERT INTO public.schema_meta (key, value, updated_at)
-        VALUES ('schema_version', '4.8', now())
+        VALUES ('schema_version', '4.9', now())
         ON CONFLICT (key) DO UPDATE
           SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;
       `;

@@ -51,7 +51,7 @@ export function makeOrderAlert(env, fetch) {
       { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
     const head = b64u(enc.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
     const body = b64u(enc.encode(JSON.stringify({
-      aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: 'mailto:alerts@tinypos.app',
+      aud: new URL(endpoint).origin, exp: Math.floor(Date.now() / 1000) + 3600, // Apple rejects long-lived tokens sub: 'mailto:alerts@tinypos.app',
     })));
     const sig = await subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, signKey, enc.encode(`${head}.${body}`));
     return `vapid t=${head}.${body}.${b64u(sig)}, k=${pub}`;
@@ -85,12 +85,13 @@ export function makeOrderAlert(env, fetch) {
         Topic: 'new-order',
       },
       body: await encryptPush(sub, payload),
-    }).catch(() => null);
+    }).catch((e) => ({ ok: false, status: 0, text: async () => String(e) }));
     // Gone/expired subscription: forget it so the next order doesn't retry it.
-    if (res && (res.status === 404 || res.status === 410)) {
+    if (res.status === 404 || res.status === 410) {
       await rest(`order_alert_devices?endpoint=eq.${encodeURIComponent(sub.endpoint)}`, { method: 'DELETE' });
     }
-    return !!res?.ok;
+    // Failure reason (e.g. Apple's 403 BadJwtToken) so the Admin test can show it.
+    return res.ok ? true : `${new URL(sub.endpoint).host} ${res.status} ${(await res.text().catch(() => '')).slice(0, 120)}`;
   };
 
   // ---- Telegram ----
@@ -112,7 +113,7 @@ export function makeOrderAlert(env, fetch) {
   // (schema 4.8). No kind (the Admin test) reaches every destination.
   const wants = (events, kind) => !kind || !Array.isArray(events) || events.includes(kind);
   const fanOut = async (cfg, msg, kind) => {
-    let telegram = 0, push = 0;
+    let telegram = 0, push = 0, errors = [];
     if (cfg.telegram_token && wants(cfg.telegram_events, kind)) {
       for (const chat of cfg.telegram_chat_ids || []) {
         const r = await tg(cfg.telegram_token, 'sendMessage', { chat_id: chat, text: `${msg.title}\n${msg.body}` });
@@ -123,9 +124,10 @@ export function makeOrderAlert(env, fetch) {
       const subs = (await rows('order_alert_devices?select=endpoint,p256dh,auth,events')).filter((d) => wants(d.events, kind));
       const payload = JSON.stringify({ title: msg.title, body: msg.body, url: '/' });
       const sent = await Promise.all(subs.map((s) => sendPush(cfg, s, payload)));
-      push = sent.filter(Boolean).length;
+      push = sent.filter((s) => s === true).length;
+      errors = sent.filter((s) => s !== true);
     }
-    return { telegram, push };
+    return { telegram, push, errors };
   };
 
   return async (req) => {
