@@ -93,7 +93,7 @@ const STR = {
     cashPay: '¿Con cuánto pagas? (opcional)', cashExact: 'Exacto', cashPaysWith: 'Paga con', cashChange: 'Cambio', invalid_cash: 'Escribe un monto igual o mayor al total (máximo $1,000 más).',
     upcomingSlot: 'Próxima entrega disponible hoy: {when}', upcomingSlotPickup: 'Próxima recolección disponible hoy: {when}', noMoreSlots: 'Ya no hay entregas hoy: programado para {when}', noMoreSlotsPickup: 'Ya no hay recolecciones hoy: programado para {when}', pickup_required: 'Elige una fecha y hora de entrega o recolección.',
     payNote: { cash: ['Pagas en efectivo al recoger.', 'Pagas en efectivo al recibir.'], card: ['Pagas con tarjeta en terminal al recoger.', 'Pagas con tarjeta al recibir (el repartidor lleva terminal).'], transfer: ['Transfiere con estos datos y muestra tu comprobante al recoger.', 'Transfiere con estos datos y muestra tu comprobante al recibir.'], clip: ['Cuando aceptemos tu pedido te mostraremos el botón para pagar con tarjeta en línea.', 'Cuando aceptemos tu pedido te mostraremos el botón para pagar con tarjeta en línea.'] },
-    pay_clip: 'Tarjeta en línea', clipWait: 'Te mostraremos el botón para pagar en cuanto aceptemos tu pedido.', payNow: 'Pagar ahora', payBy: 'Paga antes de las', payIn: 'Tiempo para pagar:', clipPaid: 'Pagado ✓', clipError: 'No se pudo abrir el pago. Intenta de nuevo o llámanos.', clipExpired: 'El tiempo para pagar terminó.', clipHeld: 'Empezamos a preparar tu pedido en cuanto se confirme el pago.',
+    pay_clip: 'Tarjeta en línea', clipWait: 'Te mostraremos el botón para pagar en cuanto aceptemos tu pedido.', payNow: 'Pagar ahora', payBy: 'Paga antes de las', payIn: 'Tiempo para pagar:', clipPaid: 'Pagado ✓', st_paid: 'Pagado con Clip', clipError: 'No se pudo abrir el pago. Intenta de nuevo o llámanos.', clipExpired: 'El tiempo para pagar terminó.', clipHeld: 'Empezamos a preparar tu pedido en cuanto se confirme el pago.',
     orderNo: 'Pedido', st_on_delivery: 'En camino', st_ready_delivery: 'Listo, esperando repartidor',
     invalid_address: 'Escribe tu dirección de entrega.', delivery_disabled: 'El envío a domicilio no está disponible.', delivery_outside: 'Dirección fuera de nuestras zonas de entrega.', pin_required: 'Confirma la entrada con el pin.', quote_changed: 'La cobertura o el precio cambió. Revisa la nueva cotización antes de continuar.', invalid_type: 'Revisa tu pedido.',
   },
@@ -122,7 +122,7 @@ const STR = {
     cashPay: 'How much will you pay with? (optional)', cashExact: 'Exact', cashPaysWith: 'Paying with', cashChange: 'Change', invalid_cash: 'Enter an amount equal to or above the total (at most $1,000 more).',
     upcomingSlot: 'Next delivery available today: {when}', upcomingSlotPickup: 'Next pickup available today: {when}', noMoreSlots: 'No more deliveries today: scheduled for {when}', noMoreSlotsPickup: 'No more pickups today: scheduled for {when}', pickup_required: 'Choose a delivery or pickup date and time.',
     payNote: { cash: ['You pay in cash at pickup.', 'You pay in cash on delivery.'], card: ['You pay by card at the terminal on pickup.', 'You pay by card on delivery (the driver brings a terminal).'], transfer: ['Transfer using these details and show your receipt at pickup.', 'Transfer using these details and show your receipt on delivery.'], clip: ['Once we accept your order you will see a button to pay by card online.', 'Once we accept your order you will see a button to pay by card online.'] },
-    pay_clip: 'Card online', clipWait: 'You will see the pay button as soon as we accept your order.', payNow: 'Pay now', payBy: 'Pay before', payIn: 'Time left to pay:', clipPaid: 'Paid ✓', clipError: 'Could not open the payment. Try again or call us.', clipExpired: 'The time to pay has run out.', clipHeld: 'We start preparing your order as soon as the payment is confirmed.',
+    pay_clip: 'Card online', clipWait: 'You will see the pay button as soon as we accept your order.', payNow: 'Pay now', payBy: 'Pay before', payIn: 'Time left to pay:', clipPaid: 'Paid ✓', st_paid: 'Paid with Clip', clipError: 'Could not open the payment. Try again or call us.', clipExpired: 'The time to pay has run out.', clipHeld: 'We start preparing your order as soon as the payment is confirmed.',
     orderNo: 'Order', st_on_delivery: 'On the way', st_ready_delivery: 'Ready, waiting for the driver',
     invalid_address: 'Enter your delivery address.', delivery_disabled: 'Delivery is not available.', delivery_outside: 'Address outside our delivery areas.', pin_required: 'Confirm the entrance with the pin.', quote_changed: 'Coverage or the price changed. Review the new quote before continuing.', invalid_type: 'Please review your order.',
   },
@@ -904,7 +904,7 @@ const STEPS = ['requested', 'accepted', 'preparing', 'ready', 'completed'];
 const DELIVERY_STEPS = ['requested', 'accepted', 'preparing', 'ready', 'on_delivery', 'completed'];
 const STEP_ICON = {
   quote_pending: 'lucide:message-circle',
-  requested: 'lucide:clipboard-list', accepted: 'lucide:check-circle', preparing: 'lucide:chef-hat',
+  requested: 'lucide:clipboard-list', accepted: 'lucide:check-circle', paid: 'lucide:credit-card', preparing: 'lucide:chef-hat',
   ready: 'lucide:shopping-bag', on_delivery: 'lucide:bike', completed: 'lucide:party-popper',
 };
 const STEP_ICON_DELIVERY = { ready: 'lucide:package-check', completed: 'lucide:house' };
@@ -984,8 +984,13 @@ function Track({ client, token, lang, setLang }) {
   const rejected = order.status === 'rejected';
   const isDelivery = order.order_type === 'delivery';
   const isShipping = order.order_type === 'shipping';
-  const steps = isDelivery ? DELIVERY_STEPS : isShipping ? ['quote_pending', ...STEPS] : STEPS;
-  const idx = steps.indexOf(order.status);
+  const baseSteps = isDelivery ? DELIVERY_STEPS : isShipping ? ['quote_pending', ...STEPS] : STEPS;
+  // Clip orders get a "paid" step right after accepted.
+  const isClip = order.payment_method === 'clip';
+  const steps = isClip ? baseSteps.flatMap((st) => (st === 'accepted' ? [st, 'paid'] : [st])) : baseSteps;
+  // Accepted is done the moment it happens; the spinner moves on to the next step
+  // ("paid" while a Clip order waits on payment, else "preparing").
+  const idx = steps.indexOf(order.status) + (order.status === 'accepted' ? (isClip && order.payment_status === 'paid' ? 2 : 1) : 0);
   const finished = order.status === 'completed';
   // "You might also like": trackShowcase rides on the menu's shop block (fetched once above),
   // not on get_order_status, so the 8s poll payload doesn't grow.
@@ -1057,9 +1062,7 @@ function Track({ client, token, lang, setLang }) {
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Icon icon={PAY_ICON[order.payment_method]} width="20" />{s.payLabel}: {s[`pay_${order.payment_method}`]}</div>
             {order.payment_method === 'cash' && order.cash_amount_cents != null && <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.cashPaysWith}: {formatForDisplay(order.cash_amount_cents, lang)} · {s.cashChange}: {formatForDisplay(order.cash_amount_cents - order.total_cents, lang)}</div>}
             {order.payment_method === 'transfer' && !(isShipping && order.shipping_quote_cents == null) && <TransferDetails payments={shop?.payments} lang={lang} />}
-            {order.payment_method === 'clip' && !rejected && (order.payment_status === 'paid'
-              ? <div style={{ marginTop: 8, color: '#27ae60', fontWeight: 800 }}>{s.clipPaid}</div>
-              : ['requested', 'quote_pending'].includes(order.status)
+            {order.payment_method === 'clip' && !rejected && order.payment_status !== 'paid' && (['requested', 'quote_pending'].includes(order.status)
                 ? <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.clipWait}</div>
                 : order.pay_by && Date.parse(order.pay_by) <= now
                   ? <div style={{ marginTop: 6, color: '#c0392b' }}>{s.clipExpired}</div>
