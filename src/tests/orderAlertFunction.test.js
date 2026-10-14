@@ -90,6 +90,18 @@ describe('order-alert', () => {
     expect(text).toContain('$99.00');
   });
 
+  it('skips destinations that opted out of an event (null = all)', async () => {
+    const keys = await vapidKeys();
+    const sub = await browserSub('https://fcm.googleapis.com/fcm/send/abc');
+    const { f } = fakeFetch([
+      ['order_alerts', () => json([{ enabled: true, hook_secret: 's', telegram_token: 'T', telegram_chat_ids: ['42'], telegram_events: ['new_order'], vapid_public: keys.pub, vapid_private: keys.priv }])],
+      ['online_orders?id=eq.7', () => json([{ order_num: 3, customer_name: 'Ana', total_cents: 100, order_type: 'pickup' }])],
+      ['order_alert_devices', () => json([{ ...sub.row, events: ['clip_paid'] }])],
+      ['api.telegram.org/botT/sendMessage', () => json({ ok: true })],
+      ['fcm.googleapis.com', () => json({}, 201)],
+    ]);
+    expect(await (await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 's' }))).json()).toEqual({ ok: true, telegram: 0, push: 1 });  });
+
   it('sends Telegram + an encrypted, VAPID-signed push for a new order', async () => {
     const keys = await vapidKeys();
     const sub = await browserSub('https://fcm.googleapis.com/fcm/send/abc');

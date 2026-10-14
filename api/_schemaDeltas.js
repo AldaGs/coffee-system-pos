@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7', '4.8'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -6849,6 +6849,37 @@ DROP TRIGGER IF EXISTS online_orders_paid_notify ON public.online_orders;
 CREATE TRIGGER online_orders_paid_notify AFTER UPDATE OF payment_status ON public.online_orders
   FOR EACH ROW EXECUTE FUNCTION public.notify_clip_paid();
 ${stamp('4.7')}` },
+  { version: '4.8', sql: `
+-- 4.8: per-destination alert choices. Each push device keeps its own event list;
+-- Telegram (all linked chats) has one. NULL = every event (what existed before).
+-- Events: new_order, clip_paid, cfdi_request.
+ALTER TABLE public.order_alert_devices ADD COLUMN IF NOT EXISTS events text[];
+ALTER TABLE public.order_alerts ADD COLUMN IF NOT EXISTS telegram_events text[];
+
+CREATE OR REPLACE FUNCTION public.get_alert_prefs(p_endpoint text)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_app_user((select auth.uid())) THEN RAISE EXCEPTION 'forbidden'; END IF;
+  RETURN jsonb_build_object(
+    'device', (SELECT to_jsonb(events) FROM public.order_alert_devices WHERE endpoint = p_endpoint),
+    'telegram', (SELECT to_jsonb(telegram_events) FROM public.order_alerts WHERE id = 1));
+END $$;
+REVOKE ALL ON FUNCTION public.get_alert_prefs(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.get_alert_prefs(text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_alert_prefs(p_endpoint text, p_device text[], p_telegram text[])
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_app_user((select auth.uid())) THEN RAISE EXCEPTION 'forbidden'; END IF;
+  IF p_endpoint IS NOT NULL THEN
+    UPDATE public.order_alert_devices SET events = p_device WHERE endpoint = p_endpoint;
+  END IF;
+  INSERT INTO public.order_alerts (id, telegram_events) VALUES (1, p_telegram)
+  ON CONFLICT (id) DO UPDATE SET telegram_events = p_telegram, updated_at = now();
+END $$;
+REVOKE ALL ON FUNCTION public.set_alert_prefs(text, text[], text[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_alert_prefs(text, text[], text[]) TO authenticated;
+${stamp('4.8')}` },
 ];
 
 // Returns the concatenated delta SQL to move `fromVersion` up to the latest

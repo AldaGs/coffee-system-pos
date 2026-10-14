@@ -75,3 +75,17 @@ export async function disablePushHere() {
   await supabase.rpc('delete_push_subscription', { p_endpoint: sub.endpoint });
   await sub.unsubscribe();
 }
+
+// Which alerts each destination gets (schema 4.8): this device's push, and
+// Telegram (shared by every linked chat). null from the DB = every event.
+export const ALERT_EVENTS = ['new_order', 'clip_paid', 'cfdi_request'];
+export async function loadAlertPrefs() {
+  const endpoint = (await currentSubscription().catch(() => null))?.endpoint || null;
+  const { data, error } = await supabase.rpc('get_alert_prefs', { p_endpoint: endpoint });
+  if (error) throw error;
+  return { endpoint, device: data?.device ?? ALERT_EVENTS, telegram: data?.telegram ?? ALERT_EVENTS };
+}
+export async function saveAlertPrefs({ endpoint, device, telegram }) {
+  const { error } = await supabase.rpc('set_alert_prefs', { p_endpoint: endpoint, p_device: device, p_telegram: telegram });
+  if (error) throw error;
+}

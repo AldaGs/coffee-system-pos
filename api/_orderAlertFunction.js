@@ -108,16 +108,19 @@ export function makeOrderAlert(env, fetch) {
     };
   };
 
-  const fanOut = async (cfg, msg) => {
+  // kind: new_order | clip_paid | cfdi_request; a destination's null event list = all
+  // (schema 4.8). No kind (the Admin test) reaches every destination.
+  const wants = (events, kind) => !kind || !Array.isArray(events) || events.includes(kind);
+  const fanOut = async (cfg, msg, kind) => {
     let telegram = 0, push = 0;
-    if (cfg.telegram_token) {
+    if (cfg.telegram_token && wants(cfg.telegram_events, kind)) {
       for (const chat of cfg.telegram_chat_ids || []) {
         const r = await tg(cfg.telegram_token, 'sendMessage', { chat_id: chat, text: `${msg.title}\n${msg.body}` });
         if (r?.ok) telegram++;
       }
     }
     if (cfg.vapid_public && cfg.vapid_private) {
-      const subs = await rows('order_alert_devices?select=endpoint,p256dh,auth');
+      const subs = (await rows('order_alert_devices?select=endpoint,p256dh,auth,events')).filter((d) => wants(d.events, kind));
       const payload = JSON.stringify({ title: msg.title, body: msg.body, url: '/' });
       const sent = await Promise.all(subs.map((s) => sendPush(cfg, s, payload)));
       push = sent.filter(Boolean).length;
@@ -139,7 +142,7 @@ export function makeOrderAlert(env, fetch) {
         if (!cfg.enabled || !/^[0-9]{1,20}$/.test(String(body.order_id))) return out({ ok: true, skipped: true });
         const order = (await rows(`online_orders?id=eq.${body.order_id}&select=order_num,customer_name,total_cents,order_type,items,status`))[0];
         if (!order) return out({ error: 'not_found' }, 404);
-        return out({ ok: true, ...(await fanOut(cfg, describe(order))) });
+        return out({ ok: true, ...(await fanOut(cfg, describe(order), 'new_order')) });
       }
 
       // 1a) The DB trigger: an online order was paid with Clip (auto or manually accepted).
@@ -151,7 +154,7 @@ export function makeOrderAlert(env, fetch) {
         return out({ ok: true, ...(await fanOut(cfg, {
           title: `💳 Pagado con Clip${o.order_num ? ' #' + o.order_num : ''}`,
           body: [`${o.customer_name} · ${TYPE[o.order_type] || o.order_type || ''}`, `Total ${money(o.total_cents)}`].join('\n'),
-        })) });
+        }, 'clip_paid')) });
       }
 
       // 1b) The DB trigger: a customer requested a factura (CFDI) for a sale.
@@ -164,7 +167,7 @@ export function makeOrderAlert(env, fetch) {
         return out({ ok: true, ...(await fanOut(cfg, {
           title: '🧾 Nueva solicitud de factura',
           body: [sale.order_name || `Venta #${body.cfdi_sale_id}`, [fp.rfc, fp.razon_social].filter(Boolean).join(' · ')].filter(Boolean).join('\n'),
-        })) });
+        }, 'cfdi_request')) });
       }
 
       // 2) Staff actions from Admin.

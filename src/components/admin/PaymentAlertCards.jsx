@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import * as alerts from '../../services/orderAlerts';
@@ -61,6 +62,7 @@ export function AlertsCard({ input, showAlert }) {
   const [busy, setBusy] = useState(null);
   // Same collapse as Clip: once a bot is linked, hide the setup steps and token field.
   const [editToken, setEditToken] = useState(false);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   const load = () => alerts.loadAlertStatus().then(setStatus).catch(() => {});
   useEffect(() => { load(); alerts.isPushOnHere().then(setPushHere); }, []);
   const run = async (name, fn) => {
@@ -106,6 +108,11 @@ export function AlertsCard({ input, showAlert }) {
             else { await alerts.enablePushHere(status); setPushHere(true); if (!status.enabled) await save(true); }
           })}>{pushHere ? t('alerts.pushOff') : t('alerts.pushOn')}</button>}
 
+      {(status.chats > 0 || pushHere) && (
+        <button type="button" style={btn} disabled={!!busy} onClick={() => setPrefsOpen(true)}><Icon icon="lucide:sliders-horizontal" /> {t('alerts.prefs')}</button>
+      )}
+      {prefsOpen && <AlertPrefsDialog btn={btn} telegram={status.chats > 0} onClose={() => setPrefsOpen(false)} showAlert={showAlert} />}
+
       {(status.chats > 0 || status.devices > 0) && (
         <button type="button" style={btn} disabled={!!busy || !status.enabled} onClick={() => run('test', async () => {
           const r = await alerts.sendTestAlert();
@@ -113,6 +120,57 @@ export function AlertsCard({ input, showAlert }) {
         })}>{busy === 'test' ? '…' : t('alerts.test')}</button>
       )}
     </Card>
+  );
+}
+
+// Which alerts this device's push and Telegram receive. Edits are a draft:
+// only Save writes them; Cancel, Esc or the overlay discard.
+function AlertPrefsDialog({ btn, telegram, onClose, showAlert }) {
+  const { t } = useTranslation();
+  const [draft, setDraft] = useState(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    alerts.loadAlertPrefs().then(setDraft).catch((e) => { showAlert(t('common.error'), e.message); onClose(); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const toggle = (key, ev) => setDraft((d) => ({ ...d, [key]: d[key].includes(ev) ? d[key].filter((x) => x !== ev) : [...d[key], ev] }));
+  const save = async () => {
+    setSaving(true);
+    try { await alerts.saveAlertPrefs(draft); onClose(); } catch (e) { showAlert(t('common.error'), e.message); }
+    setSaving(false);
+  };
+  const section = (key, icon, title) => (
+    <fieldset style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 12, display: 'grid', gap: 8, margin: 0 }}>
+      <legend style={{ fontWeight: 800, padding: '0 6px' }}><Icon icon={icon} /> {title}</legend>
+      {alerts.ALERT_EVENTS.map((ev) => (
+        <label key={ev} style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
+          <input type="checkbox" checked={draft[key].includes(ev)} onChange={() => toggle(key, ev)} />
+          <span>{t(`alerts.ev_${ev}`)}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+  return (
+    <DialogPrimitive.Root open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="modal-overlay" style={{ zIndex: 9999 }}>
+          <DialogPrimitive.Content className="modal-content fade-in" style={{ maxWidth: 440, width: '100%', background: 'var(--bg-surface)', display: 'grid', gap: 16 }}>
+            <DialogPrimitive.Title style={{ margin: 0, color: 'var(--text-main)' }}>{t('alerts.prefs')}</DialogPrimitive.Title>
+            <DialogPrimitive.Description style={{ margin: 0, color: 'var(--text-muted)' }}>{t('alerts.prefsHint')}</DialogPrimitive.Description>
+            {!draft ? <span>…</span> : <>
+              {draft.endpoint
+                ? section('device', 'lucide:smartphone', t('alerts.prefsDevice'))
+                : <small style={{ color: 'var(--text-muted)' }}>{t('alerts.prefsNoPush')}</small>}
+              {telegram && section('telegram', 'logos:telegram', t('alerts.prefsTelegram'))}
+            </>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button type="button" style={btn} onClick={onClose}>{t('common.cancel')}</button>
+              <button type="button" style={{ ...btn, background: 'var(--brand-color)', color: '#fff' }} disabled={!draft || saving} onClick={save}>{saving ? '…' : t('common.save')}</button>
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Overlay>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
