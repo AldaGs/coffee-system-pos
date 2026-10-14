@@ -28,6 +28,11 @@ function ClipWaitBanner({ cancelAt, t }) {
   );
 }
 
+// OnlineOrdersInbox portals the order status card here. The footer remounts
+// (mobile cart close/open, ticket reloads) without the active ticket changing,
+// so the slot announces itself instead of the inbox looking it up once.
+const announceSlot = (el) => window.dispatchEvent(new CustomEvent('online-order-slot', { detail: el }));
+
 function TicketArea({
   isActionSheetOpen, setIsActionSheetOpen,
   setIsDiscountModalOpen, setLoyaltyModal,
@@ -226,7 +231,7 @@ function TicketArea({
             )}
 
             <div className="ticket-footer">
-              <div id="online-order-slot" />
+              <div id="online-order-slot" ref={announceSlot} />
               <CustomerStrip />
               <div className="total-row" style={{ marginBottom: activeTicket.discount ? '4px' : '16px', fontSize: activeTicket.discount ? '1.1rem' : '1.5rem', color: activeTicket.discount ? 'var(--text-muted)' : 'var(--text-main)' }}>
                 <span>{t('ticket.subtotal')}</span>

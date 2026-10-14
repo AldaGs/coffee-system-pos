@@ -252,17 +252,33 @@ export default function OnlineOrdersInbox({
     setTimeout(() => setCopiedPhone((p) => (p === phone ? null : p)), 1500);
   };
   const current = activeTicketId != null && orders.find((o) => String(o.active_ticket_id) === String(activeTicketId));
-  // The slot lives in TicketArea's footer; look it up after commit so a footer
-  // mounted in this same render (ticket just opened) is found.
-  const [slot, setSlot] = useState(null);
-  useEffect(() => { setSlot(document.getElementById('online-order-slot')); }, [activeTicketId, current]);
+  // The slot lives in TicketArea's footer and announces every mount/unmount.
+  const [slot, setSlot] = useState(() => document.getElementById('online-order-slot'));
+  useEffect(() => {
+    const on = (e) => setSlot(e.detail || document.getElementById('online-order-slot'));
+    window.addEventListener('online-order-slot', on);
+    return () => window.removeEventListener('online-order-slot', on);
+  }, []);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   return (
     <>
       {current && slot && createPortal(
         <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
           <div style={{ fontWeight: 700, marginBottom: 6 }}>{t('oo.inboxTitle')} · {t(`oo.st_${current.status}`)}</div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{actions(current)}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {current.notes && <button type="button" onClick={() => setNotesOpen(true)} style={{ ...btn('#8e44ad'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon icon="lucide:sticky-note" /> {t('oo.viewNotes')}</button>}
+            {actions(current)}
+          </div>
+          {notesOpen && current.notes && createPortal(
+            <div role="dialog" aria-modal="true" aria-label={t('oo.notes')} onClick={() => setNotesOpen(false)}
+              style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--bg-card, white)', color: 'var(--text-main)', borderRadius: 16, padding: 20, maxWidth: 480, width: '100%', maxHeight: '80dvh', overflowY: 'auto' }}>
+                <h3 style={{ marginTop: 0 }}><Icon icon="lucide:sticky-note" style={{ verticalAlign: '-2px' }} /> {t('oo.notes')} · {current.customer_name}</h3>
+                <p style={{ whiteSpace: 'pre-wrap', fontSize: '1.05rem', lineHeight: 1.5 }}>{current.notes}</p>
+                <button type="button" onClick={() => setNotesOpen(false)} style={{ ...btn('#7f8c8d'), width: '100%' }}>{t('oo.closeNotes')}</button>
+              </div>
+            </div>, document.body)}
           {/* Contact the customer: copy the number or open a WhatsApp chat. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
             <span style={{ fontWeight: 700, marginRight: 'auto' }}>{current.customer_name} · {showPhone(current.phone)}</span>

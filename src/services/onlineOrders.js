@@ -87,10 +87,9 @@ async function openTicketForOrder(order, { activeCashier, myDeviceId, menuData, 
   }
 
   const prefix = (myDeviceId || 'ONL').substring(0, 3).toUpperCase();
-  const note = order.notes ? ` - ${order.notes.slice(0, 40)}` : '';
   const ticket = {
     id: Date.now(),
-    name: `${prefix} - ${order.customer_name} (#${orderNum}) (Online)${note}${order.payment_method ? ` · ${PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? ` ${peso(order.cash_amount_cents)}` : ''}` : ''}`,
+    name: `${prefix} - ${order.customer_name} (#${orderNum}) (Online)${order.payment_method ? ` · ${PAY_LABEL[order.payment_method]}${order.cash_amount_cents != null ? ` ${peso(order.cash_amount_cents)}` : ''}` : ''}`,
     items,
     cashier_id: activeCashier?.id,
     last_modified_by: myDeviceId,
