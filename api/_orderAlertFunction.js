@@ -6,6 +6,7 @@
 //
 // Callers (verify_jwt=false):
 //   - the AFTER INSERT trigger on online_orders, via pg_net: { order_id, secret }
+//     (and its paid-with-Clip trigger: { paid_order_id, secret })
 //     (secret = order_alerts.hook_secret, so outsiders can't trigger alerts);
 //   - staff from Admin, with their session JWT: { action: 'telegram_detect' | 'test' }.
 //
@@ -102,7 +103,7 @@ export function makeOrderAlert(env, fetch) {
   const describe = (o) => {
     const items = (o.items || []).slice(0, 8).map((i) => `${i.qty || 1}× ${i.name}`).join(', ');
     return {
-      title: `🛍️ Nuevo pedido en línea${o.order_num ? ' #' + o.order_num : ''}`,
+      title: `🛍️ Nuevo pedido en línea${o.order_num ? ' #' + o.order_num : ''}${o.status === 'accepted' ? ' · aceptado automáticamente, esperando pago Clip' : ''}`,
       body: [`${o.customer_name} · ${TYPE[o.order_type] || o.order_type || ''}`, `Total ${money(o.total_cents)}`, items].filter(Boolean).join('\n'),
     };
   };
@@ -136,9 +137,21 @@ export function makeOrderAlert(env, fetch) {
       if (body.order_id != null) {
         if (typeof body.secret !== 'string' || body.secret !== cfg.hook_secret) return out({ error: 'forbidden' }, 403);
         if (!cfg.enabled || !/^[0-9]{1,20}$/.test(String(body.order_id))) return out({ ok: true, skipped: true });
-        const order = (await rows(`online_orders?id=eq.${body.order_id}&select=order_num,customer_name,total_cents,order_type,items`))[0];
+        const order = (await rows(`online_orders?id=eq.${body.order_id}&select=order_num,customer_name,total_cents,order_type,items,status`))[0];
         if (!order) return out({ error: 'not_found' }, 404);
         return out({ ok: true, ...(await fanOut(cfg, describe(order))) });
+      }
+
+      // 1a) The DB trigger: an online order was paid with Clip (auto or manually accepted).
+      if (body.paid_order_id != null) {
+        if (typeof body.secret !== 'string' || body.secret !== cfg.hook_secret) return out({ error: 'forbidden' }, 403);
+        if (!cfg.enabled || !/^[0-9]{1,20}$/.test(String(body.paid_order_id))) return out({ ok: true, skipped: true });
+        const o = (await rows(`online_orders?id=eq.${body.paid_order_id}&select=order_num,customer_name,total_cents,order_type`))[0];
+        if (!o) return out({ error: 'not_found' }, 404);
+        return out({ ok: true, ...(await fanOut(cfg, {
+          title: `💳 Pagado con Clip${o.order_num ? ' #' + o.order_num : ''}`,
+          body: [`${o.customer_name} · ${TYPE[o.order_type] || o.order_type || ''}`, `Total ${money(o.total_cents)}`].join('\n'),
+        })) });
       }
 
       // 1b) The DB trigger: a customer requested a factura (CFDI) for a sale.

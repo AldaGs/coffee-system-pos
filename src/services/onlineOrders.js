@@ -53,8 +53,22 @@ export async function acceptOnlineOrder(order, { activeCashier, myDeviceId, menu
   if (!claimed?.length) return null;
   // Use the claimed row: another station may have revised the shipping quote
   // since this inbox last rendered it.
-  order = claimed[0];
+  return openTicketForOrder(claimed[0], { activeCashier, myDeviceId, menuData, orderNum, feeLabel });
+}
 
+// Clip auto-accept (schema 4.7): the DB accepted the order on insert, so no
+// station has a ticket for it yet. Claim it by stamping order_num (one station wins).
+export async function openAutoAcceptedOrder(order, opts) {
+  const { data: claimed, error } = await supabase.from('online_orders')
+    .update({ order_num: opts.orderNum, updated_at: new Date().toISOString() })
+    .eq('id', order.id).eq('status', 'accepted').is('order_num', null).is('active_ticket_id', null).select('*');
+  if (error) throw error;
+  if (!claimed?.length) return null;
+  return openTicketForOrder(claimed[0], opts);
+}
+
+async function openTicketForOrder(order, { activeCashier, myDeviceId, menuData, orderNum, feeLabel = 'Envío' }) {
+  const clip = order.payment_method === 'clip';
   // Spread the local menu item when we have it so inventory links, category and
   // tax treatment ride along; the price always comes from the server snapshot.
   const local = new Map();

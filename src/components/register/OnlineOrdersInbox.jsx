@@ -7,7 +7,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay, toCents, fromCents } from '../../utils/moneyUtils';
 import { orderBaseUrl } from '../../utils/customDomainSync';
 import {
-  ONLINE_STATUS_RANK, acceptOnlineOrder, rejectOnlineOrder, setOnlineOrderStatus, confirmShippingQuote,
+  ONLINE_STATUS_RANK, acceptOnlineOrder, openAutoAcceptedOrder, rejectOnlineOrder, setOnlineOrderStatus, confirmShippingQuote,
   releaseClipOrder, expireClipOrder, updateOnlineOrderContact
 } from '../../services/onlineOrders';
 
@@ -90,6 +90,24 @@ export default function OnlineOrdersInbox({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, tickets, tick]);
+  // Clip auto-accept: the DB accepted these on insert; the first station to see one
+  // opens its ticket (the order_num claim keeps it single-winner).
+  const opening = useRef(false);
+  useEffect(() => {
+    const todo = orders.filter((o) => o.status === 'accepted' && o.order_num == null && o.active_ticket_id == null);
+    if (!todo.length || opening.current) return;
+    opening.current = true;
+    (async () => {
+      let n = nextOrderNum;
+      for (const o of todo) {
+        const id = await openAutoAcceptedOrder(o, { activeCashier, myDeviceId, menuData, orderNum: n, feeLabel: t('oo.deliveryFeeLine') })
+          .catch((e) => { console.warn('openAutoAcceptedOrder', e); return null; });
+        if (id != null) { showToast(t('oo.autoAccepted').replace('{{n}}', n).replace('{{name}}', o.customer_name), 'success'); n++; }
+      }
+      if (n !== nextOrderNum) setNextOrderNum(n);
+    })().finally(() => { opening.current = false; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -118,7 +136,7 @@ export default function OnlineOrdersInbox({
           return;
         }
         if (!row?.id) return;
-        if (payload.eventType === 'INSERT' && ['requested', 'quote_pending'].includes(row.status)) beep();
+        if (payload.eventType === 'INSERT' && ['requested', 'quote_pending', 'accepted'].includes(row.status)) beep();
         setOrders((p) => {
           const rest = p.filter((o) => o.id !== row.id);
           return LIVE.includes(row.status) ? [...rest, row].sort((a, b) => a.created_at.localeCompare(b.created_at)) : rest;

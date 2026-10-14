@@ -77,6 +77,19 @@ describe('order-alert', () => {
     expect(text).toContain('XAXX010101000');
   });
 
+  it('alerts when an online order is paid with Clip (secret-gated)', async () => {
+    const { f, calls } = fakeFetch([
+      ['order_alerts', () => json([{ enabled: true, hook_secret: 's3cret', telegram_token: 'T', telegram_chat_ids: ['42'] }])],
+      ['online_orders?id=eq.7', () => json([{ order_num: 3, customer_name: 'Ana', total_cents: 9900, order_type: 'pickup' }])],
+      ['api.telegram.org/botT/sendMessage', () => json({ ok: true })],
+    ]);
+    expect((await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 'no' }))).status).toBe(403);
+    expect(await (await makeOrderAlert(env, f)(post({ paid_order_id: 7, secret: 's3cret' }))).json()).toEqual({ ok: true, telegram: 1, push: 0 });
+    const text = JSON.parse(calls.find((c) => c.url.includes('sendMessage')).init.body).text;
+    expect(text).toContain('Pagado con Clip #3');
+    expect(text).toContain('$99.00');
+  });
+
   it('sends Telegram + an encrypted, VAPID-signed push for a new order', async () => {
     const keys = await vapidKeys();
     const sub = await browserSub('https://fcm.googleapis.com/fcm/send/abc');

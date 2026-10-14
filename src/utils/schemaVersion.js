@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 4.7 — Clip auto-accept (payments.clipAutoAccept, BEFORE INSERT trigger when in stock) + paid-with-Clip alert; redeploys order-alert.
 // 4.6 — active_tickets.clip_payment_id: POS Clip links auto-mark the ticket paid via clip-webhook.
 // 4.5 — CFDI request alerts: sales trigger → order-alert (push/Telegram); redeploys clip-checkout (staff POS payment links).
 // 4.4 — Optional one local delivery per slot (slots.oneDeliveryPerSlot): BEFORE INSERT trigger on online_orders + get_taken_delivery_slots (anon).
@@ -143,4 +144,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '4.6';
+export const APP_SCHEMA_VERSION = '4.7';

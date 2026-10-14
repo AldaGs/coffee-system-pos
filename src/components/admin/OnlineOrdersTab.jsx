@@ -381,6 +381,12 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                 onChange={e => setPay({ clipMinutes: e.target.value === "" ? null : Number(e.target.value) })} />
             </label>
           )}
+          {pay.methods.includes('clip') && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!pay.clipAutoAccept} onChange={e => setPay({ clipAutoAccept: e.target.checked })} />
+              <span>{t('oo.clipAutoAccept')}<br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.clipAutoAcceptHint')}</small></span>
+            </label>
+          )}
           {pay.methods.includes('transfer') && (
             <div style={{ display: 'grid', gap: 8 }}>
               {/* Shown to the customer as three boxes with copy buttons. */}
