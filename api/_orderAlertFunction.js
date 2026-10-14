@@ -82,7 +82,6 @@ export function makeOrderAlert(env, fetch) {
         // High urgency = delivered right away even in Android Doze; without it
         // pushes can wait until the phone wakes for something else.
         Urgency: 'high',
-        Topic: 'new-order',
       },
       body: await encryptPush(sub, payload),
     }).catch((e) => ({ ok: false, status: 0, text: async () => String(e) }));
