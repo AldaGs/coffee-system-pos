@@ -125,7 +125,7 @@ function ModifierLibraryTab({
               </div>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s' }}>
-                <input type="checkbox" checked={newModOption.isTextInput} onChange={(e) => setNewModOption({ ...newModOption, isTextInput: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--brand-color)' }} />
+                <input type="checkbox" className="switch" checked={newModOption.isTextInput} onChange={(e) => setNewModOption({ ...newModOption, isTextInput: e.target.checked })} style={{ width: '20px', height: '20px', accentColor: 'var(--brand-color)' }} />
                 <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>{t('mods.isTextField')}</span>
               </label>
 
@@ -243,7 +243,7 @@ function ModifierLibraryTab({
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px' }} title={t('mods.allowMultipleHint') || 'Let cashier pick more than one option from this group'}>
                         <input
-                          type="checkbox"
+                          type="checkbox" className="switch"
                           checked={!!menuData.modifierGroupSettings?.[groupKey]?.allowMultiple}
                           onChange={() => handleToggleModifierGroupMulti && handleToggleModifierGroupMulti(groupKey)}
                           style={{ accentColor: 'var(--brand-color)' }}

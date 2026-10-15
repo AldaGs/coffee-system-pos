@@ -315,7 +315,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             </label>
           )}
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 'bold', paddingBottom: '12px', whiteSpace: 'nowrap', cursor: 'pointer' }}>
-            <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
+            <input type="checkbox" className="switch" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} />
             {t('vendors.active')}
           </label>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -396,7 +396,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
 
         {itemVendorMap.size > 0 && (
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '16px', padding: '12px 14px', background: 'var(--bg-main)', borderRadius: '12px', border: '1px solid var(--border)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={useMenuFallback} onChange={(e) => setUseMenuFallback(e.target.checked)} style={{ marginTop: '2px' }} />
+            <input type="checkbox" className="switch" checked={useMenuFallback} onChange={(e) => setUseMenuFallback(e.target.checked)} style={{ marginTop: '2px' }} />
             <span>
               <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('vendors.menuFallback')}</span>
               <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('vendors.menuFallbackHint')}</span>

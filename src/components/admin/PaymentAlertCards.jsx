@@ -44,7 +44,7 @@ export function ClipCard({ input, showAlert }) {
             {status?.configured && <button type="button" onClick={() => { setKey(''); setSecret(''); setEditKeys(false); }} style={{ ...input, cursor: 'pointer', alignSelf: 'flex-start' }}>{t('common.cancel')}</button>}
           </>}
       <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-        <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+        <input type="checkbox" className="switch" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
         <span>{t('oo.clipEnabled')}</span>
       </label>
       <button type="button" onClick={save} disabled={saving} style={{ ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' }}>{t('common.save')}</button>
@@ -78,7 +78,7 @@ export function AlertsCard({ input, showAlert }) {
       <small style={{ color: 'var(--text-muted)' }}>{t('alerts.hint')}</small>
       {!status.pg_net && <small style={{ color: '#e74c3c' }}>{t('alerts.noPgNet')}</small>}
       <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-        <input type="checkbox" checked={!!status.enabled} disabled={!!busy} onChange={e => run('toggle', () => save(e.target.checked))} />
+        <input type="checkbox" className="switch" checked={!!status.enabled} disabled={!!busy} onChange={e => run('toggle', () => save(e.target.checked))} />
         <span>{t('alerts.enabled')}</span>
       </label>
 

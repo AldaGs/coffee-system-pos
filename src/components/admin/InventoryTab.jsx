@@ -902,7 +902,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
               (e.g. outsourced roasting). Reveals the roast + received dates. */}
           <div style={{ marginTop: '18px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, color: 'var(--text-main)' }}>
-              <input type="checkbox" checked={newItem.trackLots} onChange={e => setNewItem({ ...newItem, trackLots: e.target.checked })} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
+              <input type="checkbox" className="switch" checked={newItem.trackLots} onChange={e => setNewItem({ ...newItem, trackLots: e.target.checked })} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />
               <Icon icon="lucide:layers" style={{ color: '#16a085' }} />
               {t('inv.trackBatches')}
             </label>

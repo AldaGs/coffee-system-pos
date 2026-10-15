@@ -333,7 +333,7 @@ function MenuEditorTab({
               {!isLocalMode() && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px', padding: '14px 20px', background: 'var(--bg-main)', borderRadius: '16px', border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 'bold', color: 'var(--text-main)' }}>
                   <input
-                    type="checkbox"
+                    type="checkbox" className="switch"
                     checked={!newItemForm.publicHidden}
                     onChange={(e) => setNewItemForm({ ...newItemForm, publicHidden: !e.target.checked })}
                     style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }}

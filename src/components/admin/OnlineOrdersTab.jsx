@@ -165,16 +165,16 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
       <div style={{ columns: '350px', columnGap: 32 }}>
         <Card icon="lucide:power" title={t('oo.title')}>
         <label style={{ ...row, cursor: 'pointer' }}>
-          <input type="checkbox" checked={!!form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
+          <input type="checkbox" className="switch" checked={!!form.enabled} onChange={e => setForm({ ...form, enabled: e.target.checked })} />
           <span><strong>{t('oo.enabled')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.enabledDesc')}</small></span>
         </label>
         <label style={{ ...row, cursor: 'pointer' }}>
-          <input type="checkbox" checked={!!form.paused} onChange={e => setForm({ ...form, paused: e.target.checked })} />
+          <input type="checkbox" className="switch" checked={!!form.paused} onChange={e => setForm({ ...form, paused: e.target.checked })} />
           <span><strong>{t('oo.paused')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.pausedDesc')}</small></span>
         </label>
 
         <label style={{ ...row, cursor: 'pointer' }}>
-          <input type="checkbox" checked={!!delivery.enabled} onChange={e => setDelivery({ enabled: e.target.checked })} />
+          <input type="checkbox" className="switch" checked={!!delivery.enabled} onChange={e => setDelivery({ enabled: e.target.checked })} />
           <span><strong>{t('oo.deliveryOn')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.deliveryDesc')}</small></span>
         </label>
         {delivery.enabled && !!delivery.feeCents && !areas.length && <small style={{ color: '#ad6500' }}>{areaText.legacy}</small>}
@@ -192,7 +192,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
         <Card icon="lucide:map" title={areaText.title}>
           <small style={{ color: 'var(--text-muted)' }}>{areaText.desc}</small>
           <label style={{ ...row, cursor: 'pointer' }}>
-            <input type="checkbox" disabled={!!busy} checked={!!delivery.shippingEnabled} onChange={(e) => setDelivery({ shippingEnabled: e.target.checked })} />
+            <input type="checkbox" className="switch" disabled={!!busy} checked={!!delivery.shippingEnabled} onChange={(e) => setDelivery({ shippingEnabled: e.target.checked })} />
             <strong>{areaText.shipping}</strong>
           </label>
           <small style={{ color: 'var(--text-muted)' }}>{areaText.shippingHelp}</small>
@@ -236,7 +236,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                       </div>
                       <div id={detailsId} hidden={!open}>
                         {open && <fieldset disabled={!!busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 10 }}>
-                          <label style={{ ...row, cursor: 'pointer' }}><input type="checkbox" aria-label={`${area.name || areaText.name}: ${lang === 'en' ? 'enabled' : 'activa'}`} checked={!!area.enabled} onChange={(e) => setArea(area.id, { enabled: e.target.checked })} />
+                          <label style={{ ...row, cursor: 'pointer' }}><input type="checkbox" className="switch" aria-label={`${area.name || areaText.name}: ${lang === 'en' ? 'enabled' : 'activa'}`} checked={!!area.enabled} onChange={(e) => setArea(area.id, { enabled: e.target.checked })} />
                             <input aria-label={areaText.name} style={{ ...input, flex: 1, minWidth: 100 }} placeholder={areaText.name} maxLength={80} value={area.name} onChange={(e) => setArea(area.id, { name: e.target.value })} /></label>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                             <select aria-label={`${area.name || areaText.name}: ${areaText.radius} / ${areaText.polygon}`} style={input} value={area.kind} onChange={(e) => setArea(area.id, { kind: e.target.value })}>
@@ -263,7 +263,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
         <Card icon="lucide:store" title={t('oo.storeHours')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.storeHoursDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!oh.always}
+            <input type="checkbox" className="switch" checked={!!oh.always}
               onChange={e => setOh({ always: e.target.checked, rules: !e.target.checked && !oh.rules.length ? [{ days: 0, start: '09:00', end: '21:00' }] : oh.rules })} />
             <span>{t('oo.alwaysOpen')}</span>
           </label>
@@ -319,7 +319,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <strong>{t('oo.slots')}</strong>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!sl.enabled} onChange={e => setSl({ enabled: e.target.checked })} />
+            <input type="checkbox" className="switch" checked={!!sl.enabled} onChange={e => setSl({ enabled: e.target.checked })} />
             <span>{t('oo.slotsEnable')}</span>
           </label>
           <small style={{ color: 'var(--text-muted)' }}>{sl.enabled ? t('oo.slotsDesc') : t('oo.slotsOffDesc')}</small>
@@ -332,12 +332,12 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
             <label>{t('oo.slotLead')} <input type="number" min="0" max="1440" style={{ ...input, width: 90 }} value={sl.leadMinutes} onChange={num('leadMinutes', 1440)} /></label>
           </div>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!sl.oneDeliveryPerSlot} onChange={e => setSl({ oneDeliveryPerSlot: e.target.checked })} />
+            <input type="checkbox" className="switch" checked={!!sl.oneDeliveryPerSlot} onChange={e => setSl({ oneDeliveryPerSlot: e.target.checked })} />
             <span>{t('oo.oneDeliveryPerSlot')}</span>
           </label>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.oneDeliveryPerSlotDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" checked={!sl.hours} onChange={e => setSl({ hours: e.target.checked ? null : { days: 0, start: '', end: '' } })} />
+            <input type="checkbox" className="switch" checked={!sl.hours} onChange={e => setSl({ hours: e.target.checked ? null : { days: 0, start: '', end: '' } })} />
             <span>{t('oo.slotSameHours')}</span>
           </label>
           {sl.hours && (<>
@@ -383,7 +383,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           )}
           {pay.methods.includes('clip') && (
             <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
-              <input type="checkbox" checked={!!pay.clipAutoAccept} onChange={e => setPay({ clipAutoAccept: e.target.checked })} />
+              <input type="checkbox" className="switch" checked={!!pay.clipAutoAccept} onChange={e => setPay({ clipAutoAccept: e.target.checked })} />
               <span>{t('oo.clipAutoAccept')}<br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.clipAutoAcceptHint')}</small></span>
             </label>
           )}
@@ -404,7 +404,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
         <Card icon="lucide:receipt" title={t('oo.ticket')}>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.ticketDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
-            <input type="checkbox" checked={showIva} onChange={e => setForm({ ...form, ticket: { ...form.ticket, showIva: e.target.checked } })} />
+            <input type="checkbox" className="switch" checked={showIva} onChange={e => setForm({ ...form, ticket: { ...form.ticket, showIva: e.target.checked } })} />
             <span>{t('oo.ticketShowIva')}</span>
           </label>
           <OrderTicket style={{ maxWidth: 360 }} items={lines} deliveryFeeCents={fee}

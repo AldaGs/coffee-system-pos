@@ -392,11 +392,11 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.priorityHint')}</span>
               </div>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>
-                <input type="checkbox" checked={!!newRule.allowStack} onChange={(e) => patch({ allowStack: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }} />
+                <input type="checkbox" className="switch" checked={!!newRule.allowStack} onChange={(e) => patch({ allowStack: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }} />
                 {t('disc.allowStack')}
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem' }}>
-                <input type="checkbox" checked={!!newRule.requireApproval} onChange={(e) => patch({ requireApproval: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }} />
+                <input type="checkbox" className="switch" checked={!!newRule.requireApproval} onChange={(e) => patch({ requireApproval: e.target.checked })} style={{ width: '18px', height: '18px', accentColor: 'var(--brand-color)' }} />
                 {t('disc.requireApproval')}
               </label>
               {newRule.requireApproval && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.requireApprovalHint')}</span>}

@@ -429,7 +429,7 @@ function LiveMenuOptions({ menu, onChange, showAlert }) {
     <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
         <input
-          type="checkbox"
+          type="checkbox" className="switch"
           checked={data.hide_out_of_stock === true}
           onChange={e => patch({ hide_out_of_stock: e.target.checked })}
         />
@@ -443,7 +443,7 @@ function LiveMenuOptions({ menu, onChange, showAlert }) {
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
         <input
-          type="checkbox"
+          type="checkbox" className="switch"
           checked={data.show_modifiers !== false}
           onChange={e => patch({ show_modifiers: e.target.checked })}
         />
@@ -539,7 +539,7 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
         <input
-          type="checkbox"
+          type="checkbox" className="switch"
           checked={data.hide_out_of_stock !== false}
           onChange={e => patch({ hide_out_of_stock: e.target.checked })}
         />
@@ -553,7 +553,7 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
         <input
-          type="checkbox"
+          type="checkbox" className="switch"
           checked={data.show_modifiers !== false}
           onChange={e => patch({ show_modifiers: e.target.checked })}
         />
@@ -568,7 +568,7 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
       {template === 'list' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
           <input
-            type="checkbox"
+            type="checkbox" className="switch"
             checked={data.list_show_images === true}
             onChange={e => patch({ list_show_images: e.target.checked })}
           />
