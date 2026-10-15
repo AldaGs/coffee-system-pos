@@ -737,6 +737,36 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
           style={inputStyle}
         />
       </Field>
+
+      <Field label="Logo para la página de pedidos (opcional, URL https; si no, se usa el logo de la tienda)">
+        <input
+          type="url"
+          placeholder="https://tu-sitio.com/logo.png"
+          defaultValue={theme.logo_url || ''}
+          onBlur={e => patchTheme({ logo_url: e.target.value.trim() })}
+          style={inputStyle}
+        />
+      </Field>
+
+      <Field label="Sitio web de la tienda (opcional, enlace en el encabezado de pedidos)">
+        <input
+          type="url"
+          placeholder="https://tu-sitio.com"
+          defaultValue={theme.home_url || ''}
+          onBlur={e => patchTheme({ home_url: e.target.value.trim() })}
+          style={inputStyle}
+        />
+      </Field>
+
+      <Field label="CSS personalizado para la página de pedidos (avanzado: .tp-order, .tp-header)">
+        <textarea
+          rows={6}
+          placeholder=".tp-order button { border-radius: 999px; }"
+          defaultValue={theme.custom_css || ''}
+          onBlur={e => patchTheme({ custom_css: e.target.value })}
+          style={{ ...inputStyle, fontFamily: 'monospace', resize: 'vertical' }}
+        />
+      </Field>
     </div>
   );
 }

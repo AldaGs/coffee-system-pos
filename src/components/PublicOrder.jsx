@@ -15,6 +15,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createPageTracker } from '../utils/pageTracker';
 import { Icon } from '@iconify/react';
 import { formatForDisplay } from '../utils/moneyUtils';
+import { applyTheme } from '../utils/menuTheme';
 import OrderTicket from './OrderTicket';
 import LegalLinks from './LegalLinks';
 import TransferDetails from './TransferDetails';
@@ -54,6 +55,12 @@ const menuColors = (d) => {
     accent: t.accent || d?.menu?.data?.accent_color || d?.shop?.brand_color || '#f28b05',
     background: t.background || '#fafafa',
     text: t.text || '#222',
+    // Typography + optional storefront overrides, so a shop's order page can match its own site.
+    fontFamily: t.font_preset || t.google_font_url ? applyTheme(t).fontFamily : undefined,
+    fontUrl: /^https:\/\/fonts\.googleapis\.com\//.test(t.google_font_url || '') ? t.google_font_url : '',
+    customCss: t.custom_css || '',
+    homeUrl: /^https?:\/\//.test(t.home_url || '') ? t.home_url : '',
+    logoUrl: /^https:\/\//.test(t.logo_url || '') ? t.logo_url : '',
   };
 };
 
@@ -201,7 +208,9 @@ function useWide() {
 // always sit at the very bottom (below short pages, after everything on long ones).
 function Page({ client, lang, colors, bottomPad = 16, children }) {
   return (
-    <div style={colors ? { ...pageStyle, background: colors.background, color: colors.text } : pageStyle}>
+    <div className="tp-order" style={colors ? { ...pageStyle, background: colors.background, color: colors.text, ...(colors.fontFamily && { fontFamily: colors.fontFamily }) } : pageStyle}>
+      {colors?.fontUrl && <link rel="stylesheet" href={colors.fontUrl} />}
+      {colors?.customCss && <style>{colors.customCss}</style>}
       <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
         {children}
         <footer style={{ marginTop: 'auto', textAlign: 'center', color: '#888', fontSize: '0.8rem', padding: `24px 16px ${bottomPad}px` }}>
@@ -444,7 +453,7 @@ function Order({ client, lang, setLang }) {
   const fmt = (c) => formatForDisplay(c, lang);
 
   const openCart = () => (wide ? asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : setCheckingOut(true));
-  const header = <ShopHeader shop={{ ...data.shop, brand_color: brand }} lang={lang} setLang={setLang} cartCount={count} onCart={gate ? null : openCart} cartLabel={s.cart} />;
+  const header = <ShopHeader shop={{ ...data.shop, brand_color: brand, home_url: colors.homeUrl, logo: colors.logoUrl || data.shop?.logo }} lang={lang} setLang={setLang} cartCount={count} onCart={gate ? null : openCart} cartLabel={s.cart} />;
   // Not taking orders (closed / paused / disabled): same menu, read-only, with a banner on top.
   const banner = gate && <GateBanner s={s} gate={gate} shop={data.shop} />;
   if (categories.length === 0) return <Page client={client} lang={lang} colors={colors}>{header}<div style={{ padding: 32, textAlign: 'center' }}>{s.noMenu}</div></Page>;
@@ -798,9 +807,11 @@ function GateBanner({ s, gate, shop }) {
 // Brand-colored top bar (logo + name + language toggle), shared by /order and the tracker.
 function ShopHeader({ shop, lang, setLang, cartCount, onCart, cartLabel }) {
   return (
-    <header style={{ background: shop?.brand_color || '#f28b05', color: 'white', padding: '20px 20px', textAlign: 'center', position: 'relative' }}>
+    <header className="tp-header" style={{ background: shop?.brand_color || '#f28b05', color: 'white', padding: '20px 20px', textAlign: 'center', position: 'relative' }}>
       {shop?.logo && <img src={shop.logo} alt="" style={{ display: 'block', margin: '0 auto 8px', maxHeight: 56, maxWidth: 160, objectFit: 'contain' }} />}
-      <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{shop?.name || 'Menu'}</h1>
+      <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>
+        {shop?.home_url ? <a href={shop.home_url} style={{ color: 'inherit', textDecoration: 'none' }}>{shop?.name || 'Menu'}</a> : (shop?.name || 'Menu')}
+      </h1>
       <button type="button" onClick={() => setLang(lang === 'es' ? 'en' : 'es')}
         style={{ position: 'absolute', right: 12, top: 12, background: 'rgba(255,255,255,0.25)', border: 'none', color: 'white', borderRadius: 8, padding: '4px 10px', fontWeight: 700, cursor: 'pointer' }}>
         {lang === 'es' ? 'EN' : 'ES'}
@@ -1024,7 +1035,7 @@ function Track({ client, token, lang, setLang }) {
   return (
     <Page client={client} lang={lang} colors={colors}>
       <style>{'.tp-marquee{scrollbar-width:none}.tp-marquee::-webkit-scrollbar{display:none}'}</style>
-      <ShopHeader shop={{ ...shop, brand_color: brand }} lang={lang} setLang={setLang} />
+      <ShopHeader shop={{ ...shop, brand_color: brand, home_url: colors?.homeUrl, logo: colors?.logoUrl || shop?.logo }} lang={lang} setLang={setLang} />
       <div style={{ maxWidth: 480, width: '100%', boxSizing: 'border-box', margin: '0 auto', padding: 24 }}>
         <h2 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           {s.track}
