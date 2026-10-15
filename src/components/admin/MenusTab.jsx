@@ -739,7 +739,7 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
       </Field>
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer' }}>
-        <input type="checkbox" checked={!!theme.hide_title} onChange={e => patchTheme({ hide_title: e.target.checked })} />
+        <input type="checkbox" className="switch" checked={!!theme.hide_title} onChange={e => patchTheme({ hide_title: e.target.checked })} />
         Ocultar el nombre de la tienda en la página de pedidos (útil si el logo ya lo incluye)
       </label>
 
