@@ -753,7 +753,7 @@ function Order({ client, lang, setLang }) {
 
       {!wide && !gate && count > 0 && !checkingOut && (
         <button type="button" className="tp-up" onClick={() => setCheckingOut(true)}
-          style={{ position: 'fixed', left: 16, right: 16, bottom: 16, background: brand, color: 'white', border: 'none', borderRadius: 14, padding: 16, fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
+          style={{ position: 'fixed', left: 16, right: 16, bottom: 16, zIndex: 10, background: brand, color: 'white', border: 'none', borderRadius: 14, padding: 16, fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.25)' }}>
           {s.cart} ({count}) · {fmt(total)}
         </button>
       )}
