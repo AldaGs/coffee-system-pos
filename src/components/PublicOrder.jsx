@@ -813,7 +813,7 @@ function ShopHeader({ shop, lang, setLang, cartCount, onCart, cartLabel }) {
     <header className="tp-header" style={{ background: shop?.brand_color || '#f28b05', color: 'white', padding: '20px 20px', textAlign: 'center', position: 'relative' }}>
       {shop?.logo && (() => {
         const img = <img src={shop.logo} alt={shop.home_url ? (shop.name || 'Inicio') : ''} style={{ display: 'block', margin: '0 auto 8px', maxHeight: 56, maxWidth: 160, objectFit: 'contain' }} />;
-        return shop.home_url ? <a href={shop.home_url} style={{ display: 'inline-block' }}>{img}</a> : img;
+        return shop.home_url ? <a href={shop.home_url} style={{ display: 'block' }}>{img}</a> : img;
       })()}
       <h1 style={shop?.hide_title ? srOnly : { margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>
         {shop?.home_url ? <a href={shop.home_url} style={{ color: 'inherit', textDecoration: 'none' }}>{shop?.name || 'Menu'}</a> : (shop?.name || 'Menu')}
