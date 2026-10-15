@@ -10,6 +10,20 @@ const labelStyle = { fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text
 const sectionStyle = { display: 'flex', flexDirection: 'column', gap: '14px', padding: '18px', borderRadius: '16px', background: 'var(--bg-main)', border: '1px solid var(--border)' };
 const sectionTitleStyle = { margin: 0, fontSize: '0.8rem', fontWeight: '900', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '8px' };
 
+// Collapsible optional section; shows how many options inside are set so nothing hides silently.
+function Section({ icon, title, count, children }) {
+  return (
+    <details style={{ ...sectionStyle, gap: 0 }}>
+      <summary style={{ ...sectionTitleStyle, cursor: 'pointer', listStyle: 'none' }}>
+        <Icon icon={icon} /> {title}
+        {count > 0 && <span style={{ background: 'var(--brand-color)', color: 'white', borderRadius: '999px', padding: '1px 8px', fontSize: '0.7rem' }}>{count}</span>}
+        <Icon icon="lucide:chevron-down" style={{ marginLeft: 'auto' }} />
+      </summary>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '14px' }}>{children}</div>
+    </details>
+  );
+}
+
 function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, handleToggleDiscountRule, handleDeleteDiscountRule, showAlert, showConfirm }) {
   const { t } = useTranslation();
 
@@ -36,6 +50,8 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
     patch({ comboItems: next });
   };
   const removeComboItem = (idx) => patch({ comboItems: (newRule.comboItems || []).filter((_, i) => i !== idx) });
+
+  const countSet = (...vals) => vals.filter(v => (Array.isArray(v) ? v.length : v && v !== 'any')).length;
 
   const toggleDay = (d) => {
     const days = newRule.days || [];
@@ -169,7 +185,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
             </div>
 
             {/* Standard reward fields */}
-            {!isBogo && (
+            {!isBogo && !isCombo && (
               <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -281,9 +297,9 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
             )}
 
             {/* CONDITIONS */}
-            <div style={sectionStyle}>
-              <h4 style={sectionTitleStyle}><Icon icon="lucide:sliders-horizontal" /> {t('disc.conditionsTitle')}</h4>
-              <p style={{ margin: '-6px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('disc.conditionsHint')}</p>
+            <p style={{ margin: '4px 0 -8px', ...labelStyle }}>{t('disc.moreOptions')}</p>
+            <Section icon="lucide:sliders-horizontal" title={t('disc.conditionsTitle')} count={countSet(newRule.requiredItems, newRule.minSubtotal, newRule.customer)}>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('disc.conditionsHint')}</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={labelStyle}>{t('disc.requiredItems')}</label>
@@ -317,11 +333,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                   <option value="nonmember">{t('disc.customerNonmember')}</option>
                 </select>
               </div>
-            </div>
+            </Section>
 
             {/* SCHEDULE */}
-            <div style={sectionStyle}>
-              <h4 style={sectionTitleStyle}><Icon icon="lucide:calendar-clock" /> {t('disc.scheduleTitle')}</h4>
+            <Section icon="lucide:calendar-clock" title={t('disc.scheduleTitle')} count={countSet(newRule.days, newRule.startDate, newRule.endDate, newRule.startTime, newRule.endTime)}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={labelStyle}>{t('disc.days')}</label>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -357,12 +372,11 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                   <input type="time" value={newRule.endTime} onChange={(e) => patch({ endTime: e.target.value })} style={inputStyle} />
                 </div>
               </div>
-            </div>
+            </Section>
 
             {/* LIMITS (usage caps & budget) */}
-            <div style={sectionStyle}>
-              <h4 style={sectionTitleStyle}><Icon icon="lucide:gauge" /> {t('disc.limitsTitle')}</h4>
-              <p style={{ margin: '-6px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('disc.limitsHint')}</p>
+            <Section icon="lucide:gauge" title={t('disc.limitsTitle')} count={countSet(newRule.maxRedemptions, newRule.maxPerDay, newRule.maxBudget, newRule.maxDiscount)}>
+              <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('disc.limitsHint')}</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <label style={labelStyle}>{t('disc.maxRedemptions')}</label>
@@ -381,11 +395,10 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 <label style={labelStyle}>{t('disc.maxDiscount')}</label>
                 <input type="number" min="0" step="0.01" placeholder={t('disc.minSubtotalPlaceholder')} value={newRule.maxDiscount} onChange={(e) => patch({ maxDiscount: e.target.value })} style={inputStyle} />
               </div>
-            </div>
+            </Section>
 
             {/* COMBINATION + RECURRENCE */}
-            <div style={sectionStyle}>
-              <h4 style={sectionTitleStyle}><Icon icon="lucide:layers" /> {t('disc.combinationTitle')}</h4>
+            <Section icon="lucide:layers" title={t('disc.combinationTitle')} count={countSet(Number(newRule.priority), newRule.allowStack, newRule.requireApproval, newRule.usage === 'once')}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <label style={labelStyle}>{t('disc.priority')}</label>
                 <input type="number" value={newRule.priority} onChange={(e) => patch({ priority: e.target.value })} style={inputStyle} />
@@ -411,7 +424,7 @@ function DiscountsTab({ menuData, newRule, setNewRule, handleAddDiscountRule, ha
                 ))}
               </div>
               {(newRule.usage === 'once') && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{t('disc.onceHint')}</span>}
-            </div>
+            </Section>
 
             <button onClick={handleSubmit}
               style={{ padding: '16px', background: '#27ae60', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '4px', boxShadow: '0 8px 20px rgba(39, 174, 96, 0.2)' }}>
