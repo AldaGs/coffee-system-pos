@@ -171,6 +171,9 @@ function PublicCFDI({ ticketId }) {
         }
 
         setSale(data.ticket);
+        // Owner flagged fields when reopening → show them as field errors.
+        const flagged = data.ticket?.cfdi_reopen_note?.fields || [];
+        if (flagged.length) setFieldErrors(Object.fromEntries(flagged.map(k => [k, 'Revisa este dato'])));
         setGlobalPeriod(data.global_period || null);
         if (data.profile) setFormData(Object.fromEntries(Object.entries(data.profile).map(([k, v]) => [k, v ?? ''])));
       } catch (err) {
@@ -387,6 +390,8 @@ function PublicCFDI({ ticketId }) {
   const isRequested = sale?.cfdi_status === 'requested';
   const isReopened = sale?.cfdi_status === 'reopened';
   const isCanceled = sale?.cfdi_status === 'canceled';
+  const reopenNote = isReopened ? sale?.cfdi_reopen_note : null;
+  const FIELD_LABELS = { rfc: 'RFC', razon_social: 'Razón Social', cp: 'Código Postal', regimen_fiscal: 'Régimen Fiscal', uso_cfdi: 'Uso del CFDI', email: 'Correo' };
 
   // The month's global invoice has been issued and the customer never requested
   // an individual factura before then → the ticket is already covered by the
@@ -524,6 +529,10 @@ function PublicCFDI({ ticketId }) {
               <div>
                 <strong style={{ display: 'block', marginBottom: '5px' }}>Información Incompleta / Incorrecta</strong>
                 <span>Por favor revisa y corrige tus datos fiscales para poder emitir la factura.</span>
+                {reopenNote?.fields?.length > 0 && (
+                  <span style={{ display: 'block', marginTop: '6px' }}>Revisa: <strong>{reopenNote.fields.map(k => FIELD_LABELS[k] || k).join(', ')}</strong></span>
+                )}
+                {reopenNote?.note && <span style={{ display: 'block', marginTop: '6px', fontStyle: 'italic' }}>"{reopenNote.note}"</span>}
               </div>
             </div>
           )}

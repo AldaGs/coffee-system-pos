@@ -8,6 +8,12 @@ import InfoTip from '../shared/InfoTip';
 
 const ZIP_BUCKET = 'cfdi';
 const ZIP_DAYS = 90; // must match cfdi_lookup_ticket (migration 064)
+// Fields the owner can flag when reopening; keys match fiscal_profiles / the public form.
+const REOPEN_FIELDS = [
+  ['rfc', 'RFC'], ['razon_social', 'Razón Social'], ['cp', 'C.P.'],
+  ['regimen_fiscal', 'Régimen Fiscal'], ['uso_cfdi', 'Uso CFDI'], ['email', 'Email'],
+];
+const reopenFieldLabel = (key) => REOPEN_FIELDS.find(([k]) => k === key)?.[1] || key;
 
 // Supabase Storage has no expiry rules, so the admin tab cleans up: any ZIP
 // past its window is deleted and the sale forgets the path. Fire-and-forget.
@@ -27,6 +33,7 @@ function CfdiTab({ showAlert, showConfirm }) {
   const [filter, setFilter] = useState('pending'); // 'pending' (requested, reopened) | 'issued'
   
   const [folioModal, setFolioModal] = useState({ isOpen: false, item: null, folio: '' });
+  const [reopenModal, setReopenModal] = useState(null); // { item, fields: [], note: '' }
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Custom Domain State
@@ -244,26 +251,27 @@ function CfdiTab({ showAlert, showConfirm }) {
     showAlert('Copiado', `${label} copiado al portapapeles`);
   };
 
-  const handleReopen = (item) => {
-    showConfirm('Reabrir Solicitud', '¿Estás seguro de que deseas reabrir esta solicitud? El cliente podrá editar y reenviar sus datos fiscales.', async () => {
-      try {
-        setIsSubmitting(true);
-        const { error } = await supabase
-          .from(item.sourceTable)
-          .update({ cfdi_status: 'reopened' })
-          .eq(item.sourceTable === 'sales' ? 'id' : 'id', item.id);
-          
-        if (error) throw error;
-        
-        showAlert(t('toast.success'), 'Solicitud reabierta');
-        fetchRequests();
-      } catch (err) {
-        console.error(err);
-        showAlert(t('common.error'), 'Error al reabrir solicitud');
-      } finally {
-        setIsSubmitting(false);
-      }
-    });
+  const handleReopen = async () => {
+    const { item, fields, note } = reopenModal;
+    try {
+      setIsSubmitting(true);
+      const reopenNote = fields.length || note.trim() ? { fields, note: note.trim() } : null;
+      const { error } = await supabase
+        .from(item.sourceTable)
+        .update({ cfdi_status: 'reopened', cfdi_reopen_note: reopenNote })
+        .eq('id', item.id);
+
+      if (error) throw error;
+
+      showAlert(t('toast.success'), 'Solicitud reabierta');
+      setReopenModal(null);
+      fetchRequests();
+    } catch (err) {
+      console.error(err);
+      showAlert(t('common.error'), 'Error al reabrir solicitud');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleMarkIssued = async () => {
@@ -752,12 +760,22 @@ function CfdiTab({ showAlert, showConfirm }) {
                 </div>
               )}
 
+              {req.cfdi_status === 'reopened' && req.cfdi_reopen_note && (
+                <p style={{ margin: 0, fontSize: '0.85rem', color: '#d68910', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                  <Icon icon="lucide:message-square-warning" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <span>
+                    {req.cfdi_reopen_note.fields?.length > 0 && <strong>Revisar: {req.cfdi_reopen_note.fields.map(reopenFieldLabel).join(', ')}. </strong>}
+                    {req.cfdi_reopen_note.note}
+                  </span>
+                </p>
+              )}
+
               {/* Actions */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
                 {(req.cfdi_status === 'requested' || req.cfdi_status === 'reopened' || req.cfdi_status === 'canceled') && (
                   <button 
                     disabled={isSubmitting}
-                    onClick={() => handleReopen(req)} 
+                    onClick={() => setReopenModal({ item: req, fields: [], note: '' })}
                     style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
                   >
                     {req.cfdi_status === 'canceled' ? 'Generar nueva solicitud' : 'Reabrir Solicitud'}
@@ -800,6 +818,47 @@ function CfdiTab({ showAlert, showConfirm }) {
         </div>
       )}
 
+      {reopenModal && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ maxWidth: '400px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: 'var(--text-main)' }}>Reabrir Solicitud</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '16px', fontSize: '0.9rem' }}>
+              El cliente podrá corregir y reenviar sus datos. Marca lo que está mal o déjale una nota.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+              {REOPEN_FIELDS.map(([key, label]) => {
+                const on = reopenModal.fields.includes(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setReopenModal(prev => ({ ...prev, fields: on ? prev.fields.filter(k => k !== key) : [...prev.fields, key] }))}
+                    style={{ padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', background: on ? 'rgba(231, 76, 60, 0.1)' : 'var(--bg-main)', color: on ? '#c0392b' : 'var(--text-muted)', border: `1px solid ${on ? '#e74c3c' : 'var(--border)'}` }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea
+              value={reopenModal.note}
+              onChange={(e) => setReopenModal(prev => ({ ...prev, note: e.target.value }))}
+              placeholder="Nota para el cliente (opcional). Ej. El C.P. no coincide con tu constancia."
+              maxLength={500}
+              rows={3}
+              style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '0.95rem', outline: 'none', resize: 'vertical', marginBottom: '20px', fontFamily: 'inherit' }}
+            />
+            <div className="modal-actions">
+              <button onClick={() => setReopenModal(null)} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
+              <button onClick={handleReopen} className="btn-confirm" disabled={isSubmitting} style={{ flex: 1 }}>
+                {isSubmitting ? 'Guardando...' : 'Reabrir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Emitir Folio Modal */}
       {folioModal.isOpen && (
         <div className="modal-overlay">
@@ -833,16 +892,22 @@ function CfdiTab({ showAlert, showConfirm }) {
             {folioModal.item?.sourceTable === 'sales' && (
               <div style={{ marginBottom: '20px' }}>
                 <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>ZIP de la factura (XML + PDF) — opcional</label>
-                <input
-                  type="file"
-                  accept=".zip,application/zip"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] || null;
-                    if (f && f.size > 5 * 1024 * 1024) { e.target.value = ''; showAlert(t('common.error'), 'El ZIP no puede pesar más de 5 MB'); return; }
-                    setFolioModal(prev => ({ ...prev, zip: f }));
-                  }}
-                  style={{ width: '100%', color: 'var(--text-main)' }}
-                />
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', border: '2px dashed var(--border)', background: 'var(--bg-main)', cursor: 'pointer', minWidth: 0 }}>
+                  <Icon icon="lucide:upload" style={{ color: 'var(--brand-color)', flexShrink: 0 }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: folioModal.zip ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                    {folioModal.zip ? folioModal.zip.name : 'Seleccionar archivo .zip'}
+                  </span>
+                  <input
+                    type="file"
+                    accept=".zip,application/zip"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0] || null;
+                      if (f && f.size > 5 * 1024 * 1024) { e.target.value = ''; showAlert(t('common.error'), 'El ZIP no puede pesar más de 5 MB'); return; }
+                      setFolioModal(prev => ({ ...prev, zip: f }));
+                    }}
+                    style={{ display: 'none' }}
+                  />
+                </label>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '6px 0 0' }}>
                   El cliente podrá descargarlo durante {ZIP_DAYS} días desde su enlace de facturación.
                 </p>
