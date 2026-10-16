@@ -154,10 +154,13 @@ export default function PinMap({ pin, address, onPin, s, areas = [], lang = 'es'
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-        <button type="button" style={btn} onClick={locate}>{s.pinUseMine}</button>
         <button type="button" style={btn} onClick={search}>{s.pinSearch}</button>
-        <button type="button" style={btn} aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? s.pinReduce : s.pinExpand}</button>
+        <button type="button" style={{ ...btn, display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={locate}>
+          <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="7" /><circle cx="12" cy="12" r="2.5" fill="currentColor" /><path d="M12 1v4M12 19v4M1 12h4M19 12h4" /></svg>
+          {s.pinUseMine}
+        </button>
         {pin && <button type="button" style={btn} onClick={() => { marker.current?.remove(); marker.current = null; cb.current(null, null); }}>{s.pinClear}</button>}
+        <button type="button" style={btn} aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>{expanded ? s.pinReduce : s.pinExpand}</button>
       </div>
       <div ref={el} style={{ height: expanded ? 'min(65dvh, 600px)' : 220, borderRadius: 10, border: '1px solid #ddd', zIndex: 0 }} />
       {coverage.length > 0 && <div style={{ marginTop: 8, display: 'grid', gap: 6 }}>
