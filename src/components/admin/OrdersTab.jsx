@@ -27,6 +27,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
   const { recipes } = useMenuStore();
   const { showAlert, showPrompt, showConfirm } = useDialog();
   const [sharingOrder, setSharingOrder] = useState(null);
+  const [search, setSearch] = useState('');
 
   const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
 
@@ -709,7 +710,12 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
         </button>
     </div>
   );
-  const orderRows = dexieSales.map(order => ({
+  // Match ticket name ("5E2 - Pururu (#82)"), ticket id, or row id. Scoped to the time filter above.
+  const q = search.trim().toLowerCase();
+  const visibleSales = q
+    ? dexieSales.filter(o => [o.order_name, o.ticket_id, o.local_id, o.id].some(v => v != null && String(v).toLowerCase().includes(q)))
+    : dexieSales;
+  const orderRows = visibleSales.map(order => ({
     id: String(order.id),
     order,
     name: order.order_name || (order.ticket_id ? order.ticket_id.slice(-6) : `#${order.id}`),
@@ -748,6 +754,17 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('orders.subtitle')}</p>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative' }}>
+            <Icon icon="lucide:search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={lang === 'es' ? 'Buscar ticket, nombre o #id' : 'Search ticket, name or #id'}
+              aria-label={lang === 'es' ? 'Buscar ticket' : 'Search ticket'}
+              style={{ padding: '12px 16px 12px 38px', borderRadius: '12px', border: '1px solid var(--border)', fontWeight: 'bold', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', minWidth: '240px' }}
+            />
+          </div>
           <div style={{ position: 'relative' }}>
             <Icon icon="lucide:calendar" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
             <select value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} style={{ padding: '12px 16px 12px 38px', borderRadius: '12px', border: '1px solid var(--border)', fontWeight: 'bold', background: 'var(--bg-surface)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
@@ -799,7 +816,12 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {dexieSales.length > 0 && (
+        {dexieSales.length > 0 && visibleSales.length === 0 && (
+          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px 0', fontWeight: 'bold' }}>
+            {lang === 'es' ? `Sin resultados para "${search}"` : `No results for "${search}"`}
+          </p>
+        )}
+        {visibleSales.length > 0 && (
           <div className="arc">
             <SortableDataTable
               rows={orderRows}
