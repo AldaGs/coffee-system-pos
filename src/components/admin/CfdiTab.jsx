@@ -864,12 +864,12 @@ function CfdiTab({ showAlert, showConfirm }) {
             <div key={`${req.sourceTable}-${req.id}`} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               
               {/* Header Info */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
-                <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
+                <div style={{ minWidth: 0 }}>
                   <h3 style={{ margin: '0 0 5px 0', color: 'var(--text-main)', fontSize: '1.2rem' }}>
                     {req.order_name || req.name || `Ticket #${req.ticket_id || req.id}`}
                   </h3>
-                  <div style={{ display: 'flex', gap: '15px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  <div style={{ display: 'flex', gap: '6px 15px', flexWrap: 'wrap', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Icon icon="lucide:calendar" /> {new Date(req.created_at).toLocaleString()}
                     </span>
@@ -878,11 +878,11 @@ function CfdiTab({ showAlert, showConfirm }) {
                     </span>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
                   {req.cfdi_status === 'requested' && <span style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>Solicitado</span>}
                   {req.cfdi_status === 'reopened' && <span style={{ background: 'rgba(243, 156, 18, 0.1)', color: '#d68910', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>Reabierto</span>}
                   {req.cfdi_status === 'issued' && (
-                    <span style={{ background: 'rgba(46, 204, 113, 0.1)', color: '#27ae60', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ background: 'rgba(46, 204, 113, 0.1)', color: '#27ae60', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px', minWidth: 0, overflowWrap: 'anywhere' }}>
                       Emitido: {req.cfdi_folio}
                       <button onClick={(e) => { e.stopPropagation(); handleCopy(req.cfdi_folio, 'Folio Fiscal'); }} style={{ background: 'none', border: 'none', color: '#27ae60', cursor: 'pointer', padding: 0, display: 'flex' }}>
                         <Icon icon="lucide:copy" />
@@ -891,7 +891,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                   )}
                   {req.cfdi_status === 'canceled' && <span style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#c0392b', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>Cancelado</span>}
                   
-                  <button onClick={() => handleShareCFDI(req)} title="Copiar Enlace CFDI" style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px', borderRadius: '50%', cursor: 'pointer', display: 'flex' }}>
+                  <button onClick={() => handleShareCFDI(req)} title="Copiar Enlace CFDI" style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px', borderRadius: '50%', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
                     <Icon icon="lucide:link" />
                   </button>
                 </div>
@@ -963,7 +963,7 @@ function CfdiTab({ showAlert, showConfirm }) {
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', flexWrap: 'wrap', marginTop: '10px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
                 {(req.cfdi_status === 'requested' || req.cfdi_status === 'reopened' || req.cfdi_status === 'canceled') && (
                   <button 
                     disabled={isSubmitting}
