@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { supabase } from '../../supabaseClient';
 import { formatForDisplay } from '../../utils/moneyUtils';
+import InfoTip from '../shared/InfoTip';
 
 const RANGE_DAYS = { today: 1, week: 7, month: 30, all: null };
 
@@ -105,7 +106,7 @@ function LoyaltyTab({ loyaltyForm, setLoyaltyForm, menuData, saveSettingsToCloud
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: '40px' }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('loyalty.title')}</h1>
+        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('loyalty.title')}{' '}<InfoTip text={t('pageInfo.loyalty')} section="loyalty" /></h1>
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('loyalty.subtitle')}</p>
       </div>
 

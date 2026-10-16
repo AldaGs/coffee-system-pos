@@ -5,6 +5,7 @@ import { supabase } from '../../supabaseClient';
 import { isLocalMode } from '../../utils/appMode';
 import { useTranslation } from '../../hooks/useTranslation';
 import { BarChart } from '../ui/arc';
+import InfoTip from '../shared/InfoTip';
 
 const DAY = 86400000;
 const card = { background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', minWidth: 0 };
@@ -106,7 +107,7 @@ function TrafficReport({ page }) {
       ))}
     </div>
   );
-  const note = <p style={{ ...muted, marginTop: 0, marginBottom: '20px' }}>{t('traffic.privacyNote')}</p>;
+  const note = <p style={{ ...muted, marginTop: 0, marginBottom: '20px' }}>{t('traffic.privacyNote')}{' '}<InfoTip text={t('traffic.privacyInfo')} section={page === 'order' ? 'onlineOrders' : 'menus'} /></p>;
 
   if (state.error) {
     // Most likely the install predates schema 4.2 (the RPC doesn't exist yet).

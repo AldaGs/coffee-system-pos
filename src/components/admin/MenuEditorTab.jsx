@@ -11,6 +11,7 @@ import { isLocalMode } from '../../utils/appMode';
 import { isMenuItemSoldOut } from '../../utils/inventoryMath';
 import { orderBaseUrl } from '../../utils/customDomainSync';
 import { itemOrderLink } from '../../utils/orderDeepLink';
+import InfoTip from '../shared/InfoTip';
 
 // Base /order URL for this shop (custom order domain when linked). ?p= always
 // works, on any host, and skips the domain lookup.
@@ -162,7 +163,7 @@ function MenuEditorTab({
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: '40px' }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('menu.title')}</h1>
+        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('menu.title')}{' '}<InfoTip text={t('pageInfo.menu')} section="menu" /></h1>
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('menu.subtitle')}</p>
       </div>
 

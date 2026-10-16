@@ -25,8 +25,11 @@ import { openInBrowser } from '../../utils/openInBrowser';
 import { menuBaseUrl } from '../../utils/customDomainSync';
 import CanvasEditor from '../menuCanvas/CanvasEditor';
 import QRCode from 'qrcode';
+import InfoTip from '../shared/InfoTip';
+import { useTranslation } from '../../hooks/useTranslation';
 
 function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
+  const { t } = useTranslation();
   const [menus, setMenus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -141,9 +144,9 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>Menús</h1>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>Menús{' '}<InfoTip text={t('pageInfo.menus')} section="menus" /></h1>
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.05rem' }}>
-            Múltiples menús con horarios. El de mayor prioridad cuyo horario coincida con la hora actual del negocio se muestra al cliente.
+            Varios menús con horario. Se muestra el de mayor prioridad que esté activo.
           </p>
         </div>
         <button onClick={openTvView} style={btnSecondary} title="Abre /menu/tv en otra pestaña — para una tablet o pantalla">
@@ -264,7 +267,8 @@ function PublicMenuContent({ menuData, onSet }) {
       {expanded && (
         <div style={{ borderTop: '1px solid var(--border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Fecha (tueste, cosecha, caducidad…) y enlace de WhatsApp por producto. Aparecen solo en el menú público (badge de frescura + botón «Pedir por WhatsApp»). Para un texto y emoji personalizados, usa el elemento «Fecha» en el editor de lienzo. Deja en blanco para no mostrarlos.
+            Fecha (tueste, cosecha…) y enlace de WhatsApp por producto, solo en el menú público. Deja en blanco para no mostrarlos.{' '}
+            <InfoTip text="Se muestran como badge de frescura y botón «Pedir por WhatsApp». Para texto y emoji propios, usa el elemento «Fecha» en el editor de lienzo." section="menus" />
           </p>
           {!hasItems && <p style={{ margin: 0, color: 'var(--text-muted)' }}>No hay productos en el menú.</p>}
           {categoryOrder.map(cat => {
@@ -740,7 +744,7 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer' }}>
         <input type="checkbox" className="switch" checked={!!theme.hide_title} onChange={e => patchTheme({ hide_title: e.target.checked })} />
-        Ocultar el nombre de la tienda en la página de pedidos (útil si el logo ya lo incluye)
+        Ocultar el nombre de la tienda (si el logo ya lo incluye)
       </label>
 
       <Field label="Logo para la página de pedidos (opcional, URL https; si no, se usa el logo de la tienda)">

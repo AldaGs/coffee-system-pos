@@ -16,6 +16,7 @@ import { formatForDisplay } from '../../utils/moneyUtils';
 import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
 import { getBusinessProfile } from '../../utils/businessProfile';
 import { ClipCard, AlertsCard } from './PaymentAlertCards';
+import InfoTip from '../shared/InfoTip';
 
 // Session keys used by the schema-update OAuth round-trip. Mirror the
 // burn-after-reading pattern from DevicesTab — the Management token stays in an
@@ -455,7 +456,7 @@ function GeneralSettingsTab({
         }}
       >
         <div>
-          <h1 style={{ color: 'var(--text-main)', fontSize: '2rem', marginBottom: '8px', fontWeight: '800' }}>{t('settings.title')}</h1>
+          <h1 style={{ color: 'var(--text-main)', fontSize: '2rem', marginBottom: '8px', fontWeight: '800' }}>{t('settings.title')}{' '}<InfoTip text={t('pageInfo.settings')} section="settings" /></h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>{t('settings.subtitle')}</p>
         </div>
         <button onClick={handleSaveGeneralSettings} style={{ flexShrink: 0, padding: '14px 28px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1.05rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
@@ -648,7 +649,7 @@ function GeneralSettingsTab({
               {t('settings.accessGroupTitle')}
             </h3>
             <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: '14px' }}>
-              {t('settings.accessGroupDesc')}
+              {t('settings.accessGroupDesc')}{' '}<InfoTip text={t('settings.accessGroupInfo')} section="settings" />
             </small>
 
             <SettingToggle

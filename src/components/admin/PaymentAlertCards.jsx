@@ -4,6 +4,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import * as alerts from '../../services/orderAlerts';
+import InfoTip from '../shared/InfoTip';
 
 // Shop-wide integrations shown in General Settings (cloud mode only): Clip is
 // used by the Register's payment links and online checkout alike; alerts cover
@@ -74,7 +75,7 @@ export function AlertsCard({ input, showAlert }) {
   const btn = { ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' };
   if (!status) return null;
   return (
-    <Card icon="lucide:bell-ring" title={t('alerts.title')}>
+    <Card icon="lucide:bell-ring" title={t('alerts.title')} info={t('alerts.info')} section="onlineOrders">
       <small style={{ color: 'var(--text-muted)' }}>{t('alerts.hint')}</small>
       {!status.pg_net && <small style={{ color: '#e74c3c' }}>{t('alerts.noPgNet')}</small>}
       <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
@@ -175,11 +176,12 @@ function AlertPrefsDialog({ btn, telegram, onClose, showAlert }) {
 }
 
 // Same card look as General Settings.
-export function Card({ icon, title, children }) {
+export function Card({ icon, title, info, section, children }) {
   return (
     <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12, breakInside: 'avoid', marginBottom: 32 }}>
       <h3 style={{ margin: 0, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Icon icon={icon} style={{ color: 'var(--brand-color)' }} />{title}
+        {info && <InfoTip text={info} section={section} />}
       </h3>
       {children}
     </div>

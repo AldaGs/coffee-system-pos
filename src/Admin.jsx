@@ -51,6 +51,7 @@ import TipsTab from './components/admin/TipsTab';
 import OnlineOrdersTab from './components/admin/OnlineOrdersTab';
 import DevicesTab from './components/admin/DevicesTab';
 import HelpTab from './components/admin/HelpTab';
+import { HelpLinkContext } from './contexts/help-link-context';
 import BootScreen from './components/register/BootScreen';
 import SharedPinPad from './components/shared/SharedPinPad';
 import { logActivity } from './services/activityService';
@@ -143,12 +144,26 @@ function Admin() {
     }
   });
 
+  // Help article to open when landing on the Help tab (InfoTip "Learn more" or ?section=).
+  const [helpSection, setHelpSection] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('section');
+    } catch {
+      return null;
+    }
+  });
+  const openHelp = (section) => {
+    setHelpSection(section);
+    setActiveTab('help');
+  };
+
   useEffect(() => {
-    // Strip ?tab once it's been consumed.
+    // Strip ?tab / ?section once they've been consumed.
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
-    if (url.searchParams.has('tab')) {
+    if (url.searchParams.has('tab') || url.searchParams.has('section')) {
       url.searchParams.delete('tab');
+      url.searchParams.delete('section');
       window.history.replaceState({}, document.title, url.pathname + (url.search || ''));
     }
   }, []);
@@ -1868,6 +1883,7 @@ function Admin() {
 
   const switchTab = (tab) => {
     setActiveTab(tab);
+    setHelpSection(null);
     setIsMobileMenuOpen(false);
   };
 
@@ -2044,6 +2060,7 @@ function Admin() {
         </div>
       </aside>
 
+      <HelpLinkContext.Provider value={openHelp}>
       <main className="admin-main">
         <div className="desktop-hidden" style={{ display: 'flex', alignItems: 'center', marginBottom: '24px', gap: '16px' }}>
           <button className="mobile-hamburger" onClick={() => setIsMobileMenuOpen(true)} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', padding: '10px', borderRadius: '10px', display: 'flex' }}>
@@ -2307,11 +2324,12 @@ function Admin() {
         {/* --------------------------------- */}
 
         {activeTab === 'help' && (
-          <HelpTab />
+          <HelpTab initialSection={helpSection} />
         )}
 
         <EditDrinkModal editingDrink={editingDrink} setEditingDrink={setEditingDrink} menuData={menuData} toggleModifierForDrink={toggleModifierForDrink} />
       </main>
+      </HelpLinkContext.Provider>
     </div>
   );
 }

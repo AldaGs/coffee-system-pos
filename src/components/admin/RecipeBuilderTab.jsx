@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { isLocalMode } from '../../utils/appMode';
 import { toCents, fromMillicents, formatForDisplay, formatMillicentsForDisplay } from '../../utils/moneyUtils';
+import InfoTip from '../shared/InfoTip';
 
 function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreateDraftRecipe, menuData, handleAddIngredient, handleUpdateIngredient, handleDeleteIngredient, handleDeleteRecipe, handleSaveRecipeToCloud, inventoryItems, handleAddItemDirect, showAlert }) {
 
@@ -96,7 +97,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('recipe.title')}</h1>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('recipe.title')}{' '}<InfoTip text={t('pageInfo.calculator')} section="calculator" /></h1>
           <p style={{ color: 'var(--text-muted)', margin: '5px 0 0 0', fontSize: '1.1rem' }}>{t('recipe.subtitle')}</p>
         </div>
         <button
