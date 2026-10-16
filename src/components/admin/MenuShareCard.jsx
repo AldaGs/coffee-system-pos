@@ -36,6 +36,9 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
   const [isRemovingDomain, setIsRemovingDomain] = useState(false);
   const [domainStatus, setDomainStatus] = useState(null);
   const [isHelpOpen, setIsHelpOpen] = useState(!readCustomDomain(kind));
+  const openKey = `tinypos_share_open_${kind}`;
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(openKey) !== '0'; } catch { return true; } });
+  const toggleOpen = () => setOpen(o => { try { localStorage.setItem(openKey, o ? '0' : '1'); } catch { /* ignore */ } return !o; });
 
   // Derive project ref + anon key from localStorage (written by SetupScreen).
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url') || '';
@@ -107,7 +110,7 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
       errorCorrectionLevel: 'L',
       color: { dark: '#111', light: '#ffffff' }
     }).catch(err => setError(err.message));
-  }, [menuUrl]);
+  }, [menuUrl, open]); // open: canvas remounts on expand
 
   const handleAddDomain = async () => {
     if (!customDomain) return;
@@ -225,11 +228,12 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
 
   return (
     <div style={cardStyle}>
-      <h3 style={titleStyle}>
+      <h3 style={{ ...titleStyle, cursor: 'pointer', marginBottom: open ? 8 : 16 }} onClick={toggleOpen} aria-expanded={open}>
         <Icon icon="lucide:qr-code" style={{ color: brand }} />
         {isOrder ? t('oo.linkTitle') : t('share.title')}
+        <Icon icon={open ? 'lucide:chevron-up' : 'lucide:chevron-down'} style={{ marginLeft: 'auto', color: 'var(--text-muted)' }} />
       </h3>
-      <p style={descStyle}>{isOrder ? t('oo.linkDesc') : t('share.desc')}</p>
+      {open && <p style={descStyle}>{isOrder ? t('oo.linkDesc') : t('share.desc')}</p>}
 
       {uploading && (
         <div style={uploadingBarStyle}>
@@ -239,16 +243,16 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
       )}
 
       <div style={rowStyle}>
-        <canvas
+        {open && <canvas
           ref={canvasRef}
           width={QR_SIZE}
           height={QR_SIZE}
           style={{ ...qrStyle, opacity: uploading ? 0.4 : 1, transition: 'opacity 0.3s' }}
           aria-label={t('share.qrAlt')}
-        />
+        />}
 
         <div style={controlsStyle}>
-          <label style={labelStyle}>{t('share.urlLabel')}</label>
+          {open && <label style={labelStyle}>{t('share.urlLabel')}</label>}
           <div style={urlRowStyle}>
             <input
               readOnly
@@ -268,6 +272,7 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
             </button>
           </div>
 
+          {open && <>
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
             <button
               type="button"
@@ -407,6 +412,7 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
               </div>
             )}
           </div>
+          </>}
         </div>
       </div>
     </div>
