@@ -14,10 +14,10 @@ const PRIVACY = `AVISO DE PRIVACIDAD INTEGRAL
 - Identificación y contacto: nombre y teléfono.
 - Entrega: domicilio y, opcionalmente, ubicación en el mapa.
 - Pedido: productos, notas, fecha y hora solicitadas, y forma de pago elegida (efectivo, tarjeta o transferencia). No almacenamos datos de tarjetas.
-- Facturación (solo si solicitas factura): RFC, razón social, régimen fiscal, código postal, correo electrónico y constancia de situación fiscal.
+- Facturación (solo si solicitas factura): RFC, razón social, régimen fiscal, código postal, correo electrónico, uso de CFDI y constancia de situación fiscal. Una vez emitida, también conservamos el archivo de tu factura (XML y PDF) para que puedas descargarla.
 
 3. Finalidades
-Primarias (necesarias): recibir, preparar, entregar y cobrar tu pedido; contactarte sobre su estado; emitir tu CFDI cuando lo solicites.
+Primarias (necesarias): recibir, preparar, entregar y cobrar tu pedido; contactarte sobre su estado; emitir tu CFDI cuando lo solicites y ponerlo a tu disposición para su descarga.
 Secundarias: no utilizamos tus datos para fines secundarios. Si en el futuro enviáramos promociones, solo lo haríamos con tu consentimiento, y podrás negarte o retirarlo en cualquier momento escribiendo a {contacto}, sin que ello afecte tu pedido.
 
 4. Datos guardados en tu dispositivo
@@ -30,7 +30,7 @@ No vendemos tus datos. Los compartimos únicamente con: el SAT, para la emisión
 Puedes ejercer tus derechos de acceso, rectificación, cancelación y oposición, o revocar tu consentimiento, enviando tu solicitud a {contacto} con tu nombre, un medio para responderte, la descripción clara de tu petición y, en su caso, el documento que acredite tu identidad. Te responderemos en los plazos que marca la ley. Si consideras que tu derecho fue vulnerado, puedes acudir a la Secretaría Anticorrupción y Buen Gobierno.
 
 7. Conservación
-Conservamos tus datos el tiempo necesario para cumplir las finalidades anteriores y las obligaciones legales y fiscales aplicables; después los eliminamos o bloqueamos.
+Conservamos tus datos el tiempo necesario para cumplir las finalidades anteriores y las obligaciones legales y fiscales aplicables; después los eliminamos o bloqueamos. El archivo descargable de tu factura (XML y PDF) se conserva durante 90 días a partir de que lo publicamos y después se elimina; tu factura sigue disponible en el portal del SAT con su folio fiscal. El enlace de descarga es privado y solo puede acceder quien tenga el enlace de tu ticket, por lo que te recomendamos no compartirlo.
 
 8. Cambios al aviso
 Cualquier cambio se publicará en esta misma página.
@@ -64,7 +64,7 @@ La cobertura de entrega es la que el negocio indique. Eres responsable de que el
 Si tu pedido llega incompleto, incorrecto o en mal estado, contáctanos en {contacto} para resolverlo.
 
 9. Facturación
-Puedes solicitar tu factura (CFDI) con el enlace de tu ticket.
+Puedes solicitar tu factura (CFDI) con el enlace de tu ticket. Una vez emitida, podrás descargarla (XML y PDF) desde ese mismo enlace durante 90 días. Pasado ese plazo, puedes obtenerla sin costo en el portal del SAT (sat.gob.mx) con el folio fiscal que se muestra en tu ticket. Te recomendamos descargarla y guardarla.
 
 10. Autoridad y ley aplicable
 La autoridad en materia de consumo es la Procuraduría Federal del Consumidor (Profeco). Estos términos se rigen por las leyes de México, en particular la Ley Federal de Protección al Consumidor.
