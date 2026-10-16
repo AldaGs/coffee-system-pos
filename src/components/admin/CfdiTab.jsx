@@ -694,7 +694,8 @@ function CfdiTab({ showAlert, showConfirm }) {
             <iframe
               title="Vista previa del correo"
               sandbox=""
-              srcDoc={emailPreview}
+              // Links would navigate the iframe itself, wiping the preview.
+              srcDoc={`<style>a{pointer-events:none}</style>${emailPreview}`}
               style={{ width: '100%', height: '360px', border: '1px solid var(--border)', borderRadius: '8px', background: 'white' }}
             />
           )}
