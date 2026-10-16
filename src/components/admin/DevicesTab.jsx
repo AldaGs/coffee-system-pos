@@ -264,7 +264,7 @@ function DevicesTab({ showAlert, showConfirm }) {
         <div>{t('devices.authBanner')}</div>
       </div>
 
-      <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '32px', alignItems: 'flex-start' }}>
+      <div style={{ maxWidth: '560px' }}>
 
         {/* CREATE DEVICE FORM */}
         <form onSubmit={handleSubmit} style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -383,28 +383,12 @@ function DevicesTab({ showAlert, showConfirm }) {
                 ? (submitStep === 'provisioning' ? t('devices.provisioning') : t('devices.authorizing'))
                 : t('devices.authorize')}
             </button>
+            <small style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+              <Icon icon="lucide:shield-check" style={{ flexShrink: 0 }} />
+              {t('devices.securityNote')}
+            </small>
           </div>
         </form>
-
-        {/* INFO / INSTRUCTIONS */}
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '20px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
-            <Icon icon="lucide:info" style={{ color: 'var(--brand-color)' }} />
-            {t('devices.howTitle')}
-          </h3>
-          <ol style={{ paddingLeft: '20px', margin: 0, color: 'var(--text-main)', display: 'flex', flexDirection: 'column', gap: '10px', lineHeight: 1.5 }}>
-            <li dangerouslySetInnerHTML={{ __html: t('devices.howStep1') }} />
-            <li>
-              {t('devices.howStep2Prefix')} <code style={{ background: 'var(--bg-main)', padding: '2px 6px', borderRadius: '6px' }}>cajafrontal@{DEVICE_EMAIL_DOMAIN}</code>.
-            </li>
-            <li dangerouslySetInnerHTML={{ __html: t('devices.howStep3') }} />
-            <li>{t('devices.howStep4')}</li>
-          </ol>
-          <p style={{ marginTop: '20px', marginBottom: 0, color: 'var(--text-muted)', fontSize: '0.85rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <Icon icon="lucide:shield-check" style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>{t('devices.securityNote')}</span>
-          </p>
-        </div>
       </div>
 
       {/* SUCCESS MODAL */}

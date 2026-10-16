@@ -1732,11 +1732,6 @@ export const translations = {
     "devices.errorShortPassword": "Password must be at least 6 characters.",
     "devices.errorMissingCreds": "Project credentials not found. Reconnect Supabase from the install screen.",
     "devices.errorCreateFailed": "Could not create the device.",
-    "devices.howTitle": "How it works",
-    "devices.howStep1": "Enter a <strong>name</strong> that identifies the device (e.g. \"Front Counter\").",
-    "devices.howStep2Prefix": "The system converts it into a unique email like",
-    "devices.howStep3": "Set a <strong>password</strong> of at least 6 characters.",
-    "devices.howStep4": "Use those credentials on the new device to sign in.",
     "devices.securityNote": "Runs on a secure server. You stay signed in.",
     "devices.successTitle": "Device created!",
     "devices.successSubtitle": "Use these credentials to sign in on the new device.",
@@ -1820,7 +1815,10 @@ export const translations = {
     "receipt.taxInfo": "Only items marked \"VAT 16%\" in the menu editor. Zero-rated and exempt items aren't taxed.",
     "vendors.menuFallbackInfo": "For tickets sold before vendor tagging existed. Lines already tagged don't change.",
     "settings.accessGroupInfo": "Off by default, so shops that share one PIN keep working as before.",
-    "traffic.privacyInfo": "Nothing is stored on the customer's device and no one is identified, so no cookie banner is needed. Do Not Track visitors aren't counted."
+    "traffic.privacyInfo": "Nothing is stored on the customer's device and no one is identified, so no cookie banner is needed. Do Not Track visitors aren't counted.",
+    "loyalty.deleteTitle": "Wipe Loyalty Data?",
+    "wa.promptPhone": "Enter WhatsApp phone (10 digits):",
+    "wa.invalidPhone": "Enter a valid 10-digit phone number."
   },
   es: {
     // --- Admin General ---
@@ -3553,11 +3551,6 @@ export const translations = {
     "devices.errorShortPassword": "La contraseña debe tener al menos 6 caracteres.",
     "devices.errorMissingCreds": "No se encontraron las credenciales del proyecto. Vuelve a conectar Supabase desde la pantalla de instalación.",
     "devices.errorCreateFailed": "No se pudo crear el dispositivo.",
-    "devices.howTitle": "Cómo funciona",
-    "devices.howStep1": "Escribe un <strong>nombre</strong> que identifique al dispositivo (ej. \"Caja Frontal\").",
-    "devices.howStep2Prefix": "El sistema lo convierte en un correo único como",
-    "devices.howStep3": "Asigna una <strong>contraseña</strong> de al menos 6 caracteres.",
-    "devices.howStep4": "Usa esas credenciales en el nuevo dispositivo para iniciar sesión.",
     "devices.securityNote": "Se ejecuta en un servidor seguro. Tu sesión sigue abierta.",
     "devices.successTitle": "¡Dispositivo creado!",
     "devices.successSubtitle": "Usa estas credenciales para iniciar sesión en el nuevo dispositivo.",
@@ -3640,6 +3633,9 @@ export const translations = {
     "receipt.taxInfo": "Solo productos marcados «IVA 16%» en el editor de menú. Los de tasa 0% y exentos no se gravan.",
     "vendors.menuFallbackInfo": "Para tickets vendidos antes de etiquetar vendedores. Las líneas ya etiquetadas no cambian.",
     "settings.accessGroupInfo": "Desactivado por defecto, para que los negocios que comparten un PIN sigan igual.",
-    "traffic.privacyInfo": "No se guarda nada en el dispositivo del cliente ni se identifica a nadie: no necesitas aviso de cookies. No se cuentan visitas con \"No rastrear\"."
+    "traffic.privacyInfo": "No se guarda nada en el dispositivo del cliente ni se identifica a nadie: no necesitas aviso de cookies. No se cuentan visitas con \"No rastrear\".",
+    "loyalty.deleteTitle": "¿Borrar datos de lealtad?",
+    "wa.promptPhone": "Ingresa el teléfono de WhatsApp (10 dígitos):",
+    "wa.invalidPhone": "Ingresa un teléfono válido de 10 dígitos."
   }
 };
