@@ -90,6 +90,7 @@ function GeneralSettingsTab({
   const [schemaUpdating, setSchemaUpdating] = useState(false);
   const [schemaUpdateError, setSchemaUpdateError] = useState('');
   const schemaResumedRef = useRef(false);
+  const schemaBtnRef = useRef(null);
 
   const fetchSchemaVersion = async () => {
     // Local ('guest') mode has no cloud schema to report.
@@ -147,6 +148,7 @@ function GeneralSettingsTab({
     (async () => {
       setSchemaUpdateError('');
       setSchemaUpdating(true);
+      setTimeout(() => schemaBtnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
       try {
         const fromVersion = (() => {
           try { return sessionStorage.getItem(SS_SCHEMA_FROM) || undefined; } catch { return undefined; }
@@ -704,6 +706,7 @@ function GeneralSettingsTab({
               </div>
               <button
                 type="button"
+                ref={schemaBtnRef}
                 onClick={startSchemaUpdate}
                 disabled={schemaUpdating || dbVersion === null}
                 style={{
