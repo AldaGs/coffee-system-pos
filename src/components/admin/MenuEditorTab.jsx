@@ -62,6 +62,9 @@ function MenuEditorTab({
   // which walks up to the real scroll parent — is what actually works here.
   const editorRef = useRef(null);
   const itemRefs = useRef(new Map());
+  // Phone widths: secondary row actions collapse into a "⋯" menu so the
+  // item name keeps its space.
+  const compact = useCompactLayout();
   // Item id to scroll back to once editing finishes (save/cancel).
   const returnToItemId = useRef(null);
   const [pendingItemId, setPendingItemId] = useState(null);
@@ -539,6 +542,21 @@ function MenuEditorTab({
                     >
                       <Icon icon={isPublicHidden ? 'lucide:lock' : 'lucide:globe'} style={{ fontSize: '1.1rem' }} />
                     </button>
+                    {compact ? (
+                      <OverflowMenu
+                        title={t('menu.moreActions') || 'Más acciones'}
+                        actions={[
+                          { icon: 'lucide:edit-3', label: t('menu.titleRenameCategory') || 'Renombrar', onClick: () => {
+                            showPrompt(t('menu.promptRenameCategory'), category, (newName) => {
+                              if (newName && newName.trim() && newName !== category) {
+                                handleRenameCategory(category, newName.trim());
+                              }
+                            });
+                          } },
+                          { icon: 'lucide:trash-2', label: t('menu.titleDeleteCategory') || 'Eliminar categoría', danger: true, onClick: () => handleDeleteCategory(category) },
+                        ]}
+                      />
+                    ) : (<>
                     <button
                       onClick={() => {
                         showPrompt(t('menu.promptRenameCategory'), category, (newName) => {
@@ -555,6 +573,7 @@ function MenuEditorTab({
                     <button onClick={() => handleDeleteCategory(category)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: 'none', color: '#e74c3c', cursor: 'pointer', height: '32px', width: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Icon icon="lucide:trash-2" style={{ fontSize: '1.1rem' }} />
                     </button>
+                    </>)}
                   </div>
                 </div>
                 <div style={{ padding: '8px' }}>
@@ -574,8 +593,8 @@ function MenuEditorTab({
                           style={{ display: 'flex', flexDirection: 'column', padding: '12px 16px', background: 'var(--bg-surface)', borderRadius: '12px', border: '1px solid var(--border)', gap: '10px', opacity: (item.isHidden || item.publicHidden) ? 0.6 : 1, scrollMarginTop: '16px', scrollMarginBottom: '16px' }}
                         >
                           {/* Top row: item image/info + visibility & delete icons */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1', minWidth: 0 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: compact ? 'wrap' : 'nowrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: compact ? '1 1 100%' : '1', minWidth: 0 }}>
                               <div
                                 onClick={() => openPicker(item.id)}
                                 title={item.imageUrl ? 'Cambiar foto' : 'Subir foto'}
@@ -587,6 +606,7 @@ function MenuEditorTab({
                                   <span>{item.emoji || '•'}</span>
                                 )}
                               </div>
+                              {!compact && (<>
                               <button
                                 onClick={(e) => { e.stopPropagation(); openLibrary({ mode: 'pick', itemId: item.id }); }}
                                 title="Elegir de la biblioteca"
@@ -603,9 +623,12 @@ function MenuEditorTab({
                                   <Icon icon="lucide:image-off" />
                                 </button>
                               )}
+                              </>)}
                               <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                                <span style={{ color: 'var(--text-main)', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '100%' }}>
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
+                                <span style={{ color: 'var(--text-main)', fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compact ? 'normal' : 'nowrap', flexWrap: compact ? 'wrap' : 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '100%' }}>
+                                  <span style={compact
+                                    ? { overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', whiteSpace: 'normal', wordBreak: 'break-word' }
+                                    : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                                   {item.isHidden && <HideBadge kind="register" t={t} />}
                                   {item.publicHidden && <HideBadge kind="public" t={t} />}
                                 </span>
@@ -636,7 +659,7 @@ function MenuEditorTab({
                                 </div>
                               </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                            <div style={{ display: 'flex', gap: '6px', flexShrink: 0, width: compact ? '100%' : undefined }}>
                               <button
                                 onClick={() => handleToggleDrinkVisibility && handleToggleDrinkVisibility(category, item.id)}
                                 style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: item.isHidden ? 'var(--text-muted)' : 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
@@ -651,7 +674,20 @@ function MenuEditorTab({
                               >
                                 <Icon icon={item.publicHidden ? 'lucide:lock' : 'lucide:globe'} />
                               </button>
-                              {!isLocalMode() && (
+                              {compact && (
+                                <div style={{ marginLeft: 'auto' }}>
+                                  <OverflowMenu
+                                    title={t('menu.moreActions') || 'Más acciones'}
+                                    actions={[
+                                      { icon: 'lucide:images', label: t('menu.titlePickFromLibrary'), onClick: () => openLibrary({ mode: 'pick', itemId: item.id }) },
+                                      item.imageUrl && handleClearItemImage && { icon: 'lucide:image-off', label: t('menu.titleClearImage'), danger: true, onClick: () => handleClearItemImage(item.id) },
+                                      !isLocalMode() && { icon: 'lucide:link', label: t('menu.titleCopyOrderLink'), onClick: () => copyOrderLink(item.id) },
+                                      { icon: 'lucide:trash-2', label: t('menu.titleDeleteItem') || 'Eliminar', danger: true, onClick: () => handleDeleteDrink(category, item.id, item.name) },
+                                    ]}
+                                  />
+                                </div>
+                              )}
+                              {!compact && !isLocalMode() && (
                                 <button
                                   onClick={() => copyOrderLink(item.id)}
                                   style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
@@ -660,9 +696,11 @@ function MenuEditorTab({
                                   <Icon icon="lucide:link" />
                                 </button>
                               )}
+                              {!compact && (
                               <button onClick={() => handleDeleteDrink(category, item.id, item.name)} style={{ background: 'rgba(231, 76, 60, 0.05)', border: '1px solid rgba(231, 76, 60, 0.2)', color: '#e74c3c', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
                                 <Icon icon="lucide:trash-2" />
                               </button>
+                              )}
                             </div>
                           </div>
                           {/* Bottom row: edit action buttons */}
@@ -769,3 +807,57 @@ function HideBadge({ kind, t }) {
 }
 
 export default MenuEditorTab;
+
+const COMPACT_QUERY = '(max-width: 600px)';
+
+function useCompactLayout() {
+  const [compact, setCompact] = useState(() => typeof window !== 'undefined' && window.matchMedia(COMPACT_QUERY).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(COMPACT_QUERY);
+    const onChange = (e) => setCompact(e.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return compact;
+}
+
+// "⋯" button with a small dropdown of secondary actions (falsy entries skipped).
+function OverflowMenu({ actions, title }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('pointerdown', close);
+    return () => document.removeEventListener('pointerdown', close);
+  }, [open]);
+  const items = actions.filter(Boolean);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        title={title}
+        aria-label={title}
+        aria-expanded={open}
+        style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+      >
+        <Icon icon="lucide:more-horizontal" />
+      </button>
+      {open && (
+        <div role="menu" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, minWidth: '200px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', padding: '6px', display: 'flex', flexDirection: 'column' }}>
+          {items.map((a, i) => (
+            <button
+              key={i}
+              role="menuitem"
+              onClick={() => { setOpen(false); a.onClick(); }}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer', color: a.danger ? '#e74c3c' : 'var(--text-main)', fontSize: '0.9rem', fontWeight: 600, textAlign: 'left' }}
+            >
+              <Icon icon={a.icon} style={{ flexShrink: 0 }} />
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
