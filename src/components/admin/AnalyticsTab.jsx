@@ -6,9 +6,9 @@ import { computeCogsAndWastage } from '../../utils/cogsMath';
 import SalesTrends from './SalesTrends';
 import InfoTip from '../shared/InfoTip';
 
-function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [], salesByMethod = {}, onOpenHelp }) {
+function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [], salesByMethod = {} }) {
   const { t } = useTranslation();
-  const tip = (key) => <InfoTip text={t(`analytics.info.${key}`)} onLearnMore={onOpenHelp ? () => onOpenHelp('analytics') : undefined} />;
+  const tip = (key) => <InfoTip text={t(`analytics.info.${key}`)} section="analytics" />;
 
   // --- TRUE PROFIT MATH ENGINE ---
   const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit, totalTips } = useMemo(() => {
@@ -234,7 +234,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '40px', flexWrap: 'wrap', gap: '20px' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('analytics.title')}</h1>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('analytics.title')}{' '}<InfoTip text={t('pageInfo.analytics')} section="analytics" /></h1>
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('analytics.subtitle')}</p>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>

@@ -5,6 +5,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { calculateItemizedTaxBreakdown } from '../../utils/posMath';
 import { numeroALetras } from '../../utils/numeroALetras';
+import InfoTip from '../shared/InfoTip';
 
 function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, handleSaveReceipt }) {
   const { t } = useTranslation();
@@ -40,7 +41,7 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: '40px' }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('receipt.title')}</h1>
+        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('receipt.title')}{' '}<InfoTip text={t('pageInfo.receipt')} section="receipt" /></h1>
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('receipt.subtitle')}</p>
       </div>
 
@@ -105,7 +106,7 @@ function ReceiptSettingsTab({ receiptForm, setReceiptForm, handleLogoUpload, han
                   <option value={false}>{t('receipt.taxNo')}</option>
                   <option value={true}>{t('receipt.taxYes')}</option>
                 </select>
-                <small style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('receipt.taxHelp')}</small>
+                <small style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('receipt.taxHelp')}{' '}<InfoTip text={t('receipt.taxInfo')} section="receipt" /></small>
               </div>
 
               {receiptForm.enableTaxBreakdown && (

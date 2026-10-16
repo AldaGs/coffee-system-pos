@@ -4,6 +4,7 @@ import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import { buildCfdiUrl, ensureCfdiConfig } from '../../utils/cfdiUrl';
 import { readCustomDomain, persistCustomDomain, backfillCustomDomain } from '../../utils/customDomainSync';
+import InfoTip from '../shared/InfoTip';
 
 const ZIP_BUCKET = 'cfdi';
 const ZIP_DAYS = 90; // must match cfdi_lookup_ticket (migration 064)
@@ -419,8 +420,8 @@ function CfdiTab({ showAlert, showConfirm }) {
         </div>
         <p style={{ margin: '10px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
           {frozen
-            ? 'Totales congelados al momento del cierre — usa este monto para conciliar con tu contador.'
-            : 'El monto de la Factura Global es lo que aún no se facturó individualmente. Se guardará congelado al cerrar el periodo.'}
+            ? 'Totales congelados al cierre. Úsalos para conciliar con tu contador.'
+            : 'Lo que aún no se facturó individualmente. Se congela al cerrar el periodo.'}
         </p>
       </div>
     );
@@ -439,8 +440,9 @@ function CfdiTab({ showAlert, showConfirm }) {
           <h2 style={{ fontSize: '1.8rem', margin: '0 0 5px 0', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Icon icon="lucide:file-text" style={{ color: 'var(--brand-color)' }} />
             {t('admin.cfdi')}
+          <InfoTip text={t('pageInfo.cfdi')} section="cfdi" />
           </h2>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Gestiona las solicitudes de factura de tus clientes.</p>
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Solicitudes de factura de tus clientes.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
           <button onClick={() => setShowGlobalConfig(!showGlobalConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
@@ -462,9 +464,10 @@ function CfdiTab({ showAlert, showConfirm }) {
           <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:calendar-check" style={{ color: 'var(--brand-color)' }} />
             Periodos con Factura Global emitida
+            <InfoTip text={`Al cerrar un mes, sus tickets ya no se pueden facturar individualmente: el cliente ve que su ticket se incluyó en la Factura Global${businessName ? ` de ${businessName}` : ''}.`} section="cfdi" />
           </h3>
           <p style={{ margin: '0 0 16px 0', color: 'var(--text-muted)' }}>
-            Al cerrar un mes, los tickets de ese periodo dejan de poder facturarse individualmente desde el portal: al cliente se le muestra el aviso de que su ticket ya fue incluido en la Factura Global{businessName ? ` de ${businessName}` : ''}. Ciérralo una vez que hayas emitido la Factura Global del mes en el SAT.
+            Cierra el mes después de emitir su Factura Global en el SAT.
           </p>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: globalPeriods.length ? '20px' : 0 }}>
             <input
@@ -540,7 +543,7 @@ function CfdiTab({ showAlert, showConfirm }) {
             Dominio de Facturación
           </h3>
           <p style={{ margin: '0 0 16px 0', color: 'var(--text-muted)' }}>
-            Usa un dominio personalizado para los enlaces de facturación (ej. facturacion.tu-cafe.com).
+            Dominio propio para tus enlaces de facturación.
           </p>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <input

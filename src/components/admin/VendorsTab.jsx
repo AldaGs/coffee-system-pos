@@ -9,6 +9,7 @@ import { writeExpense } from '../../services/expenseLedger';
 import { shareElementAsPNG, shareBlob } from '../../utils/sharingUtils';
 import { buildVendorStatementPdf } from '../../utils/vendorStatementPdf';
 import VendorStatement from './VendorStatement';
+import InfoTip from '../shared/InfoTip';
 
 // The active cashier (for stamping who recorded a payout), best-effort.
 function activeCashierName() {
@@ -279,7 +280,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
 
   return (
     <div>
-      <h2 style={{ color: 'var(--text-main)', marginBottom: '4px' }}>{t('vendors.title')}</h2>
+      <h2 style={{ color: 'var(--text-main)', marginBottom: '4px' }}>{t('vendors.title')}{' '}<InfoTip text={t('pageInfo.vendors')} section="vendors" /></h2>
       <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>{t('vendors.subtitle')}</p>
 
       {/* --- REGISTRY --- */}
@@ -399,7 +400,7 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             <input type="checkbox" className="switch" checked={useMenuFallback} onChange={(e) => setUseMenuFallback(e.target.checked)} style={{ marginTop: '2px' }} />
             <span>
               <span style={{ fontWeight: 'bold', color: 'var(--text-main)' }}>{t('vendors.menuFallback')}</span>
-              <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('vendors.menuFallbackHint')}</span>
+              <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{t('vendors.menuFallbackHint')}{' '}<InfoTip text={t('vendors.menuFallbackInfo')} section="vendors" /></span>
             </span>
           </label>
         )}
@@ -510,17 +511,16 @@ function VendorsTab({ vendors = [], sales = [], menuData = null, payouts = [], t
             <h3 style={{ color: 'var(--text-main)', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:book-open-check" style={{ color: 'var(--brand-color)' }} />
               {t('vendors.booksTitle')}
+              <InfoTip text={t('vendors.booksNote')} section="vendors" />
             </h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
               {tiles.map((tile) => (
                 <div key={tile.label} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '14px', padding: '14px 16px' }}>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{tile.label}</div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.03em' }}>{tile.label}{' '}<InfoTip text={tile.hint} section="vendors" /></div>
                   <div style={{ fontSize: tile.strong ? '1.35rem' : '1.15rem', fontWeight: '800', color: tile.color, marginTop: '4px' }}>{formatForDisplay(tile.value)}</div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.3 }}>{tile.hint}</div>
                 </div>
               ))}
             </div>
-            <p style={{ color: 'var(--text-muted)', fontSize: '0.76rem', margin: '14px 0 0', lineHeight: 1.4 }}>{t('vendors.booksNote')}</p>
           </div>
         );
       })()}

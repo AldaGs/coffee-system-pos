@@ -10,6 +10,7 @@ import { isLocalMode } from '../../utils/appMode';
 import { isCloudReachable } from '../../utils/network';
 import { useUpgradeNagStore } from '../../store/useUpgradeNagStore';
 import { consumeLotsFIFO, returnToNewestLot, canReachCloud } from '../../services/inventoryService';
+import InfoTip from '../shared/InfoTip';
 
 // --- Mode-aware persistence helpers ---------------------------------------
 // In cloud mode each write goes to Supabase and the returned row (with its
@@ -815,7 +816,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
   return (
     <div className="admin-section fade-in" style={{ maxWidth: '1000px', margin: '0 auto', color: 'var(--text-main)' }}>
       <div className="admin-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', flexWrap: 'wrap', gap: '16px' }}>
-        <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.8rem' }}>{t('inv.title')}</h2>
+        <h2 style={{ margin: 0, fontWeight: '800', fontSize: '1.8rem' }}>{t('inv.title')}{' '}<InfoTip text={t('pageInfo.inventory')} section="inventory" /></h2>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
           <button
             onClick={() => { setActiveView(activeView === 'transform' ? 'list' : 'transform'); setEditingItem(null); setAuditingItem(null); }}
@@ -1316,7 +1317,7 @@ function InventoryTab({ inventoryItems, setInventoryItems, showAlert, showConfir
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }} title={t('inv.reorderPointHint')}>{t('inv.reorderPoint')}</label>
+              <label style={{ display: 'block', fontSize: '0.85rem', marginBottom: '6px', fontWeight: 'bold', color: 'var(--text-muted)' }}>{t('inv.reorderPoint')}{' '}<InfoTip text={t('inv.reorderPointHint')} section="inventory" /></label>
               <input type="number" min="0" step="any" placeholder="0" value={editingItem.reorder_point ?? ''} onChange={e => setEditingItem({ ...editingItem, reorder_point: e.target.value })} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }} />
             </div>
 

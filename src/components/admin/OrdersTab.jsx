@@ -21,6 +21,7 @@ import { canReopenSale, reopenSale } from '../../services/reopenService';
 import { useMenuStore } from '../../store/useMenuStore';
 import { consumePendingAuthorizer } from '../../utils/overrideAuthorizer';
 import { SortableDataTable } from '../ui/arc';
+import InfoTip from '../shared/InfoTip';
 
 function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeFilter, dateRange, setDateRange }) {
   const { t, lang } = useTranslation();
@@ -750,7 +751,7 @@ function OrdersTab({ dexieSales, generalSettings, menuData, timeFilter, setTimeF
 
       <div className="admin-section-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('orders.title')}</h1>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('orders.title')}{' '}<InfoTip text={t('pageInfo.orders')} section="orders" /></h1>
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('orders.subtitle')}</p>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>

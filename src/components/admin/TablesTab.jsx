@@ -8,8 +8,11 @@ import { Icon } from '@iconify/react';
 import { loadFloors, addFloor, updateFloor, deleteFloor } from '../../api/floors';
 import { tablesOf } from '../../utils/floorDocument';
 import FloorEditor from '../floor/FloorEditor';
+import InfoTip from '../shared/InfoTip';
+import { useTranslation } from '../../hooks/useTranslation';
 
 function TablesTab({ showAlert, showConfirm }) {
+  const { t } = useTranslation();
   const [floors, setFloors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState('');
@@ -70,10 +73,10 @@ function TablesTab({ showAlert, showConfirm }) {
         <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 4px' }}>
           <Icon icon="lucide:armchair" style={{ color: 'var(--brand-color)' }} />
           Planos de mesas
+          <InfoTip text={t('pageInfo.tables')} section="tables" />
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-          Diseña el plano de tu local. Cada plano es una zona (salón, terraza…) con sus mesas.
-          Actívalo desde Configuración → Modo de diseño → Mesas.
+          Un plano por zona (salón, terraza…). Actívalo en Configuración → Modo de diseño → Mesas.
         </p>
       </div>
 

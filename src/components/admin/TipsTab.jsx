@@ -6,6 +6,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, toCents } from '../../utils/moneyUtils';
 import { recordTipPayout } from '../../services/tipsService';
+import InfoTip from '../shared/InfoTip';
 
 // Stable empty-array fallback so a still-loading useLiveQuery doesn't hand a
 // fresh [] to downstream useMemo deps on every render.
@@ -73,7 +74,7 @@ function TipsTab({ activeCashierName = null }) {
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('tips.title')}</h1>
+        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('tips.title')}{' '}<InfoTip text={t('pageInfo.tips')} section="tips" /></h1>
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('tips.subtitle')}</p>
       </div>
 

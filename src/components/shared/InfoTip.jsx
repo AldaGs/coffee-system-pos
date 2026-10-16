@@ -1,19 +1,24 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
+import { HelpLinkContext } from '../../contexts/help-link-context';
 
 // Small ⓘ button that opens a short explanation on click/tap (never hover, so it
 // works on tablets). Closes on outside click, Esc, scroll or resize. Optional
-// `onLearnMore` adds a "Learn more →" link, used to deep-link into the Help tab.
+// `section` (a helpContent id) adds a "Learn more →" link into the Help tab.
 //
 // The popover is position: fixed and clamped to the viewport, so it never
-// overflows a card edge or causes horizontal scroll on phones.
+// overflows a card edge or causes horizontal scroll on phones. It is portaled to
+// <body> so a tip placed inside a <label> never toggles that label's control.
 
 const POPOVER_WIDTH = 260;
 const GUTTER = 12;
 
-function InfoTip({ text, onLearnMore, label }) {
+function InfoTip({ text, section, label }) {
   const { t } = useTranslation();
+  const openHelp = useContext(HelpLinkContext);
+  const onLearnMore = openHelp && section ? () => openHelp(section) : null;
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const btnRef = useRef(null);
@@ -58,7 +63,7 @@ function InfoTip({ text, onLearnMore, label }) {
         aria-label={label || t('common.moreInfo')}
         aria-expanded={open}
         aria-controls={open ? popId : undefined}
-        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((o) => !o); }}
         style={{
           background: 'none', border: 'none', padding: '2px', margin: 0, cursor: 'pointer',
           color: open ? 'var(--brand-color)' : 'var(--text-muted)', display: 'inline-flex',
@@ -67,7 +72,7 @@ function InfoTip({ text, onLearnMore, label }) {
       >
         <Icon icon="lucide:info" style={{ fontSize: '1rem' }} />
       </button>
-      {open && pos && (
+      {open && pos && createPortal(
         <div
           ref={popRef}
           id={popId}
@@ -93,7 +98,8 @@ function InfoTip({ text, onLearnMore, label }) {
               {t('common.learnMore')} →
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

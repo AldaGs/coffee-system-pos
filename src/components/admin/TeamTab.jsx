@@ -1,6 +1,7 @@
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { getRole, ROLES } from '../../utils/cashierRoles';
+import InfoTip from '../shared/InfoTip';
 
 // Visual styling for each role badge. Kept here so TeamTab is the single
 // place that decides "what does a manager look like vs. an admin."
@@ -16,7 +17,7 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, handle
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: '40px' }}>
-        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('team.title')}</h1>
+        <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: '800' }}>{t('team.title')}{' '}<InfoTip text={t('pageInfo.team')} section="team" /></h1>
         <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>{t('team.subtitle')}</p>
       </div>
 
@@ -68,7 +69,7 @@ function TeamTab({ newCashier, setNewCashier, handleAddCashier, cashiers, handle
                 <option value={ROLES.MANAGER}>{t('team.role.manager') || 'Manager'}</option>
                 <option value={ROLES.ADMIN}>{t('team.role.admin') || 'Admin'}</option>
               </select>
-              <small style={{ color: 'var(--text-muted)' }}>{t('team.roleHelp')}</small>
+              <small style={{ color: 'var(--text-muted)' }}>{t('team.roleHelp')}{' '}<InfoTip text={t('team.roleInfo')} section="team" /></small>
             </div>
 
             <button onClick={handleAddCashier} style={{ padding: '16px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '16px', cursor: 'pointer', fontWeight: '900', fontSize: '1.1rem', marginTop: '8px', boxShadow: '0 8px 20px rgba(52, 152, 219, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>

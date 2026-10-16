@@ -3,6 +3,7 @@ import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
 import { useTranslation } from '../../hooks/useTranslation';
 import { formatActivity } from '../../services/activityFormatter';
+import InfoTip from '../shared/InfoTip';
 
 function ActivityTab() {
   const { t } = useTranslation();
@@ -57,6 +58,7 @@ function ActivityTab() {
           <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.8rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Icon icon="lucide:history" style={{ color: 'var(--brand-color)' }} />
             {t('activity.title')}
+          <InfoTip text={t('pageInfo.activity')} section="activity" />
           </h2>
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0 0', fontSize: '1.1rem' }}>
             {t('activity.subtitle')}

@@ -10,6 +10,7 @@ import MenuShareCard from './MenuShareCard';
 import PublicPageTraffic from './PublicPageTraffic';
 import { Card } from './PaymentAlertCards';
 import { DAY_ORDER, daysToBitmask, bitmaskToDays, loadMenus } from '../../api/menus';
+import InfoTip from '../shared/InfoTip';
 
 const DeliveryAreaMap = lazy(() => import('./DeliveryAreaMap'));
 const DeliveryCoverageOverview = lazy(() => import('./DeliveryCoverageOverview'));
@@ -44,16 +45,16 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const areas = delivery.areas || [];
   const setArea = (id, patch) => setDelivery({ areas: areas.map((a) => a.id === id ? { ...a, ...patch } : a) });
   const areaText = lang === 'en' ? {
-    title: 'Local delivery areas', desc: 'Set a radius or draw a street boundary. Higher priority wins where areas overlap. A pin on the boundary is inside.', editorHelp: 'Save each zone to keep its changes.',
+    title: 'Local delivery areas', desc: 'Set a radius or draw a street boundary.', descInfo: 'Higher priority wins where areas overlap. A pin exactly on the boundary counts as inside.', editorHelp: 'Save each zone to keep its changes.',
     add: 'Add area', openEditor: 'Open editor', closeEditor: 'Done', name: 'Area name', radius: 'Radius', polygon: 'Street boundary', km: 'Radius (km)', priority: 'Priority',
     charge: 'Delivery charge', remove: 'Delete zone', corner: 'Remove corner', save: 'Save zone', active: 'Enabled', inactive: 'Disabled', unsaved: 'Unsaved changes', new: 'New zone', shipping: 'Offer shipping outside all areas',
-    shippingHelp: 'Outside addresses become requests with a pending shipping price. Staff must contact the customer and confirm the price before accepting the order.',
+    shippingHelp: 'Arrive with shipping price pending. Confirm it with the customer before accepting.',
     legacy: 'The old flat delivery fee is not used. Add and enable an area to offer local delivery.', invalid: 'Complete each enabled area with a name, price, and valid map boundary.',
   } : {
-    title: 'Zonas de entrega local', desc: 'Define un radio o dibuja el límite por calles. La prioridad más alta gana si las zonas se superponen. El borde está incluido.', editorHelp: 'Guarda cada zona para conservar sus cambios.',
+    title: 'Zonas de entrega local', desc: 'Define un radio o dibuja el límite por calles.', descInfo: 'Si las zonas se superponen, gana la de mayor prioridad. Un punto justo en el borde cuenta como dentro.', editorHelp: 'Guarda cada zona para conservar sus cambios.',
     add: 'Agregar zona', openEditor: 'Abrir Editor', closeEditor: 'Listo', name: 'Nombre de zona', radius: 'Radio', polygon: 'Límite por calles', km: 'Radio (km)', priority: 'Prioridad',
     charge: 'Costo de entrega', remove: 'Eliminar zona', corner: 'Quitar esquina', save: 'Guardar zona', active: 'Activa', inactive: 'Inactiva', unsaved: 'Cambios sin guardar', new: 'Zona nueva', shipping: 'Ofrecer envío fuera de las zonas',
-    shippingHelp: 'Las direcciones fuera de las zonas se reciben con el costo de envío pendiente. El personal debe contactar al cliente y confirmar el precio antes de aceptar el pedido.',
+    shippingHelp: 'Llegan con el costo de envío pendiente. Confírmalo con el cliente antes de aceptar.',
     legacy: 'La tarifa fija anterior ya no se usa. Agrega y activa una zona para ofrecer entrega local.', invalid: 'Completa cada zona activa con nombre, precio y un límite válido en el mapa.',
   };
   const showIva = !!form.ticket?.showIva;
@@ -151,7 +152,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>{t('oo.title')}</h1>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>{t('oo.title')}{' '}<InfoTip text={t('pageInfo.onlineOrders')} section="onlineOrders" /></h1>
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.1rem' }}>{t('oo.subtitle')}</p>
         </div>
         <button type="button" onClick={save} disabled={!!busy}
@@ -189,7 +190,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           </label>
         </Card>
 
-        <Card icon="lucide:map" title={areaText.title}>
+        <Card icon="lucide:map" title={areaText.title} info={areaText.descInfo} section="onlineOrders">
           <small style={{ color: 'var(--text-muted)' }}>{areaText.desc}</small>
           <label style={{ ...row, cursor: 'pointer' }}>
             <input type="checkbox" className="switch" disabled={!!busy} checked={!!delivery.shippingEnabled} onChange={(e) => setDelivery({ shippingEnabled: e.target.checked })} />
@@ -213,7 +214,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                     <Dialog.Close asChild><button type="button" style={{ ...input, cursor: 'pointer' }}>{areaText.closeEditor}</button></Dialog.Close>
                   </div>
                 </div>
-                <Dialog.Description style={{ color: 'var(--text-muted)', margin: '8px 0 16px' }}>{areaText.desc} {areaText.editorHelp}</Dialog.Description>
+                <Dialog.Description style={{ color: 'var(--text-muted)', margin: '8px 0 16px' }}>{areaText.desc} {areaText.descInfo} {areaText.editorHelp}</Dialog.Description>
                 <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'grid', alignContent: 'start', gap: 12, paddingRight: 4 }}>
                   <Suspense fallback={<small>…</small>}><DeliveryCoverageOverview areas={areas} lang={lang} /></Suspense>
                   {areas.map((area) => {
@@ -260,7 +261,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           </Dialog.Root>
         </Card>
 
-        <Card icon="lucide:store" title={t('oo.storeHours')}>
+        <Card icon="lucide:store" title={t('oo.storeHours')} info={t('oo.storeHoursInfo')} section="onlineOrders">
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.storeHoursDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" className="switch" checked={!!oh.always}
@@ -297,7 +298,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           )}
         </Card>
 
-        <Card icon="lucide:truck" title={t('oo.schedule')}>
+        <Card icon="lucide:truck" title={t('oo.schedule')} info={t('oo.scheduleInfo')} section="onlineOrders">
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.scheduleDesc')}</small>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {DAY_ORDER.map(d => {
@@ -333,7 +334,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           </div>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" className="switch" checked={!!sl.oneDeliveryPerSlot} onChange={e => setSl({ oneDeliveryPerSlot: e.target.checked })} />
-            <span>{t('oo.oneDeliveryPerSlot')}</span>
+            <span>{t('oo.oneDeliveryPerSlot')} <InfoTip text={t('oo.oneDeliveryPerSlotInfo')} section="onlineOrders" /></span>
           </label>
           <small style={{ color: 'var(--text-muted)' }}>{t('oo.oneDeliveryPerSlotDesc')}</small>
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>
@@ -384,7 +385,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           {pay.methods.includes('clip') && (
             <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', cursor: 'pointer' }}>
               <input type="checkbox" className="switch" checked={!!pay.clipAutoAccept} onChange={e => setPay({ clipAutoAccept: e.target.checked })} />
-              <span>{t('oo.clipAutoAccept')}<br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.clipAutoAcceptHint')}</small></span>
+              <span>{t('oo.clipAutoAccept')} <InfoTip text={t('oo.clipAutoAcceptInfo')} section="onlineOrders" /><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.clipAutoAcceptHint')}</small></span>
             </label>
           )}
           {pay.methods.includes('transfer') && (
