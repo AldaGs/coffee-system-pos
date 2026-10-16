@@ -698,50 +698,50 @@ function CfdiTab({ showAlert, showConfirm }) {
               {req.fiscal_profiles && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
                   
-                  <div className="fiscal-field">
+                  <div className="fiscal-field" style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>RFC</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>{req.fiscal_profiles.rfc}</strong>
+                      <strong style={{ color: 'var(--text-main)', minWidth: 0, overflowWrap: 'anywhere' }}>{req.fiscal_profiles.rfc}</strong>
                       <button onClick={() => handleCopy(req.fiscal_profiles.rfc, 'RFC')} style={{ background: 'none', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', padding: '2px' }}><Icon icon="lucide:copy" /></button>
                     </div>
                   </div>
                   
-                  <div className="fiscal-field">
+                  <div className="fiscal-field" style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Razón Social</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>{req.fiscal_profiles.razon_social}</strong>
+                      <strong style={{ color: 'var(--text-main)', minWidth: 0, overflowWrap: 'anywhere' }}>{req.fiscal_profiles.razon_social}</strong>
                       <button onClick={() => handleCopy(req.fiscal_profiles.razon_social, 'Razón Social')} style={{ background: 'none', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', padding: '2px' }}><Icon icon="lucide:copy" /></button>
                     </div>
                   </div>
                   
-                  <div className="fiscal-field">
+                  <div className="fiscal-field" style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>C.P.</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>{req.fiscal_profiles.cp}</strong>
+                      <strong style={{ color: 'var(--text-main)', minWidth: 0, overflowWrap: 'anywhere' }}>{req.fiscal_profiles.cp}</strong>
                       <button onClick={() => handleCopy(req.fiscal_profiles.cp, 'C.P.')} style={{ background: 'none', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', padding: '2px' }}><Icon icon="lucide:copy" /></button>
                     </div>
                   </div>
 
-                  <div className="fiscal-field">
+                  <div className="fiscal-field" style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Régimen Fiscal</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>{req.fiscal_profiles.regimen_fiscal}</strong>
+                      <strong style={{ color: 'var(--text-main)', minWidth: 0, overflowWrap: 'anywhere' }}>{req.fiscal_profiles.regimen_fiscal}</strong>
                       <button onClick={() => handleCopy(req.fiscal_profiles.regimen_fiscal, 'Régimen Fiscal')} style={{ background: 'none', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', padding: '2px' }}><Icon icon="lucide:copy" /></button>
                     </div>
                   </div>
                   
-                  <div className="fiscal-field">
+                  <div className="fiscal-field" style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Uso CFDI</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>{req.fiscal_profiles.uso_cfdi}</strong>
+                      <strong style={{ color: 'var(--text-main)', minWidth: 0, overflowWrap: 'anywhere' }}>{req.fiscal_profiles.uso_cfdi}</strong>
                       <button onClick={() => handleCopy(req.fiscal_profiles.uso_cfdi, 'Uso CFDI')} style={{ background: 'none', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', padding: '2px' }}><Icon icon="lucide:copy" /></button>
                     </div>
                   </div>
 
-                  <div className="fiscal-field">
+                  <div className="fiscal-field" style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '2px' }}>Email</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <strong style={{ color: 'var(--text-main)' }}>{req.fiscal_profiles.email}</strong>
+                      <strong style={{ color: 'var(--text-main)', minWidth: 0, overflowWrap: 'anywhere' }}>{req.fiscal_profiles.email}</strong>
                       <button onClick={() => handleCopy(req.fiscal_profiles.email, 'Email')} style={{ background: 'none', border: 'none', color: 'var(--brand-color)', cursor: 'pointer', padding: '2px' }}><Icon icon="lucide:copy" /></button>
                     </div>
                   </div>
