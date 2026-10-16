@@ -25,7 +25,6 @@ export function buildCfdiUrl(ticketOrSaleId) {
   }
   const cfdiDomain =
     localStorage.getItem('tinypos_cfdi_custom_domain') ||
-    localStorage.getItem('tinypos_custom_domain') ||
     syncedDomain;
   const baseUrl = cfdiDomain ? `https://${cfdiDomain}` : window.location.origin;
   const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
