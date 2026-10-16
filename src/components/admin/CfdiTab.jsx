@@ -34,6 +34,26 @@ function CfdiTab({ showAlert, showConfirm }) {
   
   const [folioModal, setFolioModal] = useState({ isOpen: false, item: null, folio: '' });
   const [reopenModal, setReopenModal] = useState(null); // { item, fields: [], note: '' }
+
+  // --- Email the CFDI (cfdi-email Edge Function, schema 5.3) ---
+  const [showEmailConfig, setShowEmailConfig] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null); // cfdi_email_status(); null = schema too old
+  const [emailForm, setEmailForm] = useState({ apiKey: '', from: '', replyTo: '', enabled: false });
+  const [emailBusy, setEmailBusy] = useState(null);
+  const loadEmailStatus = useCallback(() => supabase.rpc('cfdi_email_status').then(({ data }) => {
+    if (!data) return;
+    setEmailStatus(data);
+    setEmailForm(prev => ({ ...prev, from: data.from_address || '', replyTo: data.reply_to || '', enabled: !!data.enabled }));
+  }), []);
+  useEffect(() => { loadEmailStatus(); }, [loadEmailStatus]);
+  const invokeEmail = async (body) => {
+    const { data, error } = await supabase.functions.invoke('cfdi-email', { body });
+    if (error) {
+      const detail = await error.context?.json?.().catch(() => null);
+      throw new Error(detail?.detail || detail?.error || error.message);
+    }
+    return data;
+  };
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Custom Domain State
@@ -308,6 +328,55 @@ function CfdiTab({ showAlert, showConfirm }) {
     }
   };
 
+  const handleSaveEmail = async () => {
+    setEmailBusy('save');
+    const supabaseUrl = (localStorage.getItem('tinypos_supabase_url') || '').replace(/\/+$/, '');
+    ensureCfdiConfig(supabase);
+    const { error } = await supabase.rpc('set_cfdi_email', {
+      p_provider: 'resend',
+      p_api_key: emailForm.apiKey,
+      p_from: emailForm.from,
+      p_reply_to: emailForm.replyTo,
+      p_business_name: businessName,
+      // The email links to the same portal URL the share button builds.
+      p_link_template: buildCfdiUrl('{id}'),
+      p_hook_url: `${supabaseUrl}/functions/v1/cfdi-email`,
+      p_enabled: emailForm.enabled,
+    });
+    setEmailBusy(null);
+    if (error) return showAlert(t('common.error'), error.message);
+    setEmailForm(prev => ({ ...prev, apiKey: '' }));
+    loadEmailStatus();
+    showAlert(t('toast.success'), 'Configuración de correo guardada');
+  };
+
+  const handleTestEmail = async () => {
+    const to = window.prompt('¿A qué correo enviamos la prueba?', emailForm.replyTo || '');
+    if (!to) return;
+    setEmailBusy('test');
+    try {
+      await invokeEmail({ action: 'test', to: to.trim() });
+      showAlert(t('toast.success'), `Correo de prueba enviado a ${to.trim()}`);
+    } catch (err) {
+      showAlert(t('common.error'), `No se pudo enviar: ${err.message}`);
+    } finally {
+      setEmailBusy(null);
+    }
+  };
+
+  const handleResendEmail = async (req) => {
+    setEmailBusy(`resend-${req.id}`);
+    try {
+      await invokeEmail({ action: 'resend', sale_id: req.id });
+      showAlert(t('toast.success'), `Factura enviada a ${req.fiscal_profiles?.email}`);
+    } catch (err) {
+      showAlert(t('common.error'), `No se pudo enviar: ${err.message}`);
+    } finally {
+      setEmailBusy(null);
+      fetchRequests();
+    }
+  };
+
   const handleShareCFDI = (req) => {
     const ticketId = req.sourceTable === 'sales' ? (req.local_id || req.id) : req.id;
     const cfdiUrl = buildCfdiUrl(ticketId);
@@ -457,6 +526,12 @@ function CfdiTab({ showAlert, showConfirm }) {
             <Icon icon="lucide:calendar-check" />
             Factura Global
           </button>
+          {emailStatus && (
+            <button onClick={() => setShowEmailConfig(!showEmailConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+              <Icon icon="lucide:mail" />
+              Correo
+            </button>
+          )}
           <button onClick={() => setShowDomainConfig(!showDomainConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
             <Icon icon="lucide:globe" />
             Configurar Dominio
@@ -541,6 +616,65 @@ function CfdiTab({ showAlert, showConfirm }) {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {showEmailConfig && emailStatus && (
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Icon icon="lucide:mail" style={{ color: 'var(--brand-color)' }} />
+            Enviar factura por correo
+          </h3>
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+            Al marcar una factura como emitida, el cliente recibe un correo con su folio, el enlace de facturación y el ZIP adjunto. Usa tu cuenta de <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: 'var(--brand-color)' }}>Resend</a> con un dominio verificado.
+          </p>
+          {emailStatus.configured && <strong style={{ color: 'var(--brand-color)' }}>API key guardada ✓</strong>}
+          <input
+            type="password"
+            autoComplete="new-password"
+            placeholder={emailStatus.configured ? 'Nueva API key (vacío = conservar la actual)' : 'API key de Resend (re_...)'}
+            value={emailForm.apiKey}
+            onChange={e => setEmailForm(prev => ({ ...prev, apiKey: e.target.value }))}
+            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+          />
+          <input
+            type="text"
+            placeholder="Remitente: Mi Café <facturas@micafe.com>"
+            value={emailForm.from}
+            onChange={e => setEmailForm(prev => ({ ...prev, from: e.target.value }))}
+            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+          />
+          <input
+            type="email"
+            placeholder="Responder a (opcional): contacto@micafe.com"
+            value={emailForm.replyTo}
+            onChange={e => setEmailForm(prev => ({ ...prev, replyTo: e.target.value }))}
+            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+          />
+          <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', color: 'var(--text-main)' }}>
+            <input type="checkbox" className="switch" checked={emailForm.enabled} onChange={e => setEmailForm(prev => ({ ...prev, enabled: e.target.checked }))} />
+            <span>Enviar automáticamente al emitir</span>
+          </label>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleSaveEmail}
+              disabled={!!emailBusy || !emailForm.from.trim() || (!emailStatus.configured && !emailForm.apiKey.trim())}
+              style={{ background: 'var(--brand-color)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', opacity: emailBusy ? 0.5 : 1 }}
+            >
+              <Icon icon="lucide:save" /> {t('common.save')}
+            </button>
+            {emailStatus.configured && (
+              <button
+                type="button"
+                onClick={handleTestEmail}
+                disabled={!!emailBusy}
+                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Icon icon={emailBusy === 'test' ? 'lucide:loader' : 'lucide:send'} className={emailBusy === 'test' ? 'spin' : ''} /> Enviar prueba
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -800,6 +934,17 @@ function CfdiTab({ showAlert, showConfirm }) {
                     style={{ background: 'rgba(52, 152, 219, 0.1)', border: '1px solid #3498db', color: '#2980b9', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
                     <Icon icon="lucide:paperclip" /> {req.cfdi_zip_path ? 'Reemplazar ZIP' : 'Adjuntar ZIP'}
+                  </button>
+                )}
+                {req.cfdi_status === 'issued' && req.sourceTable === 'sales' && emailStatus?.configured && req.fiscal_profiles?.email && (
+                  <button
+                    disabled={isSubmitting || !!emailBusy}
+                    onClick={() => handleResendEmail(req)}
+                    title={req.cfdi_email_error ? `Último intento falló: ${req.cfdi_email_error}` : req.cfdi_emailed_at ? `Enviado el ${new Date(req.cfdi_emailed_at).toLocaleString('es-MX')}` : 'Aún no se ha enviado'}
+                    style={{ background: 'transparent', border: `1px solid ${req.cfdi_email_error ? '#e74c3c' : 'var(--border)'}`, color: req.cfdi_email_error ? '#c0392b' : 'var(--text-main)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <Icon icon={emailBusy === `resend-${req.id}` ? 'lucide:loader' : 'lucide:mail'} className={emailBusy === `resend-${req.id}` ? 'spin' : ''} />
+                    {req.cfdi_emailed_at || req.cfdi_email_error ? 'Reenviar correo' : 'Enviar correo'}
                   </button>
                 )}
                 {req.cfdi_status === 'issued' && (

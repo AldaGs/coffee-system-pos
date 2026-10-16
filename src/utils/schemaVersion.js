@@ -17,6 +17,7 @@
 //
 // SCHEMA: bump me when changing the install SQL.
 //
+// 5.3 — CFDI email: cfdi_email_settings (service-role only) + set_cfdi_email/cfdi_email_status, sales.cfdi_emailed_at/cfdi_email_error, issued trigger → cfdi-email Edge Function.
 // 5.2 — CFDI reopen note: sales/active_tickets.cfdi_reopen_note {fields, note}, returned by cfdi_lookup_ticket while reopened. Full install now also carries 064.
 // 5.1 — CFDI ZIP download: sales.cfdi_zip_path/cfdi_zip_at, public "cfdi" bucket (no anon list), cfdi_lookup_ticket returns the path for 90 days.
 // 5.0 — No SQL change: redeploys order-alert without the Topic header (Apple rejected it: 400 BadWebPushTopic, iPhones got nothing).
@@ -149,4 +150,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '5.2';
+export const APP_SCHEMA_VERSION = '5.3';

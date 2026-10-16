@@ -8,6 +8,7 @@
 // therefore not reference anything outside itself.
 
 import { makeOrderAlert } from './_orderAlertFunction.js';
+import { makeCfdiEmail } from './_cfdiEmailFunction.js';
 
 // ponytail: every Clip field name below (endpoint paths, request body, response
 // ids/urls/status, webhook payload id) is UNVERIFIED against developer.clip.mx
@@ -224,6 +225,7 @@ export const CLIP_FUNCTIONS = {
   'clip-webhook': edgeSource(makeWebhook),
   'clip-refund': edgeSource(makeRefund),
   'order-alert': edgeSource(makeOrderAlert),
+  'cfdi-email': edgeSource(makeCfdiEmail),
 };
 
 // Management API multi-part deploy. Returns the slugs that failed (empty = ok).
