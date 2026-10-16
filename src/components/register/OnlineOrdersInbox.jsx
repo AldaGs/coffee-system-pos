@@ -59,6 +59,10 @@ export default function OnlineOrdersInbox({
   const [contactDrafts, setContactDrafts] = useState({});
   const [quoteAgreed, setQuoteAgreed] = useState({});
   const [canQuote, setCanQuote] = useState(false);
+  // Read-only mirror of tinylogistics: active_ticket_id -> order_fulfillment.status,
+  // plus the shop's stage labels (the journey is per-business configurable there).
+  const [fulStatus, setFulStatus] = useState({});
+  const [stageLabels, setStageLabels] = useState({});
   const ordersRef = useRef([]);
   useEffect(() => { ordersRef.current = orders; }, [orders]);
 
@@ -119,9 +123,26 @@ export default function OnlineOrdersInbox({
     return () => { cancelled = true; };
   }, []);
 
+  // Stage labels come from tinylogistics' own config; no logistics installed -> raw status.
+  useEffect(() => {
+    supabase.from('logistics_settings').select('business_config').limit(1).maybeSingle()
+      .then(({ data }) => {
+        const cfg = data?.business_config;
+        if (!cfg) return;
+        const labels = Object.fromEntries((cfg.stages || []).map((st) => [st.id, st.label]));
+        ['completed', 'cancelled'].forEach((k) => { if (cfg.terminal?.[k]?.label) labels[k] = cfg.terminal[k].label; });
+        setStageLabels(labels);
+      }, () => {});
+  }, []);
+
   const refetch = useCallback(async () => {
     const { data } = await supabase.from('online_orders').select('*').in('status', LIVE).order('created_at');
-    if (data) setOrders(data);
+    if (!data) return;
+    setOrders(data);
+    const ids = data.map((o) => o.active_ticket_id).filter((id) => id != null);
+    if (!ids.length) return;
+    const { data: ful } = await supabase.from('order_fulfillment').select('active_ticket_id,status').in('active_ticket_id', ids);
+    if (ful) setFulStatus(Object.fromEntries(ful.map((f) => [String(f.active_ticket_id), f.status])));
   }, []);
 
   useEffect(() => {
@@ -153,6 +174,7 @@ export default function OnlineOrdersInbox({
         const row = payload.new;
         const order = ordersRef.current.find((o) => o.active_ticket_id != null && o.active_ticket_id === row?.active_ticket_id);
         if (!order) return;
+        setFulStatus((p) => ({ ...p, [String(row.active_ticket_id)]: row.status }));
         const next = row.status === 'ready' ? 'ready'
           : ['preparing', 'in_progress', 'cooking'].includes(row.status) ? 'preparing' : null;
         if (next && ONLINE_STATUS_RANK[next] > ONLINE_STATUS_RANK[order.status]) setOnlineOrderStatus(order.id, next);
@@ -204,6 +226,16 @@ export default function OnlineOrdersInbox({
   });
 
   const pending = orders.filter((o) => ['requested', 'quote_pending'].includes(o.status)).length;
+  // Read-only: the driver's stage, owned by tinylogistics. No actions here on purpose.
+  const stageChip = (o) => {
+    const st = o.active_ticket_id != null ? fulStatus[String(o.active_ticket_id)] : null;
+    if (!st || !['delivery', 'shipping'].includes(o.order_type)) return null;
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--border)', borderRadius: 999, padding: '4px 10px', fontWeight: 700, color: 'var(--text-muted)' }}>
+        <Icon icon="lucide:truck" /> {t('oo.delivery_stage')}: {stageLabels[st] || st}
+      </span>
+    );
+  };
   const btn = (bg) => ({ background: bg, color: 'white', border: 'none', borderRadius: 8, padding: '8px 12px', fontWeight: 700, cursor: 'pointer' });
 
   // Status/step buttons, shared by the inbox list and the open ticket's footer.
@@ -267,6 +299,7 @@ export default function OnlineOrdersInbox({
         <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 10, marginBottom: 12 }}>
           <div style={{ fontWeight: 700, marginBottom: 6 }}>{t('oo.inboxTitle')} · {t(`oo.st_${current.status}`)}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {stageChip(current)}
             {current.notes && <button type="button" onClick={() => setNotesOpen(true)} style={{ ...btn('#8e44ad'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon icon="lucide:sticky-note" /> {t('oo.viewNotes')}</button>}
             {actions(current)}
           </div>
@@ -325,6 +358,7 @@ export default function OnlineOrdersInbox({
                 </ul>
                 <div style={{ fontWeight: 800, marginBottom: 8 }}>{o.status === 'quote_pending' ? `${t('oo.subtotal')}: ` : ''}{formatForDisplay(o.total_cents)}{o.status === 'quote_pending' && ` · ${t('oo.shippingPrice')}: ${t('oo.quotePending')}`}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {stageChip(o)}
                   {actions(o)}
                   {o.active_ticket_id != null && (
                     <button type="button" onClick={() => { setActiveTicketId(o.active_ticket_id); setOpen(false); }} style={btn('#7f8c8d')}>{t('oo.openTicket')}</button>
