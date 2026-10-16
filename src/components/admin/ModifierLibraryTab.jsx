@@ -87,7 +87,7 @@ function ModifierLibraryTab({
                 placeholder={t('mods.placeholderGroup')}
                 value={newModGroupName}
                 onChange={(e) => setNewModGroupName(e.target.value)}
-                style={{ flex: 1, minWidth: '200px', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
+                style={{ flex: 1, minWidth: 0, flexBasis: '160px', padding: '14px', borderRadius: '12px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', fontWeight: 'bold' }}
               />
               <button onClick={handleAddModifierGroup} style={{ flex: '1 0 auto', padding: '14px 24px', background: 'var(--brand-color)', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(52, 152, 219, 0.2)' }}>
                 <Icon icon="lucide:plus" />
