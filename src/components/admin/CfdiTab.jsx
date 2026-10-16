@@ -5,6 +5,20 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { buildCfdiUrl, ensureCfdiConfig } from '../../utils/cfdiUrl';
 import { readCustomDomain, persistCustomDomain, backfillCustomDomain } from '../../utils/customDomainSync';
 
+const ZIP_BUCKET = 'cfdi';
+const ZIP_DAYS = 90; // must match cfdi_lookup_ticket (migration 064)
+
+// Supabase Storage has no expiry rules, so the admin tab cleans up: any ZIP
+// past its window is deleted and the sale forgets the path. Fire-and-forget.
+async function purgeExpiredZips(sales) {
+  const cutoff = Date.now() - ZIP_DAYS * 86400000;
+  const expired = sales.filter(s => s.cfdi_zip_path && new Date(s.cfdi_zip_at).getTime() < cutoff);
+  if (!expired.length) return;
+  const { error } = await supabase.storage.from(ZIP_BUCKET).remove(expired.map(s => s.cfdi_zip_path));
+  if (error) return console.warn('CFDI zip purge failed', error);
+  await supabase.from('sales').update({ cfdi_zip_path: null, cfdi_zip_at: null }).in('id', expired.map(s => s.id));
+}
+
 function CfdiTab({ showAlert, showConfirm }) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -60,6 +74,7 @@ function CfdiTab({ showAlert, showConfirm }) {
         .order('created_at', { ascending: false });
         
       if (salesError) throw salesError;
+      purgeExpiredZips(salesData || []);
 
       // Fetch from active_tickets
       const { data: ticketsData, error: ticketsError } = await supabase
@@ -251,14 +266,24 @@ function CfdiTab({ showAlert, showConfirm }) {
   };
 
   const handleMarkIssued = async () => {
-    const { item, folio } = folioModal;
+    const { item, folio, zip } = folioModal;
     if (!item || !folio.trim()) return;
-    
+
     try {
       setIsSubmitting(true);
+      const patch = { cfdi_status: 'issued', cfdi_folio: folio.trim() };
+      if (zip) {
+        // Random name: the bucket serves exact paths only and can't be listed.
+        const path = `${crypto.randomUUID()}.zip`;
+        const { error: upErr } = await supabase.storage.from(ZIP_BUCKET)
+          .upload(path, zip, { contentType: 'application/zip' });
+        if (upErr) throw upErr;
+        if (item.cfdi_zip_path) supabase.storage.from(ZIP_BUCKET).remove([item.cfdi_zip_path]);
+        Object.assign(patch, { cfdi_zip_path: path, cfdi_zip_at: new Date().toISOString() });
+      }
       const { error } = await supabase
         .from(item.sourceTable)
-        .update({ cfdi_status: 'issued', cfdi_folio: folio.trim() })
+        .update(patch)
         .eq(item.sourceTable === 'sales' ? 'id' : 'id', item.id);
         
       if (error) throw error;
@@ -747,10 +772,19 @@ function CfdiTab({ showAlert, showConfirm }) {
                     </button>
                 )}
                 
-                {req.cfdi_status === 'issued' && (
-                  <button 
+                {req.cfdi_status === 'issued' && req.sourceTable === 'sales' && (
+                  <button
                     disabled={isSubmitting}
-                    onClick={() => handleCancel(req)} 
+                    onClick={() => setFolioModal({ isOpen: true, item: req, folio: req.cfdi_folio || '' })}
+                    style={{ background: 'rgba(52, 152, 219, 0.1)', border: '1px solid #3498db', color: '#2980b9', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <Icon icon="lucide:paperclip" /> {req.cfdi_zip_path ? 'Reemplazar ZIP' : 'Adjuntar ZIP'}
+                  </button>
+                )}
+                {req.cfdi_status === 'issued' && (
+                  <button
+                    disabled={isSubmitting}
+                    onClick={() => handleCancel(req)}
                     style={{ background: 'rgba(231, 76, 60, 0.1)', border: '1px solid #e74c3c', color: '#c0392b', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
                     <Icon icon="lucide:x-circle" /> Cancelar Factura
@@ -792,6 +826,25 @@ function CfdiTab({ showAlert, showConfirm }) {
                 }}
               />
             </div>
+
+            {folioModal.item?.sourceTable === 'sales' && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>ZIP de la factura (XML + PDF) — opcional</label>
+                <input
+                  type="file"
+                  accept=".zip,application/zip"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] || null;
+                    if (f && f.size > 5 * 1024 * 1024) { e.target.value = ''; showAlert(t('common.error'), 'El ZIP no puede pesar más de 5 MB'); return; }
+                    setFolioModal(prev => ({ ...prev, zip: f }));
+                  }}
+                  style={{ width: '100%', color: 'var(--text-main)' }}
+                />
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '6px 0 0' }}>
+                  El cliente podrá descargarlo durante {ZIP_DAYS} días desde su enlace de facturación.
+                </p>
+              </div>
+            )}
 
             <div className="modal-actions">
               <button onClick={() => setFolioModal({ isOpen: false, item: null, folio: '' })} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>

@@ -561,6 +561,20 @@ function PublicCFDI({ ticketId }) {
                     <Icon icon={folioCopied ? 'lucide:check' : 'lucide:copy'} style={{ fontSize: '1.1rem' }} />
                     {folioCopied ? '¡Folio copiado!' : 'Copiar folio'}
                   </button>
+                  {sale.cfdi_zip_path && supabase && (
+                    <div style={{ marginTop: '14px' }}>
+                      <a
+                        href={supabase.storage.from('cfdi').getPublicUrl(sale.cfdi_zip_path, { download: `factura-${sale.cfdi_folio}.zip` }).data.publicUrl}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 18px', background: '#2980b9', color: 'white', borderRadius: '10px', fontSize: '0.95rem', fontWeight: 'bold', textDecoration: 'none' }}
+                      >
+                        <Icon icon="lucide:download" style={{ fontSize: '1.1rem' }} />
+                        Descargar factura (XML + PDF)
+                      </a>
+                      <p style={{ margin: '10px 0 0', fontSize: '0.85rem' }}>
+                        Disponible hasta el {new Date(sale.cfdi_zip_expires).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })}. Después puedes descargarla gratis en el portal del SAT con tu folio.
+                      </p>
+                    </div>
+                  )}
                 </>
               ) : (
                 <p style={{ margin: 0 }}>Tu factura ha sido emitida.</p>
