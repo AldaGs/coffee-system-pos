@@ -53,27 +53,40 @@ export function makeCfdiEmail(env, fetch) {
   };
 
   const linkFor = (cfg, sale) => (cfg.link_template || '').replace('{id}', encodeURIComponent(String(sale.local_id || sale.id)));
+
+  // The owner's text (cfdi_email_settings.email_message/email_footer) with
+  // placeholders; the folio, button and ZIP note always stay around it.
+  const DEFAULT_MESSAGE = 'Hola {cliente}, {negocio} emitió la factura de tu compra {ticket}.';
+  const DEFAULT_FOOTER = 'También puedes descargarla en el portal del SAT con tu folio fiscal.';
+  const fill = (text, vars) => esc(text)
+    .replace(/\{(cliente|negocio|folio|rfc|ticket)\}/g, (_, k) => esc(vars[k] ?? ''))
+    .replace(/\r?\n/g, '<br>');
+  const renderHtml = (cfg, vars, link, hasZip) => `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;color:#2c3e50">
+<h2 style="margin:0 0 12px">Tu factura está lista</h2>
+<p>${fill(cfg.email_message || DEFAULT_MESSAGE, vars)}</p>
+<p>Folio fiscal: <strong>${esc(vars.folio)}</strong><br>RFC: ${esc(vars.rfc)}</p>
+${hasZip ? '<p>Adjuntamos el XML y PDF en un archivo ZIP.</p>' : ''}
+${link ? `<p><a href="${esc(link)}" style="display:inline-block;padding:12px 20px;background:#2980b9;color:#fff;border-radius:10px;text-decoration:none;font-weight:bold">Ver mi factura</a></p>` : ''}
+<p style="color:#7f8c8d;font-size:13px">${fill(cfg.email_footer || DEFAULT_FOOTER, vars)}</p></div>`;
+
   const buildMsg = async (cfg, sale) => {
-    const link = linkFor(cfg, sale);
     const attachments = [];
     if (sale.cfdi_zip_path) {
       const zip = await fetch(`${base}/storage/v1/object/public/cfdi/${encodeURIComponent(sale.cfdi_zip_path)}`).catch(() => null);
       if (zip?.ok) attachments.push({ filename: `factura-${sale.cfdi_folio || sale.id}.zip`, content: b64(await zip.arrayBuffer()) });
     }
     const biz = cfg.business_name || 'Tu factura';
+    const vars = {
+      cliente: sale.fiscal_profiles.razon_social, negocio: cfg.business_name || '',
+      folio: sale.cfdi_folio, rfc: sale.fiscal_profiles.rfc, ticket: sale.order_name || '',
+    };
     return {
       to: sale.fiscal_profiles.email,
       from: cfg.from_address,
       replyTo: cfg.reply_to,
       subject: `${biz}: tu factura ${sale.cfdi_folio || ''}`.trim(),
       attachments,
-      html: `<div style="font-family:system-ui,sans-serif;max-width:520px;margin:auto;color:#2c3e50">
-<h2 style="margin:0 0 12px">Tu factura está lista</h2>
-<p>Hola ${esc(sale.fiscal_profiles.razon_social)}, ${esc(biz)} emitió la factura de tu compra${sale.order_name ? ' (' + esc(sale.order_name) + ')' : ''}.</p>
-<p>Folio fiscal: <strong>${esc(sale.cfdi_folio)}</strong><br>RFC: ${esc(sale.fiscal_profiles.rfc)}</p>
-${attachments.length ? '<p>Adjuntamos el XML y PDF en un archivo ZIP.</p>' : ''}
-${link ? `<p><a href="${esc(link)}" style="display:inline-block;padding:12px 20px;background:#2980b9;color:#fff;border-radius:10px;text-decoration:none;font-weight:bold">Ver mi factura</a></p>` : ''}
-<p style="color:#7f8c8d;font-size:13px">También puedes descargarla en el portal del SAT con tu folio fiscal.</p></div>`,
+      html: renderHtml(cfg, vars, linkFor(cfg, sale), attachments.length > 0),
     };
   };
 
@@ -112,6 +125,13 @@ ${link ? `<p><a href="${esc(link)}" style="display:inline-block;padding:12px 20p
       if (!user?.id) return out({ error: 'unauthorized' }, 401);
       const staff = (await rows(`app_users?auth_user_id=eq.${user.id}&disabled_at=is.null&select=auth_user_id`))[0];
       if (!staff) return out({ error: 'forbidden' }, 403);
+      // Unsaved text from the Admin panel, rendered with sample data.
+      if (body.action === 'preview') {
+        const draft = { ...cfg, email_message: String(body.message || '').slice(0, 2000), email_footer: String(body.footer || '').slice(0, 500) };
+        const vars = { cliente: 'JUAN PÉREZ', negocio: cfg.business_name || 'Mi Café', folio: '47957DB2-F967-4636-938A-B7F8E08AA72D', rfc: 'XAXX010101000', ticket: 'Ticket #123' };
+        return out({ html: renderHtml(draft, vars, linkFor(cfg, { id: 123 }) || '#', true) });
+      }
+
       if (!cfg.api_key || !cfg.from_address) return out({ error: 'not_configured' }, 400);
 
       if (body.action === 'resend') {

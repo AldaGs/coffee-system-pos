@@ -56,6 +56,19 @@ describe('cfdi-email', () => {
     expect(JSON.parse(calls.find(c => c.init.method === 'PATCH').init.body).cfdi_email_error).toContain('403');
   });
 
+  it('fills placeholders in the owner text and escapes them', async () => {
+    const { f, calls } = fakeFetch([
+      ['cfdi_email_settings', () => json([{ ...CFG, email_message: 'Gracias {cliente} <3\nFolio {folio}', email_footer: 'Visítanos en {negocio}' }])],
+      ['sales?id=eq.7&select', () => json([{ ...SALE, cfdi_zip_path: null, fiscal_profiles: { ...SALE.fiscal_profiles, razon_social: 'A&B' } }])],
+      ['api.resend.com', () => json({ id: 'e1' })],
+      ['sales?id=eq.7', () => json([])],
+    ]);
+    await makeCfdiEmail(env, f)(post({ sale_id: 7, secret: 's3cret' }));
+    const { html } = JSON.parse(calls.find(c => c.url.includes('resend')).init.body);
+    expect(html).toContain('Gracias A&amp;B &lt;3<br>Folio UUID-1');
+    expect(html).toContain('Visítanos en Café');
+  });
+
   it('is deployed with the other functions', () => {
     expect(CLIP_FUNCTIONS['cfdi-email'].startsWith('Deno.serve((')).toBe(true);
   });

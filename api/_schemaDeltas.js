@@ -27,7 +27,7 @@
 // Every schema version the app has ever shipped, oldest → newest. Used only to
 // order versions and detect gaps; mirrors the changelog in
 // src/utils/schemaVersion.js.
-export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7', '4.8', '4.9', '5.0', '5.1', '5.2', '5.3'];
+export const VERSION_ORDER = ['0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7', '0.8', '0.9', '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7', '1.8', '1.9', '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7', '2.8', '2.9', '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7', '3.8', '3.9', '4.0', '4.1', '4.2', '4.3', '4.4', '4.5', '4.6', '4.7', '4.8', '4.9', '5.0', '5.1', '5.2', '5.3', '5.4'];
 
 // Stamps schema_meta so a (partial) apply is detectable and the banner clears.
 const stamp = (v) => `
@@ -7119,6 +7119,40 @@ DROP TRIGGER IF EXISTS sales_cfdi_email ON public.sales;
 CREATE TRIGGER sales_cfdi_email AFTER UPDATE OF cfdi_status ON public.sales
   FOR EACH ROW EXECUTE FUNCTION public.notify_cfdi_issued();
 ${stamp('5.3')}` }, // CFDI email (migration 066); Update Schema also deploys cfdi-email
+  { version: '5.4', sql: `-- 5.4: customizable CFDI email text. email_message / email_footer are plain
+-- text with placeholders ({cliente}, {negocio}, {folio}, {rfc}, {ticket}); the
+-- cfdi-email function keeps the folio, button and ZIP note around them.
+-- NULL = the built-in default text.
+ALTER TABLE public.cfdi_email_settings ADD COLUMN IF NOT EXISTS email_message text;
+ALTER TABLE public.cfdi_email_settings ADD COLUMN IF NOT EXISTS email_footer text;
+
+CREATE OR REPLACE FUNCTION public.cfdi_email_status()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT CASE WHEN public.is_app_user((select auth.uid()))
+    THEN coalesce((SELECT jsonb_build_object(
+      'provider', provider, 'from_address', from_address, 'reply_to', reply_to,
+      'email_message', email_message, 'email_footer', email_footer,
+      'enabled', enabled, 'configured', coalesce(api_key <> '', false))
+      FROM public.cfdi_email_settings WHERE id = 1),
+      jsonb_build_object('provider', 'resend', 'enabled', false, 'configured', false))
+    ELSE NULL END;
+$$;
+REVOKE ALL ON FUNCTION public.cfdi_email_status() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.cfdi_email_status() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.set_cfdi_email_message(p_message text, p_footer text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT public.is_app_user((select auth.uid())) THEN RAISE EXCEPTION 'forbidden'; END IF;
+  UPDATE public.cfdi_email_settings SET
+    email_message = left(nullif(trim(p_message), ''), 2000),
+    email_footer = left(nullif(trim(p_footer), ''), 500),
+    updated_at = now()
+  WHERE id = 1;
+END $$;
+REVOKE ALL ON FUNCTION public.set_cfdi_email_message(text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.set_cfdi_email_message(text, text) TO authenticated;
+${stamp('5.4')}` }, // CFDI email message (migration 067); redeploys cfdi-email
 ];
 
 // Returns the concatenated delta SQL to move `fromVersion` up to the latest

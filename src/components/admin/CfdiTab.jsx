@@ -38,12 +38,16 @@ function CfdiTab({ showAlert, showConfirm }) {
   // --- Email the CFDI (cfdi-email Edge Function, schema 5.3) ---
   const [showEmailConfig, setShowEmailConfig] = useState(false);
   const [emailStatus, setEmailStatus] = useState(null); // cfdi_email_status(); null = schema too old
-  const [emailForm, setEmailForm] = useState({ apiKey: '', from: '', replyTo: '', enabled: false });
+  const [emailForm, setEmailForm] = useState({ apiKey: '', from: '', replyTo: '', enabled: false, message: '', footer: '' });
   const [emailBusy, setEmailBusy] = useState(null);
+  const [emailPreview, setEmailPreview] = useState(null); // rendered HTML from the function
   const loadEmailStatus = useCallback(() => supabase.rpc('cfdi_email_status').then(({ data }) => {
     if (!data) return;
     setEmailStatus(data);
-    setEmailForm(prev => ({ ...prev, from: data.from_address || '', replyTo: data.reply_to || '', enabled: !!data.enabled }));
+    setEmailForm(prev => ({
+      ...prev, from: data.from_address || '', replyTo: data.reply_to || '', enabled: !!data.enabled,
+      message: data.email_message || '', footer: data.email_footer || '',
+    }));
   }), []);
   useEffect(() => { loadEmailStatus(); }, [loadEmailStatus]);
   const invokeEmail = async (body) => {
@@ -343,11 +347,24 @@ function CfdiTab({ showAlert, showConfirm }) {
       p_hook_url: `${supabaseUrl}/functions/v1/cfdi-email`,
       p_enabled: emailForm.enabled,
     });
+    const { error: msgError } = error ? {} : await supabase.rpc('set_cfdi_email_message', { p_message: emailForm.message, p_footer: emailForm.footer });
     setEmailBusy(null);
-    if (error) return showAlert(t('common.error'), error.message);
+    if (error || msgError) return showAlert(t('common.error'), (error || msgError).message);
     setEmailForm(prev => ({ ...prev, apiKey: '' }));
     loadEmailStatus();
     showAlert(t('toast.success'), 'Configuración de correo guardada');
+  };
+
+  const handlePreviewEmail = async () => {
+    setEmailBusy('preview');
+    try {
+      const { html } = await invokeEmail({ action: 'preview', message: emailForm.message, footer: emailForm.footer });
+      setEmailPreview(html);
+    } catch (err) {
+      showAlert(t('common.error'), `No se pudo generar la vista previa: ${err.message}`);
+    } finally {
+      setEmailBusy(null);
+    }
   };
 
   const handleTestEmail = async () => {
@@ -651,6 +668,36 @@ function CfdiTab({ showAlert, showConfirm }) {
             onChange={e => setEmailForm(prev => ({ ...prev, replyTo: e.target.value }))}
             style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
           />
+          <strong style={{ color: 'var(--text-main)', marginTop: '4px' }}>Mensaje del correo</strong>
+          <small style={{ color: 'var(--text-muted)' }}>
+            Usa {['{cliente}', '{negocio}', '{folio}', '{rfc}', '{ticket}'].map((p, i) => (
+              <span key={p}>{i > 0 && ', '}<code style={{ background: 'var(--bg-main)', padding: '1px 5px', borderRadius: 4 }}>{p}</code></span>
+            ))}. El folio, el botón "Ver mi factura" y el aviso del ZIP siempre se incluyen. Vacío = texto predeterminado.
+          </small>
+          <textarea
+            value={emailForm.message}
+            onChange={e => setEmailForm(prev => ({ ...prev, message: e.target.value }))}
+            placeholder="Hola {cliente}, {negocio} emitió la factura de tu compra {ticket}."
+            maxLength={2000}
+            rows={4}
+            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', resize: 'vertical', fontFamily: 'inherit' }}
+          />
+          <textarea
+            value={emailForm.footer}
+            onChange={e => setEmailForm(prev => ({ ...prev, footer: e.target.value }))}
+            placeholder="Pie: También puedes descargarla en el portal del SAT con tu folio fiscal."
+            maxLength={500}
+            rows={2}
+            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', resize: 'vertical', fontFamily: 'inherit' }}
+          />
+          {emailPreview && (
+            <iframe
+              title="Vista previa del correo"
+              sandbox=""
+              srcDoc={emailPreview}
+              style={{ width: '100%', height: '360px', border: '1px solid var(--border)', borderRadius: '8px', background: 'white' }}
+            />
+          )}
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', color: 'var(--text-main)' }}>
             <input type="checkbox" className="switch" checked={emailForm.enabled} onChange={e => setEmailForm(prev => ({ ...prev, enabled: e.target.checked }))} />
             <span>Enviar automáticamente al emitir</span>
@@ -664,6 +711,16 @@ function CfdiTab({ showAlert, showConfirm }) {
             >
               <Icon icon="lucide:save" /> {t('common.save')}
             </button>
+            {emailStatus.configured && (
+              <button
+                type="button"
+                onClick={handlePreviewEmail}
+                disabled={!!emailBusy}
+                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Icon icon={emailBusy === 'preview' ? 'lucide:loader' : 'lucide:eye'} className={emailBusy === 'preview' ? 'spin' : ''} /> Vista previa
+              </button>
+            )}
             {emailStatus.configured && (
               <button
                 type="button"
