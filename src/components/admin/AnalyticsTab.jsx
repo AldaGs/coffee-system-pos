@@ -4,9 +4,11 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { formatForDisplay, millicentsToCents, normalizeUnitCostToMillicents } from '../../utils/moneyUtils';
 import { computeCogsAndWastage } from '../../utils/cogsMath';
 import SalesTrends from './SalesTrends';
+import InfoTip from '../shared/InfoTip';
 
-function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [], salesByMethod = {} }) {
+function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, handleDownloadCSV, totalRevenue, totalExpenses, topItemsArray, filteredSales, inventoryLogs = [], inventoryItems = [], filteredExpenses = [], allSales = [], tipPayouts = [], salesByMethod = {}, onOpenHelp }) {
   const { t } = useTranslation();
+  const tip = (key) => <InfoTip text={t(`analytics.info.${key}`)} onLearnMore={onOpenHelp ? () => onOpenHelp('analytics') : undefined} />;
 
   // --- TRUE PROFIT MATH ENGINE ---
   const { totalCOGS, totalWastage, trueGrossProfit, trueNetProfit, totalTips } = useMemo(() => {
@@ -302,7 +304,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '40px' }}>
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #3498db' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.grossRevenue')}</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.grossRevenue')} {tip('grossRevenue')}</h3>
             <Icon icon="lucide:trending-up" style={{ color: '#3498db', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: 'var(--text-main)', letterSpacing: '-1px' }}>{formatForDisplay(totalRevenue)}</p>
@@ -310,7 +312,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #e67e22' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.cogs')}</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.cogs')} {tip('cogs')}</h3>
             <Icon icon="lucide:shopping-bag" style={{ color: '#e67e22', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#e67e22', letterSpacing: '-1px' }}>-{formatForDisplay(totalCOGS)}</p>
@@ -324,7 +326,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #2ecc71' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.grossProfit')}</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.grossProfit')} {tip('grossProfit')}</h3>
             <Icon icon="lucide:badge-dollar-sign" style={{ color: '#2ecc71', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#2ecc71', letterSpacing: '-1px' }}>{formatForDisplay(trueGrossProfit)}</p>
@@ -339,7 +341,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
       <div className="admin-grid-responsive" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '24px', marginBottom: '40px' }}>
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #e74c3c' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.wastage')}</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.wastage')} {tip('wastage')}</h3>
             <Icon icon="lucide:trash-2" style={{ color: '#e74c3c', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#e74c3c', letterSpacing: '-1px' }}>-{formatForDisplay(totalWastage)}</p>
@@ -347,7 +349,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #f39c12' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.expenses')}</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.expenses')} {tip('expenses')}</h3>
             <Icon icon="lucide:receipt" style={{ color: '#f39c12', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#f39c12', letterSpacing: '-1px' }}>-{formatForDisplay(totalExpenses)}</p>
@@ -355,7 +357,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #27ae60' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.netProfit')}</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.netProfit')} {tip('netProfit')}</h3>
             <Icon icon="lucide:rocket" style={{ color: '#27ae60', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#27ae60', letterSpacing: '-1px' }}>{formatForDisplay(trueNetProfit)}</p>
@@ -364,7 +366,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
         {/* --- TIPS CARD --- */}
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #8e44ad' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.tips')}</h3>
+            <h3 style={{ margin: '0 0 8px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.tips')} {tip('tips')}</h3>
             <Icon icon="lucide:heart-handshake" style={{ color: '#8e44ad', fontSize: '1.5rem' }} />
           </div>
           <p style={{ margin: 0, fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: '900', color: '#8e44ad', letterSpacing: '-1px' }}>{formatForDisplay(totalTips)}</p>
@@ -374,7 +376,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #16a085' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.tipsPayable')}</h3>
+              <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.tipsPayable')} {tip('tipsPayable')}</h3>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{t('analytics.tipsPayableDesc')}</span>
             </div>
             <Icon icon="lucide:wallet" style={{ color: '#16a085', fontSize: '1.5rem' }} />
@@ -390,7 +392,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', borderTop: '4px solid #9b59b6' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.invValue')}</h3>
+              <h3 style={{ margin: '0 0 4px 0', color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>{t('analytics.invValue')} {tip('invValue')}</h3>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{t('analytics.invValueDesc')}</span>
             </div>
             <Icon icon="lucide:boxes" style={{ color: '#9b59b6', fontSize: '1.5rem' }} />
@@ -455,11 +457,11 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
         {/* SALES BY PAYMENT METHOD — reconciliation aid */}
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '4px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
             <Icon icon="lucide:wallet-cards" style={{ color: '#16a085' }} />
             {t('analytics.salesByMethod')}
+            {tip('salesByMethod')}
           </h3>
-          <p style={{ margin: '0 0 20px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('analytics.salesByMethodDesc')}</p>
           {(() => {
             const rows = [
               { key: 'Cash', label: t('analytics.methodCash'), icon: 'lucide:banknote', color: '#27ae60' },
@@ -510,6 +512,7 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
           <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
             <Icon icon="lucide:shopping-bag" style={{ color: '#e67e22' }} />
             {t('analytics.cogsByProduct')}
+            {tip('cogsByProduct')}
           </h3>
           {cogsByProduct.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noCogsData')}</p>
@@ -550,11 +553,11 @@ function AnalyticsTab({ timeFilter, setTimeFilter, dateRange, setDateRange, hand
 
         {/* PROMO PERFORMANCE */}
         <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '6px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
+          <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.3rem', fontWeight: '800' }}>
             <Icon icon="lucide:badge-percent" style={{ color: '#8e44ad' }} />
             {t('analytics.promoTitle')}
+            {tip('promo')}
           </h3>
-          <p style={{ margin: '0 0 20px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('analytics.promoSubtitle')}</p>
           {(promoPerformance.rules.length === 0 && promoPerformance.manualTotal === 0) ? (
             <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>{t('analytics.noPromoData')}</p>
           ) : (

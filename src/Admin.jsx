@@ -143,12 +143,26 @@ function Admin() {
     }
   });
 
+  // Help article to open when landing on the Help tab (InfoTip "Learn more" or ?section=).
+  const [helpSection, setHelpSection] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('section');
+    } catch {
+      return null;
+    }
+  });
+  const openHelp = (section) => {
+    setHelpSection(section);
+    setActiveTab('help');
+  };
+
   useEffect(() => {
-    // Strip ?tab once it's been consumed.
+    // Strip ?tab / ?section once they've been consumed.
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
-    if (url.searchParams.has('tab')) {
+    if (url.searchParams.has('tab') || url.searchParams.has('section')) {
       url.searchParams.delete('tab');
+      url.searchParams.delete('section');
       window.history.replaceState({}, document.title, url.pathname + (url.search || ''));
     }
   }, []);
@@ -1868,6 +1882,7 @@ function Admin() {
 
   const switchTab = (tab) => {
     setActiveTab(tab);
+    setHelpSection(null);
     setIsMobileMenuOpen(false);
   };
 
@@ -2128,6 +2143,7 @@ function Admin() {
             inventoryLogs={inventoryLogs}
             inventoryItems={inventoryItems}
             filteredExpenses={filteredExpenses}
+            onOpenHelp={openHelp}
           />
         )}
 
@@ -2307,7 +2323,7 @@ function Admin() {
         {/* --------------------------------- */}
 
         {activeTab === 'help' && (
-          <HelpTab />
+          <HelpTab initialSection={helpSection} />
         )}
 
         <EditDrinkModal editingDrink={editingDrink} setEditingDrink={setEditingDrink} menuData={menuData} toggleModifierForDrink={toggleModifierForDrink} />

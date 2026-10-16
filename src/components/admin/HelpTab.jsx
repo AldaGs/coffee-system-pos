@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { helpContent, helpGroupLabels } from '../../utils/helpContent';
@@ -35,7 +35,9 @@ function Badge({ kind, label }) {
 function HelpSection({ section, badgeLabels, doLabel, fieldsLabel, isOpen, onToggle }) {
   return (
     <div
+      id={`help-${section.id}`}
       style={{
+        scrollMarginTop: '16px',
         border: '1px solid var(--border)', borderRadius: '12px',
         background: 'var(--bg-surface)', overflow: 'hidden',
       }}
@@ -102,14 +104,21 @@ function HelpSection({ section, badgeLabels, doLabel, fieldsLabel, isOpen, onTog
   );
 }
 
-function HelpTab() {
+function HelpTab({ initialSection = null }) {
   const { t, lang } = useTranslation();
   const sections = helpContent[lang] || helpContent.en;
   const groupLabels = helpGroupLabels[lang] || helpGroupLabels.en;
   const badgeLabels = { advanced: t('help.badgeAdvanced'), cloud: t('help.badgeCloud') };
 
   const [query, setQuery] = useState('');
-  const [openId, setOpenId] = useState(null);
+  const [openId, setOpenId] = useState(initialSection);
+
+  // Deep link from an InfoTip "Learn more" (or ?section=): open that article and scroll to it.
+  useEffect(() => {
+    if (!initialSection) return;
+    setOpenId(initialSection);
+    requestAnimationFrame(() => document.getElementById(`help-${initialSection}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [initialSection]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
