@@ -538,18 +538,18 @@ function CfdiTab({ showAlert, showConfirm }) {
           </h2>
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>Solicitudes de factura de tus clientes.</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', justifyContent: 'flex-end' }}>
-          <button onClick={() => setShowGlobalConfig(!showGlobalConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '0 1 auto', justifyContent: 'flex-end' }}>
+          <button onClick={() => setShowGlobalConfig(!showGlobalConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
             <Icon icon="lucide:calendar-check" />
             Factura Global
           </button>
           {emailStatus && (
-            <button onClick={() => setShowEmailConfig(!showEmailConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+            <button onClick={() => setShowEmailConfig(!showEmailConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
               <Icon icon="lucide:mail" />
               Correo
             </button>
           )}
-          <button onClick={() => setShowDomainConfig(!showDomainConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap' }}>
+          <button onClick={() => setShowDomainConfig(!showDomainConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
             <Icon icon="lucide:globe" />
             Configurar Dominio
           </button>
