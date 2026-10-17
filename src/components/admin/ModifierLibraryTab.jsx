@@ -195,7 +195,7 @@ function ModifierLibraryTab({
         </div>
 
         {/* RIGHT COLUMN - RENDERED GROUPS */}
-        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content' }}>
+        <div style={{ background: 'var(--bg-surface)', padding: 'var(--admin-padding)', borderRadius: 'var(--admin-card-radius)', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', border: '1px solid var(--border)', height: 'fit-content', minWidth: 0 }}>
           <h3 style={{ marginTop: 0, marginBottom: '24px', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem', fontWeight: '800' }}>
             <Icon icon="lucide:layout-grid" style={{ color: 'var(--brand-color)' }} />
             {t('mods.globalGroups')}
@@ -207,7 +207,7 @@ function ModifierLibraryTab({
               const groupPublicHidden = !!menuData.modifierGroupSettings?.[groupKey]?.publicHidden;
               return (
               <div key={groupKey} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '20px', overflow: 'hidden', opacity: groupHidden ? 0.55 : 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.02)', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', background: 'rgba(0,0,0,0.02)', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
                   {editingModGroup === groupKey ? (
                     <div style={{ display: 'flex', gap: '8px', flex: 1, marginRight: '16px' }}>
                       <input
@@ -241,7 +241,7 @@ function ModifierLibraryTab({
                   )}
 
                   {!editingModGroup || editingModGroup !== groupKey ? (
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '10px' }} title={t('mods.allowMultipleHint') || 'Let cashier pick more than one option from this group'}>
                         <input
                           type="checkbox" className="switch"

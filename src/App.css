@@ -1125,7 +1125,7 @@ body.dark-mode {
 
   /* Responsive Grid for Admin Cards */
   .admin-grid-responsive {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 16px !important;
   }
 
