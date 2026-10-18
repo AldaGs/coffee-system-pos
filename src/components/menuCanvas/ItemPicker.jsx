@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
+import { useTranslation } from '../../hooks/useTranslation';
 
 function normalize(s) {
   return (s || '')
@@ -19,6 +20,7 @@ function normalize(s) {
 }
 
 export default function ItemPicker({ menuData, onPick, onClose }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState(() => new Set()); // category names
 
@@ -58,7 +60,7 @@ export default function ItemPicker({ menuData, onPick, onClose }) {
     <div style={backdrop} onClick={onClose}>
       <div style={dialog} onClick={e => e.stopPropagation()}>
         <header style={header}>
-          <h3 style={{ margin: 0, fontWeight: 800 }}>Vincular producto</h3>
+          <h3 style={{ margin: 0, fontWeight: 800 }}>{t('canvas.linkProductTitle')}</h3>
           <button onClick={onClose} style={iconCloseBtn}><Icon icon="lucide:x" /></button>
         </header>
 
@@ -66,13 +68,13 @@ export default function ItemPicker({ menuData, onPick, onClose }) {
           <Icon icon="lucide:search" style={{ color: '#888' }} />
           <input
             autoFocus
-            placeholder="Buscar producto…"
+            placeholder={t('canvas.searchProduct')}
             value={query}
             onChange={e => setQuery(e.target.value)}
             style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', outline: 'none', fontSize: '0.95rem' }}
           />
           {query && (
-            <button onClick={() => setQuery('')} style={iconCloseBtn} title="Limpiar">
+            <button onClick={() => setQuery('')} style={iconCloseBtn} title={t('canvas.clear')}>
               <Icon icon="lucide:x" />
             </button>
           )}
@@ -81,7 +83,7 @@ export default function ItemPicker({ menuData, onPick, onClose }) {
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {sections.length === 0 && (
             <p style={{ color: '#888', textAlign: 'center', padding: 20 }}>
-              {query ? 'Sin resultados.' : 'Aún no hay productos en el catálogo.'}
+              {query ? t('canvas.noResults') : t('canvas.noCatalog')}
             </p>
           )}
           {sections.map(section => {
@@ -96,7 +98,7 @@ export default function ItemPicker({ menuData, onPick, onClose }) {
                   </button>
                   {section.items.length > 0 && (
                     <button onClick={() => pickCategory(section)} style={categoryAddBtn}>
-                      <Icon icon="lucide:layers" /> Agregar todos
+                      <Icon icon="lucide:layers" /> {t('canvas.addAll')}
                     </button>
                   )}
                 </div>
@@ -117,7 +119,7 @@ export default function ItemPicker({ menuData, onPick, onClose }) {
         </div>
 
         <p style={{ margin: 0, color: '#888', fontSize: '0.78rem' }}>
-          Los nodos vinculados muestran datos en vivo del catálogo: si cambias el nombre o el precio, el menú se actualiza solo.
+          {t('canvas.linkedHint')}
         </p>
       </div>
     </div>

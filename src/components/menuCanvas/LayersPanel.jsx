@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { clusterByGroup } from '../../utils/canvasDocument';
+import { useTranslation } from '../../hooks/useTranslation';
 
 // Illustrator-style layers list: top of the list = top of the stacking order.
 // Rows can be dragged to reorder, renamed (double-click), locked, and hidden.
@@ -82,6 +83,7 @@ function typeIconFor(node) {
 }
 
 export default function LayersPanel({ nodes, groups, selectedIds, onSelect, onSelectGroup, onUpdate, onBulkUpdate, onRenameGroup, onReorder }) {
+  const { t } = useTranslation();
   // Top-first ordering (highest z on top), then cluster groups so members are
   // adjacent — matching the on-canvas stacking the parent enforces.
   const sortedNodes = [...(nodes || [])].sort((a, b) => (b.z || 0) - (a.z || 0));
@@ -182,7 +184,7 @@ export default function LayersPanel({ nodes, groups, selectedIds, onSelect, onSe
             <GroupHeader
               key={'g:' + row.gid}
               gid={row.gid}
-              name={groups?.[row.gid]?.name || 'Grupo'}
+              name={groups?.[row.gid]?.name || t('canvas.group')}
               members={members}
               collapsed={collapsed.has(row.gid)}
               allSelected={members.length > 0 && members.every(m => selectedIds.includes(m))}
@@ -230,7 +232,7 @@ export default function LayersPanel({ nodes, groups, selectedIds, onSelect, onSe
       })}
       {rows.length === 0 && (
         <div style={{ padding: 20, textAlign: 'center', color: '#8b949e', fontSize: '0.8rem' }}>
-          No hay elementos en esta página.
+          {t('canvas.noLayers')}
         </div>
       )}
     </div>
@@ -312,16 +314,17 @@ function LayerItem({
   node, rowRef, indent, isSelected, isDragging, dropBefore, dropAfter, canForward, canBack,
   onSelect, onUpdate, onForward, onBack, onDragStart, onDragOverItem, onDropItem, onDragEnd
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState('');
 
-  const typeLabel = node.type === 'text' ? 'Texto' :
-    node.type === 'image' ? 'Imagen' :
-    node.type === 'shape' ? (node.shape === 'circle' ? 'Círculo' : node.shape === 'line' ? 'Línea' : 'Rectángulo') :
-    node.type === 'path' ? 'Trazo' :
-    node.type === 'item-binding' ? 'Producto' :
-    node.type === 'whatsapp-button' ? 'Botón WA' :
-    node.type === 'date-field' ? 'Fecha' : 'Elemento';
+  const typeLabel = node.type === 'text' ? t('canvas.text') :
+    node.type === 'image' ? t('canvas.image') :
+    node.type === 'shape' ? (node.shape === 'circle' ? t('canvas.circle') : node.shape === 'line' ? t('canvas.line') : t('canvas.rectangle')) :
+    node.type === 'path' ? t('canvas.path') :
+    node.type === 'item-binding' ? t('canvas.product') :
+    node.type === 'whatsapp-button' ? t('canvas.waShort') :
+    node.type === 'date-field' ? t('canvas.date') : t('canvas.element');
 
   const defaultName = node.text ? `${node.text.slice(0, 22)}${node.text.length > 22 ? '…' : ''}` :
     node.label ? node.label :
@@ -366,11 +369,11 @@ function LayerItem({
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         <button onClick={(e) => { e.stopPropagation(); onForward(); }} disabled={!canForward}
-          style={{ ...btnStyle, padding: 0, opacity: canForward ? 1 : 0.2 }} title="Subir">
+          style={{ ...btnStyle, padding: 0, opacity: canForward ? 1 : 0.2 }} title={t('canvas.moveUp')}>
           <Icon icon="lucide:chevron-up" style={{ fontSize: '12px' }} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); onBack(); }} disabled={!canBack}
-          style={{ ...btnStyle, padding: 0, opacity: canBack ? 1 : 0.2 }} title="Bajar">
+          style={{ ...btnStyle, padding: 0, opacity: canBack ? 1 : 0.2 }} title={t('canvas.moveDown')}>
           <Icon icon="lucide:chevron-down" style={{ fontSize: '12px' }} />
         </button>
       </div>

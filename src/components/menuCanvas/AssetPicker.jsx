@@ -6,8 +6,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { listCanvasAssets, uploadCanvasAsset, deleteCanvasAsset, MAX_ASSET_BYTES } from '../../api/menuCanvasAssets';
+import { useTranslation } from '../../hooks/useTranslation';
 
 export default function AssetPicker({ menuId, onPick, onClose }) {
+  const { t } = useTranslation();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -40,7 +42,7 @@ export default function AssetPicker({ menuId, onPick, onClose }) {
   }
 
   async function remove(asset) {
-    if (!window.confirm('¿Eliminar esta imagen?')) return;
+    if (!window.confirm(t('canvas.deleteImageConfirm'))) return;
     try { await deleteCanvasAsset(asset.path); await reload(); }
     catch (err) { setError(err.message); }
   }
@@ -49,7 +51,7 @@ export default function AssetPicker({ menuId, onPick, onClose }) {
     <div style={backdrop} onClick={onClose}>
       <div style={dialog} onClick={e => e.stopPropagation()}>
         <header style={header}>
-          <h3 style={{ margin: 0, fontWeight: 800 }}>Elegir imagen</h3>
+          <h3 style={{ margin: 0, fontWeight: 800 }}>{t('canvas.chooseImage')}</h3>
           <button onClick={onClose} style={iconCloseBtn}><Icon icon="lucide:x" /></button>
         </header>
 
@@ -66,10 +68,10 @@ export default function AssetPicker({ menuId, onPick, onClose }) {
         >
           <Icon icon={uploading ? 'lucide:loader' : 'lucide:upload-cloud'} style={{ fontSize: '1.5rem', marginBottom: 4 }} />
           <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-            {uploading ? 'Subiendo…' : 'Arrastra o haz clic para subir'}
+            {uploading ? t('canvas.uploading') : t('canvas.dropToUpload')}
           </div>
           <div style={{ fontSize: '0.78rem', marginTop: 2, opacity: 0.7 }}>
-            Hasta {Math.round(MAX_ASSET_BYTES / 1024 / 1024)}MB · convertimos a WebP
+            {t('canvas.maxSize').replace('{n}', Math.round(MAX_ASSET_BYTES / 1024 / 1024))}
           </div>
           <input
             ref={fileRef}
@@ -85,9 +87,9 @@ export default function AssetPicker({ menuId, onPick, onClose }) {
 
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 12 }}>
           {loading ? (
-            <p style={{ color: '#888', textAlign: 'center', padding: 20 }}>Cargando…</p>
+            <p style={{ color: '#888', textAlign: 'center', padding: 20 }}>{t('canvas.loading')}</p>
           ) : assets.length === 0 ? (
-            <p style={{ color: '#888', textAlign: 'center', padding: 20 }}>Aún no hay imágenes subidas para este menú.</p>
+            <p style={{ color: '#888', textAlign: 'center', padding: 20 }}>{t('canvas.noImages')}</p>
           ) : (
             <div style={grid}>
               {assets.map(a => (
@@ -98,7 +100,7 @@ export default function AssetPicker({ menuId, onPick, onClose }) {
                     onClick={() => onPick(`${a.url}?v=${Date.now()}`)}
                     style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 6, cursor: 'pointer', background: '#222' }}
                   />
-                  <button onClick={() => remove(a)} style={tileDelete} title="Eliminar">
+                  <button onClick={() => remove(a)} style={tileDelete} title={t('canvas.delete')}>
                     <Icon icon="lucide:trash-2" />
                   </button>
                 </div>

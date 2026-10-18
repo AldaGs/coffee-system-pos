@@ -12,8 +12,10 @@
 import { useContext, useEffect, useRef, useState } from 'react';
 import { HexColorPicker, HexColorInput } from 'react-colorful';
 import { PaletteContext } from './paletteContext';
+import { useTranslation } from '../../hooks/useTranslation';
 
 export default function ColorPicker({ value, onChange, swatchStyle }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const { palette, addSwatch, removeSwatch } = useContext(PaletteContext);
@@ -39,7 +41,7 @@ export default function ColorPicker({ value, onChange, swatchStyle }) {
           borderRadius: 6, cursor: 'pointer', background: value || '#000',
           ...swatchStyle
         }}
-        aria-label="Elegir color"
+        aria-label={t('canvas.chooseColor')}
       />
       {open && (
         <div style={popover}>
@@ -57,16 +59,16 @@ export default function ColorPicker({ value, onChange, swatchStyle }) {
           {/* Document palette: click to apply, Alt-click to remove. */}
           <div style={{ marginTop: 10, borderTop: '1px solid #30363d', paddingTop: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ color: '#8b949e', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Paleta</span>
+              <span style={{ color: '#8b949e', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('canvas.palette')}</span>
               <button
                 type="button"
                 onClick={() => value && addSwatch(value)}
-                title="Guardar el color actual en la paleta"
+                title={t('canvas.savePaletteTitle')}
                 style={{ background: 'transparent', border: '1px solid #30363d', color: '#ddd', borderRadius: 6, padding: '2px 8px', fontSize: '0.72rem', cursor: 'pointer' }}
-              >+ Guardar</button>
+              >{t('canvas.saveToPalette')}</button>
             </div>
             {palette.length === 0 ? (
-              <span style={{ color: '#586069', fontSize: '0.68rem' }}>Sin colores guardados</span>
+              <span style={{ color: '#586069', fontSize: '0.68rem' }}>{t('canvas.noSwatches')}</span>
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {palette.map(hex => (
@@ -74,7 +76,7 @@ export default function ColorPicker({ value, onChange, swatchStyle }) {
                     key={hex}
                     type="button"
                     onClick={e => (e.altKey ? removeSwatch(hex) : onChange(hex))}
-                    title={`${hex} — clic para aplicar, Alt+clic para quitar`}
+                    title={t('canvas.swatchTitle').replace('{hex}', hex)}
                     style={{ width: 20, height: 20, borderRadius: 4, border: hex.toLowerCase() === (value || '').toLowerCase() ? '2px solid #1f6feb' : '1px solid #30363d', background: hex, cursor: 'pointer', padding: 0 }}
                   />
                 ))}
