@@ -318,10 +318,12 @@ const en = [
     what: 'Build and publish digital menus — served at /menu with QR codes, TV/kiosk mode, and a drag-and-drop designer.',
     how: 'A shop can have multiple named menus (breakfast, lunch, seasonal) with weekly days, time-of-day windows, and optional start/end dates. The active menu is picked automatically: when schedules overlap the higher priority wins (a banner warns you about conflicts), and the catalog ("live") menu is the always-on fallback. Menus can be catalog-driven templates, an uploaded PDF/PNG carousel, or a full canvas design (shapes, text, images, bound catalog items). Out-of-stock items are hidden on templates by default, and items can carry a roast date and a WhatsApp order link. Each menu has a shareable QR/link, optionally on your own custom domain.',
     do: [
-      { action: 'Create a menu', steps: 'Add a named menu and choose a template, upload, or canvas design.' },
-      { action: 'Schedule it', steps: 'Set the weekly and time-of-day schedule so the right menu shows automatically.' },
-      { action: 'Share', steps: 'Open the share card for the QR code and copy-link; TV mode lives at /menu/tv.' },
-      { action: 'Set priority', steps: 'Raise or lower a menu\'s priority so it wins (or yields) when schedules overlap.' },
+      { action: 'Create a menu', steps: 'Type a name (e.g. Brunch) and tap Create for a template menu, then pick its template (List, Cards or Chalkboard), categories, accent color and style. Or tap Upload PDF or image to make a carousel menu from a file.' },
+      { action: 'Design it on a canvas', steps: 'Open a template menu and, under Free canvas (beta), convert it to a canvas and tap Open editor to move, restyle and add elements.' },
+      { action: 'Schedule it', steps: 'Open the menu\'s Schedules and add weekly days and time windows; with no schedule the menu is always on when it has the highest priority.' },
+      { action: 'Set priority', steps: 'Use the up and down arrows on a menu\'s row so it wins (or yields) when schedules overlap; the overlap banner shows which one wins.' },
+      { action: 'Add roast dates and WhatsApp links', steps: 'In Public menu content, fill in a date and a WhatsApp link per product; leave them blank to hide them.' },
+      { action: 'Share', steps: 'Use the share card for the shop\'s QR code and link (and to set a custom domain). Each menu also has a direct link that ignores the schedule, handy for a separate printed QR. TV / kiosk view opens /menu/tv for a screen.' },
     ],
   },
   {
@@ -777,10 +779,12 @@ const es = [
     what: 'Crea y publica menús digitales — servidos en /menu con códigos QR, modo TV/kiosco y un diseñador de arrastrar y soltar.',
     how: 'Un negocio puede tener varios menús con nombre (desayuno, comida, temporada) con días de la semana, horarios y fechas de inicio/fin opcionales. El menú activo se elige solo: si los horarios se traslapan gana la prioridad más alta (un aviso te muestra los conflictos) y el menú del catálogo ("live") es el respaldo que siempre está activo. Los menús pueden ser plantillas basadas en el catálogo, un carrusel de PDF/PNG subido, o un diseño completo en lienzo (formas, texto, imágenes, artículos ligados al catálogo). Los productos agotados se ocultan por defecto en las plantillas, y los artículos pueden llevar fecha de tueste y un enlace para pedir por WhatsApp. Cada menú tiene un QR/enlace para compartir, opcionalmente en tu propio dominio.',
     do: [
-      { action: 'Crear un menú', steps: 'Agrega un menú con nombre y elige plantilla, subida o diseño en lienzo.' },
-      { action: 'Programarlo', steps: 'Define el horario semanal y por hora para que el menú correcto aparezca solo.' },
-      { action: 'Compartir', steps: 'Abre la tarjeta para el QR y copiar enlace; el modo TV vive en /menu/tv.' },
-      { action: 'Definir prioridad', steps: 'Sube o baja la prioridad de un menú para que gane (o ceda) cuando los horarios se traslapan.' },
+      { action: 'Crear un menú', steps: 'Escribe un nombre (ej. Brunch) y toca Crear para un menú de plantilla; luego elige su plantilla (Lista, Tarjetas o Pizarra), categorías, color de acento y estilo. O toca Subir PDF o imagen para hacer un menú carrusel desde un archivo.' },
+      { action: 'Diseñarlo en lienzo', steps: 'Abre un menú de plantilla y, en Lienzo libre (beta), conviértelo en lienzo y toca Abrir editor para mover, cambiar el estilo y agregar elementos.' },
+      { action: 'Programarlo', steps: 'Abre los Horarios del menú y agrega días y franjas horarias; sin horarios el menú está activo siempre que sea el de mayor prioridad.' },
+      { action: 'Definir prioridad', steps: 'Usa las flechas de subir y bajar prioridad en la fila del menú para que gane (o ceda) cuando los horarios se traslapan; el aviso de Horarios traslapados muestra cuál gana.' },
+      { action: 'Agregar fechas de tueste y enlaces de WhatsApp', steps: 'En Contenido del menú público, llena una fecha y un enlace de WhatsApp por producto; déjalos en blanco para ocultarlos.' },
+      { action: 'Compartir', steps: 'Usa la tarjeta para compartir para el QR y enlace de la tienda (y para configurar un dominio propio). Cada menú tiene además un Enlace directo que ignora el horario, útil para imprimir un QR distinto. Vista TV / kiosko abre /menu/tv para una pantalla.' },
     ],
   },
   {
