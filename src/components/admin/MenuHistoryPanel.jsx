@@ -7,25 +7,28 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { listVersions, manualSnapshot, restoreVersion, getVersion } from '../../api/menuVersions';
 import { useDialog } from '../../hooks/useDialog';
+import { useTranslation } from '../../hooks/useTranslation';
 
-function relTime(iso) {
+function relTime(iso, t) {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60)        return `hace ${Math.floor(diff)}s`;
-  if (diff < 3600)      return `hace ${Math.floor(diff / 60)} min`;
-  if (diff < 86400)     return `hace ${Math.floor(diff / 3600)} h`;
-  if (diff < 86400 * 7) return `hace ${Math.floor(diff / 86400)} d`;
+  const ago = (n) => t('menuHistory.ago').replace('{n}', n);
+  if (diff < 60)        return ago(`${Math.floor(diff)}s`);
+  if (diff < 3600)      return ago(`${Math.floor(diff / 60)} min`);
+  if (diff < 86400)     return ago(`${Math.floor(diff / 3600)} h`);
+  if (diff < 86400 * 7) return ago(`${Math.floor(diff / 86400)} d`);
   return new Date(iso).toLocaleString();
 }
 
 const REASON_COPY = {
-  'auto':            { label: 'Edición',       color: '#888' },
-  'manual':          { label: 'Punto manual',  color: '#27ae60' },
-  'pre-jsonb-strip': { label: 'Pre-migración', color: '#e67e22' },
-  'restore-target':  { label: 'Antes de restaurar', color: '#9b59b6' }
+  'auto':            { labelKey: 'menuHistory.reasonAuto',          color: '#888' },
+  'manual':          { labelKey: 'menuHistory.reasonManual',        color: '#27ae60' },
+  'pre-jsonb-strip': { labelKey: 'menuHistory.reasonPreMigration',  color: '#e67e22' },
+  'restore-target':  { labelKey: 'menuHistory.reasonRestoreTarget', color: '#9b59b6' }
 };
 
 function MenuHistoryPanel({ onAfterRestore }) {
   const { showAlert, showConfirm } = useDialog();
+  const { t } = useTranslation();
   const [versions, setVersions] = useState([]);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -34,7 +37,7 @@ function MenuHistoryPanel({ onAfterRestore }) {
     try {
       setVersions(await listVersions(100));
     } catch (err) {
-      showAlert?.('Error', 'No se pudo cargar el historial: ' + err.message);
+      showAlert?.('Error', t('menuHistory.loadError') + err.message);
     }
   };
 
@@ -57,15 +60,14 @@ function MenuHistoryPanel({ onAfterRestore }) {
   const handleRestore = (row) => {
     const when = new Date(row.created_at).toLocaleString();
     showConfirm?.(
-      'Restaurar menú',
-      `Esto reemplazará el menú actual con la versión del ${when}. ` +
-      `Se guardará automáticamente el estado actual antes de restaurar, así que puedes deshacer. ¿Continuar?`,
+      t('menuHistory.restoreTitle'),
+      t('menuHistory.restoreDesc').replace('{when}', when),
       async () => {
         setBusy(true);
         try {
           await restoreVersion(row.id);
           await reload();
-          showAlert?.('Listo', 'Menú restaurado. Recargando…');
+          showAlert?.(t('menuHistory.done'), t('menuHistory.restoreDone'));
           if (onAfterRestore) onAfterRestore();
           else setTimeout(() => window.location.reload(), 600);
         } catch (err) {
@@ -91,34 +93,35 @@ function MenuHistoryPanel({ onAfterRestore }) {
       <div style={headerStyle}>
         <h3 style={titleStyle}>
           <Icon icon="lucide:history" style={{ color: 'var(--brand-color)' }} />
-          Historial del menú
+          {t('menuHistory.title')}
         </h3>
         <button
           onClick={handleManual}
           disabled={busy}
           style={{ ...btnStyle, background: 'var(--brand-color)', color: 'white' }}
-          title="Guardar punto de respaldo ahora"
+          title={t('menuHistory.titleSnapshot')}
         >
           <Icon icon="lucide:bookmark-plus" />
-          Crear punto
+          {t('menuHistory.btnSnapshot')}
         </button>
       </div>
       <p style={descStyle}>
-        Cada edición del menú guarda automáticamente una versión. Si algo sale mal, puedes restaurar cualquier versión de la lista.
+        {t('menuHistory.desc')}
       </p>
 
       {versions.length === 0 ? (
-        <p style={emptyStyle}>Aún no hay versiones. Edita el menú o crea un punto manualmente.</p>
+        <p style={emptyStyle}>{t('menuHistory.empty')}</p>
       ) : (
         <ul style={listStyle}>
           {versions.map(v => {
-            const meta = REASON_COPY[v.reason] || { label: v.reason, color: '#888' };
+            const meta = REASON_COPY[v.reason] || { color: '#888' };
+            const label = meta.labelKey ? t(meta.labelKey) : v.reason;
             return (
               <li key={v.id} style={rowStyle}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ ...badgeStyle, background: meta.color }}>{meta.label}</span>
-                    <span style={timeStyle}>{relTime(v.created_at)}</span>
+                    <span style={{ ...badgeStyle, background: meta.color }}>{label}</span>
+                    <span style={timeStyle}>{relTime(v.created_at, t)}</span>
                   </div>
                   {v.trigger_op && (
                     <div style={triggerStyle}>{v.trigger_op}</div>
@@ -128,7 +131,7 @@ function MenuHistoryPanel({ onAfterRestore }) {
                   <button
                     onClick={() => handlePreview(v)}
                     style={{ ...btnStyle, background: 'var(--bg-main)', color: 'var(--text-main)', border: '1px solid var(--border)' }}
-                    title="Ver contenido"
+                    title={t('menuHistory.titlePreview')}
                   >
                     <Icon icon="lucide:eye" />
                   </button>
@@ -138,7 +141,7 @@ function MenuHistoryPanel({ onAfterRestore }) {
                     style={{ ...btnStyle, background: 'transparent', color: 'var(--brand-color)', border: '1px solid var(--brand-color)' }}
                   >
                     <Icon icon="lucide:rotate-ccw" />
-                    Restaurar
+                    {t('menuHistory.btnRestore')}
                   </button>
                 </div>
               </li>
@@ -151,7 +154,7 @@ function MenuHistoryPanel({ onAfterRestore }) {
         <div style={previewOverlay} onClick={() => setPreview(null)}>
           <div style={previewBox} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <strong>Versión #{preview.id} — {new Date(preview.created_at).toLocaleString()}</strong>
+              <strong>{t('menuHistory.version')} #{preview.id} — {new Date(preview.created_at).toLocaleString()}</strong>
               <button onClick={() => setPreview(null)} style={closeBtn}><Icon icon="lucide:x" /></button>
             </div>
             <pre style={preStyle}>{JSON.stringify(preview.snapshot, null, 2)}</pre>

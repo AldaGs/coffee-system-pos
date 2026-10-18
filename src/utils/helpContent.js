@@ -222,7 +222,7 @@ const en = [
       { action: 'Set the tax treatment', steps: 'Pick VAT 16% (prepared), Zero-rated (unprepared food) or Exempt per item so checkout computes IVA correctly.' },
       { action: 'Hide a category or item', steps: 'Tap the eye icon to hide it from the register and the globe icon to hide it from the public menu; a badge shows where it is hidden. New products show on the public menu by default: untick "Show on the public menu" in the product form to keep one off it.' },
       { action: 'Spot sold-out products', steps: 'A red "Sold out" badge marks products whose linked stock or recipe ingredients have run short; the public menu shows them as unavailable until you restock.' },
-      { action: 'Restore an earlier catalog', steps: 'Use the menu history card at the bottom of the tab: changes are snapshotted automatically (recent ones kept, older thinned out) and manual snapshots are kept forever; restore any of them — the current state is saved first, so a restore can be undone.' },
+      { action: 'Restore an earlier catalog', steps: 'Use the Menu history card at the bottom of the tab: changes are snapshotted automatically (recent ones kept, older thinned out) and manual snapshots are kept forever; restore any of them — the current state is saved first, so a restore can be undone.' },
     ],
   },
   {
