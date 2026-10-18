@@ -39,7 +39,7 @@ function TablesTab({ showAlert, showConfirm }) {
   }
 
   async function handleRename(floor) {
-    const name = window.prompt('Nuevo nombre del plano', floor.name)?.trim();
+    const name = window.prompt(t('floors.renamePrompt'), floor.name)?.trim();
     if (!name || name === floor.name) return;
     try { await updateFloor(floor.id, { name }); await reload(); }
     catch (err) { showAlert?.('Error', err.message); }
@@ -47,8 +47,8 @@ function TablesTab({ showAlert, showConfirm }) {
 
   function handleDelete(floor) {
     showConfirm?.(
-      'Eliminar plano',
-      `¿Eliminar "${floor.name}"? Las mesas de este plano se perderán. Los tickets abiertos no se eliminan.`,
+      t('floors.deleteTitle'),
+      t('floors.deleteDesc').replace('{name}', floor.name),
       async () => {
         try { await deleteFloor(floor.id); await reload(); }
         catch (err) { showAlert?.('Error', err.message); }
@@ -72,11 +72,11 @@ function TablesTab({ showAlert, showConfirm }) {
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 4px' }}>
           <Icon icon="lucide:armchair" style={{ color: 'var(--brand-color)' }} />
-          Planos de mesas
+          {t('floors.title')}
           <InfoTip text={t('pageInfo.tables')} section="tables" />
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0 }}>
-          Un plano por zona (salón, terraza…). Actívalo en Configuración → Modo de diseño → Mesas.
+          {t('floors.subtitle')}
         </p>
       </div>
 
@@ -85,21 +85,21 @@ function TablesTab({ showAlert, showConfirm }) {
           value={newName}
           onChange={e => setNewName(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
-          placeholder="Nombre del plano (p. ej. Salón principal)"
+          placeholder={t('floors.namePlaceholder')}
           style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
         />
         <button onClick={handleCreate} disabled={!newName.trim()}
           style={{ padding: '10px 16px', borderRadius: 8, border: 'none', background: 'var(--brand-color, #3498db)', color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: newName.trim() ? 1 : 0.5 }}>
-          Crear plano
+          {t('floors.btnCreate')}
         </button>
       </div>
 
       {loading ? (
-        <p style={{ color: 'var(--text-muted)' }}>Cargando…</p>
+        <p style={{ color: 'var(--text-muted)' }}>{t('floors.loading')}</p>
       ) : floors.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: 12 }}>
           <Icon icon="lucide:armchair" style={{ fontSize: '2rem', opacity: 0.5 }} />
-          <p style={{ margin: '8px 0 0' }}>Aún no hay planos. Crea el primero para empezar a colocar mesas.</p>
+          <p style={{ margin: '8px 0 0' }}>{t('floors.empty')}</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -111,14 +111,14 @@ function TablesTab({ showAlert, showConfirm }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700 }}>{floor.name}</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    {count} {count === 1 ? 'mesa' : 'mesas'}{floor.zone ? ` · ${floor.zone}` : ''}
+                    {count} {count === 1 ? t('floors.table') : t('floors.tables')}{floor.zone ? ` · ${floor.zone}` : ''}
                   </div>
                 </div>
-                <button onClick={() => setEditingId(floor.id)} title="Editar plano"
+                <button onClick={() => setEditingId(floor.id)} title={t('floors.titleEdit')}
                   style={iconBtn('primary')}><Icon icon="lucide:pencil" /></button>
-                <button onClick={() => handleRename(floor)} title="Renombrar"
+                <button onClick={() => handleRename(floor)} title={t('floors.titleRename')}
                   style={iconBtn()}><Icon icon="lucide:text-cursor-input" /></button>
-                <button onClick={() => handleDelete(floor)} title="Eliminar"
+                <button onClick={() => handleDelete(floor)} title={t('floors.titleDelete')}
                   style={iconBtn('danger')}><Icon icon="lucide:trash-2" /></button>
               </div>
             );
