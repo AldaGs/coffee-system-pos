@@ -233,9 +233,11 @@ const en = [
     what: 'A reusable library of modifier groups (extra shot, milk choice, size…) that you attach to menu items.',
     how: 'Groups are defined once and linked to many items. A group can be hidden without breaking its links, so un-hiding restores it everywhere without re-attaching. Modifier options can adjust price and inventory deductions/substitutions.',
     do: [
-      { action: 'Create a group', steps: 'Add a group, then add its options with prices and any inventory effect.' },
-      { action: 'Attach to items', steps: 'Link the group to the products that should offer it.' },
-      { action: 'Hide a group', steps: 'Toggle it hidden; links are preserved for when you un-hide it.' },
+      { action: 'Create a group', steps: 'Type a name under Create Modifier Group and tap Create. Tick "Allow multiple" on the group if the cashier may pick more than one option.' },
+      { action: 'Add options', steps: 'Under Add Option to Group, pick the group, name the option and set its extra price. Tick "This is a Text Input Field" for a free-text note (e.g. a name on the cup) instead of a fixed choice.' },
+      { action: 'Make an option deduct or swap stock', steps: 'Under Inventory Actions (Optional), pick the Item to Deduct (e.g. an almond milk carton) and, for a swap, the Base Ingredient to Replace (e.g. whole milk) so the recipe uses the substitute.' },
+      { action: 'Attach to items', steps: 'In Menu Editor, tap Edit Modifiers on a product and pick the groups it should offer.' },
+      { action: 'Hide a group', steps: 'Tap the eye icon to hide it from the menu and register; links are preserved for when you un-hide it. Tap the globe icon to make it cashier only, hidden from the online menu.' },
     ],
   },
   {
@@ -681,9 +683,11 @@ const es = [
     what: 'Una biblioteca reutilizable de grupos de modificadores (shot extra, tipo de leche, tamaño…) que adjuntas a los artículos.',
     how: 'Los grupos se definen una vez y se ligan a muchos artículos. Un grupo se puede ocultar sin romper sus vínculos, así al mostrarlo de nuevo se restaura en todos lados sin volver a adjuntarlo. Las opciones pueden ajustar el precio y los descuentos/sustituciones de inventario.',
     do: [
-      { action: 'Crear un grupo', steps: 'Agrega un grupo y luego sus opciones con precios y efecto en inventario.' },
-      { action: 'Adjuntar a artículos', steps: 'Liga el grupo a los productos que deban ofrecerlo.' },
-      { action: 'Ocultar un grupo', steps: 'Márcalo como oculto; los vínculos se conservan para cuando lo muestres.' },
+      { action: 'Crear un grupo', steps: 'Escribe un nombre en Crear Grupo de Modificadores y toca Crear. Marca "Permitir múltiples" en el grupo si el cajero puede elegir más de una opción.' },
+      { action: 'Agregar opciones', steps: 'En Agregar Opción al Grupo, elige el grupo, nombra la opción y define su precio extra. Marca "Este es un campo de texto libre" para una nota libre (ej. un nombre en el vaso) en vez de una opción fija.' },
+      { action: 'Hacer que una opción descuente o sustituya stock', steps: 'En Acciones de Inventario (Opcional), elige el Artículo a Deducir (ej. un cartón de leche de almendra) y, para una sustitución, el Ingrediente Base a Reemplazar (ej. leche entera) para que la receta use el sustituto.' },
+      { action: 'Adjuntar a artículos', steps: 'En el Editor de Menú, toca Modificadores en un producto y elige los grupos que debe ofrecer.' },
+      { action: 'Ocultar un grupo', steps: 'Toca el ícono del ojo para ocultarlo del menú y la caja; los vínculos se conservan para cuando lo muestres. Toca el ícono del globo para dejarlo solo cajero, oculto del menú en línea.' },
     ],
   },
   {
