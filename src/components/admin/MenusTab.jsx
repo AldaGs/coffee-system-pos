@@ -79,7 +79,7 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
 
   async function handleDelete(menu) {
     if (menu.kind === 'live') return;
-    showConfirm?.('Eliminar menú', `¿Eliminar "${menu.name}"?`, async () => {
+    showConfirm?.(t('menusTab.deleteTitle'), t('menusTab.deleteDesc').replace('{name}', menu.name), async () => {
       try {
         // Best-effort storage cleanup before the row goes; FK cascade handles schedules.
         if (menu.kind === 'pdf' || menu.kind === 'image') {
@@ -97,7 +97,7 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
   // (kind defaults to 'designed' empty), so the user can see and retry/delete.
   async function handleUpload(file) {
     if (!file) return;
-    const stem = file.name.replace(/\.[^.]+$/, '') || 'Menú';
+    const stem = file.name.replace(/\.[^.]+$/, '') || t('menusTab.defaultName');
     let menu;
     try {
       menu = await addMenu({ name: stem, kind: 'designed', priority: 1 });
@@ -113,7 +113,7 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
     } catch (err) {
       // Leave the empty row behind so the user can choose what to do; don't
       // silently delete their work.
-      showAlert?.('Error subiendo menú', err.message);
+      showAlert?.(t('menusTab.uploadError'), err.message);
     } finally {
       setUploadProgress(null);
     }
@@ -131,26 +131,26 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
     const url = localStorage.getItem('tinypos_supabase_url');
     const key = localStorage.getItem('tinypos_supabase_anon_key');
     if (!url || !key) {
-      showAlert?.('Configuración faltante', 'No se encontraron credenciales locales para construir el enlace.');
+      showAlert?.(t('menusTab.missingConfigTitle'), t('menusTab.missingConfigDesc'));
       return;
     }
     const tvUrl = `${menuBaseUrl()}/menu/tv?u=${btoa(url)}&k=${btoa(key)}`;
     openInBrowser(tvUrl);
   }
 
-  if (loading) return <div className="admin-section fade-in"><p>Cargando…</p></div>;
+  if (loading) return <div className="admin-section fade-in"><p>{t('menusTab.loading')}</p></div>;
 
   return (
     <div className="admin-section fade-in">
       <div className="admin-section-header" style={{ marginBottom: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>Menús{' '}<InfoTip text={t('pageInfo.menus')} section="menus" /></h1>
+          <h1 style={{ margin: 0, color: 'var(--text-main)', fontSize: '2rem', fontWeight: 800 }}>{t('menusTab.title')}{' '}<InfoTip text={t('pageInfo.menus')} section="menus" /></h1>
           <p style={{ color: 'var(--text-muted)', margin: '4px 0 0', fontSize: '1.05rem' }}>
-            Varios menús con horario. Se muestra el de mayor prioridad que esté activo.
+            {t('menusTab.subtitle')}
           </p>
         </div>
-        <button onClick={openTvView} style={btnSecondary} title="Abre /menu/tv en otra pestaña — para una tablet o pantalla">
-          <Icon icon="lucide:tv" /> Vista TV / kiosko
+        <button onClick={openTvView} style={btnSecondary} title={t('menusTab.tvTitle')}>
+          <Icon icon="lucide:tv" /> {t('menusTab.tvButton')}
         </button>
       </div>
 
@@ -158,17 +158,17 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           <input
             type="text"
-            placeholder="Nombre del nuevo menú (ej. Brunch, Verano)"
+            placeholder={t('menusTab.newNamePlaceholder')}
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleCreate(); }}
             style={{ flex: 1, padding: 14, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700, outline: 'none' }}
           />
           <button onClick={handleCreate} style={btnPrimary}>
-            <Icon icon="lucide:plus" /> Crear
+            <Icon icon="lucide:plus" /> {t('menusTab.btnCreate')}
           </button>
           <button onClick={triggerUpload} style={btnSecondary} disabled={!!uploadProgress}>
-            <Icon icon="lucide:upload" /> Subir PDF o imagen
+            <Icon icon="lucide:upload" /> {t('menusTab.btnUpload')}
           </button>
           <input
             ref={fileInputRef}
@@ -185,11 +185,11 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
         {uploadProgress && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} />
-            {progressLabel(uploadProgress)}
+            {progressLabel(uploadProgress, t)}
           </div>
         )}
         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-          Sube un PDF (máx {Math.round(MAX_PDF_BYTES / 1024 / 1024)}MB) o imagen (máx {Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB). El PDF se convierte a páginas WebP para mostrar y se guarda el original para descarga.
+          {t('menusTab.uploadHint').replace('{pdf}', Math.round(MAX_PDF_BYTES / 1024 / 1024)).replace('{img}', Math.round(MAX_IMAGE_BYTES / 1024 / 1024))}
         </p>
       </div>
 
@@ -246,6 +246,7 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
 // menu_items.data jsonb via onSet (Admin.handleSetItemPublicFields), so the
 // public-menu RPCs pick them up without any catalog-form changes.
 function PublicMenuContent({ menuData, onSet }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   if (!onSet) return null;
 
@@ -260,17 +261,17 @@ function PublicMenuContent({ menuData, onSet }) {
       <button onClick={() => setExpanded(e => !e)} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 20, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-main)' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: '1.05rem' }}>
           <Icon icon="lucide:calendar-clock" style={{ color: 'var(--brand-color)' }} />
-          Contenido del menú público
+          {t('menusTab.contentTitle')}
         </span>
         <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} />
       </button>
       {expanded && (
         <div style={{ borderTop: '1px solid var(--border)', padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-            Fecha (tueste, cosecha…) y enlace de WhatsApp por producto, solo en el menú público. Deja en blanco para no mostrarlos.{' '}
-            <InfoTip text="Se muestran como badge de frescura y botón «Pedir por WhatsApp». Para texto y emoji propios, usa el elemento «Fecha» en el editor de lienzo." section="menus" />
+            {t('menusTab.contentDesc')}{' '}
+            <InfoTip text={t('menusTab.contentInfo')} section="menus" />
           </p>
-          {!hasItems && <p style={{ margin: 0, color: 'var(--text-muted)' }}>No hay productos en el menú.</p>}
+          {!hasItems && <p style={{ margin: 0, color: 'var(--text-muted)' }}>{t('menusTab.noItems')}</p>}
           {categoryOrder.map(cat => {
             const items = categories[cat] || [];
             if (items.length === 0) return null;
@@ -291,6 +292,7 @@ function PublicMenuContent({ menuData, onSet }) {
 // smooth and only commits on blur (each commit is a cloud write); the date is a
 // discrete value so it commits on change.
 function PublicItemRow({ item, onSet }) {
+  const { t } = useTranslation();
   const [wa, setWa] = useState(item.whatsappUrl || '');
   useEffect(() => { setWa(item.whatsappUrl || ''); }, [item.whatsappUrl]);
 
@@ -309,7 +311,7 @@ function PublicItemRow({ item, onSet }) {
         type="date"
         value={item.roastDate || ''}
         onChange={(e) => onSet(item.id, { roastDate: e.target.value })}
-        title="Fecha (tueste, cosecha, caducidad…)"
+        title={t('menusTab.dateTitle')}
         style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', fontWeight: 700, outline: 'none' }}
       />
       <input
@@ -319,7 +321,7 @@ function PublicItemRow({ item, onSet }) {
         onChange={(e) => setWa(e.target.value)}
         onBlur={commitWa}
         placeholder="https://wa.me/52..."
-        title="Enlace de WhatsApp / catálogo"
+        title={t('menusTab.waTitle')}
         style={{ flex: '2 1 220px', minWidth: 180, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-main)', fontWeight: 600, outline: 'none' }}
       />
     </div>
@@ -327,6 +329,7 @@ function PublicItemRow({ item, onSet }) {
 }
 
 function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriority, onDelete, onScheduleChange, showAlert, categoryNames, menuCategories, onOpenCanvas }) {
+  const { t } = useTranslation();
   const [name, setName] = useState(menu.name);
   useEffect(() => { setName(menu.name); }, [menu.name]);
 
@@ -345,36 +348,36 @@ function MenuCard({ menu, expanded, onExpand, onRename, onToggleActive, onPriori
             onBlur={() => { if (name !== menu.name && name.trim()) onRename(name.trim()); }}
             style={{ flex: 1, minWidth: 0, padding: '8px 12px', borderRadius: 8, border: '1px solid transparent', background: 'transparent', color: 'var(--text-main)', fontWeight: 800, fontSize: '1.05rem', outline: 'none' }}
           />
-          <span style={{ ...kindBadge, flexShrink: 0 }}>{kindLabel(menu.kind)}</span>
+          <span style={{ ...kindBadge, flexShrink: 0 }}>{kindLabel(menu.kind, t)}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', borderRadius: 8, background: 'var(--bg-main)' }}>
-            <button onClick={() => onPriority(-1)} disabled={isLive || menu.priority <= 0} style={priBtn} title="Bajar prioridad">
+            <button onClick={() => onPriority(-1)} disabled={isLive || menu.priority <= 0} style={priBtn} title={t('menusTab.priorityDown')}>
               <Icon icon="lucide:chevron-down" />
             </button>
             <span style={{ fontWeight: 800, minWidth: 18, textAlign: 'center', color: 'var(--text-main)' }}>{menu.priority}</span>
-            <button onClick={() => onPriority(+1)} disabled={isLive} style={priBtn} title="Subir prioridad">
+            <button onClick={() => onPriority(+1)} disabled={isLive} style={priBtn} title={t('menusTab.priorityUp')}>
               <Icon icon="lucide:chevron-up" />
             </button>
           </div>
 
           <button onClick={onToggleActive} style={menu.is_active ? activeBtn : inactiveBtn}>
             <Icon icon={menu.is_active ? 'lucide:eye' : 'lucide:eye-off'} />
-            {menu.is_active ? 'Activo' : 'Pausado'}
+            {menu.is_active ? t('menusTab.active') : t('menusTab.paused')}
           </button>
 
-          <button onClick={onExpand} style={iconBtn} title="Horarios">
+          <button onClick={onExpand} style={iconBtn} title={t('menusTab.schedules')}>
             <Icon icon="lucide:calendar-clock" />
-            <span style={{ fontWeight: 700 }}>{menu.schedules.length} horario{menu.schedules.length === 1 ? '' : 's'}</span>
+            <span style={{ fontWeight: 700 }}>{t(menu.schedules.length === 1 ? 'menusTab.scheduleCountOne' : 'menusTab.scheduleCountMany').replace('{n}', menu.schedules.length)}</span>
           </button>
 
-          <button onClick={onExpand} style={iconBtn} title={expanded ? 'Cerrar' : (menu.kind === 'designed' ? 'Diseño + horarios' : 'Horarios')}>
+          <button onClick={onExpand} style={iconBtn} title={expanded ? t('menusTab.close') : (menu.kind === 'designed' ? t('menusTab.designAndSchedules') : t('menusTab.schedules'))}>
             <Icon icon={expanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} />
           </button>
 
           {!isLive && (
-            <button onClick={onDelete} style={dangerBtn} title="Eliminar menú">
+            <button onClick={onDelete} style={dangerBtn} title={t('menusTab.deleteTitle')}>
               <Icon icon="lucide:trash-2" />
             </button>
           )}
@@ -422,6 +425,7 @@ function buildTemplateCatalog(menuCategories, selectedNames, allNames) {
 // coffee lineup can advertise the full list; ticking the box hides sold-out
 // items instead (based on inventory stock).
 function LiveMenuOptions({ menu, onChange, showAlert }) {
+  const { t } = useTranslation();
   const data = menu.data || {};
   async function patch(next) {
     try {
@@ -438,9 +442,9 @@ function LiveMenuOptions({ menu, onChange, showAlert }) {
           onChange={e => patch({ hide_out_of_stock: e.target.checked })}
         />
         <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
-          Ocultar productos agotados
+          {t('menusTab.hideOos')}
           <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
-            (si se desactiva, se muestran con la etiqueta «Agotado»)
+            {t('menusTab.hideOosLiveHint')}
           </span>
         </span>
       </label>
@@ -463,6 +467,7 @@ function LiveMenuOptions({ menu, onChange, showAlert }) {
 }
 
 function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategories, onOpenCanvas }) {
+  const { t } = useTranslation();
   const data = menu.data || {};
   const [template, setTemplate] = useState(data.template || 'list');
   const [selected, setSelected] = useState(data.category_names || []);
@@ -476,7 +481,7 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
     } catch (err) { showAlert?.('Error', err.message); }
   }
 
-  function applyTemplate(t) { setTemplate(t); patch({ template: t }); }
+  function applyTemplate(id) { setTemplate(id); patch({ template: id }); }
   function applyAccent(c)    { setAccent(c); patch({ accent_color: c || null }); }
   function toggleAll()       { setSelected([]); patch({ category_names: [] }); }
   function toggleCategory(name) {
@@ -489,34 +494,34 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
   return (
     <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div>
-        <p style={{ margin: '0 0 8px', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plantilla</p>
+        <p style={{ margin: '0 0 8px', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('menusTab.template')}</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {[
-            { id: 'list',       label: 'Lista',           icon: 'lucide:align-justify' },
-            { id: 'cards',      label: 'Tarjetas',        icon: 'lucide:layout-grid' },
-            { id: 'chalkboard', label: 'Pizarra',         icon: 'lucide:square-pen' }
-          ].map(t => (
-            <button key={t.id} onClick={() => applyTemplate(t.id)} style={{
+            { id: 'list',       label: t('menusTab.tplList'),       icon: 'lucide:align-justify' },
+            { id: 'cards',      label: t('menusTab.tplCards'),      icon: 'lucide:layout-grid' },
+            { id: 'chalkboard', label: t('menusTab.tplChalkboard'), icon: 'lucide:square-pen' }
+          ].map(tpl => (
+            <button key={tpl.id} onClick={() => applyTemplate(tpl.id)} style={{
               padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)',
-              background: template === t.id ? 'var(--brand-color)' : 'var(--bg-surface)',
-              color: template === t.id ? 'white' : 'var(--text-main)',
+              background: template === tpl.id ? 'var(--brand-color)' : 'var(--bg-surface)',
+              color: template === tpl.id ? 'white' : 'var(--text-main)',
               cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6
             }}>
-              <Icon icon={t.icon} />{t.label}
+              <Icon icon={tpl.icon} />{tpl.label}
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <p style={{ margin: '0 0 8px', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Categorías</p>
+        <p style={{ margin: '0 0 8px', fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('menusTab.categories')}</p>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button onClick={toggleAll} style={{
             padding: '6px 12px', borderRadius: 999, border: '1px solid var(--border)',
             background: all ? 'var(--brand-color)' : 'var(--bg-surface)',
             color: all ? 'white' : 'var(--text-main)',
             cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem'
-          }}>Todas</button>
+          }}>{t('menusTab.allCategories')}</button>
           {categoryNames.map(name => {
             const on = !all && selected.includes(name);
             return (
@@ -532,11 +537,11 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Color de acento</p>
+        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('menusTab.accentColor')}</p>
         <input type="color" value={accent || '#f28b05'} onChange={e => setAccent(e.target.value)} onBlur={() => applyAccent(accent)} style={{ width: 40, height: 32, border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer' }} />
         {accent && (
           <button onClick={() => applyAccent('')} style={{ ...btnSecondary, padding: '6px 12px', fontSize: '0.8rem' }}>
-            Usar marca por defecto
+            {t('menusTab.useBrandDefault')}
           </button>
         )}
       </div>
@@ -548,9 +553,9 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
           onChange={e => patch({ hide_out_of_stock: e.target.checked })}
         />
         <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
-          Ocultar productos agotados
+          {t('menusTab.hideOos')}
           <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
-            (basado en inventario)
+            {t('menusTab.hideOosHint')}
           </span>
         </span>
       </label>
@@ -577,9 +582,9 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
             onChange={e => patch({ list_show_images: e.target.checked })}
           />
           <span style={{ fontSize: '0.9rem', color: 'var(--text-main)' }}>
-            Mostrar imágenes
+            {t('menusTab.showImages')}
             <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 4 }}>
-              (miniatura del producto en vez del emoji)
+              {t('menusTab.showImagesHint')}
             </span>
           </span>
         </label>
@@ -606,8 +611,9 @@ function DesignedEditor({ menu, onChange, showAlert, categoryNames, menuCategori
 // the visual identity carries over. Removing the document drops the menu
 // back to template mode without losing the rest of menu.data.
 function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas, template, catalog }) {
+  const { t } = useTranslation();
   const hasDoc = !!data.document;
-  const shopName = menu.name || 'Menú';
+  const shopName = menu.name || t('menusTab.defaultName');
 
   // Seed from a starter template, or blank when the user wants a clean slate.
   async function seed({ kind = template, open = false } = {}) {
@@ -641,34 +647,35 @@ function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas, templ
     } catch (err) { showAlert?.('Error', err.message); }
   }
 
-  const TEMPLATE_LABEL = { list: 'Lista', cards: 'Tarjetas', chalkboard: 'Pizarra' };
+  const TEMPLATE_LABEL = { list: t('menusTab.tplList'), cards: t('menusTab.tplCards'), chalkboard: t('menusTab.tplChalkboard') };
+  const templateLabel = TEMPLATE_LABEL[template] || TEMPLATE_LABEL.list;
 
   return (
     <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
       <div style={{ flex: 1, minWidth: 220 }}>
-        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Lienzo libre (beta)</p>
+        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('menusTab.canvasTitle')}</p>
         <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
           {hasDoc
-            ? 'Este menú se renderiza desde un documento de lienzo. Plantilla y categorías arriba quedan ignoradas.'
-            : `Convierte la plantilla “${TEMPLATE_LABEL[template] || 'Lista'}” y las categorías de arriba en un lienzo editable. Cada producto se coloca como un bloque que puedes mover y rediseñar.`}
+            ? t('menusTab.canvasActiveDesc')
+            : t('menusTab.canvasSeedDesc').replace('{template}', templateLabel)}
         </p>
       </div>
       {hasDoc ? (
         <>
           <button onClick={onOpenCanvas} style={btnPrimary}>
-            <Icon icon="lucide:pen-tool" /> Abrir editor
+            <Icon icon="lucide:pen-tool" /> {t('menusTab.openEditor')}
           </button>
           <button onClick={clear} style={dangerBtn}>
-            <Icon icon="lucide:x" /> Quitar lienzo
+            <Icon icon="lucide:x" /> {t('menusTab.removeCanvas')}
           </button>
         </>
       ) : (
         <>
           <button onClick={() => seed({ open: true })} style={btnPrimary}>
-            <Icon icon="lucide:layout-template" /> Crear lienzo desde “{TEMPLATE_LABEL[template] || 'Lista'}”
+            <Icon icon="lucide:layout-template" /> {t('menusTab.createCanvasFrom').replace('{template}', templateLabel)}
           </button>
           <button onClick={() => seed({ kind: 'blank', open: true })} style={btnSecondary}>
-            <Icon icon="lucide:square" /> Lienzo en blanco
+            <Icon icon="lucide:square" /> {t('menusTab.blankCanvas')}
           </button>
         </>
       )}
@@ -680,6 +687,7 @@ function CanvasBetaToggle({ menu, data, onChange, showAlert, onOpenCanvas, templ
 // let the template fall back to its built-in look, so adopting themes is
 // opt-in and reversible per token.
 function ThemeEditor({ menu, data, onChange, showAlert }) {
+  const { t } = useTranslation();
   const theme = data.theme || {};
 
   async function patchTheme(patch) {
@@ -696,20 +704,20 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
 
   return (
     <div style={{ borderTop: '1px dashed var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estilo</p>
+      <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('menusTab.style')}</p>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-        <Field label="Tipografía">
+        <Field label={t('menusTab.font')}>
           <select value={theme.font_preset || 'system'} onChange={e => patchTheme({ font_preset: e.target.value })} style={inputStyle}>
             {Object.entries(FONT_PRESETS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </Field>
-        <Field label="Densidad">
+        <Field label={t('menusTab.density')}>
           <div style={{ display: 'flex', gap: 4 }}>
             {[
-              { id: 'compact', label: 'Compacto' },
-              { id: 'cozy',    label: 'Cómodo' },
-              { id: 'roomy',   label: 'Amplio' }
+              { id: 'compact', label: t('menusTab.densityCompact') },
+              { id: 'cozy',    label: t('menusTab.densityCozy') },
+              { id: 'roomy',   label: t('menusTab.densityRoomy') }
             ].map(d => {
               const on = (theme.density || 'cozy') === d.id;
               return (
@@ -727,12 +735,12 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 12 }}>
-        <ColorField label="Fondo"  value={theme.background} onClear={() => patchTheme({ background: '' })} onChange={v => patchTheme({ background: v })} />
-        <ColorField label="Texto"  value={theme.text}       onClear={() => patchTheme({ text: '' })}       onChange={v => patchTheme({ text: v })} />
-        <ColorField label="Acento" value={theme.accent}     onClear={() => patchTheme({ accent: '' })}     onChange={v => patchTheme({ accent: v })} />
+        <ColorField label={t('menusTab.colorBackground')} value={theme.background} onClear={() => patchTheme({ background: '' })} onChange={v => patchTheme({ background: v })} />
+        <ColorField label={t('menusTab.colorText')} value={theme.text}       onClear={() => patchTheme({ text: '' })}       onChange={v => patchTheme({ text: v })} />
+        <ColorField label={t('menusTab.colorAccent')} value={theme.accent}     onClear={() => patchTheme({ accent: '' })}     onChange={v => patchTheme({ accent: v })} />
       </div>
 
-      <Field label="URL de Google Fonts (opcional)">
+      <Field label={t('menusTab.googleFont')}>
         <input
           type="url"
           placeholder="https://fonts.googleapis.com/css2?family=Playfair+Display&display=swap"
@@ -744,30 +752,30 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
 
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer' }}>
         <input type="checkbox" className="switch" checked={!!theme.hide_title} onChange={e => patchTheme({ hide_title: e.target.checked })} />
-        Ocultar el nombre de la tienda (si el logo ya lo incluye)
+        {t('menusTab.hideTitle')}
       </label>
 
-      <Field label="Logo para la página de pedidos (opcional, URL https; si no, se usa el logo de la tienda)">
+      <Field label={t('menusTab.orderLogo')}>
         <input
           type="url"
-          placeholder="https://tu-sitio.com/logo.png"
+          placeholder={t('menusTab.orderLogoPlaceholder')}
           defaultValue={theme.logo_url || ''}
           onBlur={e => patchTheme({ logo_url: e.target.value.trim() })}
           style={inputStyle}
         />
       </Field>
 
-      <Field label="Sitio web de la tienda (opcional, enlace en el encabezado de pedidos)">
+      <Field label={t('menusTab.homeUrl')}>
         <input
           type="url"
-          placeholder="https://tu-sitio.com"
+          placeholder={t('menusTab.homeUrlPlaceholder')}
           defaultValue={theme.home_url || ''}
           onBlur={e => patchTheme({ home_url: e.target.value.trim() })}
           style={inputStyle}
         />
       </Field>
 
-      <Field label="CSS personalizado para la página de pedidos (avanzado: .tp-order, .tp-header)">
+      <Field label={t('menusTab.customCss')}>
         <textarea
           rows={6}
           placeholder=".tp-order button { border-radius: 999px; }"
@@ -781,6 +789,7 @@ function ThemeEditor({ menu, data, onChange, showAlert }) {
 }
 
 function ColorField({ label, value, onChange, onClear }) {
+  const { t } = useTranslation();
   return (
     <Field label={label}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -792,7 +801,7 @@ function ColorField({ label, value, onChange, onClear }) {
         />
         <code style={{ flex: 1, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{value || 'auto'}</code>
         {value && (
-          <button onClick={onClear} title="Limpiar" style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
+          <button onClick={onClear} title={t('menusTab.clear')} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}>
             <Icon icon="lucide:x" />
           </button>
         )}
@@ -802,6 +811,7 @@ function ColorField({ label, value, onChange, onClear }) {
 }
 
 function ScheduleEditor({ menu, onChange, showAlert }) {
+  const { t } = useTranslation();
   async function add() {
     try { await addSchedule(menu.id, { days_of_week: 0 }); onChange(); }
     catch (err) { showAlert?.('Error', err.message); }
@@ -820,11 +830,11 @@ function ScheduleEditor({ menu, onChange, showAlert }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>
           {menu.schedules.length === 0
-            ? 'Sin horarios — el menú está activo en todo momento (cuando es el de mayor prioridad).'
-            : 'El menú se mostrará si CUALQUIER horario coincide con la hora local del negocio.'}
+            ? t('menusTab.noSchedules')
+            : t('menusTab.anySchedule')}
         </p>
         <button onClick={add} style={btnSecondary}>
-          <Icon icon="lucide:plus" /> Agregar horario
+          <Icon icon="lucide:plus" /> {t('menusTab.addSchedule')}
         </button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -837,6 +847,7 @@ function ScheduleEditor({ menu, onChange, showAlert }) {
 }
 
 function ScheduleRow({ schedule, onPatch, onRemove }) {
+  const { t } = useTranslation();
   const [days, setDays] = useState(bitmaskToDays(schedule.days_of_week));
   const [startTime, setStartTime] = useState(schedule.start_time?.slice(0, 5) || '');
   const [endTime, setEndTime] = useState(schedule.end_time?.slice(0, 5) || '');
@@ -880,34 +891,34 @@ function ScheduleRow({ schedule, onPatch, onRemove }) {
                 fontSize: '0.75rem',
                 letterSpacing: '0.05em'
               }}
-            >{dayLabel(d)}</button>
+            >{dayLabel(d, t)}</button>
           );
         })}
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center', marginLeft: 8 }}>
-          {days.length === 0 ? '(todos los días)' : ''}
+          {days.length === 0 ? t('menusTab.everyDay') : ''}
         </span>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-        <Field label="Desde (hora)">
+        <Field label={t('menusTab.fromTime')}>
           <input type="time" value={startTime}
             onChange={e => setStartTime(e.target.value)}
             onBlur={() => flush({ startTime })}
             style={inputStyle} />
         </Field>
-        <Field label="Hasta (hora)">
+        <Field label={t('menusTab.toTime')}>
           <input type="time" value={endTime}
             onChange={e => setEndTime(e.target.value)}
             onBlur={() => flush({ endTime })}
             style={inputStyle} />
         </Field>
-        <Field label="Desde (fecha)">
+        <Field label={t('menusTab.fromDate')}>
           <input type="date" value={startDate}
             onChange={e => setStartDate(e.target.value)}
             onBlur={() => flush({ startDate })}
             style={inputStyle} />
         </Field>
-        <Field label="Hasta (fecha)">
+        <Field label={t('menusTab.toDate')}>
           <input type="date" value={endDate}
             onChange={e => setEndDate(e.target.value)}
             onBlur={() => flush({ endDate })}
@@ -917,7 +928,7 @@ function ScheduleRow({ schedule, onPatch, onRemove }) {
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={onRemove} style={dangerBtn}>
-          <Icon icon="lucide:trash-2" /> Eliminar horario
+          <Icon icon="lucide:trash-2" /> {t('menusTab.deleteSchedule')}
         </button>
       </div>
     </div>
@@ -941,16 +952,17 @@ function kindIcon(kind) {
     designed: 'lucide:palette'
   })[kind] || 'lucide:menu';
 }
-function kindLabel(kind) {
+function kindLabel(kind, t) {
   return ({
-    live:     'Catálogo',
+    live:     t('menusTab.kindLive'),
     pdf:      'PDF',
-    image:    'Imagen',
-    designed: 'Diseñado'
+    image:    t('menusTab.kindImage'),
+    designed: t('menusTab.kindDesigned')
   })[kind] || kind;
 }
-function dayLabel(d) {
-  return ({ mon:'Lun', tue:'Mar', wed:'Mié', thu:'Jue', fri:'Vie', sat:'Sáb', sun:'Dom' })[d];
+function dayLabel(d, t) {
+  const key = { mon: 'dayMon', tue: 'dayTue', wed: 'dayWed', thu: 'dayThu', fri: 'dayFri', sat: 'daySat', sun: 'daySun' }[d];
+  return key ? t(`menusTab.${key}`) : d;
 }
 
 // Per-menu deep link. Resolves a /menu?u=…&k=…&m=<id> URL using the same
@@ -958,6 +970,7 @@ function dayLabel(d) {
 // gets its own block so a shop can print one QR per menu (Brunch QR
 // always shows brunch regardless of time).
 function MenuShareBlock({ menu }) {
+  const { t } = useTranslation();
   const canvasRef = useRef(null);
   const [copied, setCopied] = useState(false);
 
@@ -1017,7 +1030,7 @@ function MenuShareBlock({ menu }) {
   if (!link) {
     return (
       <div style={{ borderTop: '1px solid var(--border)', padding: 18, background: 'var(--bg-main)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-        Credenciales locales no disponibles para generar el enlace.
+        {t('menusTab.noCredentials')}
       </div>
     );
   }
@@ -1027,15 +1040,15 @@ function MenuShareBlock({ menu }) {
       <canvas ref={canvasRef} style={{ borderRadius: 8, background: 'white', padding: 4 }} />
       <div style={{ flex: 1, minWidth: 220, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-          Enlace directo a este menú
+          {t('menusTab.directLink')}
         </p>
         <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-          Esta URL muestra <strong>{menu.name}</strong> sin importar el horario — útil para imprimir un QR distinto por menú.
+          {t('menusTab.directLinkDesc').split('{name}').map((part, i) => i === 0 ? part : <span key={i}><strong>{menu.name}</strong>{part}</span>)}
         </p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', background: 'var(--bg-surface)', borderRadius: 8, padding: '8px 10px', border: '1px solid var(--border)' }}>
           <code style={{ flex: 1, fontSize: '0.7rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{link}</code>
           <button onClick={copy} style={{ ...btnSecondary, padding: '6px 10px', fontSize: '0.78rem' }}>
-            <Icon icon={copied ? 'lucide:check' : 'lucide:copy'} /> {copied ? 'Copiado' : 'Copiar'}
+            <Icon icon={copied ? 'lucide:check' : 'lucide:copy'} /> {copied ? t('menusTab.copied') : t('menusTab.copy')}
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -1052,15 +1065,16 @@ function MenuShareBlock({ menu }) {
 }
 
 function ConflictBanner({ conflicts }) {
+  const { t } = useTranslation();
   if (!conflicts || conflicts.length === 0) return null;
   return (
     <div style={{ marginTop: 16, padding: 16, borderRadius: 12, border: '1px solid #e0a800', background: 'rgba(224, 168, 0, 0.08)', color: 'var(--text-main)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
         <Icon icon="lucide:triangle-alert" style={{ color: '#e0a800', fontSize: '1.2rem' }} />
-        <strong>Horarios traslapados</strong>
+        <strong>{t('menusTab.conflictTitle')}</strong>
       </div>
       <p style={{ margin: '0 0 10px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-        Estos menús podrían estar activos al mismo tiempo. El resolutor elige por prioridad — confirma que es lo que quieres:
+        {t('menusTab.conflictDesc')}
       </p>
       <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: 4 }}>
         {conflicts.map((c, i) => (
@@ -1068,8 +1082,8 @@ function ConflictBanner({ conflicts }) {
             <strong>{c.a.name}</strong> (prio {c.a.priority}) ↔ <strong>{c.b.name}</strong> (prio {c.b.priority})
             {' — '}
             {c.sharedPriority
-              ? <span style={{ color: '#d9534f', fontWeight: 700 }}>misma prioridad: gana el más reciente ({c.winner?.name})</span>
-              : <span>gana <strong>{c.winner?.name}</strong></span>}
+              ? <span style={{ color: '#d9534f', fontWeight: 700 }}>{t('menusTab.samePriority').replace('{name}', c.winner?.name || '')}</span>
+              : <span>{t('menusTab.wins')} <strong>{c.winner?.name}</strong></span>}
           </li>
         ))}
       </ul>
@@ -1077,14 +1091,15 @@ function ConflictBanner({ conflicts }) {
   );
 }
 
-function progressLabel(p) {
+function progressLabel(p, t) {
   if (!p) return '';
-  if (p.phase === 'starting') return 'Preparando…';
-  if (p.phase === 'loading-pdf') return 'Leyendo PDF…';
-  if (p.phase === 'rendering') return `Convirtiendo página ${p.current} / ${p.total}…`;
-  if (p.phase === 'uploading') return `Subiendo página ${p.current} / ${p.total}…`;
-  if (p.phase === 'uploading-original') return 'Guardando PDF original…';
-  return 'Procesando…';
+  const page = (key) => t(key).replace('{current}', p.current).replace('{total}', p.total);
+  if (p.phase === 'starting') return t('menusTab.progStarting');
+  if (p.phase === 'loading-pdf') return t('menusTab.progLoadingPdf');
+  if (p.phase === 'rendering') return page('menusTab.progRendering');
+  if (p.phase === 'uploading') return page('menusTab.progUploading');
+  if (p.phase === 'uploading-original') return t('menusTab.progOriginal');
+  return t('menusTab.progProcessing');
 }
 
 const inputStyle = { padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 700, outline: 'none' };
