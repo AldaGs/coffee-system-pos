@@ -356,8 +356,9 @@ const en = [
     how: 'Settings are saved to your shop profile and applied to every receipt. You can show the tax breakdown, add a legal disclaimer, and include a CFDI QR that links to the invoicing portal.',
     do: [
       { action: 'Add a logo and text', steps: 'Upload a logo and set the header/subheader/footer lines.' },
-      { action: 'Configure tax display', steps: 'Enable the tax line and set the rate label.' },
-      { action: 'Show the CFDI QR', steps: 'Turn on the CFDI QR so customers can self-invoice; preview it on the right.' },
+      { action: 'Configure tax display', steps: 'Turn on "Print Tax Breakdown on Receipts" and set the Tax Rate (%). The tax is extracted from your prices, never added on top, and only items marked VAT 16% in the Menu Editor are taxed.' },
+      { action: 'Add a fiscal disclaimer', steps: 'Turn on "Show Fiscal Disclaimer" and write the legal notice that prints below the ticket total.' },
+      { action: 'Show the CFDI QR', steps: 'Turn on "Print CFDI QR Code on Tickets" so customers can scan it to request an invoice; check it in the Live Preview.' },
     ],
   },
   {
@@ -819,8 +820,9 @@ const es = [
     how: 'La configuración se guarda en el perfil de tu negocio y se aplica a cada recibo. Puedes mostrar el desglose de impuesto, agregar un aviso legal e incluir un QR de CFDI que enlaza al portal de facturación.',
     do: [
       { action: 'Agregar logo y texto', steps: 'Sube un logo y define las líneas de encabezado/subencabezado/pie.' },
-      { action: 'Configurar el impuesto', steps: 'Activa la línea de impuesto y define la etiqueta de la tasa.' },
-      { action: 'Mostrar el QR de CFDI', steps: 'Activa el QR de CFDI para que los clientes se autofacturen; míralo en la vista previa.' },
+      { action: 'Configurar el impuesto', steps: 'Activa "Imprimir Desglose de Impuestos en Tickets" y define la Tasa de Impuesto (%). El impuesto se extrae de tus precios, nunca se suma encima, y solo se gravan los artículos marcados con IVA 16% en el Editor de Menú.' },
+      { action: 'Agregar un aviso fiscal', steps: 'Activa "Mostrar Aviso Fiscal" y escribe el aviso legal que se imprime debajo del total del ticket.' },
+      { action: 'Mostrar el QR de CFDI', steps: 'Activa "Imprimir QR de CFDI en Tickets" para que el cliente lo escanee y pida su factura; revísalo en la Vista Previa.' },
     ],
   },
   {
