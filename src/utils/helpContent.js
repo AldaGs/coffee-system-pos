@@ -465,11 +465,11 @@ const en = [
     icon: 'lucide:history',
     badges: ['advanced', 'cloud'],
     title: 'Activity Log',
-    what: 'An audit trail of important events: sales, refunds, settings changes, menu edits, inventory deletions, and cortes.',
+    what: 'An audit trail of important events: sales, refunds, voids, reopened tickets, expenses, cortes, menu and inventory changes, team changes, and settings changes.',
     how: 'Every logged event stores metadata — including manager-override details (who authorized a refund/void/expense/discount) when strict mode is on — so you can trace sensitive actions.',
     do: [
-      { action: 'Review activity', steps: 'Scroll or filter the feed to find an event.' },
-      { action: 'Audit an override', steps: 'Open a sensitive action to see who authorized it.' },
+      { action: 'Pick a time range', steps: 'Use the selector at the top: Today, Last 7 Days, Last 30 Days, or All History. Tap the refresh button to load new events.' },
+      { action: 'Read an event', steps: 'Each row shows what happened, who did it, and when. The feed is newest first; scroll to find an event.' },
     ],
   },
   {
@@ -940,11 +940,11 @@ const es = [
     icon: 'lucide:history',
     badges: ['advanced', 'cloud'],
     title: 'Bitácora de actividad',
-    what: 'Un registro de auditoría de eventos importantes: ventas, reembolsos, cambios de configuración, ediciones de menú, borrados de inventario y cortes.',
+    what: 'Un registro de auditoría de eventos importantes: ventas, reembolsos, anulaciones, tickets reabiertos, gastos, cortes, cambios de menú e inventario, cambios del equipo y de configuración.',
     how: 'Cada evento registrado guarda metadatos — incluidos los detalles de anulación de gerente (quién autorizó un reembolso/cancelación/gasto/descuento) cuando el modo estricto está activo — para rastrear acciones sensibles.',
     do: [
-      { action: 'Revisar la actividad', steps: 'Desplázate o filtra el feed para encontrar un evento.' },
-      { action: 'Auditar una anulación', steps: 'Abre una acción sensible para ver quién la autorizó.' },
+      { action: 'Elegir un rango de tiempo', steps: 'Usa el selector de arriba: Hoy, Últimos 7 días, Últimos 30 días o Todo el historial. Toca el botón de actualizar para cargar eventos nuevos.' },
+      { action: 'Leer un evento', steps: 'Cada fila muestra qué pasó, quién lo hizo y cuándo. El feed va del más reciente al más antiguo; desplázate para encontrar un evento.' },
     ],
   },
   {
