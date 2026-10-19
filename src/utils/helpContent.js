@@ -439,8 +439,10 @@ const en = [
     what: 'Provision new POS terminals and inspect stuck sync data without touching the Supabase dashboard.',
     how: 'Adding a device provisions it through the app (optionally with a custom sign-in email). The Pending Sync inspector (PIN required) lets you review and surgically discard queued offline data if a sync error occurs.',
     do: [
-      { action: 'Add a device', steps: 'Use the device form; optionally set a custom email instead of the auto-generated one.' },
-      { action: 'Fix a sync problem', steps: 'Open the Pending Sync inspector, re-enter your PIN, and review or discard queued items.' },
+      { action: 'Authorize once', steps: 'The admin key is never stored on the device, so the first time you tap "Authorize to add devices" and briefly approve in Supabase.' },
+      { action: 'Add a device', steps: 'In New Device, enter a Device Name and a Password (at least 6 characters). Keep "Auto-generate email" to build the sign-in email from the name, or pick "Use a custom email". Tap Create Device.' },
+      { action: 'Save the credentials', steps: 'Copy the email and password from the success dialog and sign in with them on the new device. The password is not shown again after you close it.' },
+      { action: 'Fix a sync problem', steps: 'In "Pending Sync — Danger Zone", enter the admin PIN and tap Unlock. Review the queued sales, expenses, inventory logs, updates and WhatsApp receipts, then Discard single items or Clear all in a group. Discarded data never reaches the cloud.' },
     ],
   },
   {
@@ -911,8 +913,10 @@ const es = [
     what: 'Aprovisiona nuevas terminales POS e inspecciona datos de sincronización atorados sin entrar al panel de Supabase.',
     how: 'Agregar un dispositivo lo aprovisiona desde la app (opcionalmente con un correo de inicio de sesión personalizado). El inspector de sincronización pendiente (pide PIN) te deja revisar y descartar quirúrgicamente datos en cola si ocurre un error.',
     do: [
-      { action: 'Agregar un dispositivo', steps: 'Usa el formulario; opcionalmente define un correo personalizado en vez del automático.' },
-      { action: 'Arreglar un problema de sync', steps: 'Abre el inspector de sincronización pendiente, reingresa tu PIN y revisa o descarta elementos.' },
+      { action: 'Autorizar una vez', steps: 'La llave de administrador nunca se guarda en el dispositivo, así que la primera vez tocas "Autorizar para agregar dispositivos" y apruebas brevemente en Supabase.' },
+      { action: 'Agregar un dispositivo', steps: 'En Nuevo Dispositivo, escribe un Nombre del Dispositivo y una Contraseña (mínimo 6 caracteres). Deja "Generar correo automáticamente" para crear el correo desde el nombre, o elige "Usar correo personalizado". Toca Crear Dispositivo.' },
+      { action: 'Guardar las credenciales', steps: 'Copia el correo y la contraseña del diálogo de éxito e inicia sesión con ellos en el nuevo dispositivo. La contraseña no se vuelve a mostrar al cerrarlo.' },
+      { action: 'Arreglar un problema de sync', steps: 'En "Sincronización Pendiente — Zona Peligrosa", escribe el PIN de administrador y toca Desbloquear. Revisa las ventas, gastos, movimientos de inventario, actualizaciones y recibos de WhatsApp en cola, y Descarta elementos sueltos o Borra todos en un grupo. Lo descartado nunca llega a la nube.' },
     ],
   },
   {
