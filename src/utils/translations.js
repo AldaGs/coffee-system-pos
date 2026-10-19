@@ -501,7 +501,7 @@ export const translations = {
     "loyalty.ruleCapped": "Capped: Max 1 star per transaction (e.g., buy 3 = earn 1 star)",
     "loyalty.starsRequired": "How many stars to unlock the reward?",
     "loyalty.rewardQuestion": "What is the reward?",
-    "loyalty.rewardPlaceholder": "e.g., tu próxima bebida GRATIS",
+    "loyalty.rewardPlaceholder": "e.g., your next drink FREE",
     "loyalty.rewardDesc": "This message is injected into the customer's WhatsApp receipt.",
     "loyalty.rewardItemQuestion": "Link reward to a menu item (optional)",
     "loyalty.rewardItemOffMenu": "Off-menu reward (cashier handles manually)",

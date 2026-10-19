@@ -407,8 +407,12 @@ const en = [
     what: 'Set up phone-number loyalty with recurring or single-use rewards.',
     how: 'Accrual is bound to sales by a database trigger, so receipt resends never double-count. Cashiers attach a customer at the register by phone number; rewards are defined here.',
     do: [
-      { action: 'Create a program', steps: 'Choose recurring or single-use and set the reward rules.' },
-      { action: 'Track members', steps: 'Customers accrue automatically once attached to sales at the register.' },
+      { action: 'Turn it on', steps: 'Switch on "Enable Loyalty Tracking". When it is off, only receipts are sent.' },
+      { action: 'Choose what earns a star', steps: 'Under "What earns a loyalty star?", pick Any Visit (1 star per sale) or Specific Menu Items. For specific items, set the Earning Rule: Accelerated counts every item, Capped gives at most 1 star per sale.' },
+      { action: 'Set the reward', steps: 'Set how many stars unlock it and write the reward text that goes on the WhatsApp receipt. Optionally link it to a menu item so that item becomes free in the cart when redeemed.' },
+      { action: 'Pick the program type', steps: 'Recurring gives the reward every N stars indefinitely; One-time gives it once, after which the customer stops earning.' },
+      { action: 'Track members', steps: 'Customers accrue automatically once attached to sales at the register. The Customer Directory shows each phone number\'s stars and whether a reward is ready, and Loyalty Activity shows stars awarded and redeemed for a date range.' },
+      { action: 'Start over', steps: 'In the Danger Zone, "Reset All Customer Stars" sets everyone back to zero, e.g. for a new promotion.' },
     ],
   },
   {
@@ -874,8 +878,12 @@ const es = [
     what: 'Configura lealtad por número de teléfono con recompensas recurrentes o de un solo uso.',
     how: 'La acumulación se liga a las ventas por un disparador de base de datos, así reenviar recibos nunca cuenta doble. Los cajeros vinculan un cliente en la caja por teléfono; las recompensas se definen aquí.',
     do: [
-      { action: 'Crear un programa', steps: 'Elige recurrente o de un solo uso y define las reglas de recompensa.' },
-      { action: 'Seguir a los miembros', steps: 'Los clientes acumulan automáticamente al vincularlos a las ventas en la caja.' },
+      { action: 'Activarlo', steps: 'Activa "Habilitar Seguimiento de Lealtad". Si está apagado, solo se envían recibos.' },
+      { action: 'Elegir qué otorga una estrella', steps: 'En "¿Qué otorga una estrella de lealtad?", elige Cualquier Visita (1 estrella por venta) o Artículos Específicos del Menú. Para artículos específicos, define la Regla de Ganancia: Acelerado cuenta cada artículo; Limitado da máximo 1 estrella por venta.' },
+      { action: 'Definir la recompensa', steps: 'Define cuántas estrellas la desbloquean y escribe el texto de la recompensa que va en el recibo de WhatsApp. Opcionalmente vincúlala a un artículo del menú para que ese artículo quede gratis en el carrito al canjearla.' },
+      { action: 'Elegir el tipo de programa', steps: 'Recurrente da la recompensa cada N estrellas sin fin; Única vez la da una sola vez y después el cliente deja de acumular.' },
+      { action: 'Seguir a los miembros', steps: 'Los clientes acumulan automáticamente al vincularlos a las ventas en la caja. El Directorio de Clientes muestra las estrellas de cada teléfono y si tiene recompensa lista, y Actividad de Lealtad muestra estrellas otorgadas y canjeadas en un rango de fechas.' },
+      { action: 'Empezar de nuevo', steps: 'En la Zona de Peligro, "Reiniciar Todas las Estrellas" deja a todos en cero, por ejemplo para una nueva promoción.' },
     ],
   },
   {
