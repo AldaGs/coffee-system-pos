@@ -896,8 +896,8 @@ const es = [
     what: 'Administra cajeros, sus PINs y sus roles (empleado / gerente / admin).',
     how: 'Agregar un cajero guarda un PIN cifrado de forma segura mediante un RPC del servidor; eliminarlo lo borra. Los roles rigen las restricciones de acceso opcionales, y todos los que pueden iniciar sesión se controlan en una sola lista de permitidos.',
     do: [
-      { action: 'Agregar un cajero', steps: 'Escribe un nombre, define un PIN de 4 dígitos, elige un rol (Empleado, Gerente o Admin) y toca Agregar Perfil.' },
-      { action: 'Elegir el rol correcto', steps: 'Los Gerentes aprueban autorizaciones (reembolsos, anulaciones, gastos y descuentos manuales); los Admin además pueden abrir este panel de administración. El acceso solo para Admin aplica cuando el modo estricto está activo en Configuración General.' },
+      { action: 'Agregar un cajero', steps: 'Escribe un nombre, define un PIN de 4 dígitos, elige un rol (Empleado, Gerente o Administrador) y toca Agregar Perfil.' },
+      { action: 'Elegir el rol correcto', steps: 'Los Gerentes aprueban autorizaciones (reembolsos, anulaciones, gastos y descuentos manuales); los Administradores además pueden abrir este panel de administración. El acceso solo para Administradores aplica cuando el modo estricto está activo en Configuración General.' },
       { action: 'Cambiar un rol o PIN', steps: 'El rol y el PIN se definen al crear el perfil. Para cambiarlos, elimina el perfil y agrégalo de nuevo.' },
       { action: 'Eliminar un cajero', steps: 'Borra el registro; su PIN se revoca.' },
     ],
