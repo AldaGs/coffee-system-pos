@@ -27,7 +27,8 @@ async function purgeExpiredZips(sales) {
 }
 
 function CfdiTab({ showAlert, showConfirm }) {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
+  const dateLocale = lang === 'en' ? 'en-US' : 'es-MX';
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const [filter, setFilter] = useState('pending'); // 'pending' (requested, reopened) | 'issued'
@@ -231,26 +232,26 @@ function CfdiTab({ showAlert, showConfirm }) {
       let summary = null;
       try { summary = await computeMonthSummary(newPeriod); } catch { /* keep null */ }
       if (summary?.pendingCount > 0) {
-        showAlert(t('common.error'), `Hay ${summary.pendingCount} solicitud(es) de factura pendientes en ${newPeriod}. Emítelas o cancélalas antes de cerrar el periodo.`);
+        showAlert(t('common.error'), t('cfdiTab.pendingBlock').replace('{n}', summary.pendingCount).replace('{period}', newPeriod));
         return;
       }
       const { error } = await supabase
         .from('cfdi_global_periods')
         .upsert({ period: newPeriod, business_name: businessName || null, summary }, { onConflict: 'period' });
       if (error) throw error;
-      showAlert(t('toast.success'), `Periodo ${newPeriod} cerrado. Los tickets de ese mes ya no podrán facturarse individualmente.`);
+      showAlert(t('toast.success'), t('cfdiTab.periodClosed').replace('{period}', newPeriod));
       setNewPeriod('');
       fetchGlobalPeriods();
     } catch (err) {
       console.error(err);
-      showAlert(t('common.error'), 'Error al cerrar el periodo');
+      showAlert(t('common.error'), t('cfdiTab.closeError'));
     } finally {
       setIsSavingPeriod(false);
     }
   };
 
   const handleReopenGlobalPeriod = (period) => {
-    showConfirm('Reabrir Periodo', `¿Reabrir ${period}? Los clientes volverán a poder solicitar factura individual de los tickets de ese mes.`, async () => {
+    showConfirm(t('cfdiTab.reopenPeriodTitle'), t('cfdiTab.reopenPeriodDesc').replace('{period}', period), async () => {
       try {
         setIsSavingPeriod(true);
         const { error } = await supabase
@@ -258,11 +259,11 @@ function CfdiTab({ showAlert, showConfirm }) {
           .delete()
           .eq('period', period);
         if (error) throw error;
-        showAlert(t('toast.success'), `Periodo ${period} reabierto`);
+        showAlert(t('toast.success'), t('cfdiTab.periodReopened').replace('{period}', period));
         fetchGlobalPeriods();
       } catch (err) {
         console.error(err);
-        showAlert(t('common.error'), 'Error al reabrir el periodo');
+        showAlert(t('common.error'), t('cfdiTab.reopenPeriodError'));
       } finally {
         setIsSavingPeriod(false);
       }
@@ -272,7 +273,7 @@ function CfdiTab({ showAlert, showConfirm }) {
   const handleCopy = (text, label) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    showAlert('Copiado', `${label} copiado al portapapeles`);
+    showAlert(t('cfdiTab.copiedTitle'), t('cfdiTab.copiedDesc').replace('{label}', label));
   };
 
   const handleReopen = async () => {
@@ -287,12 +288,12 @@ function CfdiTab({ showAlert, showConfirm }) {
 
       if (error) throw error;
 
-      showAlert(t('toast.success'), 'Solicitud reabierta');
+      showAlert(t('toast.success'), t('cfdiTab.requestReopened'));
       setReopenModal(null);
       fetchRequests();
     } catch (err) {
       console.error(err);
-      showAlert(t('common.error'), 'Error al reabrir solicitud');
+      showAlert(t('common.error'), t('cfdiTab.reopenRequestError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -321,12 +322,12 @@ function CfdiTab({ showAlert, showConfirm }) {
         
       if (error) throw error;
       
-      showAlert(t('toast.success'), 'CFDI Marcado como Emitido');
+      showAlert(t('toast.success'), t('cfdiTab.markedIssued'));
       setFolioModal({ isOpen: false, item: null, folio: '' });
       fetchRequests();
     } catch (err) {
       console.error(err);
-      showAlert(t('common.error'), 'Error al emitir CFDI');
+      showAlert(t('common.error'), t('cfdiTab.issueError'));
     } finally {
       setIsSubmitting(false);
     }
@@ -352,7 +353,7 @@ function CfdiTab({ showAlert, showConfirm }) {
     if (error || msgError) return showAlert(t('common.error'), (error || msgError).message);
     setEmailForm(prev => ({ ...prev, apiKey: '' }));
     loadEmailStatus();
-    showAlert(t('toast.success'), 'Configuración de correo guardada');
+    showAlert(t('toast.success'), t('cfdiTab.emailSaved'));
   };
 
   const handlePreviewEmail = async () => {
@@ -361,21 +362,21 @@ function CfdiTab({ showAlert, showConfirm }) {
       const { html } = await invokeEmail({ action: 'preview', message: emailForm.message, footer: emailForm.footer });
       setEmailPreview(html);
     } catch (err) {
-      showAlert(t('common.error'), `No se pudo generar la vista previa: ${err.message}`);
+      showAlert(t('common.error'), t('cfdiTab.previewError').replace('{msg}', err.message));
     } finally {
       setEmailBusy(null);
     }
   };
 
   const handleTestEmail = async () => {
-    const to = window.prompt('¿A qué correo enviamos la prueba?', emailForm.replyTo || '');
+    const to = window.prompt(t('cfdiTab.testPrompt'), emailForm.replyTo || '');
     if (!to) return;
     setEmailBusy('test');
     try {
       await invokeEmail({ action: 'test', to: to.trim() });
-      showAlert(t('toast.success'), `Correo de prueba enviado a ${to.trim()}`);
+      showAlert(t('toast.success'), t('cfdiTab.testSent').replace('{to}', to.trim()));
     } catch (err) {
-      showAlert(t('common.error'), `No se pudo enviar: ${err.message}`);
+      showAlert(t('common.error'), t('cfdiTab.sendError').replace('{msg}', err.message));
     } finally {
       setEmailBusy(null);
     }
@@ -385,9 +386,9 @@ function CfdiTab({ showAlert, showConfirm }) {
     setEmailBusy(`resend-${req.id}`);
     try {
       await invokeEmail({ action: 'resend', sale_id: req.id });
-      showAlert(t('toast.success'), `Factura enviada a ${req.fiscal_profiles?.email}`);
+      showAlert(t('toast.success'), t('cfdiTab.invoiceSent').replace('{email}', req.fiscal_profiles?.email || ''));
     } catch (err) {
-      showAlert(t('common.error'), `No se pudo enviar: ${err.message}`);
+      showAlert(t('common.error'), t('cfdiTab.sendError').replace('{msg}', err.message));
     } finally {
       setEmailBusy(null);
       fetchRequests();
@@ -401,18 +402,18 @@ function CfdiTab({ showAlert, showConfirm }) {
 
     if (navigator.share) {
       navigator.share({
-        title: 'Solicitud de Factura CFDI',
-        text: 'Enlace para solicitar factura',
+        title: t('cfdiTab.shareTitle'),
+        text: t('cfdiTab.shareText'),
         url: cfdiUrl
       }).catch(console.error);
     } else {
       navigator.clipboard.writeText(cfdiUrl);
-      showAlert('Copiado', 'Enlace CFDI copiado al portapapeles');
+      showAlert(t('cfdiTab.copiedTitle'), t('cfdiTab.linkCopied'));
     }
   };
 
   const handleCancel = (item) => {
-    showConfirm('Cancelar Factura', '¿Estás seguro de que deseas marcar esta factura como cancelada?', async () => {
+    showConfirm(t('cfdiTab.cancelTitle'), t('cfdiTab.cancelConfirm'), async () => {
       try {
         setIsSubmitting(true);
         const { error } = await supabase
@@ -422,11 +423,11 @@ function CfdiTab({ showAlert, showConfirm }) {
           
         if (error) throw error;
         
-        showAlert(t('toast.success'), 'Factura Cancelada');
+        showAlert(t('toast.success'), t('cfdiTab.canceled'));
         fetchRequests();
       } catch (err) {
         console.error(err);
-        showAlert(t('common.error'), 'Error al cancelar factura');
+        showAlert(t('common.error'), t('cfdiTab.cancelError'));
       } finally {
         setIsSubmitting(false);
       }
@@ -446,10 +447,10 @@ function CfdiTab({ showAlert, showConfirm }) {
       const data = await res.json();
       
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Error al agregar dominio');
+        throw new Error(data.error || t('cfdiTab.addDomainError'));
       }
       
-      setDomainStatus({ success: true, message: `Dominio ${data.domain} agregado con éxito.` });
+      setDomainStatus({ success: true, message: t('cfdiTab.domainAdded').replace('{domain}', data.domain) });
       setLinkedDomain(data.domain);
       await persistCustomDomain('cfdi', data.domain);
     } catch (err) {
@@ -471,10 +472,10 @@ function CfdiTab({ showAlert, showConfirm }) {
       const data = await res.json();
       
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Error al remover dominio');
+        throw new Error(data.error || t('cfdiTab.removeDomainError'));
       }
       
-      setDomainStatus({ success: true, message: `Dominio removido con éxito.` });
+      setDomainStatus({ success: true, message: t('cfdiTab.domainRemoved') });
       setLinkedDomain('');
       setCustomDomain('');
       await persistCustomDomain('cfdi', '');
@@ -491,11 +492,11 @@ function CfdiTab({ showAlert, showConfirm }) {
   const renderSummary = (s, { frozen = false } = {}) => {
     if (!s) return null;
     const rows = [
-      { label: `Tickets del mes (${s.ticketCount})`, value: fmtCents(s.grossCents) },
-      ...(s.refundCents ? [{ label: 'Reembolsos', value: `- ${fmtCents(s.refundCents)}` }] : []),
-      { label: 'Ventas netas', value: fmtCents(s.netCents), strong: true },
-      { label: `Facturas individuales (${s.invoicedCount})`, value: `- ${fmtCents(s.invoicedCents)}` },
-      ...(s.pendingCount > 0 ? [{ label: `Solicitudes pendientes (${s.pendingCount}) — emítelas o cancélalas antes de cerrar`, value: '⚠' }] : []),
+      { label: t('cfdiTab.sumTickets').replace('{n}', s.ticketCount), value: fmtCents(s.grossCents) },
+      ...(s.refundCents ? [{ label: t('cfdiTab.sumRefunds'), value: `- ${fmtCents(s.refundCents)}` }] : []),
+      { label: t('cfdiTab.sumNet'), value: fmtCents(s.netCents), strong: true },
+      { label: t('cfdiTab.sumInvoiced').replace('{n}', s.invoicedCount), value: `- ${fmtCents(s.invoicedCents)}` },
+      ...(s.pendingCount > 0 ? [{ label: t('cfdiTab.sumPending').replace('{n}', s.pendingCount), value: '⚠' }] : []),
     ];
     return (
       <div style={{ marginTop: '12px', padding: '14px', background: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '8px' }}>
@@ -508,14 +509,14 @@ function CfdiTab({ showAlert, showConfirm }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '8px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
           <span style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Icon icon="lucide:receipt-text" style={{ color: 'var(--brand-color)' }} />
-            Factura Global ({s.globalCount})
+            {t('cfdiTab.globalCount').replace('{n}', s.globalCount)}
           </span>
           <span style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text-main)' }}>{fmtCents(s.globalCents)}</span>
         </div>
         <p style={{ margin: '10px 0 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
           {frozen
-            ? 'Totales congelados al cierre. Úsalos para conciliar con tu contador.'
-            : 'Lo que aún no se facturó individualmente. Se congela al cerrar el periodo.'}
+            ? t('cfdiTab.frozenHint')
+            : t('cfdiTab.previewHint')}
         </p>
       </div>
     );
@@ -536,22 +537,22 @@ function CfdiTab({ showAlert, showConfirm }) {
             {t('admin.cfdi')}
           <InfoTip text={t('pageInfo.cfdi')} section="cfdi" />
           </h2>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Solicitudes de factura de tus clientes.</p>
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>{t('cfdiTab.subtitle')}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '0 1 auto', justifyContent: 'flex-end' }}>
           <button onClick={() => setShowGlobalConfig(!showGlobalConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
             <Icon icon="lucide:calendar-check" />
-            Factura Global
+            {t('cfdiTab.btnGlobal')}
           </button>
           {emailStatus && (
             <button onClick={() => setShowEmailConfig(!showEmailConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
               <Icon icon="lucide:mail" />
-              Correo
+              {t('cfdiTab.btnEmail')}
             </button>
           )}
           <button onClick={() => setShowDomainConfig(!showDomainConfig)} style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', whiteSpace: 'nowrap', flex: '1 1 auto' }}>
             <Icon icon="lucide:globe" />
-            Configurar Dominio
+            {t('cfdiTab.btnDomain')}
           </button>
           <button onClick={fetchRequests} disabled={loading} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flexShrink: 0 }}>
             <Icon icon="lucide:refresh-cw" className={loading ? 'spin' : ''} />
@@ -563,11 +564,11 @@ function CfdiTab({ showAlert, showConfirm }) {
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
           <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:calendar-check" style={{ color: 'var(--brand-color)' }} />
-            Periodos con Factura Global emitida
-            <InfoTip text={`Al cerrar un mes, sus tickets ya no se pueden facturar individualmente: el cliente ve que su ticket se incluyó en la Factura Global${businessName ? ` de ${businessName}` : ''}.`} section="cfdi" />
+            {t('cfdiTab.globalTitle')}
+            <InfoTip text={businessName ? t('cfdiTab.globalInfoBusiness').replace('{name}', businessName) : t('cfdiTab.globalInfo')} section="cfdi" />
           </h3>
           <p style={{ margin: '0 0 16px 0', color: 'var(--text-muted)' }}>
-            Cierra el mes después de emitir su Factura Global en el SAT.
+            {t('cfdiTab.globalDesc')}
           </p>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: globalPeriods.length ? '20px' : 0 }}>
             <input
@@ -583,13 +584,13 @@ function CfdiTab({ showAlert, showConfirm }) {
               style={{ background: 'var(--brand-color)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: (isSavingPeriod || !newPeriod) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: (isSavingPeriod || !newPeriod) ? 0.5 : 1, fontWeight: 'bold' }}
             >
               <Icon icon="lucide:lock" />
-              Cerrar periodo
+              {t('cfdiTab.closePeriod')}
             </button>
           </div>
 
           {newPeriod && (
             isLoadingPreview
-              ? <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 20px 0' }}>Calculando totales de {newPeriod}…</p>
+              ? <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 20px 0' }}>{t('cfdiTab.calculating').replace('{period}', newPeriod)}</p>
               : periodPreview
                 ? <div style={{ marginBottom: '20px' }}>{renderSummary(periodPreview)}</div>
                 : null
@@ -605,7 +606,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                     <span style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-main)', fontWeight: 'bold', flexWrap: 'wrap' }}>
                       <Icon icon="lucide:lock" style={{ color: '#27ae60' }} /> {p.period}
                       {p.summary && <span style={{ fontWeight: 'normal', fontSize: '0.85rem', color: 'var(--text-muted)' }}>· Global {fmtCents(p.summary.globalCents)}</span>}
-                      {p.closed_at && <span style={{ fontWeight: 'normal', fontSize: '0.8rem', color: 'var(--text-muted)' }}>· cerrado {new Date(p.closed_at).toLocaleDateString('es-MX')}</span>}
+                      {p.closed_at && <span style={{ fontWeight: 'normal', fontSize: '0.8rem', color: 'var(--text-muted)' }}>· {t('cfdiTab.closedOn').replace('{date}', new Date(p.closed_at).toLocaleDateString(dateLocale))}</span>}
                     </span>
                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                       {p.summary && (
@@ -614,7 +615,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                           onClick={() => setExpandedPeriod(isExpanded ? null : p.period)}
                           style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                         >
-                          <Icon icon={isExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} /> Resumen
+                          <Icon icon={isExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'} /> {t('cfdiTab.summary')}
                         </button>
                       )}
                       <button
@@ -623,7 +624,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                         disabled={isSavingPeriod}
                         style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}
                       >
-                        <Icon icon="lucide:unlock" /> Reabrir
+                        <Icon icon="lucide:unlock" /> {t('cfdiTab.reopen')}
                       </button>
                     </div>
                   </div>
@@ -640,44 +641,44 @@ function CfdiTab({ showAlert, showConfirm }) {
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:mail" style={{ color: 'var(--brand-color)' }} />
-            Enviar factura por correo
+            {t('cfdiTab.emailTitle')}
           </h3>
           <p style={{ margin: 0, color: 'var(--text-muted)' }}>
-            Al marcar una factura como emitida, el cliente recibe un correo con su folio, el enlace de facturación y el ZIP adjunto. Usa tu cuenta de <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: 'var(--brand-color)' }}>Resend</a> con un dominio verificado.
+            {t('cfdiTab.emailDescBefore')} <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: 'var(--brand-color)' }}>Resend</a> {t('cfdiTab.emailDescAfter')}
           </p>
-          {emailStatus.configured && <strong style={{ color: 'var(--brand-color)' }}>API key guardada ✓</strong>}
+          {emailStatus.configured && <strong style={{ color: 'var(--brand-color)' }}>{t('cfdiTab.apiKeySaved')}</strong>}
           <input
             type="password"
             autoComplete="new-password"
-            placeholder={emailStatus.configured ? 'Nueva API key (vacío = conservar la actual)' : 'API key de Resend (re_...)'}
+            placeholder={emailStatus.configured ? t('cfdiTab.apiKeyNew') : t('cfdiTab.apiKeyPlaceholder')}
             value={emailForm.apiKey}
             onChange={e => setEmailForm(prev => ({ ...prev, apiKey: e.target.value }))}
             style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
           />
           <input
             type="text"
-            placeholder="Remitente: Mi Café <facturas@micafe.com>"
+            placeholder={t('cfdiTab.fromPlaceholder')}
             value={emailForm.from}
             onChange={e => setEmailForm(prev => ({ ...prev, from: e.target.value }))}
             style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
           />
           <input
             type="email"
-            placeholder="Responder a (opcional): contacto@micafe.com"
+            placeholder={t('cfdiTab.replyToPlaceholder')}
             value={emailForm.replyTo}
             onChange={e => setEmailForm(prev => ({ ...prev, replyTo: e.target.value }))}
             style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
           />
-          <strong style={{ color: 'var(--text-main)', marginTop: '4px' }}>Mensaje del correo</strong>
+          <strong style={{ color: 'var(--text-main)', marginTop: '4px' }}>{t('cfdiTab.messageTitle')}</strong>
           <small style={{ color: 'var(--text-muted)' }}>
-            Usa {['{cliente}', '{negocio}', '{folio}', '{rfc}', '{ticket}'].map((p, i) => (
+            {t('cfdiTab.use')} {['{cliente}', '{negocio}', '{folio}', '{rfc}', '{ticket}'].map((p, i) => (
               <span key={p}>{i > 0 && ', '}<code style={{ background: 'var(--bg-main)', padding: '1px 5px', borderRadius: 4 }}>{p}</code></span>
-            ))}. El folio, el botón "Ver mi factura" y el aviso del ZIP siempre se incluyen. Vacío = texto predeterminado.
+            ))}. {t('cfdiTab.messageHint')}
           </small>
           <textarea
             value={emailForm.message}
             onChange={e => setEmailForm(prev => ({ ...prev, message: e.target.value }))}
-            placeholder="Hola {cliente}, {negocio} emitió la factura de tu compra {ticket}."
+            placeholder={t('cfdiTab.messagePlaceholder')}
             maxLength={2000}
             rows={4}
             style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', resize: 'vertical', fontFamily: 'inherit' }}
@@ -685,14 +686,14 @@ function CfdiTab({ showAlert, showConfirm }) {
           <textarea
             value={emailForm.footer}
             onChange={e => setEmailForm(prev => ({ ...prev, footer: e.target.value }))}
-            placeholder="Pie: También puedes descargarla en el portal del SAT con tu folio fiscal."
+            placeholder={t('cfdiTab.footerPlaceholder')}
             maxLength={500}
             rows={2}
             style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', resize: 'vertical', fontFamily: 'inherit' }}
           />
           {emailPreview && (
             <iframe
-              title="Vista previa del correo"
+              title={t('cfdiTab.emailPreviewTitle')}
               sandbox=""
               // Links would navigate the iframe itself, wiping the preview.
               srcDoc={`<style>a{pointer-events:none}</style>${emailPreview}`}
@@ -701,7 +702,7 @@ function CfdiTab({ showAlert, showConfirm }) {
           )}
           <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer', color: 'var(--text-main)' }}>
             <input type="checkbox" className="switch" checked={emailForm.enabled} onChange={e => setEmailForm(prev => ({ ...prev, enabled: e.target.checked }))} />
-            <span>Enviar automáticamente al emitir</span>
+            <span>{t('cfdiTab.autoSend')}</span>
           </label>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             <button
@@ -719,7 +720,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                 disabled={!!emailBusy}
                 style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <Icon icon={emailBusy === 'preview' ? 'lucide:loader' : 'lucide:eye'} className={emailBusy === 'preview' ? 'spin' : ''} /> Vista previa
+                <Icon icon={emailBusy === 'preview' ? 'lucide:loader' : 'lucide:eye'} className={emailBusy === 'preview' ? 'spin' : ''} /> {t('cfdiTab.preview')}
               </button>
             )}
             {emailStatus.configured && (
@@ -729,7 +730,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                 disabled={!!emailBusy}
                 style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <Icon icon={emailBusy === 'test' ? 'lucide:loader' : 'lucide:send'} className={emailBusy === 'test' ? 'spin' : ''} /> Enviar prueba
+                <Icon icon={emailBusy === 'test' ? 'lucide:loader' : 'lucide:send'} className={emailBusy === 'test' ? 'spin' : ''} /> {t('cfdiTab.sendTest')}
               </button>
             )}
           </div>
@@ -740,15 +741,15 @@ function CfdiTab({ showAlert, showConfirm }) {
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', marginBottom: '24px' }}>
           <h3 style={{ margin: '0 0 10px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Icon icon="lucide:globe" style={{ color: 'var(--brand-color)' }} />
-            Dominio de Facturación
+            {t('cfdiTab.domainTitle')}
           </h3>
           <p style={{ margin: '0 0 16px 0', color: 'var(--text-muted)' }}>
-            Dominio propio para tus enlaces de facturación.
+            {t('cfdiTab.domainDesc')}
           </p>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <input
               type="text"
-              placeholder="facturacion.tu-cafe.com"
+              placeholder={t('cfdiTab.domainPlaceholder')}
               value={customDomain}
               onChange={e => setCustomDomain(e.target.value)}
               readOnly={!!linkedDomain}
@@ -762,7 +763,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                 style={{ background: '#e74c3c', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: isRemovingDomain ? 0.5 : 1, fontWeight: 'bold' }}
               >
                 {isRemovingDomain ? <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} /> : <Icon icon="lucide:trash" />}
-                Desvincular
+                {t('cfdiTab.unlink')}
               </button>
             ) : (
               <button
@@ -772,7 +773,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                 style={{ background: 'var(--brand-color)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: (isAddingDomain || !customDomain) ? 0.5 : 1, fontWeight: 'bold' }}
               >
                 {isAddingDomain ? <Icon icon="lucide:loader" style={{ animation: 'spin 1s linear infinite' }} /> : <Icon icon="lucide:plus" />}
-                Vincular
+                {t('cfdiTab.link')}
               </button>
             )}
           </div>
@@ -788,22 +789,22 @@ function CfdiTab({ showAlert, showConfirm }) {
              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, padding: 0, marginTop: 16, fontSize: '0.9rem' }}
           >
             <Icon icon={isHelpOpen ? "lucide:chevron-up" : "lucide:chevron-down"} />
-            {isHelpOpen ? "Ocultar instrucciones DNS" : "Mostrar instrucciones DNS"}
+            {isHelpOpen ? t('cfdiTab.hideDns') : t('cfdiTab.showDns')}
           </button>
 
           {isHelpOpen && (
             <div style={{ marginTop: 12, padding: 16, background: 'var(--bg-main)', borderRadius: 12, border: '1px solid var(--border)' }}>
-              <p style={{ margin: '0 0 8px', fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>Ayuda: Registros DNS</p>
+              <p style={{ margin: '0 0 8px', fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-main)' }}>{t('cfdiTab.dnsTitle')}</p>
               <p style={{ margin: '0 0 12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                Configura tu DNS en tu proveedor (Hostinger, GoDaddy, etc.) según lo que quieras usar:
+                {t('cfdiTab.dnsDesc')}
               </p>
 
               <div style={{ marginBottom: 16 }}>
-                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>Opción A: Usar un Subdominio (ej. facturacion.tu-cafe.com)</strong>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>{t('cfdiTab.dnsOptionA')}</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: '6px 12px', fontSize: '0.8rem', alignItems: 'center', background: 'var(--bg-surface)', padding: 8, borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <strong style={{ color: 'var(--text-muted)' }}>Tipo</strong>
-                  <strong style={{ color: 'var(--text-muted)' }}>Nombre</strong>
-                  <strong style={{ color: 'var(--text-muted)' }}>Valor / Objetivo</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>{t('cfdiTab.dnsType')}</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>{t('cfdiTab.dnsName')}</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>{t('cfdiTab.dnsValue')}</strong>
                   
                   <code style={{ background: 'var(--bg-main)', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace' }}>CNAME</code>
                   <code style={{ background: 'var(--bg-main)', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace' }}>facturacion</code>
@@ -816,11 +817,11 @@ function CfdiTab({ showAlert, showConfirm }) {
               </div>
 
               <div>
-                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>Opción B: Usar el Dominio Principal (ej. tu-cafe.com)</strong>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'block', marginBottom: 6 }}>{t('cfdiTab.dnsOptionB')}</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: 'auto auto 1fr', gap: '6px 12px', fontSize: '0.8rem', alignItems: 'center', background: 'var(--bg-surface)', padding: 8, borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <strong style={{ color: 'var(--text-muted)' }}>Tipo</strong>
-                  <strong style={{ color: 'var(--text-muted)' }}>Nombre</strong>
-                  <strong style={{ color: 'var(--text-muted)' }}>Valor / Objetivo</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>{t('cfdiTab.dnsType')}</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>{t('cfdiTab.dnsName')}</strong>
+                  <strong style={{ color: 'var(--text-muted)' }}>{t('cfdiTab.dnsValue')}</strong>
                   
                   <code style={{ background: 'var(--bg-main)', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace' }}>A</code>
                   <code style={{ background: 'var(--bg-main)', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace' }}>@</code>
@@ -841,22 +842,22 @@ function CfdiTab({ showAlert, showConfirm }) {
           onClick={() => setFilter('pending')}
           style={{ padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', background: filter === 'pending' ? 'var(--brand-color)' : 'var(--bg-surface)', color: filter === 'pending' ? 'white' : 'var(--text-muted)', border: filter === 'pending' ? 'none' : '1px solid var(--border)' }}
         >
-          Pendientes
+          {t('cfdiTab.tabPending')}
         </button>
         <button 
           onClick={() => setFilter('issued')}
           style={{ padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', background: filter === 'issued' ? 'var(--brand-color)' : 'var(--bg-surface)', color: filter === 'issued' ? 'white' : 'var(--text-muted)', border: filter === 'issued' ? 'none' : '1px solid var(--border)' }}
         >
-          Emitidas
+          {t('cfdiTab.tabIssued')}
         </button>
       </div>
 
       {loading && requests.length === 0 ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>Cargando...</div>
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('cfdiTab.loading')}</div>
       ) : filteredRequests.length === 0 ? (
         <div style={{ padding: '40px', textAlign: 'center', background: 'var(--bg-surface)', borderRadius: '12px', color: 'var(--text-muted)' }}>
           <Icon icon="lucide:inbox" style={{ fontSize: '3rem', marginBottom: '10px', opacity: 0.5 }} />
-          <p>No hay solicitudes en esta categoría.</p>
+          <p>{t('cfdiTab.empty')}</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -874,24 +875,24 @@ function CfdiTab({ showAlert, showConfirm }) {
                       <Icon icon="lucide:calendar" /> {new Date(req.created_at).toLocaleString()}
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: req.isPaid ? '#27ae60' : '#e74c3c' }}>
-                      <Icon icon="lucide:dollar-sign" /> {fmtCents(req.total_amount)} ({req.isPaid ? 'Pagado' : 'Pendiente'})
+                      <Icon icon="lucide:dollar-sign" /> {fmtCents(req.total_amount)} ({req.isPaid ? t('cfdiTab.paid') : t('cfdiTab.unpaid')})
                     </span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, maxWidth: '100%' }}>
-                  {req.cfdi_status === 'requested' && <span style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>Solicitado</span>}
-                  {req.cfdi_status === 'reopened' && <span style={{ background: 'rgba(243, 156, 18, 0.1)', color: '#d68910', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>Reabierto</span>}
+                  {req.cfdi_status === 'requested' && <span style={{ background: 'rgba(52, 152, 219, 0.1)', color: '#2980b9', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>{t('cfdiTab.statusRequested')}</span>}
+                  {req.cfdi_status === 'reopened' && <span style={{ background: 'rgba(243, 156, 18, 0.1)', color: '#d68910', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>{t('cfdiTab.statusReopened')}</span>}
                   {req.cfdi_status === 'issued' && (
                     <span style={{ background: 'rgba(46, 204, 113, 0.1)', color: '#27ae60', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '6px', minWidth: 0, overflowWrap: 'anywhere' }}>
-                      Emitido: {req.cfdi_folio}
+                      {t('cfdiTab.statusIssued').replace('{folio}', req.cfdi_folio || '')}
                       <button onClick={(e) => { e.stopPropagation(); handleCopy(req.cfdi_folio, 'Folio Fiscal'); }} style={{ background: 'none', border: 'none', color: '#27ae60', cursor: 'pointer', padding: 0, display: 'flex' }}>
                         <Icon icon="lucide:copy" />
                       </button>
                     </span>
                   )}
-                  {req.cfdi_status === 'canceled' && <span style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#c0392b', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>Cancelado</span>}
+                  {req.cfdi_status === 'canceled' && <span style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#c0392b', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>{t('cfdiTab.statusCanceled')}</span>}
                   
-                  <button onClick={() => handleShareCFDI(req)} title="Copiar Enlace CFDI" style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px', borderRadius: '50%', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
+                  <button onClick={() => handleShareCFDI(req)} title={t('cfdiTab.copyLink')} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px', borderRadius: '50%', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
                     <Icon icon="lucide:link" />
                   </button>
                 </div>
@@ -956,7 +957,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                 <p style={{ margin: 0, fontSize: '0.85rem', color: '#d68910', display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
                   <Icon icon="lucide:message-square-warning" style={{ flexShrink: 0, marginTop: '2px' }} />
                   <span>
-                    {req.cfdi_reopen_note.fields?.length > 0 && <strong>Revisar: {req.cfdi_reopen_note.fields.map(reopenFieldLabel).join(', ')}. </strong>}
+                    {req.cfdi_reopen_note.fields?.length > 0 && <strong>{t('cfdiTab.review').replace('{fields}', req.cfdi_reopen_note.fields.map(reopenFieldLabel).join(', '))} </strong>}
                     {req.cfdi_reopen_note.note}
                   </span>
                 </p>
@@ -970,18 +971,18 @@ function CfdiTab({ showAlert, showConfirm }) {
                     onClick={() => setReopenModal({ item: req, fields: [], note: '' })}
                     style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
                   >
-                    {req.cfdi_status === 'canceled' ? 'Generar nueva solicitud' : 'Reabrir Solicitud'}
+                    {req.cfdi_status === 'canceled' ? t('cfdiTab.newRequest') : t('cfdiTab.reopenRequest')}
                   </button>
                 )}
 
                 {(req.cfdi_status === 'requested' || req.cfdi_status === 'reopened') && (
                     <button 
                       disabled={isSubmitting || !req.isPaid}
-                      title={!req.isPaid ? 'El ticket debe ser pagado primero' : ''}
+                      title={!req.isPaid ? t('cfdiTab.mustBePaid') : ''}
                       onClick={() => setFolioModal({ isOpen: true, item: req, folio: '' })} 
                       style={{ background: req.isPaid ? 'var(--brand-color)' : 'var(--bg-main)', color: req.isPaid ? 'white' : 'var(--text-muted)', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: req.isPaid ? 'pointer' : 'not-allowed', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
                     >
-                      <Icon icon="lucide:check" /> Marcar como Emitido
+                      <Icon icon="lucide:check" /> {t('cfdiTab.markIssued')}
                     </button>
                 )}
                 
@@ -991,18 +992,18 @@ function CfdiTab({ showAlert, showConfirm }) {
                     onClick={() => setFolioModal({ isOpen: true, item: req, folio: req.cfdi_folio || '' })}
                     style={{ background: 'rgba(52, 152, 219, 0.1)', border: '1px solid #3498db', color: '#2980b9', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    <Icon icon="lucide:paperclip" /> {req.cfdi_zip_path ? 'Reemplazar ZIP' : 'Adjuntar ZIP'}
+                    <Icon icon="lucide:paperclip" /> {req.cfdi_zip_path ? t('cfdiTab.replaceZip') : t('cfdiTab.attachZip')}
                   </button>
                 )}
                 {req.cfdi_status === 'issued' && req.sourceTable === 'sales' && emailStatus?.configured && req.fiscal_profiles?.email && (
                   <button
                     disabled={isSubmitting || !!emailBusy}
                     onClick={() => handleResendEmail(req)}
-                    title={req.cfdi_email_error ? `Último intento falló: ${req.cfdi_email_error}` : req.cfdi_emailed_at ? `Enviado el ${new Date(req.cfdi_emailed_at).toLocaleString('es-MX')}` : 'Aún no se ha enviado'}
+                    title={req.cfdi_email_error ? t('cfdiTab.lastFailed').replace('{err}', req.cfdi_email_error) : req.cfdi_emailed_at ? t('cfdiTab.sentOn').replace('{date}', new Date(req.cfdi_emailed_at).toLocaleString(dateLocale)) : t('cfdiTab.notSent')}
                     style={{ background: 'transparent', border: `1px solid ${req.cfdi_email_error ? '#e74c3c' : 'var(--border)'}`, color: req.cfdi_email_error ? '#c0392b' : 'var(--text-main)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
                     <Icon icon={emailBusy === `resend-${req.id}` ? 'lucide:loader' : 'lucide:mail'} className={emailBusy === `resend-${req.id}` ? 'spin' : ''} />
-                    {req.cfdi_emailed_at || req.cfdi_email_error ? 'Reenviar correo' : 'Enviar correo'}
+                    {req.cfdi_emailed_at || req.cfdi_email_error ? t('cfdiTab.resend') : t('cfdiTab.send')}
                   </button>
                 )}
                 {req.cfdi_status === 'issued' && (
@@ -1011,7 +1012,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                     onClick={() => handleCancel(req)}
                     style={{ background: 'rgba(231, 76, 60, 0.1)', border: '1px solid #e74c3c', color: '#c0392b', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    <Icon icon="lucide:x-circle" /> Cancelar Factura
+                    <Icon icon="lucide:x-circle" /> {t('cfdiTab.cancelTitle')}
                   </button>
                 )}
               </div>
@@ -1024,9 +1025,9 @@ function CfdiTab({ showAlert, showConfirm }) {
       {reopenModal && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '400px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: 'var(--text-main)' }}>Reabrir Solicitud</h2>
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: 'var(--text-main)' }}>{t('cfdiTab.reopenRequest')}</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '16px', fontSize: '0.9rem' }}>
-              El cliente podrá corregir y reenviar sus datos. Marca lo que está mal o déjale una nota.
+              {t('cfdiTab.reopenDesc')}
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
               {REOPEN_FIELDS.map(([key, label]) => {
@@ -1047,7 +1048,7 @@ function CfdiTab({ showAlert, showConfirm }) {
             <textarea
               value={reopenModal.note}
               onChange={(e) => setReopenModal(prev => ({ ...prev, note: e.target.value }))}
-              placeholder="Nota para el cliente (opcional). Ej. El C.P. no coincide con tu constancia."
+              placeholder={t('cfdiTab.notePlaceholder')}
               maxLength={500}
               rows={3}
               style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '0.95rem', outline: 'none', resize: 'vertical', marginBottom: '20px', fontFamily: 'inherit' }}
@@ -1055,7 +1056,7 @@ function CfdiTab({ showAlert, showConfirm }) {
             <div className="modal-actions">
               <button onClick={() => setReopenModal(null)} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
               <button onClick={handleReopen} className="btn-confirm" disabled={isSubmitting} style={{ flex: 1 }}>
-                {isSubmitting ? 'Guardando...' : 'Reabrir'}
+                {isSubmitting ? t('cfdiTab.saving') : t('cfdiTab.reopen')}
               </button>
             </div>
           </div>
@@ -1066,9 +1067,9 @@ function CfdiTab({ showAlert, showConfirm }) {
       {folioModal.isOpen && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '400px', background: 'var(--bg-surface)', padding: '24px', borderRadius: '16px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
-            <h2 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: 'var(--text-main)' }}>Emitir Factura</h2>
+            <h2 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: 'var(--text-main)' }}>{t('cfdiTab.issueTitle')}</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '20px', fontSize: '0.9rem' }}>
-              Ingresa el folio fiscal del CFDI generado para {folioModal.item?.fiscal_profiles?.rfc || 'este ticket'}.
+              {t('cfdiTab.issueDesc').replace('{rfc}', folioModal.item?.fiscal_profiles?.rfc || t('cfdiTab.thisTicket'))}
             </p>
 
             <div style={{ marginBottom: '20px' }}>
@@ -1078,7 +1079,7 @@ function CfdiTab({ showAlert, showConfirm }) {
                 autoFocus
                 value={folioModal.folio}
                 onChange={(e) => setFolioModal(prev => ({ ...prev, folio: e.target.value }))}
-                placeholder="Ej. AAA123..."
+                placeholder={t('cfdiTab.folioPlaceholder')}
                 style={{
                   width: '100%',
                   padding: '12px',
@@ -1094,25 +1095,25 @@ function CfdiTab({ showAlert, showConfirm }) {
 
             {folioModal.item?.sourceTable === 'sales' && (
               <div style={{ marginBottom: '20px' }}>
-                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>ZIP de la factura (XML + PDF) — opcional</label>
+                <label style={{ display: 'block', fontWeight: 'bold', marginBottom: '8px', color: 'var(--text-main)' }}>{t('cfdiTab.zipLabel')}</label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '10px', border: '2px dashed var(--border)', background: 'var(--bg-main)', cursor: 'pointer', minWidth: 0 }}>
                   <Icon icon="lucide:upload" style={{ color: 'var(--brand-color)', flexShrink: 0 }} />
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: folioModal.zip ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                    {folioModal.zip ? folioModal.zip.name : 'Seleccionar archivo .zip'}
+                    {folioModal.zip ? folioModal.zip.name : t('cfdiTab.selectZip')}
                   </span>
                   <input
                     type="file"
                     accept=".zip,application/zip"
                     onChange={(e) => {
                       const f = e.target.files?.[0] || null;
-                      if (f && f.size > 5 * 1024 * 1024) { e.target.value = ''; showAlert(t('common.error'), 'El ZIP no puede pesar más de 5 MB'); return; }
+                      if (f && f.size > 5 * 1024 * 1024) { e.target.value = ''; showAlert(t('common.error'), t('cfdiTab.zipTooBig')); return; }
                       setFolioModal(prev => ({ ...prev, zip: f }));
                     }}
                     style={{ display: 'none' }}
                   />
                 </label>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '6px 0 0' }}>
-                  El cliente podrá descargarlo durante {ZIP_DAYS} días desde su enlace de facturación.
+                  {t('cfdiTab.zipHint').replace('{days}', ZIP_DAYS)}
                 </p>
               </div>
             )}
@@ -1120,7 +1121,7 @@ function CfdiTab({ showAlert, showConfirm }) {
             <div className="modal-actions">
               <button onClick={() => setFolioModal({ isOpen: false, item: null, folio: '' })} className="btn-cancel" style={{ flex: 1 }}>{t('common.cancel')}</button>
               <button onClick={handleMarkIssued} className="btn-confirm" disabled={!folioModal.folio.trim() || isSubmitting} style={{ flex: 1, background: folioModal.folio.trim() ? '#2980b9' : 'var(--bg-main)', color: folioModal.folio.trim() ? 'white' : 'var(--text-muted)' }}>
-                {isSubmitting ? 'Guardando...' : 'Guardar'}
+                {isSubmitting ? t('cfdiTab.saving') : t('cfdiTab.save')}
               </button>
             </div>
           </div>
