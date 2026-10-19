@@ -424,8 +424,9 @@ const en = [
     what: 'Manage cashiers, their PINs, and their roles (employee / manager / admin).',
     how: 'Adding a cashier writes a securely hashed PIN via a server RPC; removing one wipes it. Roles drive the optional access restrictions, and everyone allowed to sign in is tracked in a single allowlist.',
     do: [
-      { action: 'Add a cashier', steps: 'Enter a name, set a PIN, and choose a role.' },
-      { action: 'Change a role', steps: 'Use the role selector to set employee, manager, or admin.' },
+      { action: 'Add a cashier', steps: 'Enter a name, set a 4-digit PIN, choose a role (Employee, Manager or Admin), and tap Add Profile.' },
+      { action: 'Choose the right role', steps: 'Managers approve overrides (refunds, voids, expenses and manual discounts); Admins can also open this admin panel. Admin-only access applies when strict mode is on in General Settings.' },
+      { action: 'Change a role or PIN', steps: 'Roles and PINs are set when the profile is created. To change one, delete the profile and add it again.' },
       { action: 'Remove a cashier', steps: 'Delete the entry; their PIN is revoked.' },
     ],
   },
@@ -895,8 +896,9 @@ const es = [
     what: 'Administra cajeros, sus PINs y sus roles (empleado / gerente / admin).',
     how: 'Agregar un cajero guarda un PIN cifrado de forma segura mediante un RPC del servidor; eliminarlo lo borra. Los roles rigen las restricciones de acceso opcionales, y todos los que pueden iniciar sesión se controlan en una sola lista de permitidos.',
     do: [
-      { action: 'Agregar un cajero', steps: 'Escribe un nombre, define un PIN y elige un rol.' },
-      { action: 'Cambiar un rol', steps: 'Usa el selector de rol para asignar empleado, gerente o admin.' },
+      { action: 'Agregar un cajero', steps: 'Escribe un nombre, define un PIN de 4 dígitos, elige un rol (Empleado, Gerente o Admin) y toca Agregar Perfil.' },
+      { action: 'Elegir el rol correcto', steps: 'Los Gerentes aprueban autorizaciones (reembolsos, anulaciones, gastos y descuentos manuales); los Admin además pueden abrir este panel de administración. El acceso solo para Admin aplica cuando el modo estricto está activo en Configuración General.' },
+      { action: 'Cambiar un rol o PIN', steps: 'El rol y el PIN se definen al crear el perfil. Para cambiarlos, elimina el perfil y agrégalo de nuevo.' },
       { action: 'Eliminar un cajero', steps: 'Borra el registro; su PIN se revoca.' },
     ],
   },
