@@ -245,7 +245,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                       <div className="rc-name" style={{ display: 'flex', gap: '8px', alignItems: 'center', minWidth: 0 }}>
                         <button
                           onClick={() => handleUpdateIngredient(ing.id, 'isManual', !isManual)}
-                          title={isManual ? 'Switch to Live Inventory' : 'Switch to Manual Cost'}
+                          title={isManual ? t('recipe.titleLiveInventory') : t('recipe.titleManualCost')}
                           style={{ padding: '10px', background: isManual ? '#9b59b6' : 'var(--bg-surface)', color: isManual ? 'white' : 'var(--text-muted)', border: isManual ? 'none' : '1px solid var(--border)', borderRadius: '10px', cursor: 'pointer', display: 'flex' }}
                         >
                           <Icon icon={isManual ? 'lucide:database-backup' : 'lucide:database'} />
@@ -285,7 +285,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                           {isManual ? (
                             <input
                               type="text"
-                              placeholder="unit"
+                              placeholder={t('recipe.placeholderUnit')}
                               value={ing.manualUnit || ''}
                               onChange={(e) => handleUpdateIngredient(ing.id, 'manualUnit', e.target.value)}
                               style={{ width: '40px', fontSize: '0.8rem', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none', textAlign: 'center' }}
@@ -302,7 +302,7 @@ function RecipeBuilderTab({ recipes, activeRecipe, setActiveRecipe, handleCreate
                           <input
                             type="number"
                             step="0.01"
-                            placeholder="Cost"
+                            placeholder={t('recipe.placeholderCost')}
                             value={ing.manualCostPerUnit || ''}
                             onChange={(e) => handleUpdateIngredient(ing.id, 'manualCostPerUnit', e.target.value)}
                             style={{ width: '100%', padding: '12px', border: 'none', background: 'transparent', color: 'var(--text-main)', outline: 'none' }}

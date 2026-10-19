@@ -75,7 +75,7 @@ export function AlertsCard({ input, showAlert }) {
   const btn = { ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' };
   if (!status) return null;
   return (
-    <Card icon="lucide:bell-ring" title={t('alerts.title')} info={t('alerts.info')} section="onlineOrders">
+    <Card icon="lucide:bell-ring" title={t('alerts.title')} info={t('alerts.info')} section="settings">
       <small style={{ color: 'var(--text-muted)' }}>{t('alerts.hint')}</small>
       {!status.pg_net && <small style={{ color: '#e74c3c' }}>{t('alerts.noPgNet')}</small>}
       <label style={{ display: 'flex', gap: 10, alignItems: 'center', cursor: 'pointer' }}>

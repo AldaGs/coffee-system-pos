@@ -561,9 +561,9 @@ function GeneralSettingsTab({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ fontWeight: 'bold', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Icon icon="lucide:clock" style={{ color: 'var(--brand-color)' }} />
-              Zona horaria
+              {t('settings.timezone')}
               <span style={{ fontWeight: 500, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                — horarios de menú se resuelven en esta zona
+                {t('settings.timezoneHint')}
               </span>
             </label>
             <TimezonePicker
@@ -815,35 +815,35 @@ function GeneralSettingsTab({
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px' }}>
               <h3 style={{ margin: '0 0 16px 0', fontSize: '1.2rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Icon icon="lucide:monitor-play" style={{ color: 'var(--brand-color)' }} />
-                Kitchen Display System (KDS)
+                {t('settings.kdsTitle')}
               </h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  Habilitar KDS
+                  {t('settings.kdsEnable')}
                 </label>
                 <select
                   value={generalSettings.kdsEnabled === true}
                   onChange={(e) => setGeneralSettings({ ...generalSettings, kdsEnabled: e.target.value === 'true' })}
                   style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
                 >
-                  <option value={false}>No (Desactivado)</option>
-                  <option value={true}>Sí (Activado)</option>
+                  <option value={false}>{t('settings.kdsOff')}</option>
+                  <option value={true}>{t('settings.kdsOn')}</option>
                 </select>
-                <small style={{ color: 'var(--text-muted)' }}>Muestra opciones para interactuar con la pantalla de cocina.</small>
+                <small style={{ color: 'var(--text-muted)' }}>{t('settings.kdsEnableHint')}</small>
 
                 {generalSettings.kdsEnabled && (
                   <>
-                    <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem', marginTop: '12px' }}>Modo de Envío a KDS</label>
+                    <label style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: '0.9rem', marginTop: '12px' }}>{t('settings.kdsMode')}</label>
                     <select
                       value={generalSettings.kdsMode || 'immediate'}
                       onChange={(e) => setGeneralSettings({ ...generalSettings, kdsMode: e.target.value })}
                       style={{ width: '100%', boxSizing: 'border-box', padding: '14px', border: '1px solid var(--border)', borderRadius: '12px', fontSize: '1rem', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none', cursor: 'pointer' }}
                     >
-                      <option value="immediate">Inmediato (Al abrir ticket)</option>
-                      <option value="manual">Manual (Botón "Enviar a Cocina")</option>
+                      <option value="immediate">{t('settings.kdsImmediate')}</option>
+                      <option value="manual">{t('settings.kdsManual')}</option>
                     </select>
-                    <small style={{ color: 'var(--text-muted)' }}>Define cuándo aparecen los pedidos en la pantalla de cocina.</small>
+                    <small style={{ color: 'var(--text-muted)' }}>{t('settings.kdsModeHint')}</small>
                   </>
                 )}
               </div>
@@ -1070,24 +1070,23 @@ function GeneralSettingsTab({
               }}>
                 <h3 style={{ marginTop: 0, color: 'var(--text-main)', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Icon icon="lucide:cloud-upload" style={{ color: '#3498db' }} />
-                  Respaldo en la nube
+                  {t('settings.cloudBackupTitle')}
                 </h3>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '20px', lineHeight: '1.4' }}>
-                  Tus datos viven solo en este dispositivo. Crea una cuenta gratuita
-                  de Supabase para respaldarlos y usarlos en otros dispositivos.
+                  {t('settings.cloudBackupDesc')}
                 </p>
                 <button
                   onClick={beginCloudUpgrade}
                   style={{ width: '100%', padding: '14px', background: '#099b46', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                 >
                   <Icon icon="lucide:cloud-upload" />
-                  Crear respaldo gratis
+                  {t('settings.cloudBackupBtn')}
                 </button>
                 <button
                   onClick={() => { window.location.href = '/upgrade-guide'; }}
                   style={{ width: '100%', marginTop: '10px', padding: '10px', background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline', textUnderlineOffset: '3px' }}
                 >
-                  ¿Cómo funciona?
+                  {t('settings.cloudBackupHow')}
                 </button>
               </div>
             ) : (

@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Rect, Circle, Text, Group, Line, Transformer } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { updateFloor } from '../../api/floors';
+import { useTranslation } from '../../hooks/useTranslation';
 import {
   newFloorDocument, newTableNode, tablesOf, clampNode,
   TABLE_SHAPES, DEFAULT_FLOOR_SIZE,
@@ -36,6 +37,7 @@ function readBrandColor() {
 function snapTo(value, cell) { return Math.round(value / cell) * cell; }
 
 export default function FloorEditor({ floor, onClose, showAlert }) {
+  const { t } = useTranslation();
   const initialDoc = floor.document || newFloorDocument();
   const size = initialDoc.size || DEFAULT_FLOOR_SIZE;
 
@@ -161,7 +163,7 @@ export default function FloorEditor({ floor, onClose, showAlert }) {
     }
   }
   function close() {
-    if (dirty && !window.confirm('Hay cambios sin guardar. ¿Salir de todos modos?')) return;
+    if (dirty && !window.confirm(t('floors.unsavedConfirm'))) return;
     onClose?.(false);
   }
 
@@ -183,25 +185,25 @@ export default function FloorEditor({ floor, onClose, showAlert }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'var(--bg-main)', display: 'flex', flexDirection: 'column' }}>
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-        <strong style={{ fontSize: '1rem', marginRight: '8px' }}>{floor.name || 'Plano'}</strong>
-        <ToolButton icon="lucide:circle" label="Mesa redonda" onClick={() => addTable('round')} />
-        <ToolButton icon="lucide:square" label="Mesa cuadrada" onClick={() => addTable('square')} />
-        <ToolButton icon="lucide:rectangle-horizontal" label="Mesa rectangular" onClick={() => addTable('rect')} />
+        <strong style={{ fontSize: '1rem', marginRight: '8px' }}>{floor.name || t('floors.plan')}</strong>
+        <ToolButton icon="lucide:circle" label={t('floors.addRound')} onClick={() => addTable('round')} />
+        <ToolButton icon="lucide:square" label={t('floors.addSquare')} onClick={() => addTable('square')} />
+        <ToolButton icon="lucide:rectangle-horizontal" label={t('floors.addRect')} onClick={() => addTable('rect')} />
         <span style={{ width: 1, height: 24, background: 'var(--border)', margin: '0 6px' }} />
-        <ToolButton icon="lucide:undo-2" label="Deshacer" onClick={undo} disabled={!past.length} />
-        <ToolButton icon="lucide:redo-2" label="Rehacer" onClick={redo} disabled={!future.length} />
-        <ToolButton icon="lucide:trash-2" label="Eliminar" onClick={deleteSelected} disabled={!selectedId} />
+        <ToolButton icon="lucide:undo-2" label={t('floors.undo')} onClick={undo} disabled={!past.length} />
+        <ToolButton icon="lucide:redo-2" label={t('floors.redo')} onClick={redo} disabled={!future.length} />
+        <ToolButton icon="lucide:trash-2" label={t('floors.delete')} onClick={deleteSelected} disabled={!selectedId} />
         <span style={{ width: 1, height: 24, background: 'var(--border)', margin: '0 6px' }} />
-        <ToolButton icon="lucide:grid-2x2" label="Cuadrícula chica"
+        <ToolButton icon="lucide:grid-2x2" label={t('floors.gridSmall')}
           onClick={() => setGrid(g => g === 'small' ? 'off' : 'small')} active={grid === 'small'} />
-        <ToolButton icon="lucide:grid-3x3" label="Cuadrícula grande"
+        <ToolButton icon="lucide:grid-3x3" label={t('floors.gridBig')}
           onClick={() => setGrid(g => g === 'big' ? 'off' : 'big')} active={grid === 'big'} />
-        <ToolButton icon="lucide:magnet" label="Auto-ajuste a cuadrícula"
+        <ToolButton icon="lucide:magnet" label={t('floors.snap')}
           onClick={() => setSnap(s => !s)} active={snap} disabled={grid === 'off'} />
         <div style={{ flex: 1 }} />
-        <button onClick={close} style={btnStyle('ghost')}>Cerrar</button>
+        <button onClick={close} style={btnStyle('ghost')}>{t('floors.close')}</button>
         <button onClick={save} disabled={saving} style={btnStyle('primary')}>
-          {saving ? 'Guardando…' : 'Guardar'}
+          {saving ? t('floors.saving') : t('floors.save')}
         </button>
       </div>
 
@@ -250,38 +252,38 @@ export default function FloorEditor({ floor, onClose, showAlert }) {
         <div style={{ width: 260, borderLeft: '1px solid var(--border)', background: 'var(--bg-card)', padding: 16, overflowY: 'auto' }}>
           {!selected ? (
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Selecciona una mesa para editar sus datos, o agrega una desde la barra superior.
+              {t('floors.selectHint')}
             </p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <Field label="Número">
+              <Field label={t('floors.number')}>
                 <input value={selected.number} onChange={e => patchSelected({ number: e.target.value })} style={inputStyle} />
               </Field>
-              <Field label="Nombre (opcional)">
-                <input value={selected.name} onChange={e => patchSelected({ name: e.target.value })} style={inputStyle} placeholder="p. ej. Terraza 1" />
+              <Field label={t('floors.nameOptional')}>
+                <input value={selected.name} onChange={e => patchSelected({ name: e.target.value })} style={inputStyle} placeholder={t('floors.tableNamePlaceholder')} />
               </Field>
-              <Field label="Lugares esperados">
+              <Field label={t('floors.seats')}>
                 <input type="number" min={1} value={selected.seats}
                   onChange={e => patchSelected({ seats: Math.max(1, Number(e.target.value) || 1) })} style={inputStyle} />
               </Field>
-              <Field label="Forma">
+              <Field label={t('floors.shape')}>
                 <div style={{ display: 'flex', gap: 6 }}>
                   {TABLE_SHAPES.map(s => (
                     <button key={s} onClick={() => patchSelected({ shape: s })}
                       style={{ ...btnStyle(selected.shape === s ? 'primary' : 'ghost'), flex: 1, padding: '6px' }}>
-                      {s === 'round' ? 'Redonda' : s === 'square' ? 'Cuadrada' : 'Rect.'}
+                      {s === 'round' ? t('floors.shapeRound') : s === 'square' ? t('floors.shapeSquare') : t('floors.shapeRect')}
                     </button>
                   ))}
                 </div>
               </Field>
-              <Field label="Color">
+              <Field label={t('floors.color')}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {COLOR_PRESETS.map((c, i) => {
                     const active = (selected.color ?? null) === c;
                     const swatch = c ?? brandColor;
                     return (
                       <button key={i} onClick={() => patchSelected({ color: c })}
-                        title={c ? c : 'Color de marca'}
+                        title={c ? c : t('floors.brandColor')}
                         style={{ width: 28, height: 28, borderRadius: 6, cursor: 'pointer', background: swatch,
                           border: active ? '2px solid var(--text-main)' : '1px solid var(--border)',
                           position: 'relative' }}>
@@ -291,7 +293,7 @@ export default function FloorEditor({ floor, onClose, showAlert }) {
                   })}
                   <input type="color" value={selected.color ?? brandColor}
                     onChange={e => patchSelected({ color: e.target.value })}
-                    title="Color personalizado"
+                    title={t('floors.customColor')}
                     style={{ width: 28, height: 28, padding: 0, border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer' }} />
                 </div>
               </Field>

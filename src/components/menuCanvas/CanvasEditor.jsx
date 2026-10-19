@@ -16,6 +16,7 @@
 //   - Print + page-size presets switching (4c.5)
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from '../../hooks/useTranslation';
 import { Stage, Layer, Rect, Circle, Text, Image as KImage, Transformer, Group, Line, Path, Label, Tag } from 'react-konva';
 import { Icon } from '@iconify/react';
 import { nanoid } from 'nanoid';
@@ -34,6 +35,7 @@ import LayersPanel from './LayersPanel';
 const HISTORY_LIMIT = 50;
 
 export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
+  const { t } = useTranslation();
   const initialDoc = menu.data?.document || newDocument('16:9');
   const [doc, setDoc] = useState(initialDoc);
   const [past, setPast] = useState([]);
@@ -280,7 +282,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     });
     mutatePage(p => {
       const groups = { ...(p.groups || {}) };
-      for (const [oldG, newG] of gidMap) groups[newG] = { name: `${p.groups?.[oldG]?.name || 'Grupo'} copia` };
+      for (const [oldG, newG] of gidMap) groups[newG] = { name: t('canvas.groupCopy').replace('{name}', p.groups?.[oldG]?.name || t('canvas.group')) };
       return { ...p, nodes: [...(p.nodes || []), ...withIds], groups };
     });
     setSelectedIds(withIds.map(n => n.id));
@@ -517,8 +519,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       (n.x || 0) + (n.w || 0) > preset.w || (n.y || 0) + (n.h || 0) > preset.h
     ));
     if (overflow && !window.confirm(
-      'Algunos elementos quedan fuera del nuevo tamaño de página. Se conservan ' +
-      'sus coordenadas — los puedes mover después. ¿Continuar?'
+      t('canvas.outOfPage')
     )) return;
     commit({ ...doc, page_size: { w: preset.w, h: preset.h } });
   }
@@ -530,10 +531,10 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
     const url = localStorage.getItem('tinypos_supabase_url');
     const key = localStorage.getItem('tinypos_supabase_anon_key');
     if (!url || !key) {
-      showAlert?.('Configuración faltante', 'Faltan credenciales locales para imprimir.');
+      showAlert?.(t('canvas.missingConfigTitle'), t('canvas.missingConfigDesc'));
       return;
     }
-    if (dirty && !window.confirm('Hay cambios sin guardar. Imprime guardará primero.')) return;
+    if (dirty && !window.confirm(t('canvas.unsavedPrint'))) return;
     const go = () => {
       const printUrl = `${menuBaseUrl()}/menu?u=${btoa(url)}&k=${btoa(key)}&m=${menu.id}&print=1`;
       openInBrowser(printUrl);
@@ -551,12 +552,12 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       setDirty(false);
       onClose(true);
     } catch (err) {
-      showAlert?.('Error guardando', err.message);
+      showAlert?.(t('canvas.saveError'), err.message);
     } finally { setSaving(false); }
   }
 
   function tryClose() {
-    if (dirty && !window.confirm('Hay cambios sin guardar. ¿Cerrar de todos modos?')) return;
+    if (dirty && !window.confirm(t('canvas.unsavedClose'))) return;
     onClose(false);
   }
 
@@ -1124,7 +1125,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           a.click();
         }
       } catch (err) {
-        showAlert?.('Error al exportar', err.message);
+        showAlert?.(t('canvas.exportError'), err.message);
       }
       setExporting(false);
     });
@@ -1243,7 +1244,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
       {previewOOS && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 16px', background: 'rgba(210,120,30,0.18)', borderBottom: '1px solid rgba(210,120,30,0.4)', color: '#f0b370', fontSize: '0.8rem', fontWeight: 700 }}>
           <Icon icon="lucide:package-x" />
-          Vista previa: productos agotados — los elementos atenuados se ocultan o se marcan en el menú público. No cambia el inventario real.
+          {t('canvas.oosPreview')}
         </div>
       )}
 
@@ -1252,7 +1253,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
           isNarrow={isNarrow}
           onAddText={() => addNode({
             type: 'text', autoWidth: true, x: pageW / 2 - 200, y: pageH / 2 - 40, w: 240, h: 64, rotation: 0,
-            text: 'Texto', style: { fontFamily: 'Georgia, serif', fontSize: 48, fontWeight: 700, color: '#111', align: 'left' }
+            text: t('canvas.text'), style: { fontFamily: 'Georgia, serif', fontSize: 48, fontWeight: 700, color: '#111', align: 'left' }
           })}
           onAddRect={() => addNode({
             type: 'shape', shape: 'rect', x: pageW / 2 - 150, y: pageH / 2 - 100, w: 300, h: 200, rotation: 0,
@@ -1303,14 +1304,14 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
             type: 'whatsapp-button',
             x: Math.round(pageW / 2 - 260), y: Math.round(pageH / 2 - 40),
             w: 520, h: 88, rotation: 0,
-            label: 'Pedir por WhatsApp', url: '',
+            label: t('canvas.orderWhatsApp'), url: '',
             style: { fill: '#25D366', color: '#ffffff', fontFamily: 'system-ui, sans-serif', fontSize: 34, fontWeight: 800, borderRadius: 999, align: 'center', padding: 16 }
           })}
           onAddDate={() => addNode({
             type: 'date-field',
             x: Math.round(pageW / 2 - 200), y: Math.round(pageH / 2 - 30),
             w: 400, h: 60, rotation: 0,
-            emoji: '🔥', label: 'Tostado:', value: '', relative: true, item_id: null,
+            emoji: '🔥', label: t('canvas.roasted'), value: '', relative: true, item_id: null,
             style: { fontFamily: 'system-ui, sans-serif', fontSize: 32, fontWeight: 600, color: '#8a6d3b', align: 'left' }
           })}
         />
@@ -1456,7 +1457,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
         {isNarrow && (
           <div style={sheetHandle} onClick={() => setPanelOpen(o => !o)}>
             <span style={{ fontWeight: 800, fontSize: '0.78rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {selectedIds.length > 1 ? `${selectedIds.length} seleccionados` : 'Propiedades'}
+              {selectedIds.length > 1 ? `${selectedIds.length} seleccionados` : t('canvas.properties')}
             </span>
             <Icon icon={panelOpen ? 'lucide:chevron-down' : 'lucide:chevron-up'} />
           </div>
@@ -1548,11 +1549,11 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 
       {/* Floating zoom control (Ctrl/⌘ + wheel also zooms the canvas). */}
       <div style={zoomWidget}>
-        <button onClick={() => zoomByFactor(1 / 1.2)} style={zoomBtn} title="Alejar (Ctrl −)"><Icon icon="lucide:minus" /></button>
-        <button onClick={resetZoom} style={{ ...zoomBtn, minWidth: 54, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title="Ajustar a la ventana (Ctrl 0)">
+        <button onClick={() => zoomByFactor(1 / 1.2)} style={zoomBtn} title={t('canvas.zoomOut')}><Icon icon="lucide:minus" /></button>
+        <button onClick={resetZoom} style={{ ...zoomBtn, minWidth: 54, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }} title={t('canvas.zoomFit')}>
           {Math.round(stageScale * 100)}%
         </button>
-        <button onClick={() => zoomByFactor(1.2)} style={zoomBtn} title="Acercar (Ctrl +)"><Icon icon="lucide:plus" /></button>
+        <button onClick={() => zoomByFactor(1.2)} style={zoomBtn} title={t('canvas.zoomIn')}><Icon icon="lucide:plus" /></button>
       </div>
     </div>
    </PaletteContext.Provider>
@@ -1563,6 +1564,7 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 // it on any outside click (window listener). Items collapse to just Paste when
 // nothing is selected.
 function ContextMenu({ pos, hasSelection, selectionCount, canPaste, canGroup, canUngroup, canLink, isLinked, linkSuggestion, onGroup, onUngroup, onLinkProduct, onUnlink, onDuplicate, onCopy, onPaste, onForward, onBack, onDelete }) {
+  const { t } = useTranslation();
   const item = (icon, label, onClick, opts = {}) => (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
@@ -1595,31 +1597,31 @@ function ContextMenu({ pos, hasSelection, selectionCount, canPaste, canGroup, ca
     >
       {hasSelection ? (
         <>
-          {item('lucide:copy-plus', 'Duplicar', onDuplicate, { hint: 'Ctrl+D' })}
-          {item('lucide:copy', 'Copiar', onCopy, { hint: 'Ctrl+C' })}
-          {item('lucide:clipboard-paste', 'Pegar', onPaste, { hint: 'Ctrl+V', disabled: !canPaste })}
+          {item('lucide:copy-plus', t('canvas.duplicate'), onDuplicate, { hint: 'Ctrl+D' })}
+          {item('lucide:copy', t('canvas.copy'), onCopy, { hint: 'Ctrl+C' })}
+          {item('lucide:clipboard-paste', t('canvas.paste'), onPaste, { hint: 'Ctrl+V', disabled: !canPaste })}
           {(canGroup || canUngroup) && (
             <>
               <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
-              {canGroup && item('lucide:group', 'Agrupar', onGroup, { hint: 'Ctrl+G' })}
-              {canUngroup && item('lucide:ungroup', 'Desagrupar', onUngroup, { hint: 'Ctrl+Shift+G' })}
+              {canGroup && item('lucide:group', t('canvas.groupAction'), onGroup, { hint: 'Ctrl+G' })}
+              {canUngroup && item('lucide:ungroup', t('canvas.ungroup'), onUngroup, { hint: 'Ctrl+Shift+G' })}
             </>
           )}
           {canLink && (
             <>
               <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
-              {item('lucide:link', linkSuggestion ? `Vincular a ${linkSuggestion}` : 'Vincular a producto…', onLinkProduct, { hint: linkSuggestion ? 'oculta al agotarse' : undefined })}
-              {isLinked && item('lucide:link-2-off', 'Quitar vínculo', onUnlink)}
+              {item('lucide:link', linkSuggestion ? t('canvas.linkTo').replace('{name}', linkSuggestion) : t('canvas.linkProduct'), onLinkProduct, { hint: linkSuggestion ? t('canvas.hidesWhenSoldOut') : undefined })}
+              {isLinked && item('lucide:link-2-off', t('canvas.unlink'), onUnlink)}
             </>
           )}
           <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
-          {item('lucide:chevron-up', 'Traer adelante', onForward)}
-          {item('lucide:chevron-down', 'Enviar atrás', onBack)}
+          {item('lucide:chevron-up', t('canvas.bringForward'), onForward)}
+          {item('lucide:chevron-down', t('canvas.sendBack'), onBack)}
           <div style={{ height: 1, background: '#30363d', margin: '4px 0' }} />
-          {item('lucide:trash-2', selectionCount > 1 ? `Eliminar (${selectionCount})` : 'Eliminar', onDelete, { danger: true })}
+          {item('lucide:trash-2', selectionCount > 1 ? t('canvas.deleteCount').replace('{n}', selectionCount) : t('canvas.delete'), onDelete, { danger: true })}
         </>
       ) : (
-        item('lucide:clipboard-paste', 'Pegar', onPaste, { hint: 'Ctrl+V', disabled: !canPaste })
+        item('lucide:clipboard-paste', t('canvas.paste'), onPaste, { hint: 'Ctrl+V', disabled: !canPaste })
       )}
     </div>
   );
@@ -2315,8 +2317,9 @@ function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMeasure, 
 // WhatsApp button node preview. A rounded pill with the WhatsApp mark drawn as
 // a Konva Path plus the label, matching the public renderer's styled anchor.
 function WhatsAppButtonKonva({ node, common, fontEpoch = 0 }) {
+  const { t } = useTranslation();
   const s = node.style || {};
-  const label = node.label || 'Pedir por WhatsApp';
+  const label = node.label || t('canvas.orderWhatsApp');
   const bg = s.fill || '#25D366';
   const color = s.color || '#ffffff';
   const fontSize = s.fontSize || 28;
@@ -2361,6 +2364,7 @@ function WhatsAppButtonKonva({ node, common, fontEpoch = 0 }) {
 // businessless replacement for the coffee-only roast line. Binds to an item's
 // roast_date when linked, else shows the node's own value.
 function DateFieldKonva({ node, common, menuData, fontEpoch = 0 }) {
+  const { t, lang } = useTranslation();
   const idx = useMemo(() => {
     const m = new Map();
     Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
@@ -2369,8 +2373,8 @@ function DateFieldKonva({ node, common, menuData, fontEpoch = 0 }) {
   const s = node.style || {};
   const bound = node.item_id ? idx.get(node.item_id) : null;
   const value = node.value || bound?.roastDate || bound?.roast_date || null;
-  const dateStr = formatDateField(value, { lang: 'es', relative: node.relative !== false });
-  const text = [node.emoji || '', node.label || '', dateStr || (value ? '' : 'AAAA-MM-DD')].filter(Boolean).join(' ');
+  const dateStr = formatDateField(value, { lang, relative: node.relative !== false });
+  const text = [node.emoji || '', node.label || '', dateStr || (value ? '' : t('canvas.datePh'))].filter(Boolean).join(' ');
   return (
     <Group {...common}>
       <Text
@@ -2434,24 +2438,25 @@ function SelectionTransformer({ selectedIds }) {
 // ============================================================================
 
 function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onSave, onClose, onPrint, onExportPng, showRulers, onToggleRulers, showGrid, onToggleGrid, snapEnabled, onToggleSnap, previewOOS, onTogglePreviewOOS }) {
+  const { t } = useTranslation();
   const toggle = on => ({ ...ghostBtn, background: on ? 'rgba(31,111,235,0.35)' : 'transparent' });
   return (
     <div style={topbar}>
-      <button onClick={onClose} style={ghostBtn} title="Cerrar editor">
+      <button onClick={onClose} style={ghostBtn} title={t('canvas.closeEditor')}>
         <Icon icon="lucide:x" /> Cerrar
       </button>
       <div style={{ flex: 1, color: 'rgba(255,255,255,0.85)', fontWeight: 800 }}>
         Editor de lienzo — {menuName} {dirty && <span style={{ color: '#ffb84d', fontWeight: 700, marginLeft: 6 }}>•</span>}
       </div>
-      <button onClick={onTogglePreviewOOS} style={{ ...toggle(previewOOS), background: previewOOS ? 'rgba(210,120,30,0.45)' : 'transparent' }} title="Simular productos agotados (previsualiza qué se oculta)"><Icon icon="lucide:package-x" /></button>
-      <button onClick={onToggleSnap} style={toggle(snapEnabled)} title="Ajuste y guías inteligentes"><Icon icon="lucide:magnet" /></button>
-      <button onClick={onToggleRulers} style={toggle(showRulers)} title="Reglas"><Icon icon="lucide:ruler" /></button>
-      <button onClick={onToggleGrid} style={toggle(showGrid)} title="Cuadrícula"><Icon icon="lucide:grid-3x3" /></button>
+      <button onClick={onTogglePreviewOOS} style={{ ...toggle(previewOOS), background: previewOOS ? 'rgba(210,120,30,0.45)' : 'transparent' }} title={t('canvas.simulateOos')}><Icon icon="lucide:package-x" /></button>
+      <button onClick={onToggleSnap} style={toggle(snapEnabled)} title={t('canvas.snap')}><Icon icon="lucide:magnet" /></button>
+      <button onClick={onToggleRulers} style={toggle(showRulers)} title={t('canvas.rulers')}><Icon icon="lucide:ruler" /></button>
+      <button onClick={onToggleGrid} style={toggle(showGrid)} title={t('canvas.grid')}><Icon icon="lucide:grid-3x3" /></button>
       <div style={{ width: 1, height: 22, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
-      <button onClick={onUndo} disabled={!canUndo} style={ghostBtn} title="Deshacer (Ctrl+Z)"><Icon icon="lucide:undo-2" /></button>
-      <button onClick={onRedo} disabled={!canRedo} style={ghostBtn} title="Rehacer (Ctrl+Shift+Z)"><Icon icon="lucide:redo-2" /></button>
-      <button onClick={onExportPng} style={ghostBtn} title="Exportar página como PNG"><Icon icon="lucide:image-down" /> PNG</button>
-      <button onClick={onPrint} style={ghostBtn} title="Vista previa de impresión"><Icon icon="lucide:printer" /> Imprimir</button>
+      <button onClick={onUndo} disabled={!canUndo} style={ghostBtn} title={t('canvas.undo')}><Icon icon="lucide:undo-2" /></button>
+      <button onClick={onRedo} disabled={!canRedo} style={ghostBtn} title={t('canvas.redo')}><Icon icon="lucide:redo-2" /></button>
+      <button onClick={onExportPng} style={ghostBtn} title={t('canvas.exportPng')}><Icon icon="lucide:image-down" /> PNG</button>
+      <button onClick={onPrint} style={ghostBtn} title={t('canvas.printPreview')}><Icon icon="lucide:printer" /> {t('canvas.print')}</button>
       <button onClick={onSave} disabled={saving} style={primaryBtn}>
         <Icon icon={saving ? 'lucide:loader' : 'lucide:save'} /> {saving ? 'Guardando…' : 'Guardar'}
       </button>
@@ -2460,6 +2465,7 @@ function Topbar({ menuName, dirty, saving, onUndo, onRedo, canUndo, canRedo, onS
 }
 
 function PageTabs({ doc, pageIndex, onSelect, onAdd, onDelete }) {
+  const { t } = useTranslation();
   return (
     <div style={pageTabs}>
       {doc.pages.map((_, i) => (
@@ -2469,21 +2475,22 @@ function PageTabs({ doc, pageIndex, onSelect, onAdd, onDelete }) {
             background: i === pageIndex ? 'rgba(255,255,255,0.18)' : 'transparent',
             color: 'white', fontWeight: 800
           }}>
-            Página {i + 1}
+            {t('canvas.pageN').replace('{n}', i + 1)}
           </button>
           {doc.pages.length > 1 && (
-            <button onClick={() => onDelete(i)} style={{ ...ghostBtn, padding: '6px', color: '#ff9595' }} title="Eliminar página">
+            <button onClick={() => onDelete(i)} style={{ ...ghostBtn, padding: '6px', color: '#ff9595' }} title={t('canvas.deletePage')}>
               <Icon icon="lucide:trash-2" />
             </button>
           )}
         </div>
       ))}
-      <button onClick={onAdd} style={ghostBtn}><Icon icon="lucide:plus" /> Página</button>
+      <button onClick={onAdd} style={ghostBtn}><Icon icon="lucide:plus" /> {t('canvas.page')}</button>
     </div>
   );
 }
 
 function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, onAddWhatsApp, onAddDate, onTogglePen, penActive, isNarrow }) {
+  const { t } = useTranslation();
   // Narrow: horizontal, horizontally-scrollable strip above the stage instead
   // of the 80px left rail (which would leave a phone almost no canvas width).
   const sep = isNarrow
@@ -2491,15 +2498,15 @@ function Toolbar({ onAddText, onAddRect, onAddCircle, onAddImage, onAddBinding, 
     : <div style={{ height: 1, background: 'rgba(255,255,255,0.15)', margin: '4px 0' }} />;
   return (
     <div style={isNarrow ? toolbarNarrow : toolbar}>
-      <ToolBtn icon="lucide:type" label="Texto" onClick={onAddText} isNarrow={isNarrow} />
-      <ToolBtn icon="lucide:square" label="Rect" onClick={onAddRect} isNarrow={isNarrow} />
-      <ToolBtn icon="lucide:circle" label="Círculo" onClick={onAddCircle} isNarrow={isNarrow} />
-      <ToolBtn icon="lucide:pen-tool" label="Pluma" onClick={onTogglePen} active={penActive} isNarrow={isNarrow} />
-      <ToolBtn icon="lucide:image" label="Imagen" onClick={onAddImage} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:type" label={t('canvas.text')} onClick={onAddText} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:square" label={t('canvas.rect')} onClick={onAddRect} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:circle" label={t('canvas.circle')} onClick={onAddCircle} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:pen-tool" label={t('canvas.pen')} onClick={onTogglePen} active={penActive} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:image" label={t('canvas.image')} onClick={onAddImage} isNarrow={isNarrow} />
       {sep}
-      <ToolBtn icon="lucide:link" label="Producto" onClick={onAddBinding} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:link" label={t('canvas.product')} onClick={onAddBinding} isNarrow={isNarrow} />
       <ToolBtn icon="mdi:whatsapp" label="WhatsApp" onClick={onAddWhatsApp} isNarrow={isNarrow} />
-      <ToolBtn icon="lucide:calendar-days" label="Fecha" onClick={onAddDate} isNarrow={isNarrow} />
+      <ToolBtn icon="lucide:calendar-days" label={t('canvas.date')} onClick={onAddDate} isNarrow={isNarrow} />
     </div>
   );
 }
@@ -2517,6 +2524,7 @@ function ToolBtn({ icon, label, onClick, active, isNarrow }) {
 }
 
 function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, multiCount, selectedIds, onSelectNode, onSelectGroup, groups, onRenameGroup, onBulkUpdate, onGroup, onUngroup, canUngroup, onAlign, onDistribute, onUpdate, onUpdateNode, onReorder, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData, style }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('props');
   const baseStyle = style || propsPanel;
 
@@ -2527,13 +2535,13 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
           onClick={() => setActiveTab('props')}
           style={{ flex: 1, padding: '12px 8px', background: 'transparent', border: 'none', borderBottom: activeTab === 'props' ? '2px solid #1f6feb' : '2px solid transparent', color: activeTab === 'props' ? '#fff' : '#8b949e', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}
         >
-          Propiedades
+          {t('canvas.properties')}
         </button>
         <button
           onClick={() => setActiveTab('layers')}
           style={{ flex: 1, padding: '12px 8px', background: 'transparent', border: 'none', borderBottom: activeTab === 'layers' ? '2px solid #1f6feb' : '2px solid transparent', color: activeTab === 'layers' ? '#fff' : '#8b949e', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}
         >
-          Capas
+          {t('canvas.layers')}
         </button>
       </div>
 
@@ -2581,55 +2589,56 @@ function PropertiesPanel({ doc, page, changePageBg, changePageSize, selected, mu
 // target switch decides the reference frame — the selection bbox, the page,
 // or the key object (the first node selected, which stays put).
 function MultiSelectProps({ count, canUngroup, onGroup, onUngroup, onAlign, onDistribute }) {
+  const { t } = useTranslation();
   const [target, setTarget] = useState('selection');
   const aligns = [
-    { dir: 'left', icon: 'lucide:align-start-vertical', label: 'Izquierda' },
-    { dir: 'hcenter', icon: 'lucide:align-center-vertical', label: 'Centro horizontal' },
-    { dir: 'right', icon: 'lucide:align-end-vertical', label: 'Derecha' },
-    { dir: 'top', icon: 'lucide:align-start-horizontal', label: 'Arriba' },
-    { dir: 'vcenter', icon: 'lucide:align-center-horizontal', label: 'Centro vertical' },
-    { dir: 'bottom', icon: 'lucide:align-end-horizontal', label: 'Abajo' }
+    { dir: 'left', icon: 'lucide:align-start-vertical', label: t('canvas.left') },
+    { dir: 'hcenter', icon: 'lucide:align-center-vertical', label: t('canvas.hcenter') },
+    { dir: 'right', icon: 'lucide:align-end-vertical', label: t('canvas.right') },
+    { dir: 'top', icon: 'lucide:align-start-horizontal', label: t('canvas.top') },
+    { dir: 'vcenter', icon: 'lucide:align-center-horizontal', label: t('canvas.vcenter') },
+    { dir: 'bottom', icon: 'lucide:align-end-horizontal', label: t('canvas.bottom') }
   ];
   const targets = [
-    { id: 'selection', label: 'Selección' },
-    { id: 'canvas', label: 'Lienzo' },
-    { id: 'key', label: 'Objeto clave' }
+    { id: 'selection', label: t('canvas.selection') },
+    { id: 'canvas', label: t('canvas.canvas') },
+    { id: 'key', label: t('canvas.keyObject') }
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h3 style={panelTitle}>{count} seleccionados</h3>
       <p style={{ margin: 0, fontSize: '0.78rem', color: '#8b949e' }}>
-        Arrastra cualquiera para moverlos juntos, o usa el recuadro para escalar/rotar el grupo.
+        {t('canvas.multiHint')}
       </p>
 
-      <Row label="Grupo">
+      <Row label={t('canvas.group')}>
         <button onClick={onGroup} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }}>
-          <Icon icon="lucide:group" /> Agrupar
+          <Icon icon="lucide:group" /> {t('canvas.groupAction')}
         </button>
         {canUngroup && (
           <button onClick={onUngroup} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }}>
-            <Icon icon="lucide:ungroup" /> Desagrupar
+            <Icon icon="lucide:ungroup" /> {t('canvas.ungroup')}
           </button>
         )}
       </Row>
 
-      <Row label="Alinear respecto a">
+      <Row label={t('canvas.alignTo')}>
         <div style={{ display: 'flex', gap: 4, width: '100%' }}>
-          {targets.map(t => (
-            <button key={t.id} onClick={() => setTarget(t.id)} style={{
+          {targets.map(tg => (
+            <button key={tg.id} onClick={() => setTarget(tg.id)} style={{
               ...smallBtn, flex: 1, justifyContent: 'center', padding: '6px 2px', fontSize: '0.72rem',
-              ...(target === t.id ? { background: '#1f6feb', color: 'white', borderColor: '#1f6feb' } : null)
-            }}>{t.label}</button>
+              ...(target === tg.id ? { background: '#1f6feb', color: 'white', borderColor: '#1f6feb' } : null)
+            }}>{tg.label}</button>
           ))}
         </div>
       </Row>
       {target === 'key' && (
         <p style={{ margin: '-6px 0 0', fontSize: '0.7rem', color: '#8b949e' }}>
-          El objeto clave es el primero seleccionado y no se mueve.
+          {t('canvas.keyObjectHint')}
         </p>
       )}
 
-      <Row label="Alinear">
+      <Row label={t('canvas.align')}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
           {aligns.map(a => (
             <button key={a.dir} onClick={() => onAlign(a.dir, target)} title={a.label} style={{ ...smallBtn, justifyContent: 'center', padding: '8px 4px' }}>
@@ -2639,12 +2648,12 @@ function MultiSelectProps({ count, canUngroup, onGroup, onUngroup, onAlign, onDi
         </div>
       </Row>
 
-      <Row label="Distribuir">
+      <Row label={t('canvas.distribute')}>
         <div style={{ display: 'flex', gap: 6, width: '100%' }}>
-          <button onClick={() => onDistribute('h')} disabled={count < 3} title="Espaciado horizontal uniforme" style={{ ...smallBtn, flex: 1, justifyContent: 'center', opacity: count < 3 ? 0.5 : 1 }}>
+          <button onClick={() => onDistribute('h')} disabled={count < 3} title={t('canvas.spaceH')} style={{ ...smallBtn, flex: 1, justifyContent: 'center', opacity: count < 3 ? 0.5 : 1 }}>
             <Icon icon="lucide:align-horizontal-distribute-center" /> H
           </button>
-          <button onClick={() => onDistribute('v')} disabled={count < 3} title="Espaciado vertical uniforme" style={{ ...smallBtn, flex: 1, justifyContent: 'center', opacity: count < 3 ? 0.5 : 1 }}>
+          <button onClick={() => onDistribute('v')} disabled={count < 3} title={t('canvas.spaceV')} style={{ ...smallBtn, flex: 1, justifyContent: 'center', opacity: count < 3 ? 0.5 : 1 }}>
             <Icon icon="lucide:align-vertical-distribute-center" /> V
           </button>
         </div>
@@ -2653,41 +2662,46 @@ function MultiSelectProps({ count, canUngroup, onGroup, onUngroup, onAlign, onDi
   );
 }
 
+// PAGE_PRESETS carries Spanish labels; map each preset to a translation key.
+const PRESET_KEYS = { '16:9': 'preset16x9', '9:16': 'preset9x16', 'a4-p': 'presetA4p', 'a4-l': 'presetA4l', 'letter-p': 'presetLetterP', 'letter-l': 'presetLetterL' };
+
 function PageProperties({ doc, page, changePageBg, changePageSize }) {
+  const { t } = useTranslation();
+  const presetLabel = (k, p) => PRESET_KEYS[k] ? t(`canvas.${PRESET_KEYS[k]}`) : p.label;
   const presetKey = presetKeyFor(doc.page_size) || '';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h3 style={panelTitle}>Documento</h3>
-      <Row label="Tamaño de página">
+      <h3 style={panelTitle}>{t('canvas.document')}</h3>
+      <Row label={t('canvas.pageSize')}>
         <select
           value={presetKey}
           onChange={e => changePageSize(e.target.value)}
           style={selectStyle}
         >
-          {!presetKey && <option value="">Personalizado ({doc.page_size?.w}×{doc.page_size?.h})</option>}
-          <optgroup label="Pantalla">
+          {!presetKey && <option value="">{t('canvas.customSize').replace('{w}', doc.page_size?.w).replace('{h}', doc.page_size?.h)}</option>}
+          <optgroup label={t('canvas.screen')}>
             {Object.entries(PAGE_PRESETS).filter(([, p]) => p.category === 'digital').map(([k, p]) => (
-              <option key={k} value={k}>{p.label}</option>
+              <option key={k} value={k}>{presetLabel(k, p)}</option>
             ))}
           </optgroup>
-          <optgroup label="Impresión">
+          <optgroup label={t('canvas.printGroup')}>
             {Object.entries(PAGE_PRESETS).filter(([, p]) => p.category === 'print').map(([k, p]) => (
-              <option key={k} value={k}>{p.label}</option>
+              <option key={k} value={k}>{presetLabel(k, p)}</option>
             ))}
           </optgroup>
         </select>
       </Row>
       <p style={{ margin: 0, fontSize: '0.72rem', color: '#777' }}>
-        Aplica a todo el documento. Tamaños de impresión se usan al imprimir.
+        {t('canvas.pageSizeHint')}
       </p>
 
-      <h3 style={{ ...panelTitle, marginTop: 10 }}>Página actual</h3>
-      <Row label="Fondo">
+      <h3 style={{ ...panelTitle, marginTop: 10 }}>{t('canvas.currentPage')}</h3>
+      <Row label={t('canvas.background')}>
         <ColorPicker value={page.background || '#ffffff'} onChange={changePageBg} />
         <code style={{ fontSize: '0.78rem', color: '#aaa' }}>{page.background || '#ffffff'}</code>
       </Row>
       <p style={{ margin: 0, fontSize: '0.78rem', color: '#aaa' }}>
-        Selecciona un objeto en el lienzo para editar sus propiedades.
+        {t('canvas.selectHint')}
       </p>
     </div>
   );
@@ -2697,12 +2711,13 @@ function PageProperties({ doc, page, changePageBg, changePageSize }) {
 // (e.g. picked from the Layers panel). Editing stays blocked until unlocked —
 // matching Illustrator, where a locked item can't be modified.
 function LockedNotice({ onUnlock }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'flex-start' }}>
-      <h3 style={panelTitle}>Elemento bloqueado</h3>
+      <h3 style={panelTitle}>{t('canvas.lockedTitle')}</h3>
       <p style={{ margin: 0, fontSize: '0.82rem', color: '#8b949e', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
         <Icon icon="lucide:lock" style={{ flexShrink: 0, marginTop: 2 }} />
-        Este elemento está bloqueado. Desbloquéalo para mover o editar sus propiedades.
+        {t('canvas.lockedDesc')}
       </p>
       <button onClick={onUnlock} style={{ ...smallBtn, background: '#1f6feb', color: 'white', borderColor: '#1f6feb', justifyContent: 'center', alignSelf: 'stretch' }}>
         <Icon icon="lucide:unlock" /> Desbloquear
@@ -2712,18 +2727,19 @@ function LockedNotice({ onUnlock }) {
 }
 
 function NodeProperties({ node, onUpdate, onUngroup, onSetFont, onDelete, onForward, onBack, openAssetPicker, openItemPicker, menuData }) {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h3 style={panelTitle}>{labelForNode(node)}</h3>
+      <h3 style={panelTitle}>{labelForNode(node, t)}</h3>
 
-      <Row label="Capa">
-        <button onClick={onBack} style={smallBtn}><Icon icon="lucide:chevron-down" /> Atrás</button>
-        <button onClick={onForward} style={smallBtn}><Icon icon="lucide:chevron-up" /> Adelante</button>
+      <Row label={t('canvas.layer')}>
+        <button onClick={onBack} style={smallBtn}><Icon icon="lucide:chevron-down" /> {t('canvas.back')}</button>
+        <button onClick={onForward} style={smallBtn}><Icon icon="lucide:chevron-up" /> {t('canvas.forward')}</button>
       </Row>
 
       {node.groupId && (
         <button onClick={onUngroup} style={smallBtn}>
-          <Icon icon="lucide:ungroup" /> Desagrupar
+          <Icon icon="lucide:ungroup" /> {t('canvas.ungroup')}
         </button>
       )}
 
@@ -2731,15 +2747,15 @@ function NodeProperties({ node, onUpdate, onUngroup, onSetFont, onDelete, onForw
           desync them, so those rows are hidden for paths (drag to move). */}
       {node.type !== 'path' && (
         <>
-          <Row label="Posición">
+          <Row label={t('canvas.position')}>
             <NumInput value={node.x} onChange={v => onUpdate({ x: v })} suffix="X" />
             <NumInput value={node.y} onChange={v => onUpdate({ y: v })} suffix="Y" />
           </Row>
-          <Row label="Tamaño">
+          <Row label={t('canvas.size')}>
             <NumInput value={node.w} onChange={v => onUpdate({ w: Math.max(10, v) })} suffix="W" />
             <NumInput value={node.h} onChange={v => onUpdate({ h: Math.max(10, v) })} suffix="H" />
           </Row>
-          <Row label="Rotación">
+          <Row label={t('canvas.rotation')}>
             <NumInput value={node.rotation || 0} onChange={v => onUpdate({ rotation: v })} suffix="°" />
           </Row>
         </>
@@ -2763,20 +2779,20 @@ function NodeProperties({ node, onUpdate, onUngroup, onSetFont, onDelete, onForw
       )}
 
       <button onClick={onDelete} style={{ ...smallBtn, color: '#ff7e7e', borderColor: '#ff7e7e' }}>
-        <Icon icon="lucide:trash-2" /> Eliminar
+        <Icon icon="lucide:trash-2" /> {t('canvas.delete')}
       </button>
     </div>
   );
 }
 
-function labelForNode(n) {
-  if (n.type === 'text') return 'Texto';
-  if (n.type === 'shape') return n.shape === 'circle' ? 'Círculo' : 'Rectángulo';
-  if (n.type === 'image') return 'Imagen';
-  if (n.type === 'item-binding') return 'Producto vinculado';
-  if (n.type === 'whatsapp-button') return 'Botón WhatsApp';
-  if (n.type === 'date-field') return 'Fecha';
-  if (n.type === 'path') return 'Trazo';
+function labelForNode(n, t) {
+  if (n.type === 'text') return t('canvas.text');
+  if (n.type === 'shape') return n.shape === 'circle' ? t('canvas.circle') : t('canvas.rectangle');
+  if (n.type === 'image') return t('canvas.image');
+  if (n.type === 'item-binding') return t('canvas.linkedProduct');
+  if (n.type === 'whatsapp-button') return t('canvas.whatsappButton');
+  if (n.type === 'date-field') return t('canvas.date');
+  if (n.type === 'path') return t('canvas.path');
   return n.type;
 }
 
@@ -2785,13 +2801,14 @@ function labelForNode(n) {
 // shape, path). Both keys live on the node root — updateNode shallow-merges
 // them — so they survive alongside the type-specific `style` block.
 function AppearanceProps({ node, onUpdate }) {
+  const { t } = useTranslation();
   const supportsShadow = ['text', 'shape', 'path', 'image', 'item-binding'].includes(node.type);
   const sh = node.shadow || {};
   const opacity = node.opacity ?? 1;
   return (
     <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <p style={{ ...panelTitle, margin: 0, fontSize: '0.75rem' }}>Apariencia</p>
-      <Row label="Opacidad">
+      <p style={{ ...panelTitle, margin: 0, fontSize: '0.75rem' }}>{t('canvas.appearance')}</p>
+      <Row label={t('canvas.opacity')}>
         <input
           type="range" min={0} max={100} value={Math.round(opacity * 100)}
           onChange={e => onUpdate({ opacity: Number(e.target.value) / 100 })}
@@ -2803,17 +2820,17 @@ function AppearanceProps({ node, onUpdate }) {
         <>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
             <input type="checkbox" checked={!!sh.enabled} onChange={e => onUpdate({ shadow: { ...sh, enabled: e.target.checked } })} />
-            Sombra
+            {t('canvas.shadow')}
           </label>
           {sh.enabled && (
             <>
-              <Row label="Color"><ColorPicker value={sh.color || '#000000'} onChange={c => onUpdate({ shadow: { ...sh, color: c } })} /></Row>
-              <Row label="Desenfoque"><NumInput value={sh.blur ?? 8} onChange={v => onUpdate({ shadow: { ...sh, blur: Math.max(0, v) } })} suffix="px" /></Row>
-              <Row label="Desplazamiento">
+              <Row label={t('canvas.color')}><ColorPicker value={sh.color || '#000000'} onChange={c => onUpdate({ shadow: { ...sh, color: c } })} /></Row>
+              <Row label={t('canvas.blur')}><NumInput value={sh.blur ?? 8} onChange={v => onUpdate({ shadow: { ...sh, blur: Math.max(0, v) } })} suffix="px" /></Row>
+              <Row label={t('canvas.offset')}>
                 <NumInput value={sh.offsetX ?? 4} onChange={v => onUpdate({ shadow: { ...sh, offsetX: v } })} suffix="X" />
                 <NumInput value={sh.offsetY ?? 4} onChange={v => onUpdate({ shadow: { ...sh, offsetY: v } })} suffix="Y" />
               </Row>
-              <Row label="Opacidad sombra">
+              <Row label={t('canvas.shadowOpacity')}>
                 <input
                   type="range" min={0} max={100} value={Math.round((sh.opacity ?? 0.5) * 100)}
                   onChange={e => onUpdate({ shadow: { ...sh, opacity: Number(e.target.value) / 100 } })}
@@ -2830,28 +2847,29 @@ function AppearanceProps({ node, onUpdate }) {
 }
 
 function PathProps({ node, onUpdate }) {
+  const { t } = useTranslation();
   const s = node.style || {};
   return (
     <>
-      <Row label="Trazo"><ColorPicker value={s.stroke || '#111111'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
-      <Row label="Grosor"><NumInput value={s.strokeWidth ?? 6} onChange={v => onUpdate({ style: { strokeWidth: Math.max(0, v) } })} /></Row>
-      <Row label="Relleno">
+      <Row label={t('canvas.stroke')}><ColorPicker value={s.stroke || '#111111'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
+      <Row label={t('canvas.thickness')}><NumInput value={s.strokeWidth ?? 6} onChange={v => onUpdate({ style: { strokeWidth: Math.max(0, v) } })} /></Row>
+      <Row label={t('canvas.fill')}>
         <ColorPicker value={s.fill && s.fill !== 'transparent' ? s.fill : '#000000'} onChange={c => onUpdate({ style: { fill: c } })} />
         {s.fill && s.fill !== 'transparent' && (
-          <button onClick={() => onUpdate({ style: { fill: 'transparent' } })} style={smallBtn} title="Sin relleno"><Icon icon="lucide:x" /></button>
+          <button onClick={() => onUpdate({ style: { fill: 'transparent' } })} style={smallBtn} title={t('canvas.noFill')}><Icon icon="lucide:x" /></button>
         )}
       </Row>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
         <input type="checkbox" checked={!!node.closed} onChange={e => onUpdate({ closed: e.target.checked })} />
-        Cerrar trazo
+        {t('canvas.closePath')}
       </label>
       {/* Paths mirror their actual points (bbox unchanged), so this is a one-shot
           geometry flip rather than a persisted flag — clicking twice restores. */}
-      <Row label="Voltear">
-        <button onClick={() => onUpdate({ points: flipPathPoints(node.points, 'h') })} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }} title="Voltear horizontalmente">
+      <Row label={t('canvas.flip')}>
+        <button onClick={() => onUpdate({ points: flipPathPoints(node.points, 'h') })} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }} title={t('canvas.flipH')}>
           <Icon icon="lucide:flip-horizontal-2" /> H
         </button>
-        <button onClick={() => onUpdate({ points: flipPathPoints(node.points, 'v') })} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }} title="Voltear verticalmente">
+        <button onClick={() => onUpdate({ points: flipPathPoints(node.points, 'v') })} style={{ ...smallBtn, flex: 1, justifyContent: 'center' }} title={t('canvas.flipV')}>
           <Icon icon="lucide:flip-vertical-2" /> V
         </button>
       </Row>
@@ -2864,6 +2882,7 @@ function PathProps({ node, onUpdate }) {
 // registers the stylesheet on the document via onSetFont(stack, url) so both
 // renderers load it; system fonts pass a null url.
 function FontPicker({ value, onSetFont }) {
+  const { t } = useTranslation();
   const currentId = fontIdForStack(value);
   const [customOpen, setCustomOpen] = useState(currentId === 'custom');
   const [url, setUrl] = useState('');
@@ -2878,22 +2897,22 @@ function FontPicker({ value, onSetFont }) {
   }
   function applyCustom() {
     const parsed = parseGoogleFontUrl(url);
-    if (!parsed) { setErr('Enlace no válido. Pega una URL de fonts.googleapis.com.'); return; }
+    if (!parsed) { setErr(t('canvas.badFontUrl')); return; }
     setErr('');
     onSetFont?.(parsed.stack, parsed.url);
   }
 
   return (
     <>
-      <Row label="Tipografía">
+      <Row label={t('canvas.font')}>
         <select value={currentId} onChange={onSelect} style={selectStyle}>
-          <optgroup label="Sistema">
+          <optgroup label={t('canvas.system')}>
             {CANVAS_FONTS.filter(f => !f.google).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
           </optgroup>
           <optgroup label="Google Fonts">
             {CANVAS_FONTS.filter(f => f.google).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
           </optgroup>
-          <option value="custom">Personalizado (enlace)…</option>
+          <option value="custom">{t('canvas.customFont')}</option>
         </select>
       </Row>
       {customOpen && (
@@ -2919,44 +2938,45 @@ function FontPicker({ value, onSetFont }) {
 }
 
 function TextProps({ node, onUpdate, onSetFont }) {
+  const { t } = useTranslation();
   const s = node.style || {};
   return (
     <>
-      <Row label="Texto"><textarea value={node.text || ''} onChange={e => onUpdate({ text: e.target.value })} rows={3} style={textareaStyle} /></Row>
-      <Row label="Tamaño"><NumInput value={s.fontSize || 24} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
-      <Row label="Peso">
+      <Row label={t('canvas.text')}><textarea value={node.text || ''} onChange={e => onUpdate({ text: e.target.value })} rows={3} style={textareaStyle} /></Row>
+      <Row label={t('canvas.size')}><NumInput value={s.fontSize || 24} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
+      <Row label={t('canvas.weight')}>
         <select value={s.fontWeight || 400} onChange={e => onUpdate({ style: { fontWeight: Number(e.target.value) } })} style={selectStyle}>
           {[300, 400, 500, 600, 700, 800, 900].map(w => <option key={w} value={w}>{w}</option>)}
         </select>
       </Row>
       <FontPicker value={s.fontFamily} onSetFont={onSetFont} />
-      <Row label="Color">
+      <Row label={t('canvas.color')}>
         <ColorPicker value={s.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} />
       </Row>
-      <Row label="Alineación">
+      <Row label={t('canvas.alignment')}>
         <select value={s.align || 'left'} onChange={e => onUpdate({ style: { align: e.target.value } })} style={selectStyle} disabled={!!node.autoWidth}>
-          <option value="left">Izquierda</option>
-          <option value="center">Centro</option>
-          <option value="right">Derecha</option>
+          <option value="left">{t('canvas.left')}</option>
+          <option value="center">{t('canvas.center')}</option>
+          <option value="right">{t('canvas.right')}</option>
         </select>
       </Row>
 
       <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4 }}>
-        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>Tipografía</p>
+        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>{t('canvas.font')}</p>
       </div>
-      <Row label="Estilo">
+      <Row label={t('canvas.style')}>
         <button
           onClick={() => onUpdate({ style: { fontStyle: s.fontStyle === 'italic' ? 'normal' : 'italic' } })}
           style={{ ...smallBtn, fontStyle: 'italic', ...(s.fontStyle === 'italic' ? { background: '#1f6feb', color: 'white', borderColor: '#1f6feb' } : null) }}
-          title="Cursiva"
+          title={t('canvas.italic')}
         >
-          <Icon icon="lucide:italic" /> Cursiva
+          <Icon icon="lucide:italic" /> {t('canvas.italic')}
         </button>
       </Row>
-      <Row label="Interlineado">
+      <Row label={t('canvas.lineHeight')}>
         <NumInput value={s.lineHeight ?? 1.15} step={0.05} onChange={v => onUpdate({ style: { lineHeight: Math.max(0.5, v) } })} suffix="×" />
       </Row>
-      <Row label="Interletraje">
+      <Row label={t('canvas.letterSpacing')}>
         <NumInput value={s.letterSpacing || 0} onChange={v => onUpdate({ style: { letterSpacing: v } })} suffix="px" />
       </Row>
 
@@ -2966,8 +2986,8 @@ function TextProps({ node, onUpdate, onSetFont }) {
           checked={!!node.autoWidth}
           onChange={e => onUpdate({ autoWidth: e.target.checked, ...(e.target.checked ? { autoFit: false } : {}) })}
         />
-        Ancho automático
-        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(la caja se ajusta al texto)</span>
+        {t('canvas.autoWidth')}
+        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>{t('canvas.autoWidthHint')}</span>
       </label>
       {!node.autoWidth && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
@@ -2976,8 +2996,8 @@ function TextProps({ node, onUpdate, onSetFont }) {
             checked={!!node.autoFit}
             onChange={e => onUpdate({ autoFit: e.target.checked })}
           />
-          Ajustar al cuadro
-          <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(reduce el tamaño para que quepa)</span>
+          {t('canvas.fitBox')}
+          <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>{t('canvas.fitBoxHint')}</span>
         </label>
       )}
     </>
@@ -2988,6 +3008,7 @@ function TextProps({ node, onUpdate, onSetFont }) {
 // of color stops with per-stop position + color. A live CSS preview bar mirrors
 // what the public page will paint. Always keeps ≥2 stops.
 function GradientEditor({ gradient, onChange }) {
+  const { t } = useTranslation();
   const g = gradient;
   const type = g.type || 'linear';
   const stops = g.stops || [];
@@ -2998,14 +3019,14 @@ function GradientEditor({ gradient, onChange }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ height: 22, borderRadius: 6, border: '1px solid #30363d', background: preview || '#333' }} />
-      <Row label="Tipo">
+      <Row label={t('canvas.type')}>
         <select value={type} onChange={e => onChange({ ...g, type: e.target.value })} style={selectStyle}>
-          <option value="linear">Lineal</option>
-          <option value="radial">Radial</option>
+          <option value="linear">{t('canvas.linear')}</option>
+          <option value="radial">{t('canvas.radial')}</option>
         </select>
       </Row>
       {type === 'linear' && (
-        <Row label="Ángulo">
+        <Row label={t('canvas.angle')}>
           <NumInput value={g.angle ?? 0} onChange={v => onChange({ ...g, angle: ((Math.round(v) % 360) + 360) % 360 })} suffix="°" />
         </Row>
       )}
@@ -3023,25 +3044,26 @@ function GradientEditor({ gradient, onChange }) {
               onClick={() => removeStop(i)}
               disabled={stops.length <= 2}
               style={{ ...smallBtn, padding: '4px 6px', opacity: stops.length <= 2 ? 0.3 : 1 }}
-              title="Quitar punto"
+              title={t('canvas.removeStop')}
             >
               <Icon icon="lucide:x" />
             </button>
           </div>
         ))}
       </div>
-      <button onClick={addStop} style={{ ...smallBtn, justifyContent: 'center' }}><Icon icon="lucide:plus" /> Punto de color</button>
+      <button onClick={addStop} style={{ ...smallBtn, justifyContent: 'center' }}><Icon icon="lucide:plus" /> {t('canvas.colorStop')}</button>
     </div>
   );
 }
 
 function ShapeProps({ node, onUpdate }) {
+  const { t } = useTranslation();
   const s = node.style || {};
   const ls = node.labelStyle || {};
   const g = s.gradient;
   return (
     <>
-      <Row label="Relleno">
+      <Row label={t('canvas.fill')}>
         <select
           value={g ? 'gradient' : 'solid'}
           onChange={e => {
@@ -3053,27 +3075,27 @@ function ShapeProps({ node, onUpdate }) {
           }}
           style={selectStyle}
         >
-          <option value="solid">Sólido</option>
-          <option value="gradient">Degradado</option>
+          <option value="solid">{t('canvas.solid')}</option>
+          <option value="gradient">{t('canvas.gradient')}</option>
         </select>
       </Row>
       {g ? (
         <GradientEditor gradient={g} onChange={ng => onUpdate({ style: { gradient: ng } })} />
       ) : (
-        <Row label="Color"><ColorPicker value={s.fill || '#cccccc'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
+        <Row label={t('canvas.color')}><ColorPicker value={s.fill || '#cccccc'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
       )}
-      <Row label="Borde"><ColorPicker value={s.stroke || '#000000'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
-      <Row label="Grosor"><NumInput value={s.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
+      <Row label={t('canvas.border')}><ColorPicker value={s.stroke || '#000000'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
+      <Row label={t('canvas.thickness')}><NumInput value={s.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
       {node.shape !== 'circle' && (
-        <Row label="Radio"><NumInput value={s.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
+        <Row label={t('canvas.radius')}><NumInput value={s.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
       )}
-      <Row label="Etiqueta">
-        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder="Doble clic para editar" style={textInputStyle} />
+      <Row label={t('canvas.label')}>
+        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder={t('canvas.dblClickEdit')} style={textInputStyle} />
       </Row>
       {node.label ? (
         <>
-          <Row label="Tamaño etiqueta"><NumInput value={ls.fontSize || 32} onChange={v => onUpdate({ labelStyle: { ...ls, fontSize: v } })} /></Row>
-          <Row label="Color etiqueta"><ColorPicker value={ls.color || '#ffffff'} onChange={c => onUpdate({ labelStyle: { ...ls, color: c } })} /></Row>
+          <Row label={t('canvas.labelSize')}><NumInput value={ls.fontSize || 32} onChange={v => onUpdate({ labelStyle: { ...ls, fontSize: v } })} /></Row>
+          <Row label={t('canvas.labelColor')}><ColorPicker value={ls.color || '#ffffff'} onChange={c => onUpdate({ labelStyle: { ...ls, color: c } })} /></Row>
         </>
       ) : null}
     </>
@@ -3081,9 +3103,10 @@ function ShapeProps({ node, onUpdate }) {
 }
 
 function ImageProps({ node, onUpdate, openAssetPicker }) {
+  const { t } = useTranslation();
   return (
     <>
-      <Row label="Imagen">
+      <Row label={t('canvas.image')}>
         <button onClick={() => openAssetPicker?.(url => onUpdate({ src: url }))} style={{ ...smallBtn, background: '#1f6feb', color: 'white', borderColor: '#1f6feb' }}>
           <Icon icon="lucide:image-plus" /> Cambiar imagen
         </button>
@@ -3093,13 +3116,13 @@ function ImageProps({ node, onUpdate, openAssetPicker }) {
           <img src={node.src} alt="" style={{ width: '100%', maxHeight: 120, objectFit: 'contain', borderRadius: 6, background: '#0d1117' }} />
         </div>
       )}
-      <Row label="Ajuste">
+      <Row label={t('canvas.fit')}>
         <select value={node.fit || 'cover'} onChange={e => onUpdate({ fit: e.target.value })} style={selectStyle}>
-          <option value="cover">Cubrir</option>
-          <option value="contain">Contener</option>
+          <option value="cover">{t('canvas.cover')}</option>
+          <option value="contain">{t('canvas.contain')}</option>
         </select>
       </Row>
-      <Row label="Radio esquinas">
+      <Row label={t('canvas.cornerRadius')}>
         <NumInput value={node.style?.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: Math.max(0, v) } })} suffix="px" />
       </Row>
       <FlipRow flipH={node.flipH} flipV={node.flipV} onFlip={axis => onUpdate(axis === 'h' ? { flipH: !node.flipH } : { flipV: !node.flipV })} />
@@ -3110,13 +3133,14 @@ function ImageProps({ node, onUpdate, openAssetPicker }) {
 // Flip toggles shared by nodes that support mirroring. Horizontal/vertical are
 // independent, so the buttons show a pressed state per axis.
 function FlipRow({ flipH, flipV, onFlip }) {
+  const { t } = useTranslation();
   const btn = (on) => ({ ...smallBtn, flex: 1, justifyContent: 'center', ...(on ? { background: '#1f6feb', color: 'white', borderColor: '#1f6feb' } : null) });
   return (
-    <Row label="Voltear">
-      <button onClick={() => onFlip('h')} style={btn(flipH)} title="Voltear horizontalmente">
+    <Row label={t('canvas.flip')}>
+      <button onClick={() => onFlip('h')} style={btn(flipH)} title={t('canvas.flipH')}>
         <Icon icon="lucide:flip-horizontal-2" /> H
       </button>
-      <button onClick={() => onFlip('v')} style={btn(flipV)} title="Voltear verticalmente">
+      <button onClick={() => onFlip('v')} style={btn(flipV)} title={t('canvas.flipV')}>
         <Icon icon="lucide:flip-vertical-2" /> V
       </button>
     </Row>
@@ -3124,6 +3148,7 @@ function FlipRow({ flipH, flipV, onFlip }) {
 }
 
 function BindingProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
+  const { t } = useTranslation();
   const fields = node.fields || ['name', 'price'];
   function toggle(f) {
     const next = fields.includes(f) ? fields.filter(x => x !== f) : [...fields, f];
@@ -3137,19 +3162,19 @@ function BindingProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
   const item = itemIndex.get(node.item_id);
   return (
     <>
-      <Row label="Producto">
+      <Row label={t('canvas.product')}>
         <button
           onClick={() => openItemPicker?.(ids => { if (ids[0]) onUpdate({ item_id: ids[0] }); })}
           style={{ ...smallBtn, flex: 1, justifyContent: 'flex-start', background: '#0d1117' }}
         >
           <Icon icon={item ? 'lucide:check-circle' : 'lucide:alert-circle'} style={{ color: item ? '#3fb950' : '#f0883e' }} />
           <span style={{ flex: 1, textAlign: 'left' }}>
-            {item ? `${item.emoji ? item.emoji + ' ' : ''}${item.name}` : `(sin vincular: ${node.item_id || '—'})`}
+            {item ? `${item.emoji ? item.emoji + ' ' : ''}${item.name}` : t('canvas.unlinked').replace('{id}', node.item_id || '—')}
           </span>
           <Icon icon="lucide:repeat" />
         </button>
       </Row>
-      <Row label="Campos">
+      <Row label={t('canvas.fields')}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {['emoji', 'image', 'name', 'price'].map(f => (
             <button key={f} onClick={() => toggle(f)} style={{
@@ -3160,50 +3185,50 @@ function BindingProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
           ))}
         </div>
       </Row>
-      <Row label="Disposición">
+      <Row label={t('canvas.layout')}>
         <select value={node.layout || 'inline'} onChange={e => onUpdate({ layout: e.target.value })} style={selectStyle}>
-          <option value="inline">En línea</option>
-          <option value="stacked">Apilado</option>
+          <option value="inline">{t('canvas.inline')}</option>
+          <option value="stacked">{t('canvas.stacked')}</option>
         </select>
       </Row>
       {node.layout !== 'stacked' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
           <input type="checkbox" checked={!!node.autoWidth} onChange={e => onUpdate({ autoWidth: e.target.checked })} />
-          Ancho automático
-          <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(la caja se ajusta al texto)</span>
+          {t('canvas.autoWidth')}
+          <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>{t('canvas.autoWidthHint')}</span>
         </label>
       )}
       <FontPicker value={node.style?.fontFamily} onSetFont={onSetFont} />
-      <Row label="Tamaño texto"><NumInput value={node.style?.fontSize || 48} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
-      <Row label="Color texto"><ColorPicker value={node.style?.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
+      <Row label={t('canvas.textSize')}><NumInput value={node.style?.fontSize || 48} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
+      <Row label={t('canvas.textColor')}><ColorPicker value={node.style?.color || '#111111'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
 
       <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4 }}>
-        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>Fondo</p>
+        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>{t('canvas.background')}</p>
       </div>
-      <Row label="Color fondo">
+      <Row label={t('canvas.bgColor')}>
         <ColorPicker value={node.style?.fill || '#ffffff'} onChange={c => onUpdate({ style: { fill: c } })} />
         {node.style?.fill && (
-          <button onClick={() => onUpdate({ style: { fill: '' } })} style={smallBtn} title="Sin fondo">
+          <button onClick={() => onUpdate({ style: { fill: '' } })} style={smallBtn} title={t('canvas.noBackground')}>
             <Icon icon="lucide:x" />
           </button>
         )}
       </Row>
-      <Row label="Borde"><ColorPicker value={node.style?.stroke || '#000000'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
-      <Row label="Grosor borde"><NumInput value={node.style?.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
-      <Row label="Radio esquinas"><NumInput value={node.style?.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
-      <Row label="Padding interno"><NumInput value={node.style?.padding ?? 8} onChange={v => onUpdate({ style: { padding: v } })} /></Row>
+      <Row label={t('canvas.border')}><ColorPicker value={node.style?.stroke || '#000000'} onChange={c => onUpdate({ style: { stroke: c } })} /></Row>
+      <Row label={t('canvas.borderWidth')}><NumInput value={node.style?.strokeWidth || 0} onChange={v => onUpdate({ style: { strokeWidth: v } })} /></Row>
+      <Row label={t('canvas.cornerRadius')}><NumInput value={node.style?.borderRadius || 0} onChange={v => onUpdate({ style: { borderRadius: v } })} /></Row>
+      <Row label={t('canvas.padding')}><NumInput value={node.style?.padding ?? 8} onChange={v => onUpdate({ style: { padding: v } })} /></Row>
 
       <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4 }}>
-        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>Inventario</p>
+        <p style={{ ...panelTitle, marginBottom: 8, fontSize: '0.75rem' }}>{t('canvas.inventory')}</p>
       </div>
-      <Row label="Cuando se agote">
+      <Row label={t('canvas.whenSoldOut')}>
         <select
           value={node.hide_when_out_of_stock ? 'hide' : 'strikethrough'}
           onChange={e => onUpdate({ hide_when_out_of_stock: e.target.value === 'hide' })}
           style={selectStyle}
         >
-          <option value="strikethrough">Mostrar tachado</option>
-          <option value="hide">Ocultar del menú</option>
+          <option value="strikethrough">{t('canvas.strikethrough')}</option>
+          <option value="hide">{t('canvas.hideFromMenu')}</option>
         </select>
       </Row>
     </>
@@ -3211,10 +3236,11 @@ function BindingProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
 }
 
 function WhatsAppProps({ node, onUpdate, onSetFont }) {
+  const { t } = useTranslation();
   const s = node.style || {};
   return (
     <>
-      <Row label="Enlace de WhatsApp">
+      <Row label={t('canvas.waLink')}>
         <input
           type="url"
           inputMode="url"
@@ -3224,22 +3250,23 @@ function WhatsAppProps({ node, onUpdate, onSetFont }) {
           style={textInputStyle}
         />
       </Row>
-      <Row label="Texto del botón">
-        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder="Pedir por WhatsApp" style={textInputStyle} />
+      <Row label={t('canvas.buttonText')}>
+        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder={t('canvas.orderWhatsApp')} style={textInputStyle} />
       </Row>
       <FontPicker value={s.fontFamily} onSetFont={onSetFont} />
-      <Row label="Tamaño texto"><NumInput value={s.fontSize || 28} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
-      <Row label="Color fondo"><ColorPicker value={s.fill || '#25D366'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
-      <Row label="Color texto"><ColorPicker value={s.color || '#ffffff'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
-      <Row label="Radio esquinas"><NumInput value={s.borderRadius ?? 999} onChange={v => onUpdate({ style: { borderRadius: Math.max(0, v) } })} suffix="px" /></Row>
+      <Row label={t('canvas.textSize')}><NumInput value={s.fontSize || 28} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
+      <Row label={t('canvas.bgColor')}><ColorPicker value={s.fill || '#25D366'} onChange={c => onUpdate({ style: { fill: c } })} /></Row>
+      <Row label={t('canvas.textColor')}><ColorPicker value={s.color || '#ffffff'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
+      <Row label={t('canvas.cornerRadius')}><NumInput value={s.borderRadius ?? 999} onChange={v => onUpdate({ style: { borderRadius: Math.max(0, v) } })} suffix="px" /></Row>
       <p style={{ margin: 0, fontSize: '0.72rem', color: '#8b949e' }}>
-        Abre el enlace en el navegador al tocarlo en el menú público.
+        {t('canvas.waHint')}
       </p>
     </>
   );
 }
 
 function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData }) {
+  const { t } = useTranslation();
   const s = node.style || {};
   const itemIndex = useMemo(() => {
     const m = new Map();
@@ -3249,7 +3276,7 @@ function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData })
   const item = node.item_id ? itemIndex.get(node.item_id) : null;
   return (
     <>
-      <Row label="Emoji">
+      <Row label={t('canvas.emoji')}>
         <input
           value={node.emoji || ''}
           onChange={e => onUpdate({ emoji: e.target.value })}
@@ -3257,26 +3284,26 @@ function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData })
           maxLength={4}
           style={{ ...textInputStyle, width: 64, flex: '0 0 auto', textAlign: 'center', fontSize: '1.1rem' }}
         />
-        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>Cualquier emoji o vacío</span>
+        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>{t('canvas.emojiHint')}</span>
       </Row>
-      <Row label="Etiqueta">
-        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder="Tostado:, Cosecha:, Vence:…" style={textInputStyle} />
+      <Row label={t('canvas.label')}>
+        <input value={node.label || ''} onChange={e => onUpdate({ label: e.target.value })} placeholder={t('canvas.datePlaceholder')} style={textInputStyle} />
       </Row>
-      <Row label="Origen de la fecha">
+      <Row label={t('canvas.dateSource')}>
         <button
           onClick={() => openItemPicker?.(ids => { if (ids[0]) onUpdate({ item_id: ids[0], value: '' }); })}
           style={{ ...smallBtn, flex: 1, justifyContent: 'flex-start', background: '#0d1117' }}
-          title="Vincular a la fecha de un producto"
+          title={t('canvas.linkDate')}
         >
           <Icon icon={item ? 'lucide:link' : 'lucide:calendar'} style={{ color: item ? '#3fb950' : '#8b949e' }} />
-          <span style={{ flex: 1, textAlign: 'left' }}>{item ? `${item.name}` : 'Fecha manual'}</span>
+          <span style={{ flex: 1, textAlign: 'left' }}>{item ? `${item.name}` : t('canvas.manualDate')}</span>
         </button>
         {node.item_id && (
-          <button onClick={() => onUpdate({ item_id: null })} style={smallBtn} title="Quitar vínculo"><Icon icon="lucide:x" /></button>
+          <button onClick={() => onUpdate({ item_id: null })} style={smallBtn} title={t('canvas.unlink')}><Icon icon="lucide:x" /></button>
         )}
       </Row>
       {!node.item_id && (
-        <Row label="Fecha">
+        <Row label={t('canvas.date')}>
           <input
             type="date"
             value={node.value || ''}
@@ -3287,17 +3314,17 @@ function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData })
       )}
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem', color: '#ddd', cursor: 'pointer' }}>
         <input type="checkbox" checked={node.relative !== false} onChange={e => onUpdate({ relative: e.target.checked })} />
-        Mostrar frescura relativa
-        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>(«hace 3 días»)</span>
+        {t('canvas.relative')}
+        <span style={{ color: '#8b949e', fontSize: '0.72rem' }}>{t('canvas.relativeHint')}</span>
       </label>
       <FontPicker value={s.fontFamily} onSetFont={onSetFont} />
-      <Row label="Tamaño texto"><NumInput value={s.fontSize || 32} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
-      <Row label="Color texto"><ColorPicker value={s.color || '#8a6d3b'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
-      <Row label="Alineación">
+      <Row label={t('canvas.textSize')}><NumInput value={s.fontSize || 32} onChange={v => onUpdate({ style: { fontSize: v } })} /></Row>
+      <Row label={t('canvas.textColor')}><ColorPicker value={s.color || '#8a6d3b'} onChange={c => onUpdate({ style: { color: c } })} /></Row>
+      <Row label={t('canvas.alignment')}>
         <select value={s.align || 'left'} onChange={e => onUpdate({ style: { align: e.target.value } })} style={selectStyle}>
-          <option value="left">Izquierda</option>
-          <option value="center">Centro</option>
-          <option value="right">Derecha</option>
+          <option value="left">{t('canvas.left')}</option>
+          <option value="center">{t('canvas.center')}</option>
+          <option value="right">{t('canvas.right')}</option>
         </select>
       </Row>
     </>
@@ -3309,6 +3336,7 @@ function DateFieldProps({ node, onUpdate, onSetFont, openItemPicker, menuData })
 // callout around a product and have the whole thing vanish together — the
 // generic version of the item-binding's own hide-when-out-of-stock option.
 function VisibilityLink({ node, onUpdate, openItemPicker, menuData }) {
+  const { t } = useTranslation();
   const itemIndex = useMemo(() => {
     const m = new Map();
     Object.values(menuData?.categories || {}).flat().forEach(it => m.set(it.id, it));
@@ -3318,20 +3346,20 @@ function VisibilityLink({ node, onUpdate, openItemPicker, menuData }) {
   const item = link?.itemId ? itemIndex.get(link.itemId) : null;
   return (
     <div style={{ borderTop: '1px solid #30363d', paddingTop: 10, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <p style={{ ...panelTitle, margin: 0, fontSize: '0.75rem' }}>Visibilidad</p>
-      <Row label="Vincular a producto">
+      <p style={{ ...panelTitle, margin: 0, fontSize: '0.75rem' }}>{t('canvas.visibility')}</p>
+      <Row label={t('canvas.linkToProduct')}>
         <button
           onClick={() => openItemPicker?.(ids => { if (ids[0]) onUpdate({ link: { itemId: ids[0], hideWhenOOS: link?.hideWhenOOS ?? true } }); })}
           style={{ ...smallBtn, flex: 1, justifyContent: 'flex-start', background: '#0d1117' }}
-          title="Ocultar este elemento según el inventario de un producto"
+          title={t('canvas.visibilityTitle')}
         >
           <Icon icon={item ? 'lucide:link' : 'lucide:link-2-off'} style={{ color: item ? '#3fb950' : '#8b949e' }} />
           <span style={{ flex: 1, textAlign: 'left' }}>
-            {link?.itemId ? (item ? `${item.emoji ? item.emoji + ' ' : ''}${item.name}` : `(producto eliminado)`) : 'Sin vínculo'}
+            {link?.itemId ? (item ? `${item.emoji ? item.emoji + ' ' : ''}${item.name}` : t('canvas.deletedProduct')) : t('canvas.noSelection')}
           </span>
         </button>
         {link?.itemId && (
-          <button onClick={() => onUpdate({ link: null })} style={smallBtn} title="Quitar vínculo"><Icon icon="lucide:x" /></button>
+          <button onClick={() => onUpdate({ link: null })} style={smallBtn} title={t('canvas.unlink')}><Icon icon="lucide:x" /></button>
         )}
       </Row>
       {link?.itemId ? (
@@ -3341,11 +3369,11 @@ function VisibilityLink({ node, onUpdate, openItemPicker, menuData }) {
             checked={link.hideWhenOOS !== false}
             onChange={e => onUpdate({ link: { ...link, hideWhenOOS: e.target.checked } })}
           />
-          Ocultar cuando se agote
+          {t('canvas.hideWhenSoldOut')}
         </label>
       ) : (
         <p style={{ margin: 0, fontSize: '0.72rem', color: '#8b949e' }}>
-          Vincula este elemento a un producto para que desaparezca del menú cuando se agote.
+          {t('canvas.visibilityHint')}
         </p>
       )}
     </div>

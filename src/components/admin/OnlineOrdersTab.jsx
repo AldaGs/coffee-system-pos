@@ -24,7 +24,7 @@ const DeliveryCoverageOverview = lazy(() => import('./DeliveryCoverageOverview')
 // menuId: a Public Menus menu whose categories the order page shows (null = whichever menu is active now).
 // Shape: { enabled, paused, delivery: { enabled, shippingEnabled, areas }, openHours, schedule }
 const DEFAULTS = { enabled: false, paused: false, openHours: { always: true, rules: [] }, schedule: null, delivery: { enabled: false, shippingEnabled: false, areas: [] }, ticket: { showIva: false }, slots: { enabled: false, interval: 30, daysAhead: 3, leadMinutes: 30, hours: null, oneDeliveryPerSlot: false }, trackShowcase: { mode: 'off', categories: [], items: [] }, payments: { methods: ['cash', 'card', 'transfer'], transferInfo: '' } };
-const DAY_ES = { mon: 'Lun', tue: 'Mar', wed: 'Mié', thu: 'Jue', fri: 'Vie', sat: 'Sáb', sun: 'Dom' };
+const DAY_KEY = { mon: 'menusTab.dayMon', tue: 'menusTab.dayTue', wed: 'menusTab.dayWed', thu: 'menusTab.dayThu', fri: 'menusTab.dayFri', sat: 'menusTab.daySat', sun: 'menusTab.daySun' };
 
 function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const { t, lang } = useTranslation();
@@ -280,7 +280,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                         onClick={() => setRule(i, { days: daysToBitmask(on ? rd.filter(x => x !== d) : [...rd, d]) })}
                         style={{ padding: '8px 12px', borderRadius: 999, border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 800,
                           background: on ? 'var(--brand-color)' : 'var(--bg-main)', color: on ? 'white' : 'var(--text-main)' }}
-                      >{DAY_ES[d]}</button>
+                      >{t(DAY_KEY[d])}</button>
                     );
                   })}
                 </div>
@@ -308,7 +308,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                   onClick={() => setSched({ days: daysToBitmask(on ? days.filter(x => x !== d) : [...days, d]) })}
                   style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 800,
                     background: on ? 'var(--brand-color)' : 'var(--bg-main)', color: on ? 'white' : 'var(--text-main)' }}
-                >{DAY_ES[d]}</button>
+                >{t(DAY_KEY[d])}</button>
               );
             })}
           </div>
@@ -350,7 +350,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                     onClick={() => setSl({ hours: { ...slHours, days: daysToBitmask(on ? slDays.filter(x => x !== d) : [...slDays, d]) } })}
                     style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid var(--border)', cursor: 'pointer', fontWeight: 800,
                       background: on ? 'var(--brand-color)' : 'var(--bg-main)', color: on ? 'white' : 'var(--text-main)' }}
-                  >{DAY_ES[d]}</button>
+                  >{t(DAY_KEY[d])}</button>
                 );
               })}
             </div>
