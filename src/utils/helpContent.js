@@ -470,6 +470,7 @@ const en = [
     do: [
       { action: 'Pick a time range', steps: 'Use the selector at the top: Today, Last 7 Days, Last 30 Days, or All History. Tap the refresh button to load new events.' },
       { action: 'Read an event', steps: 'Each row shows what happened, who did it, and when. The feed is newest first; scroll to find an event.' },
+      { action: 'Audit an override', steps: 'When strict mode is on and a manager approves a refund, void, expense or discount for an employee, the row adds "Authorized by" with the approver\'s name and role.' },
     ],
   },
   {
@@ -945,6 +946,7 @@ const es = [
     do: [
       { action: 'Elegir un rango de tiempo', steps: 'Usa el selector de arriba: Hoy, Últimos 7 días, Últimos 30 días o Todo el historial. Toca el botón de actualizar para cargar eventos nuevos.' },
       { action: 'Leer un evento', steps: 'Cada fila muestra qué pasó, quién lo hizo y cuándo. El feed va del más reciente al más antiguo; desplázate para encontrar un evento.' },
+      { action: 'Auditar una autorización', steps: 'Cuando el modo estricto está activo y un gerente aprueba un reembolso, anulación, gasto o descuento de un empleado, la fila agrega "Autorizado por" con el nombre y rol de quien aprobó.' },
     ],
   },
   {

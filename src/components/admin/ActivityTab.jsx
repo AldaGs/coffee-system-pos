@@ -128,6 +128,15 @@ function ActivityTab() {
                       </div>
                     </div>
                     <p style={{ margin: 0, color: 'var(--text-muted)', lineHeight: '1.5' }}>{view.description}</p>
+                    {log.metadata?.authorized_by?.name && (
+                      <p style={{ margin: '6px 0 0', color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Icon icon="lucide:shield-check" style={{ color: 'var(--brand-color)' }} />
+                        {(log.metadata.authorized_by.role
+                          ? t('activity.authorizedBy').replace('{role}', t(`team.role.${log.metadata.authorized_by.role}`))
+                          : t('activity.authorizedByName')
+                        ).replace('{name}', log.metadata.authorized_by.name)}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
