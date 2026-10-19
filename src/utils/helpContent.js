@@ -454,8 +454,9 @@ const en = [
     what: 'Track tips collected and paid out, kept separate from revenue.',
     how: 'Tips are treated as a custodial liability with their own ledger — collected at checkout, refundable line-aware, and reconciled in Analytics so they never inflate profit.',
     do: [
-      { action: 'Review tips', steps: 'See tips collected for the period and any payouts.' },
-      { action: 'Record a payout', steps: 'Log tip distributions so the ledger balances.' },
+      { action: 'Review tips', steps: 'The cards show all-time totals: Accrued (tips collected, minus tip refunds), Paid out, and Tips Payable, which is what is still owed to staff. For a single period, use Tips Collected in Analytics.' },
+      { action: 'Record a payout', steps: 'Under "Record Payout to Staff", enter the Amount, pick the Method (Cash, Bank transfer, Payroll or Other), add a Recipient (a name or "pool") and an optional Note, then tap Record Payout. A payout can\'t exceed Tips Payable.' },
+      { action: 'Check the history', steps: 'The Audit Trail lists every accrual, refund, payout and adjustment, with who recorded it.' },
     ],
   },
   {
@@ -928,8 +929,9 @@ const es = [
     what: 'Controla las propinas cobradas y pagadas, separadas del ingreso.',
     how: 'Las propinas se tratan como pasivo en custodia con su propia bitácora — cobradas al pagar, reembolsables por línea y conciliadas en Analíticas para que nunca inflen la utilidad.',
     do: [
-      { action: 'Revisar propinas', steps: 'Consulta las propinas cobradas del periodo y cualquier pago.' },
-      { action: 'Registrar un pago', steps: 'Registra la distribución de propinas para que la bitácora cuadre.' },
+      { action: 'Revisar propinas', steps: 'Las tarjetas muestran totales históricos: Acumulado (propinas cobradas menos reembolsos de propina), Pagado y Propinas por Pagar, que es lo que aún se le debe al personal. Para un periodo, usa Propinas Recaudadas en Analíticas.' },
+      { action: 'Registrar un pago', steps: 'En "Registrar Pago al Personal", escribe el Monto, elige el Método (Efectivo, Transferencia, Nómina u Otro), agrega un Destinatario (un nombre o "pool") y una Nota opcional, y toca Registrar Pago. Un pago no puede superar las Propinas por Pagar.' },
+      { action: 'Revisar el historial', steps: 'La Bitácora lista cada acumulación, reembolso, pago y ajuste, con quién lo registró.' },
     ],
   },
   {
