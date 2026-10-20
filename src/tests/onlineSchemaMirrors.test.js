@@ -15,15 +15,15 @@ const functionSql = (source, name, signature) => {
 
 describe('online order schema mirrors', () => {
   it('keeps the version and latest full schema synchronized', () => {
-    expect(APP_SCHEMA_VERSION).toBe('5.4');
+    expect(APP_SCHEMA_VERSION).toBe('5.5');
     expect(VERSION_ORDER.at(-1)).toBe(APP_SCHEMA_VERSION);
     const install = read('api/install.js');
     const start = install.indexOf('  const schemaQuery = `') + '  const schemaQuery = `'.length;
     const end = install.indexOf('\n  `;', start);
     const mirror = read('db/schema-latest.sql').replace(/^--[^\n]*\n--[^\n]*\n/, '');
     expect(strip(mirror)).toBe(strip(install.slice(start, end)));
-    expect(install).toContain("VALUES ('schema_version', '5.4', now())");
-    expect(read('src/components/SetupScreen.jsx')).toContain("VALUES ('schema_version', '5.4', now())");
+    expect(install).toContain("VALUES ('schema_version', '5.5', now())");
+    expect(read('src/components/SetupScreen.jsx')).toContain("VALUES ('schema_version', '5.5', now())");
   });
 
   it('keeps area, quote and place/status RPCs identical in the migration and both install paths', () => {
@@ -43,7 +43,7 @@ describe('online order schema mirrors', () => {
     ]) {
       // 3.5 (migration 052) redefined the place/status RPCs for Clip.
       // 3.9 (migration 054) redefined place_order to drop cashier-only groups + text options.
-      const ref = name === 'public_place_order' ? read('db/migrations/054_cashier_only_modifiers.sql') : name === 'get_order_status' ? read('db/migrations/052_clip_pay_window.sql') : sources[0];
+      const ref = name === 'public_place_order' ? read('db/migrations/054_cashier_only_modifiers.sql') : name === 'get_order_status' ? read('db/migrations/068_order_tracking_cfdi_links.sql') : sources[0];
       const expected = functionSql(ref, name, signature);
       sources.slice(1).forEach((source) => expect(functionSql(source, name, signature)).toBe(expected));
     }

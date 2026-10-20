@@ -3381,6 +3381,7 @@
       v_row public.online_orders%ROWTYPE;
       v_status text;
       v_ful text;
+      v_track text;
     BEGIN
       IF p_token IS NULL OR length(p_token) <> 32 THEN
         RETURN jsonb_build_object('found', false);
@@ -3399,13 +3400,22 @@
         IF v_ful = 'in_transit' THEN v_status := 'on_delivery';
         ELSIF v_ful = 'completed' THEN v_status := 'completed'; END IF;
       END IF;
+      -- tinylogistics tracking link; its table/column may not exist on POS-only shops.
+      IF v_row.active_ticket_id IS NOT NULL THEN
+        BEGIN
+          SELECT tracking_token INTO v_track FROM public.order_fulfillment
+           WHERE active_ticket_id = v_row.active_ticket_id ORDER BY created_at DESC LIMIT 1;
+        EXCEPTION WHEN undefined_table OR undefined_column THEN
+          v_track := NULL;
+        END;
+      END IF;
       RETURN jsonb_build_object(
         'found', true,
         'status', v_status,
         'order_type', v_row.order_type,
         'payment_method', v_row.payment_method,
-    'payment_status', v_row.payment_status,
-    'pay_by', v_row.pay_by,
+        'payment_status', v_row.payment_status,
+        'pay_by', v_row.pay_by,
         'cash_amount_cents', v_row.cash_amount_cents,
         'order_num', v_row.order_num,
         'delivery_fee_cents', v_row.delivery_fee_cents,
@@ -3417,7 +3427,9 @@
         'items', v_row.items,
         'total_cents', v_row.total_cents,
         'pickup_at', v_row.pickup_at,
-        'created_at', v_row.created_at
+        'created_at', v_row.created_at,
+        'tracking_token', CASE WHEN v_status <> 'rejected' THEN v_track END,
+        'cfdi_ref', CASE WHEN v_status = 'completed' THEN v_row.active_ticket_id::text END
       );
     END;
     $$;
@@ -4164,6 +4176,6 @@
     GRANT EXECUTE ON FUNCTION public.set_cfdi_email_message(text, text) TO authenticated;
 
     INSERT INTO public.schema_meta (key, value, updated_at)
-    VALUES ('schema_version', '5.4', now())
+    VALUES ('schema_version', '5.5', now())
     ON CONFLICT (key) DO UPDATE
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at;

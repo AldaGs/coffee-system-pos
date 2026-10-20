@@ -92,7 +92,7 @@ const STR = {
     invalid_name: 'Escribe tu nombre.', invalid_phone: 'Escribe un teléfono válido.', invalid_pickup: 'Ese horario ya no está disponible, elige otro.', slot_taken: 'Alguien acaba de reservar esa hora de entrega, elige otra.',
     invalid_items: 'Revisa tu pedido.', item_unavailable: 'Algún producto ya no está disponible. Actualiza el menú.',
     rate_limited: 'Demasiados intentos. Espera unos minutos.', generic: 'No se pudo enviar el pedido.',
-    track: 'Seguimiento de tu pedido', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
+    track: 'Seguimiento de tu pedido', shipTrack: 'Seguimiento del envío', cfdiRequest: 'Solicitar factura', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
     rejectedWhy: 'Motivo', st_requested: 'Pedido enviado', st_accepted: 'Aceptado', st_preparing: 'Preparando',
     st_ready: 'Listo para recoger', st_completed: 'Entregado', st_delivered: 'Entregado', st_rejected: 'Rechazado',
     waiting: 'Esperando confirmación del negocio…', updating: 'Actualizando…', st_quote_pending: 'Esperando cotización de envío',
@@ -121,7 +121,7 @@ const STR = {
     invalid_name: 'Enter your name.', invalid_phone: 'Enter a valid phone number.', invalid_pickup: 'That time is no longer available, please pick another.', slot_taken: 'Someone just booked that delivery time, please pick another.',
     invalid_items: 'Please review your order.', item_unavailable: 'An item is no longer available. Refresh the menu.',
     rate_limited: 'Too many attempts. Wait a few minutes.', generic: 'Could not send the order.',
-    track: 'Track your order', notFound: 'Order not found.', backToMenu: 'Back to menu',
+    track: 'Track your order', shipTrack: 'Track shipment', cfdiRequest: 'Request invoice (factura)', notFound: 'Order not found.', backToMenu: 'Back to menu',
     rejectedWhy: 'Reason', st_requested: 'Order sent', st_accepted: 'Accepted', st_preparing: 'Preparing',
     st_ready: 'Ready for pickup', st_completed: 'Picked up', st_delivered: 'Delivered', st_rejected: 'Rejected',
     waiting: 'Waiting for the shop to confirm…', updating: 'Updating…', st_quote_pending: 'Waiting for shipping quote',
@@ -176,6 +176,9 @@ function useClient() {
   }, []);
   return state;
 }
+
+// tinylogistics' public tracking host (it proxies to this shop's `track` edge function).
+const TRACKING_BASE = import.meta.env.VITE_TRACKING_BASE || 'https://tinylogistics.online';
 
 // One tracker per anon client (i.e. per page load), created on first use.
 const trackers = new WeakMap();
@@ -1035,6 +1038,9 @@ function Track({ client, token, lang, setLang }) {
     setPaying(false);
     setPayErr(s.clipError);
   };
+  // Links to the tinylogistics tracking page and the CFDI portal, keyed by this shop's project ref.
+  const ref = new URL(client.supabaseUrl).hostname.split('.')[0];
+  const linkBtn = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 12, borderRadius: 12, border: `2px solid ${brand}`, color: brand, fontWeight: 700, textDecoration: 'none' };
   const label = (st) => isShipping && st === 'ready' ? s.shippingReady
     : isShipping && st === 'completed' ? s.shippingDone
       : (isDelivery && (st === 'ready' || st === 'completed') ? (st === 'ready' ? s.st_ready_delivery : s.st_delivered) : s[`st_${st}`]);
@@ -1108,6 +1114,12 @@ function Track({ client, token, lang, setLang }) {
         )}
         <OrderTicket style={{ marginTop: 16 }} items={order.items} deliveryFeeCents={order.delivery_fee_cents} pendingShipping={isShipping && order.shipping_quote_cents == null}
           totalCents={order.total_cents} showIva={!!order.show_iva} taxRate={order.tax_rate || 16} lang={lang} />
+        {(order.tracking_token || order.cfdi_ref) && (
+          <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
+            {order.tracking_token && <a href={`${TRACKING_BASE}/tracking?p=${ref}&id=${encodeURIComponent(order.tracking_token)}`} target="_blank" rel="noopener noreferrer" style={linkBtn}><Icon icon="lucide:truck" width="20" />{s.shipTrack}</a>}
+            {order.cfdi_ref && <a href={`/cfdi/${encodeURIComponent(order.cfdi_ref)}?p=${ref}`} style={linkBtn}><Icon icon="lucide:file-text" width="20" />{s.cfdiRequest}</a>}
+          </div>
+        )}
         {picks.length > 0 && (
           <div style={{ marginTop: 24 }}>
             <h3 style={{ margin: '0 0 8px' }}>{s.mightLike}</h3>
