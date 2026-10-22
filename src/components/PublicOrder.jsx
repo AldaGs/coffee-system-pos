@@ -92,7 +92,7 @@ const STR = {
     invalid_name: 'Escribe tu nombre.', invalid_phone: 'Escribe un teléfono válido.', invalid_pickup: 'Ese horario ya no está disponible, elige otro.', slot_taken: 'Alguien acaba de reservar esa hora de entrega, elige otra.',
     invalid_items: 'Revisa tu pedido.', item_unavailable: 'Algún producto ya no está disponible. Actualiza el menú.',
     rate_limited: 'Demasiados intentos. Espera unos minutos.', generic: 'No se pudo enviar el pedido.',
-    track: 'Seguimiento de tu pedido', shipTrack: 'Seguimiento del envío', cfdiRequest: 'Solicitar factura', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
+    track: 'Seguimiento de tu pedido', shipTrack: 'Seguimiento del envío', shipTrackHint: 'Toca «Seguimiento del envío» abajo para ver dónde va tu paquete.', showSteps: 'Ver todos los pasos', hideSteps: 'Ocultar pasos', cfdiRequest: 'Solicitar factura', notFound: 'Pedido no encontrado.', backToMenu: 'Volver al menú',
     rejectedWhy: 'Motivo', st_requested: 'Pedido enviado', st_accepted: 'Aceptado', st_preparing: 'Preparando',
     st_ready: 'Listo para recoger', st_completed: 'Entregado', st_delivered: 'Entregado', st_rejected: 'Rechazado',
     waiting: 'Esperando confirmación del negocio…', updating: 'Actualizando…', st_quote_pending: 'Esperando cotización de envío',
@@ -121,7 +121,7 @@ const STR = {
     invalid_name: 'Enter your name.', invalid_phone: 'Enter a valid phone number.', invalid_pickup: 'That time is no longer available, please pick another.', slot_taken: 'Someone just booked that delivery time, please pick another.',
     invalid_items: 'Please review your order.', item_unavailable: 'An item is no longer available. Refresh the menu.',
     rate_limited: 'Too many attempts. Wait a few minutes.', generic: 'Could not send the order.',
-    track: 'Track your order', shipTrack: 'Track shipment', cfdiRequest: 'Request invoice (factura)', notFound: 'Order not found.', backToMenu: 'Back to menu',
+    track: 'Track your order', shipTrack: 'Track shipment', shipTrackHint: 'Tap “Track shipment” below to see where your package is.', showSteps: 'Show all steps', hideSteps: 'Hide steps', cfdiRequest: 'Request invoice (factura)', notFound: 'Order not found.', backToMenu: 'Back to menu',
     rejectedWhy: 'Reason', st_requested: 'Order sent', st_accepted: 'Accepted', st_preparing: 'Preparing',
     st_ready: 'Ready for pickup', st_completed: 'Picked up', st_delivered: 'Delivered', st_rejected: 'Rejected',
     waiting: 'Waiting for the shop to confirm…', updating: 'Updating…', st_quote_pending: 'Waiting for shipping quote',
@@ -995,6 +995,7 @@ function Track({ client, token, lang, setLang }) {
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); evs.forEach((e) => el.removeEventListener(e, hold)); };
   }, [shop, menu, order]); // strip mounts once the order + menu are in
+  const [allSteps, setAllSteps] = useState(false);
   if (order === undefined) return <Loading text={s.loading} />;
   const back = <a href={`/order${window.location.search}`} style={{ color: '#555' }}>{s.backToMenu}</a>;
   if (order === null) return <div style={centerStyle}><div><p>{s.notFound}</p>{back}</div></div>;
@@ -1062,6 +1063,7 @@ function Track({ client, token, lang, setLang }) {
         ) : (
           <ol style={{ listStyle: 'none', padding: 0, margin: '16px 0' }}>
             {steps.map((st, i) => {
+              if (!allSteps && i !== Math.min(Math.max(idx, 0), steps.length - 1)) return null;
               const current = i === idx && !finished;
               const done = i < idx || (finished && i <= idx);
               const icon = (isDelivery && STEP_ICON_DELIVERY[st]) || STEP_ICON[st];
@@ -1078,6 +1080,8 @@ function Track({ client, token, lang, setLang }) {
             })}
           </ol>
         )}
+        {!rejected && <button type="button" onClick={() => setAllSteps((v) => !v)} style={{ background: 'none', border: 'none', padding: 0, color: brand, fontWeight: 600, cursor: 'pointer' }}>{allSteps ? s.hideSteps : s.showSteps}</button>}
+        {order.tracking_token && <p style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#666' }}><Icon icon="lucide:arrow-down" width="18" style={{ color: brand }} />{s.shipTrackHint}</p>}
         {order.status === 'requested' && <p style={{ color: '#666' }}>{s.waiting}</p>}
         {order.status === 'quote_pending' && <p style={{ color: '#666' }}>{s.shippingPending}</p>}
         {order.payment_method && (
