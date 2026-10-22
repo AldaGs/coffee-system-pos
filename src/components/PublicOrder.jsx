@@ -1084,7 +1084,7 @@ function Track({ client, token, lang, setLang }) {
           <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: '#f5f5f5', color: '#222' }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Icon icon={PAY_ICON[order.payment_method]} width="20" />{s.payLabel}: {s[`pay_${order.payment_method}`]}</div>
             {order.payment_method === 'cash' && order.cash_amount_cents != null && <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.cashPaysWith}: {formatForDisplay(order.cash_amount_cents, lang)} · {s.cashChange}: {formatForDisplay(order.cash_amount_cents - order.total_cents, lang)}</div>}
-            {order.payment_method === 'transfer' && !(isShipping && order.shipping_quote_cents == null) && <TransferDetails payments={shop?.payments} lang={lang} />}
+            {order.payment_method === 'transfer' && order.status !== 'completed' && order.payment_status !== 'paid' && !(isShipping && order.shipping_quote_cents == null) && <TransferDetails payments={shop?.payments} lang={lang} />}
             {order.payment_method === 'clip' && !rejected && order.payment_status !== 'paid' && (['requested', 'quote_pending'].includes(order.status)
                 ? <div style={{ marginTop: 6, fontSize: '0.9rem' }}>{s.clipWait}</div>
                 : order.pay_by && Date.parse(order.pay_by) <= now
