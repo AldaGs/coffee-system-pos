@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { printRawReceipt, sendFinalMessage, saveTicketAsPNG } from '../../../utils/sharingUtils';
 import { buildCfdiUrl, ensureCfdiConfig, getCfdiPeriodWarning } from '../../../utils/cfdiUrl';
@@ -77,12 +77,13 @@ export function useOrderActions({ menuData, generalSettings, posSettings, active
   // Setting sharingOrder renders the hidden TicketImage; the effect below runs
   // once it is in the DOM, captures it, then clears it.
   const handleSharePNG = (order) => setSharingOrder(order);
+  const onCaptureError = useEffectEvent((err) => showAlert(t('common.error'), t('receipt.capturePngErrorPrefix') + err.message));
   useEffect(() => {
     if (!sharingOrder) return;
     saveTicketAsPNG(`order-capture-${sharingOrder.id}`, `ticket-${sharingOrder.id}.png`)
-      .catch((err) => showAlert(t('common.error'), t('receipt.capturePngErrorPrefix') + err.message))
+      .catch(onCaptureError)
       .finally(() => setSharingOrder(null));
-  }, [sharingOrder]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once per capture, not on dialog/translation changes
+  }, [sharingOrder]);
 
   const handleShareWA = (order) => {
     showPrompt(t('wa.promptPhone') || "Enter WhatsApp Phone (10 digits):", "", (phone) => {

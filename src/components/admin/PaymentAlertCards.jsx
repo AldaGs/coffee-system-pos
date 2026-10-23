@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useEffectEvent } from 'react';
 import { Icon } from '@iconify/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { supabase } from '../../supabaseClient';
@@ -130,9 +130,9 @@ function AlertPrefsDialog({ btn, telegram, onClose, showAlert }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
+  const onLoadError = useEffectEvent((e) => { showAlert(t('common.error'), e.message); onClose(); });
   useEffect(() => {
-    alerts.loadAlertPrefs().then(setDraft).catch((e) => { showAlert(t('common.error'), e.message); onClose(); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    alerts.loadAlertPrefs().then(setDraft).catch(onLoadError);
   }, []);
   const toggle = (key, ev) => setDraft((d) => ({ ...d, [key]: d[key].includes(ev) ? d[key].filter((x) => x !== ev) : [...d[key], ev] }));
   const save = async () => {

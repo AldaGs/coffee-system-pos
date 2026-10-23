@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import * as Dialog from '@radix-ui/react-dialog';
 import * as maplibregl from 'maplibre-gl';
@@ -50,7 +50,8 @@ function MapCanvas({ area, onChange, lang, expanded = false }) {
   latest.current = { area, onChange, lang };
   const [error, setError] = useState(false);
 
-  const draw = () => {
+  // Reads only refs, so it's stable and safe to call from the map's own handlers.
+  const draw = useCallback(() => {
     const instance = map.current;
     if (!instance?.getSource('area')) return;
     markers.current.forEach((m) => m.remove());
@@ -105,11 +106,13 @@ function MapCanvas({ area, onChange, lang, expanded = false }) {
       features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} });
     }
     instance.getSource('area').setData({ type: 'FeatureCollection', features });
-  };
+  }, []);
+  // The map is created once and kept while editing; the effect below redraws it.
   useEffect(() => {
     let disposed = false;
     let instance;
     let observer;
+    const area = latest.current.area; // starting view only
     const coords = area.kind === 'radius' && area.center
       ? [area.center.lng, area.center.lat] : area.points?.[0] || FALLBACK;
     fetch(STYLE).then((r) => r.json()).then((style) => {
@@ -150,11 +153,9 @@ function MapCanvas({ area, onChange, lang, expanded = false }) {
       });
     }).catch(() => !disposed && setError(true));
     return () => { disposed = true; observer?.disconnect(); markers.current.forEach((m) => m.remove()); markers.current = []; instance?.remove(); map.current = null; };
-    // This map keeps its instance while editing; the next effect redraws it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [draw]);
 
-  useEffect(draw, [area, lang]);
+  useEffect(draw, [area, lang, draw]);
 
   return <div style={expanded ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : undefined}>
     <div ref={el} style={{ height: expanded ? '100%' : 280, flex: expanded ? 1 : undefined, minHeight: expanded ? 0 : undefined, borderRadius: 10, border: '1px solid var(--border)' }} />

@@ -93,9 +93,10 @@ export default function AuthorizeHub() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const returnUrl = safeReturnUrl(
+  // Read once: a new URL object each render would re-run the effect below.
+  const [returnUrl] = useState(() => safeReturnUrl(
     new URLSearchParams(window.location.search).get('return')
-  );
+  ));
 
   useEffect(() => {
     if (!returnUrl) {
@@ -120,8 +121,7 @@ export default function AuthorizeHub() {
         setStatus('login');
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [returnUrl]);
 
   const submit = async (e) => {
     e.preventDefault();

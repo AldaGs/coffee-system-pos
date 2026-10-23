@@ -2,7 +2,7 @@ import { Group, Image as KImage, Path, Rect, Text } from 'react-konva';
 import { formatDateField } from '../../../utils/canvasDocument';
 import { shadowKonvaProps } from './nodeStyle';
 import { useCanvasImage } from '../../../utils/canvasImageCache';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef } from 'react';
 import { useTranslation } from '../../../hooks/useTranslation';
 
 // Image node. Rendered as a stable Group (the draggable/transform target) with
@@ -135,6 +135,8 @@ export function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMe
   // would loop forever and leak React internals until OOM. Bound it to a few
   // attempts per real input change; w/h are excluded from the key.
   const measureGuard = useRef({ key: '', count: 0 });
+  // onMeasure is a new function every render; re-measure only when the text or its box changes.
+  const reportSize = useEffectEvent((id, size) => onMeasure?.(id, size));
   useEffect(() => {
     if (!auto) return;
     const n = inlineRef.current;
@@ -147,11 +149,9 @@ export function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMe
     const h = Math.ceil(n.height());
     if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) {
       g.count += 1;
-      onMeasure?.(node.id, { w, h });
+      reportSize(node.id, { w, h });
     }
-    // onMeasure is a new function every render; re-measure only when the text or its box changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auto, inlineText, fontFamily, fontSize, fontStyleStr, pad, node.w, node.h, fontEpoch]);
+  }, [auto, inlineText, fontFamily, fontSize, fontStyleStr, pad, node.id, node.w, node.h, fontEpoch]);
 
   const bg = s.fill || 'transparent';
   const stroke = s.stroke && (s.strokeWidth || 0) > 0 ? s.stroke : (item ? undefined : '#f28b05');

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useEffectEvent, useCallback } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { buildCfdiUrl, ensureCfdiConfig } from '../../../utils/cfdiUrl';
 import { ZIP_BUCKET, purgeExpiredZips } from './cfdiShared';
@@ -46,19 +46,13 @@ export function useCfdiRequests({ showAlert, showConfirm, t }) {
     }
   }, [showAlert, t]);
 
-  useEffect(() => {
-    // Fetch once on mount only. We deliberately do NOT depend on `fetchRequests`
-    // here: its identity changes on every render (it closes over `showAlert`/`t`),
-    // and because the catch block calls `showAlert` — which updates dialog state and
-    // forces a re-render — depending on it created a hot loop. When the Supabase
-    // circuit breaker is open every request fails instantly, so that loop spun as
-    // fast as React could render, freezing the tab and flooding the console with
-    // "Cloud unreachable" errors. Handlers call fetchRequests() directly when
-    // a manual refresh is needed.
-    const timer = setTimeout(() => { fetchRequests(); }, 0);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Fetch once on mount only. fetchRequests changes identity every render (it
+  // closes over showAlert/t), and its catch calls showAlert, which re-renders:
+  // depending on it once made a hot loop that froze the tab whenever the cloud
+  // was unreachable. An effect event reads the latest one without re-running.
+  // Handlers call fetchRequests() directly when a manual refresh is needed.
+  const loadOnMount = useEffectEvent(() => { fetchRequests(); });
+  useEffect(() => { loadOnMount(); }, []);
 
   // Runs one write with the shared busy flag, then reloads the list.
   const submit = async (write, okMsg, errMsg, after) => {

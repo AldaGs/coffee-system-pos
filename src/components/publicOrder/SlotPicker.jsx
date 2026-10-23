@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { slotRules, timesFor, toLocalInput, fromLocalInput, firstSlot, asapOk, autoSlotIsToday } from '../../utils/pickupSlots';
 import { inputStyle, qtyBtn } from './shared';
@@ -23,15 +23,16 @@ export default function SlotPicker({ label, value, onChange, date, onDateChange,
   const asap = asapOk(ctx);
   // ASAP isn't served right now: preselect the first available slot (the customer can still change it).
   const [auto, setAuto] = useState(null);
-  useEffect(() => {
+  // Once, when the picker mounts.
+  const preselectSlot = useEffectEvent(() => {
     const selectedAt = now;
     if (value || date || asapOk({ ...ctx, now: selectedAt })) return;
     const ms = firstSlot({ ...ctx, now: selectedAt });
     if (ms == null) return;
     const iso = new Date(ms).toISOString();
     onDateChange(toLocalInput(ms, tz).slice(0, 10)); setAuto({ iso, today: autoSlotIsToday(ms, selectedAt, tz) }); onChange(iso);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  useEffect(() => { preselectSlot(); }, []);
   const open = () => { setNow(Date.now()); const el = ref.current; try { el.showPicker(); } catch { el.focus(); el.click(); } };
   const pickDate = (e) => { if (!e.target.value) return; setAuto(null); setNow(Date.now()); onDateChange(e.target.value); onChange(''); };
   const pickTime = (e) => { setAuto(null); onChange(e.target.value ? new Date(fromLocalInput(`${date}T${e.target.value}`, tz)).toISOString() : ''); };

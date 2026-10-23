@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { clusterByGroup } from '../../utils/canvasDocument';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -99,11 +99,12 @@ export default function LayersPanel({ nodes, groups, selectedIds, onSelect, onSe
   const primaryId = selectedIds[selectedIds.length - 1] || null;
   const activeRowRef = useRef(null);
   const selKey = selectedIds.join(',');
-  useEffect(() => {
+  // Only a selection change scrolls; starting or ending a drag doesn't.
+  const scrollToActive = useEffectEvent(() => {
     if (dragId) return;
     activeRowRef.current?.scrollIntoView({ block: 'nearest' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selKey]);
+  });
+  useEffect(() => { scrollToActive(); }, [selKey]);
 
   const membersOf = gid => order.filter(id => byId.get(id)?.groupId === gid);
 

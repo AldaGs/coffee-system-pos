@@ -1,7 +1,7 @@
 // Optional delivery pin for /order checkout: MapLibre GL + OpenFreeMap vector tiles
 // (free, no API key), restyled toward Google Maps' palette. Loaded lazily (React.lazy
 // in PublicOrder) so the menu bundle stays small.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 // MapLibre finds its worker relative to its own file, which breaks once Vite
@@ -70,16 +70,16 @@ export default function PinMap({ pin, address, onPin, s, areas = [], lang = 'es'
     cb.current(lat, lng);
   };
 
-  useEffect(() => {
-    let m; let dead = false; let customerMovedMap = false;
-    const observer = new ResizeObserver(() => map.current?.resize());
-    observer.observe(el.current);
+  // The map is created once; setup reads the starting pin and areas, its handlers use refs.
+  const setupMap = useEffectEvent((life) => {
+    let customerMovedMap = false;
     fetch(STYLE_URL).then((r) => r.json()).then((style) => {
-      if (dead) return;
-      m = new maplibregl.Map({
+      if (life.dead) return;
+      const m = new maplibregl.Map({
         container: el.current, style: googleize(style), attributionControl: false,
         center: pin ? [pin.lng, pin.lat] : PUEBLA, zoom: pin ? 15 : 10,
       });
+      life.map = m;
       m.addControl(new maplibregl.AttributionControl({ compact: false }));
       m.addControl(new maplibregl.NavigationControl({ showCompass: false }));
       map.current = m;
@@ -103,9 +103,14 @@ export default function PinMap({ pin, address, onPin, s, areas = [], lang = 'es'
         }
       });
       m.on('click', (e) => place(e.lngLat.lat, e.lngLat.lng));
-    }).catch(() => !dead && setMsg(s.pinNotFound));
-    return () => { dead = true; observer.disconnect(); m?.remove(); map.current = null; marker.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }).catch(() => !life.dead && setMsg(s.pinNotFound));
+  });
+  useEffect(() => {
+    const life = { dead: false, map: null };
+    const observer = new ResizeObserver(() => map.current?.resize());
+    observer.observe(el.current);
+    setupMap(life);
+    return () => { life.dead = true; observer.disconnect(); life.map?.remove(); map.current = null; marker.current = null; };
   }, []);
 
   // Pin cleared by the parent (e.g. "Remove pin"): drop the marker too. Typing

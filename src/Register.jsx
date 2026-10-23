@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate } from 'react-router-dom';
 import { db } from './db';
@@ -217,8 +217,10 @@ function Register() {
     }
   };
 
-  // Memoized so unrelated re-renders (a PIN keystroke) don't re-render every consumer.
-  const posState = useMemo(() => ({
+  // Shared with the register's components. Not memoized: every consumer is rendered
+  // by this component, so they re-render with it anyway, and a memo would hand them
+  // stale handlers.
+  const posState = {
     cartTotal, activeTicket: enrichedActiveTicket, menuData, posSettings, activeCashier,
     isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
     showAlert, showConfirm, requirePin, handleItemClick, setIsLocked, navigate,
@@ -229,15 +231,7 @@ function Register() {
     handleRedeemReward, handleDetachLoyalty, handleAttachCustomer, setLoyaltyModal, loyaltyModal,
     pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket,
     handleSendToKds, setIsHelpModalOpen, clipDeadlines,
-  // Handlers are new functions each render; these values are what consumers react to.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [
-    cartTotal, enrichedActiveTicket, menuData, posSettings, activeCashier,
-    isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
-    activeTicketId, visibleTickets, cartSubtotal,
-    autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
-    loyaltyModal, pendingItem, clipDeadlines,
-  ]);
+  };
 
   const { selectedProfile, setSelectedProfile, pinAttempt, setPinAttempt, pinShake, setPinShake, handleUnlockSubmit, handlePinKeyDown } = lock;
   const { isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, handleToggleManualRule } = discounts;

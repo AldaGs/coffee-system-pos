@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useMenuStore } from '../store/useMenuStore';
 import { useCartStore } from '../store/useCartStore';
@@ -48,13 +48,13 @@ export function useRegisterLock({ tickets, autoLockMinutes, menuData, showAlert,
     if (e.key === 'Enter') handleUnlockSubmit();
   };
 
-  useEffect(() => {
+  // Only on login; following every ticket change would yank the cashier off the ticket they picked.
+  const openMyLatestTicket = useEffectEvent(() => {
     if (isLocked || !activeCashier || tickets.length === 0) return;
     const mine = tickets.filter((tk) => tk.cashier_id === activeCashier.id);
     if (mine.length > 0) setActiveTicketId(mine.sort((a, b) => b.id - a.id)[0].id);
-    // Only on login; following every ticket change would yank the cashier off the ticket they picked.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLocked, activeCashier]);
+  });
+  useEffect(() => { openMyLatestTicket(); }, [isLocked, activeCashier]);
 
   useEffect(() => {
     if (!menuData || isLocked || autoLockMinutes === 0) return;

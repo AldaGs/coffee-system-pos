@@ -9,7 +9,7 @@
 // transparent boxes — forward-compatible with documents written by future
 // editors.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { buildItemIndex, PAGE_PRESETS, syncDocFonts, docFontLoadSpecs, pathToSvgD, fitTextFontSize, formatDateField } from '../../utils/canvasDocument';
 import { formatForDisplay } from '../../utils/moneyUtils';
 
@@ -24,20 +24,21 @@ export default function CanvasRenderer({ document, data, lang, isTv = false, tvP
   // each family and bump state to repaint once ready — mirroring the editor.
   const [, setFontTick] = useState(0);
   const fontsKey = JSON.stringify(document?.fonts || []);
-  useEffect(() => {
+  // Prime every family × weight the document uses, not just the default 400
+  // face — otherwise bold headings paint in a fallback until lazily fetched,
+  // which is exactly the "font differs on the display link" mismatch. Bump
+  // state once resolved so the tree repaints with correct glyphs.
+  const primeFonts = useEffectEvent(() => {
     syncDocFonts(document);
     const fonts = (typeof window !== 'undefined') && window.document?.fonts;
     const specs = docFontLoadSpecs(document);
-    if (!fonts || specs.length === 0) return;
+    if (!fonts || specs.length === 0) return null;
+    return Promise.all(specs.map(s => fonts.load(s).catch(() => {})));
+  });
+  useEffect(() => {
     let active = true;
-    // Prime every family × weight the document uses, not just the default 400
-    // face — otherwise bold headings paint in a fallback until lazily fetched,
-    // which is exactly the "font differs on the display link" mismatch. Bump
-    // state once resolved so the tree repaints with correct glyphs.
-    Promise.all(specs.map(s => fonts.load(s).catch(() => {})))
-      .then(() => { if (active) setFontTick(t => t + 1); });
+    primeFonts()?.then(() => { if (active) setFontTick(t => t + 1); });
     return () => { active = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fontsKey]);
 
   const pageW = document?.page_size?.w || 1920;

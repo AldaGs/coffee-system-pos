@@ -3,7 +3,7 @@
 // owner manually snapshot or restore. Restores are themselves reversible
 // (the server snapshots current state before wiping).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { listVersions, manualSnapshot, restoreVersion, getVersion } from '../../api/menuVersions';
 import { useDialog } from '../../hooks/useDialog';
@@ -42,8 +42,8 @@ function MenuHistoryPanel({ onAfterRestore }) {
   };
 
   // Load once on mount; reload is also called imperatively after mutations.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { reload(); }, []);
+  const loadOnMount = useEffectEvent(() => { reload(); });
+  useEffect(() => { loadOnMount(); }, []);
 
   const handleManual = async () => {
     setBusy(true);

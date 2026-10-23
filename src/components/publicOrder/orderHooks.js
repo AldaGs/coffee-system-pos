@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { parseAddParam } from '../../utils/orderDeepLink';
 import { errCode, orderMenu, trackerFor, visibleCategories } from './shared';
 
@@ -64,8 +64,9 @@ export function useDeepLinkAdd({ data, gate, cartApi, track }) {
   // Basket opens after a deep-link add; for an item with options, once the customer confirms it.
   const openAfterPick = useRef(false);
   const [deepOpen, setDeepOpen] = useState(0);
-  useEffect(() => {
-    if (!data || deepLinked.current) return;
+  // Runs once, when the menu first loads (gate is set in the same render as data).
+  const applyDeepLink = useEffectEvent(() => {
+    if (deepLinked.current) return;
     deepLinked.current = true;
     const params = new URLSearchParams(window.location.search);
     const wanted = parseAddParam(params.get('add'));
@@ -92,7 +93,8 @@ export function useDeepLinkAdd({ data, gate, cartApi, track }) {
         ? acc.map((l) => (l.key === key ? { ...l, qty: Math.max(l.qty, qty) } : l))
         : [...acc, { key, id, qty, mods: [] }];
     }, prev));
-  }, [data, gate, itemsById]); // eslint-disable-line react-hooks/exhaustive-deps
+  });
+  useEffect(() => { if (data) applyDeepLink(); }, [data]);
 
   // Picker closed: confirmed opens the basket if a deep link asked for it; cancelled never does.
   const pickerClosed = (confirmed) => {

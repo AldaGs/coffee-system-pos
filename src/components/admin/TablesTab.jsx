@@ -3,7 +3,7 @@
 // Mirrors MenusTab's shape: list / create / rename / delete, with the visual
 // editor opening full-screen over the tab.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { loadFloors, addFloor, updateFloor, deleteFloor } from '../../api/floors';
 import { tablesOf } from '../../utils/floorDocument';
@@ -24,8 +24,8 @@ function TablesTab({ showAlert, showConfirm }) {
     finally { setLoading(false); }
   }
   // Load once on mount; reload is also called imperatively after mutations.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { reload(); }, []);
+  const loadOnMount = useEffectEvent(() => { reload(); });
+  useEffect(() => { loadOnMount(); }, []);
 
   async function handleCreate() {
     const name = newName.trim();

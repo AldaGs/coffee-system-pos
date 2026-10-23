@@ -1,6 +1,6 @@
 // Full-screen react-konva editor for a designed menu (menu.data.document),
 // saved back with updateMenu().
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Stage, Layer, Rect } from 'react-konva';
 import { Icon } from '@iconify/react';
@@ -312,25 +312,25 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 
   // Snapshot at the page's native resolution (pixelRatio undoes the on-screen scale).
   function exportPng() { setSelectedIds([]); setExporting(true); }
+  // Runs once per export, a frame after the export flag renders the clean stage.
+  const exportFrame = useEffectEvent(() => {
+    try {
+      const url = stageRef.current?.toDataURL({ pixelRatio: 1 / (stageScale || 1) });
+      if (url) {
+        const a = document.createElement('a');
+        a.download = `${(menu.name || 'menu').replace(/\s+/g, '-')}-pagina-${pageIndex + 1}.png`;
+        a.href = url;
+        a.click();
+      }
+    } catch (err) {
+      showAlert?.(t('canvas.exportError'), err.message);
+    }
+    setExporting(false);
+  });
   useEffect(() => {
     if (!exporting) return;
-    const raf = requestAnimationFrame(() => {
-      try {
-        const url = stageRef.current?.toDataURL({ pixelRatio: 1 / (stageScale || 1) });
-        if (url) {
-          const a = document.createElement('a');
-          a.download = `${(menu.name || 'menu').replace(/\s+/g, '-')}-pagina-${pageIndex + 1}.png`;
-          a.href = url;
-          a.click();
-        }
-      } catch (err) {
-        showAlert?.(t('canvas.exportError'), err.message);
-      }
-      setExporting(false);
-    });
+    const raf = requestAnimationFrame(() => exportFrame());
     return () => cancelAnimationFrame(raf);
-    // Runs once per export; the frame it waits for must not be rescheduled by unrelated renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exporting]);
 
   const addBindings = (itemIds) => {

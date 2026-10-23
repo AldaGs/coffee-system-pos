@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { supabase } from '../../supabaseClient';
@@ -81,7 +81,9 @@ export default function OnlineOrdersInbox({
     });
     setClipDeadlines?.((prev) => (JSON.stringify(prev) === JSON.stringify(map) ? prev : map));
   }, [orders, setClipDeadlines]);
-  useEffect(() => {
+  // Settle Clip orders: release paid ones, expire overdue ones. Re-checked when
+  // orders or tickets change and on the 15s tick.
+  const settleClipOrders = useEffectEvent(() => {
     orders.filter((o) => o.payment_method === 'clip' && o.active_ticket_id != null).forEach((o) => {
       const ticket = tickets.find((tk) => tk.id === o.active_ticket_id);
       if (o.payment_status === 'paid') {
@@ -92,12 +94,12 @@ export default function OnlineOrdersInbox({
           .catch((e) => console.warn('expireClipOrder', e));
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders, tickets, tick]);
+  });
+  useEffect(() => { settleClipOrders(); }, [orders, tickets, tick]);
   // Clip auto-accept: the DB accepted these on insert; the first station to see one
   // opens its ticket (the order_num claim keeps it single-winner).
   const opening = useRef(false);
-  useEffect(() => {
+  const openAutoAccepted = useEffectEvent(() => {
     const todo = orders.filter((o) => o.status === 'accepted' && o.order_num == null && o.active_ticket_id == null);
     if (!todo.length || opening.current) return;
     opening.current = true;
@@ -110,8 +112,8 @@ export default function OnlineOrdersInbox({
       }
       if (n !== nextOrderNum) setNextOrderNum(n);
     })().finally(() => { opening.current = false; });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orders]);
+  });
+  useEffect(() => { openAutoAccepted(); }, [orders]);
   useEffect(() => {
     let cancelled = false;
     (async () => {

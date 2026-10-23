@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { formatForDisplay } from '../../utils/moneyUtils';
 import { useLegal } from '../../hooks/useLegal';
 import { STR } from './strings';
@@ -87,13 +87,17 @@ export default function Order({ client, lang, setLang }) {
     writeJson(DRAFT_KEY, { cart, customer: co.customer, notes: co.notes, pickup: co.pickup, orderType: co.orderType, payment: co.payment, cash: co.cash });
   }, [cart, co.customer, co.notes, co.pickup, co.orderType, co.payment, co.cash]);
 
-  // Mobile: the checkout sheet (cart step). Desktop: scroll to the side cart once it has rendered.
+  // Each deep-link bump opens the basket. Mobile: the checkout sheet (cart step).
+  // Desktop: scroll to the side cart once it has rendered (returns that timer).
+  const openBasket = useEffectEvent(() => {
+    if (!wide) { co.setStepId('cart'); setCheckingOut(true); return null; }
+    return setTimeout(() => asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  });
   useEffect(() => {
     if (!deepOpen) return undefined;
-    if (!wide) { co.setStepId('cart'); setCheckingOut(true); return undefined; }
-    const id = setTimeout(() => asideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    const id = openBasket();
     return () => clearTimeout(id);
-  }, [deepOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deepOpen]);
 
   if (loadErr) return <div style={centerStyle}>{loadErr}</div>;
   if (!data) return <Loading text={s.loading} />;

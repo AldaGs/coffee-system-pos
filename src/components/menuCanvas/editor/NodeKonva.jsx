@@ -2,7 +2,7 @@ import { BindingPlaceholder, DateFieldKonva, KonvaImageNode, WhatsAppButtonKonva
 import { Circle, Group, Path, Rect, Text } from 'react-konva';
 import { fitTextFontSize, pathToSvgD } from '../../../utils/canvasDocument';
 import { shadowKonvaProps, shapeFillProps } from './nodeStyle';
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 
 export function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = false, onSelect, onDblClick, onMeasure, onDragStart, onDragMove, onNodeDragEnd, onNodeTransformStart, onNodeTransform, onNodeTransformEnd, onContextMenu }) {
   const shapeRef = useRef(null);
@@ -17,6 +17,8 @@ export function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = 
 
   // Auto-width text: after each render, read the konva-measured size and
   // persist it (silently) so the doc box matches the glyphs everywhere.
+  // onMeasure is a new function every render; re-measure only when the text or its box changes.
+  const reportSize = useEffectEvent((id, size) => onMeasure?.(id, size));
   useEffect(() => {
     if (node.type !== 'text' || !node.autoWidth) return;
     const n = shapeRef.current;
@@ -29,11 +31,9 @@ export function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = 
     const h = Math.ceil(n.height());
     if (w > 0 && (Math.abs(w - node.w) > 1 || Math.abs(h - node.h) > 1)) {
       g.count += 1;
-      onMeasure?.(node.id, { w, h });
+      reportSize(node.id, { w, h });
     }
-    // onMeasure is a new function every render; re-measure only when the text or its box changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [node.type, node.autoWidth, node.text, node.w, node.h, node.style?.fontFamily, node.style?.fontSize, node.style?.fontWeight, fontEpoch]);
+  }, [node.type, node.autoWidth, node.text, node.id, node.w, node.h, node.style?.fontFamily, node.style?.fontSize, node.style?.fontWeight, fontEpoch]);
 
   // Drag end and transform end are baked into the document by the parent (so
   // group gestures land in a single, undoable commit). See handleNodeDragEnd

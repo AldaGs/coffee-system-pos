@@ -3,7 +3,7 @@
 // owner upload more. Drag-drop and click-to-pick supported. Resolves the
 // chosen URL via the onPick prop.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { listCanvasAssets, uploadCanvasAsset, deleteCanvasAsset, MAX_ASSET_BYTES } from '../../api/menuCanvasAssets';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -22,9 +22,9 @@ export default function AssetPicker({ menuId, onPick, onClose }) {
     try { setAssets(await listCanvasAssets(menuId)); }
     finally { setLoading(false); }
   }
-  // Reload whenever the target menu changes; reload is stable for these purposes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { reload(); }, [menuId]);
+  // Reload whenever the target menu changes.
+  const reloadForMenu = useEffectEvent(() => { reload(); });
+  useEffect(() => { reloadForMenu(); }, [menuId]);
 
   async function handleFiles(files) {
     if (!files || files.length === 0) return;

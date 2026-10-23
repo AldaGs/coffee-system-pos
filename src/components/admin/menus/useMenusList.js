@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useEffectEvent, useState } from 'react';
 import { loadMenus, addMenu, updateMenu, deleteMenu } from '../../../api/menus';
 import { uploadMenuFile, deleteMenuUploads } from '../../../api/menuUploads';
 
@@ -18,8 +18,8 @@ export function useMenusList({ showAlert, showConfirm, t }) {
     }
   }
   // Load once on mount; reload is also called imperatively after mutations.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { reload(); }, []);
+  const loadOnMount = useEffectEvent(() => { reload(); });
+  useEffect(() => { loadOnMount(); }, []);
 
   // Runs a write, then reloads; any error becomes an alert.
   const act = async (write) => {

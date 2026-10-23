@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). P5 is done too. Left: P2/P3 leftovers, P6.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). P5 and P3 are done too. Left: the P2 zero-delay timers, P6.
 
 ## Goals
 
@@ -51,10 +51,9 @@ Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and
 There are 7+ cases (`App.jsx:117`, `SetupScreen.jsx:81`, `PublicCFDI.jsx:135,137`, `PublicMenu.jsx:141,808`, `CanvasEditor.jsx:134,577`, `GeneralSettingsTab.jsx:144,152`, `MenuShareCard.jsx:101`, `CfdiTab.jsx:169`). They delay a state update by one tick only to silence the lint rule, at the cost of an extra render and a brief flash of wrong state.
 **Fix:** compute the value while rendering, set it in the event handler, or use lazy initial state.
 
-### P3: 30 `eslint-disable react-hooks/exhaustive-deps`
+### P3: `eslint-disable react-hooks/exhaustive-deps` (done 2026-10-23)
 
-Most of them hide effects that use stale values or should be events (`CfdiTab`, `GeneralSettingsTab`, `MenusTab`, `DevicesTab`, `TablesTab`, `OnlineOrdersInbox`, `PublicOrder`, `CanvasEditor` ×4, …).
-**Fix:** review each one. Use stable callbacks (`useCallback`), move the logic into the handler, or pass the right dependencies. Keep a disable only where it's justified in one line.
+All 25 removed; none left. 24 were effects that needed current values without re-running on them (mount-only loads, "only when X changes" work, handlers that change identity every render); those now use React 19's `useEffectEvent`. `DeliveryAreaMap` instead made `draw` a stable `useCallback` (it only reads refs) and `AuthorizeHub` reads its return URL once with lazy `useState`. Register's context `useMemo` was dropped: its consumers re-render with Register anyway, so the memo only risked stale handlers.
 
 ### P4: Timing-based waits instead of real signals (done)
 

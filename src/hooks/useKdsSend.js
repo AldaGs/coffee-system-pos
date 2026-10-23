@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import { db } from '../db';
 import { supabase } from '../supabaseClient';
 import { isLocalMode } from '../utils/appMode';
@@ -41,13 +41,13 @@ export function useKdsSend({ tickets, posSettings, showToast, showAlert, t }) {
     }
   };
 
+  // handleSendToKds is recreated every render; the ticket list is what should trigger a send.
+  const autoSend = useEffectEvent((tk) => handleSendToKds(tk, { silent: true }));
   useEffect(() => {
     if (!posSettings?.kdsEnabled || posSettings?.kdsMode !== 'immediate') return;
     tickets
       .filter((tk) => !tk.kds_sent && Array.isArray(tk.items) && tk.items.length > 0)
-      .forEach((tk) => handleSendToKds(tk, { silent: true }));
-    // handleSendToKds is recreated every render; the ticket list is what should trigger a send.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      .forEach((tk) => autoSend(tk));
   }, [tickets, posSettings?.kdsEnabled, posSettings?.kdsMode]);
 
   return handleSendToKds;

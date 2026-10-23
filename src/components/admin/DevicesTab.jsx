@@ -1,5 +1,5 @@
 import { Icon } from '@iconify/react';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useEffectEvent, useRef } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import PendingSyncCard from './PendingSyncCard';
 import InfoTip from '../shared/InfoTip';
@@ -153,6 +153,7 @@ function DevicesTab({ showAlert, showConfirm }) {
   // `done` flag and stripped the marker from the URL; the token itself is in
   // the HttpOnly cookie. Here we detect the pending state, fetch the
   // service_role, mint the device, and wipe everything.
+  const resumeProvisioning = useEffectEvent((pending) => provisionDevice(pending));
   useEffect(() => {
     if (resumedRef.current) return;
     const done = typeof window !== 'undefined' ? sessionStorage.getItem(SS_OAUTH_DONE) === '1' : false;
@@ -170,12 +171,8 @@ function DevicesTab({ showAlert, showConfirm }) {
       return;
     }
 
-    // Intentional: we want provisioning to begin as soon as the tab mounts
-    // post-OAuth. The cascading-render warning is acceptable here because the
-    // state updates only happen once per round-trip. `provisionDevice` is a
-    // stable closure on this render — running on mount is exactly what we want.
-    provisionDevice(pending);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Provisioning starts as soon as the tab mounts post-OAuth, once per round-trip.
+    resumeProvisioning(pending);
   }, []);
 
   // ---- Submit: validate, stash, redirect to Supabase OAuth ---------------
