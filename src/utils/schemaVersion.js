@@ -3,6 +3,7 @@
 // and stamps public.schema_meta.schema_version, which General Settings
 // compares against this to offer "Update available."
 //
+// 5.7 — restore_menu_version works with pg_safeupdate (menu history "Restaurar").
 // 5.6 — get_order_status works without tinylogistics' order_fulfillment (POS-only shops).
 // 5.5 — get_order_status returns tracking_token (tinylogistics) + cfdi_ref for the purchase page links.
 // 5.4 — CFDI email text: cfdi_email_settings.email_message/email_footer + set_cfdi_email_message; redeploys cfdi-email (placeholders, preview).
@@ -139,4 +140,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '5.6';
+export const APP_SCHEMA_VERSION = '5.7';

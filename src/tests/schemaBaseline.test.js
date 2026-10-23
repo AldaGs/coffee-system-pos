@@ -13,7 +13,7 @@ describe('schema baseline', () => {
     expect(names[0]).toBe('000_baseline');
     // After the baseline, numbering continues where the archive (001–068) stopped.
     names.slice(1).forEach((n, i) => expect(n.slice(0, 3)).toBe(String(69 + i).padStart(3, '0')));
-    expect(APP_SCHEMA_VERSION).toBe('5.6');
+    expect(APP_SCHEMA_VERSION).toBe('5.7');
   });
 
   it('applies on an empty Supabase-like database and re-applies as a no-op', async () => {
@@ -33,6 +33,16 @@ describe('schema baseline', () => {
     expect(cols).toEqual(expect.arrayContaining(['kds_sent', 'table_id', 'seats', 'online_paid']));
     const trig = await db.query(`SELECT 1 FROM pg_trigger WHERE tgname = 'sales_cfdi_notify'`);
     expect(trig.rows).toHaveLength(1);
+
+    // Supabase's pg_safeupdate rejects DELETE without WHERE on API calls (menu restore broke on it).
+    const bare = await db.query(`SELECT p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.prosrc ~* 'DELETE FROM [a-z_.]+\\s*;'`);
+    expect(bare.rows).toEqual([]);
+    await db.exec(`INSERT INTO public.menu_categories (name, sort_order) VALUES ('Restore test', 0)`);
+    const snap = await db.query(`SELECT public.snapshot_menu('manual', 'test') AS id`);
+    await db.exec(`DELETE FROM public.menu_categories WHERE true`);
+    await db.query(`SELECT public.restore_menu_version(${snap.rows[0].id})`);
+    expect((await db.query(`SELECT 1 FROM public.menu_categories WHERE name = 'Restore test'`)).rows).toHaveLength(1);
 
     // POS-only shop: a delivery order's status must not need order_fulfillment.
     await db.exec(`INSERT INTO public.online_orders (token, customer_name, phone, items, total_cents, status, order_type, active_ticket_id)
