@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab done; next of the 1,100–1,600-line tabs: GeneralSettingsTab.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab and GeneralSettingsTab done; next of the 1,100–1,600-line tabs: Register.jsx.
 
 ## Goals
 
@@ -67,7 +67,7 @@ Most of them hide effects that use stale values or should be events (`CfdiTab`, 
 
 Each one needs a yes/no from you: are there still installs that need it?
 
-- `GeneralSettingsTab` "Scan / Repair Legacy Prices" tool (the code itself says "rarely, if ever, hit").
+- ~~`GeneralSettingsTab` "Scan / Repair Legacy Prices" tool~~: removed. It was already unreachable (button and scanner commented out).
 - `PublicMenu` long URL `?u=&k=` (base64 keys in the URL) plus its 5-minute polling.
 - `OrdersTab` "lite ticket" built from `items_sold` names for orders from before `local_id`.
 - One-time localStorage migrations: `useExpenses.migrateLegacyExpenses`, `useShiftState.migrateLegacyShiftState`.
@@ -282,6 +282,12 @@ src/components/admin/<area>/   (decision)
 - `src/components/admin/inventory/`: `inventoryStore.js` (two-mode writes, lots, expenses), `stockMath.js` (reorder point, cost blending for restock and roast; tested), `useLots`, `useStockActions`, and one component per block (forms, lots, deleted/history, item panels, list).
 - The roast now registers its lot through `registerLot` instead of a second inline copy; the `drawDownLotsFIFO` pass-through wrapper is gone.
 - Fixed: the "See Deleted" view never rendered (its JSX returned a function, `})}` instead of `})()}`).
+
+### GeneralSettingsTab.jsx split (1,258 → 145 lines)
+
+- `src/components/admin/settings/`: `useSchemaUpdate` (version read + OAuth resume), `useAdvancedModeToggle` (PIN challenge), `parseColor.js` (tested), section components (`CoreSections`, `SchemaSection`, `WorkflowCard`, `DeviceSections`) and `fields.jsx`.
+- Removed dead code: the legacy price repair (unreachable) and a commented-out sign-out card; Admin.jsx no longer passes `setInventoryItems`/`dexieSales` here.
+- P2/P3: the three `setTimeout(…, 0)` and the OAuth-resume `eslint-disable` are gone (initial state computed up front, real effect deps).
 
 ## Order of work (one PR per step)
 

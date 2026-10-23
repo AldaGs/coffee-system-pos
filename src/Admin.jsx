@@ -275,8 +275,6 @@ function Admin() {
             saveSettingsToCloud={settings.saveSettingsToCloud}
             setLoyaltyForm={data.setLoyaltyForm}
             inventoryItems={data.inventoryItems}
-            setInventoryItems={data.setInventoryItems}
-            dexieSales={analytics.allSales}
           />
         )}
 
