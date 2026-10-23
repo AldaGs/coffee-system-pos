@@ -840,7 +840,7 @@ function OverflowMenu({ actions, title }) {
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Content align="end" sideOffset={6} collisionPadding={12}
-          style={{ zIndex: 1000, minWidth: '200px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', padding: '6px', display: 'flex', flexDirection: 'column' }}>
+          style={{ zIndex: 1000, minWidth: '200px', maxWidth: 'min(320px, var(--radix-dropdown-menu-content-available-width))', boxSizing: 'border-box', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', padding: '6px', display: 'flex', flexDirection: 'column' }}>
           {items.map((a, i) => (
             <Menu.Item
               key={i}
