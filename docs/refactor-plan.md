@@ -283,7 +283,7 @@ src/components/admin/<area>/   (decision)
 - The roast now registers its lot through `registerLot` instead of a second inline copy; the `drawDownLotsFIFO` pass-through wrapper is gone.
 - Fixed: the "See Deleted" view never rendered (its JSX returned a function, `})}` instead of `})()}`).
 
-### GeneralSettingsTab.jsx split (1,258 → 145 lines)
+### GeneralSettingsTab.jsx split (1,258 → 139 lines)
 
 - `src/components/admin/settings/`: `useSchemaUpdate` (version read + OAuth resume), `useAdvancedModeToggle` (PIN challenge), `parseColor.js` (tested), section components (`CoreSections`, `SchemaSection`, `WorkflowCard`, `DeviceSections`) and `fields.jsx`.
 - Removed dead code: the legacy price repair (unreachable) and a commented-out sign-out card; Admin.jsx no longer passes `setInventoryItems`/`dexieSales` here.
