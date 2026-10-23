@@ -149,6 +149,7 @@ export function BindingPlaceholder({ node, common, menuData, fontEpoch = 0, onMe
       g.count += 1;
       onMeasure?.(node.id, { w, h });
     }
+    // onMeasure is a new function every render; re-measure only when the text or its box changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auto, inlineText, fontFamily, fontSize, fontStyleStr, pad, node.w, node.h, fontEpoch]);
 

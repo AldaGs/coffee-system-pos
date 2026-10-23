@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2 and the Admin.jsx split done** (2026-10-22). Rest of Phase 3 not started.
+Status: **1b, 2, and the Admin.jsx and CanvasEditor.jsx splits done** (2026-10-22). Rest of Phase 3 not started.
 
 ## Goals
 
@@ -260,6 +260,15 @@ src/components/admin/<area>/   (decision)
 - Presentational pieces are plain components (`AdminLogin`, `AdminSidebar`, `StaleBanner`); the tab list is data (`adminTabs.js`).
 - P3 in this file: both `exhaustive-deps` disables removed (`useCallback` for `recheckCloud`; the item form's default category is now computed while rendering instead of pushed in by the loader).
 - Found, not fixed (no behavior changes in a split): a custom date range ends a day early west of UTC (`new Date('YYYY-MM-DD')` is UTC midnight); the menu history card errors in local mode (`listVersions` has no local-mode guard).
+
+### CanvasEditor.jsx split (3,440 → 616 lines)
+
+- Subcomponents moved as-is to `src/components/menuCanvas/editor/` (node renderers, stage tools, rulers, toolbar, context menu, properties panels, styles).
+- Document edits are pure functions in `editor/docOps.js` (layer order, grouping, align/distribute, snapping, guides, paste, product links), tested in `canvasDocOps.test.js`.
+- Hooks: `useCanvasHistory`, `useStageZoom`, `useRulerGuides`, `usePenTool`, `useDocFonts`, `useNodeDrag`, `useNodeOps`. New-element defaults are data in `nodeTemplates.js`.
+- P2: both `setTimeout(…, 0)` gone (path editing is derived from the selection; the mobile sheet opens via a render-time check).
+- P3: 6 disables → 3, each with a one-line reason (font loading keyed on the font list, one-shot PNG export, text measuring that ignores the parent's new `onMeasure` each render).
+- The rest of CanvasEditor.jsx is mostly the JSX layout of the stage and panels; splitting it further would only pass props around.
 
 ## Order of work (one PR per step)
 

@@ -1,4 +1,4 @@
-import { Circle, Group, Line, Path, Transformer } from 'react-konva';
+import { Circle, Group, Layer, Line, Path, Rect, Text, Transformer } from 'react-konva';
 import { pathToSvgD } from '../../../utils/canvasDocument';
 import { useEffect, useRef, useState } from 'react';
 
@@ -130,3 +130,30 @@ export function SelectionTransformer({ selectedIds }) {
 // Chrome
 // ============================================================================
 
+
+// Editor-only marks drawn above the page: snap lines, a dashed box around
+// selected paths (they skip the transformer), and a chip on stock-linked nodes.
+export function EditorOverlayLayer({ guides, selectedIds, nodes, scale }) {
+  const px = 1 / scale;
+  return (
+    <Layer listening={false}>
+      {guides.map((g) => (
+        <Line key={g.key} points={g.points} stroke="#ff3b9a" strokeWidth={px} dash={[6 * px, 4 * px]} />
+      ))}
+      {selectedIds.map((id) => {
+        const n = nodes.find((x) => x.id === id);
+        if (!n || n.type !== 'path') return null;
+        return <Rect key={'psel' + id} x={n.x} y={n.y} width={n.w} height={n.h} stroke="#1f6feb" strokeWidth={px} dash={[5 * px, 3 * px]} listening={false} />;
+      })}
+      {nodes.filter((n) => n.link?.itemId).map((n) => {
+        const sz = 24 * px;
+        return (
+          <Group key={'lk' + n.id} x={n.x} y={n.y} listening={false}>
+            <Rect width={sz} height={sz} cornerRadius={6 * px} fill="#0d1117" opacity={0.82} stroke="#3fb950" strokeWidth={px} />
+            <Text text="🔗" x={sz * 0.16} y={sz * 0.12} fontSize={sz * 0.62} listening={false} />
+          </Group>
+        );
+      })}
+    </Layer>
+  );
+}

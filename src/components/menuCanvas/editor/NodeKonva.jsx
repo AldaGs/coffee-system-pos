@@ -31,6 +31,7 @@ export function NodeKonva({ node, menuData, fontEpoch = 0, ghost = false, dim = 
       g.count += 1;
       onMeasure?.(node.id, { w, h });
     }
+    // onMeasure is a new function every render; re-measure only when the text or its box changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.type, node.autoWidth, node.text, node.w, node.h, node.style?.fontFamily, node.style?.fontSize, node.style?.fontWeight, fontEpoch]);
 
