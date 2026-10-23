@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b and 2 done** (2026-10-22). Phase 3 not started.
+Status: **1b, 2 and the Admin.jsx split done** (2026-10-22). Rest of Phase 3 not started.
 
 ## Goals
 
@@ -250,6 +250,16 @@ src/components/admin/<area>/   (decision)
   use<Area>Data.js      // fetching, saving, derived state
   <area>Math.js         // pure logic, unit-tested
 ```
+
+### Reference: the Admin.jsx split (2,337 → 300 lines)
+
+`src/Admin.jsx` only wires things together; everything else is in `src/components/admin/shell/`:
+- One hook per job (`useAdminSession`, `useAdminData`, `useCatalogActions`, `useModifierActions`, `useDiscountActions`, `useMenuAssets`, `useSettingsActions`, `useAdminAnalytics`, `useRecipeActions`), each under ~240 lines.
+- Hooks read `useMenuStore`, `useDialog` and `useTranslation` themselves instead of taking them as props. They take only what another hook owns (`runMenuWrite`, `setIsSaving`, vendors).
+- Pure logic goes in a `*Math.js` file with a test (`analyticsMath.js`: the period filter that was copied three times is now one function).
+- Presentational pieces are plain components (`AdminLogin`, `AdminSidebar`, `StaleBanner`); the tab list is data (`adminTabs.js`).
+- P3 in this file: both `exhaustive-deps` disables removed (`useCallback` for `recheckCloud`; the item form's default category is now computed while rendering instead of pushed in by the loader).
+- Found, not fixed (no behavior changes in a split): a custom date range ends a day early west of UTC (`new Date('YYYY-MM-DD')` is UTC midnight); the menu history card errors in local mode (`listVersions` has no local-mode guard).
 
 ## Order of work (one PR per step)
 
