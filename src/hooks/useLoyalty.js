@@ -23,7 +23,7 @@ export const computeStarsForTicket = (ticket, loyaltySettings) => {
 export const useLoyalty = (posState) => {
   const {
     loyaltyModal, setLoyaltyModal, activeTicket, menuData,
-    setPhoneError, showAlert, t
+    flashPhoneError, showAlert, t
   } = posState;
 
   const handleCheckLoyalty = async (phoneOverride) => {
@@ -47,8 +47,7 @@ export const useLoyalty = (posState) => {
 
     const cleanPhone = (phoneOverride ?? loyaltyModal.phone).replace(/\D/g, '');
     if (cleanPhone.length !== 10) {
-      setPhoneError(true);
-      setTimeout(() => setPhoneError(false), 500);
+      flashPhoneError();
       return;
     }
 
@@ -140,8 +139,7 @@ export const useLoyalty = (posState) => {
   const handleAttachCustomer = async (rawPhone) => {
     if (!activeTicket) return false;
     if (!isValidPhone(rawPhone)) {
-      setPhoneError(true);
-      setTimeout(() => setPhoneError(false), 500);
+      flashPhoneError();
       return false;
     }
     const phone = cleanPhone(rawPhone);

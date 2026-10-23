@@ -8,6 +8,7 @@ import { isLocalMode } from './utils/appMode';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
+import { useFlash } from './hooks/useFlash';
 import { useTheme } from './hooks/useTheme';
 import { useTranslation } from './hooks/useTranslation';
 import { useAuthStore } from './store/useAuthStore';
@@ -98,11 +99,11 @@ function Register() {
   const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-  const [successTicket, setSuccessTicket] = useState(null);
+  const [successTicket, flashSuccessTicket] = useFlash(2500, null);
   const [clipDeadlines, setClipDeadlines] = useState({}); // ticketId -> auto-cancel time for unpaid Clip orders
   const [hasValidSession, setHasValidSession] = useState(true);
   const [loyaltyModal, setLoyaltyModal] = useState({ isOpen: false, step: 'phone', phone: '', data: null });
-  const [phoneError, setPhoneError] = useState(false);
+  const [phoneError, flashPhoneError, setPhoneError] = useFlash(500);
 
   const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
   const dexieSales = useLiveQuery(() => db.sales.toArray(), []) || [];
@@ -192,9 +193,9 @@ function Register() {
     expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales, shiftClipSales,
     shiftTotalExpenses, activeCashier, myDeviceId, setIsCorteModalOpen,
     setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm,
-    loyaltyModal, setLoyaltyModal, activeTicket: enrichedActiveTicket, menuData, setPhoneError,
+    loyaltyModal, setLoyaltyModal, activeTicket: enrichedActiveTicket, menuData, flashPhoneError,
     loyaltySettings: menuData?.loyaltySettings || null,
-    cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket, onAfterCheckout,
+    cartTotal, tipAmount, flashSuccessTicket, clearCurrentTicket, onAfterCheckout,
   };
   const { handleProcessCorte } = useShiftCorte(hookDeps);
   const { handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);

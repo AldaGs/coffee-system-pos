@@ -43,7 +43,7 @@ function MenuEditorTab({
   handleSetItemImage, handleClearItemImage,
   assets = [], assetsLoading = false, assetsBusy = false,
   loadAssets, handleSelectAssetForItem, handleDeleteAsset, handleUploadAsset,
-  vendors = [], isAdvancedMode = true, onGoToTab, onNewRecipe
+  vendors = [], isAdvancedMode = true, onGoToTab, onNewRecipe, onMenuRestored
 }) {
   const { t } = useTranslation();
   // Effective payout split for the item being edited (override or vendor default).
@@ -754,7 +754,7 @@ function MenuEditorTab({
         </div>
       </div>
 
-      <MenuHistoryPanel />
+      <MenuHistoryPanel onAfterRestore={onMenuRestored} />
 
       <input
         ref={fileInputRef}

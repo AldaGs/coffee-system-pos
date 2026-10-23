@@ -44,19 +44,6 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
   const setDelivery = (patch) => setForm({ ...form, delivery: { ...delivery, ...patch } });
   const areas = delivery.areas || [];
   const setArea = (id, patch) => setDelivery({ areas: areas.map((a) => a.id === id ? { ...a, ...patch } : a) });
-  const areaText = lang === 'en' ? {
-    title: 'Local delivery areas', desc: 'Set a radius or draw a street boundary.', descInfo: 'Higher priority wins where areas overlap. A pin exactly on the boundary counts as inside.', editorHelp: 'Save each zone to keep its changes.',
-    add: 'Add area', openEditor: 'Open editor', closeEditor: 'Done', name: 'Area name', radius: 'Radius', polygon: 'Street boundary', km: 'Radius (km)', priority: 'Priority',
-    charge: 'Delivery charge', remove: 'Delete zone', corner: 'Remove corner', save: 'Save zone', active: 'Enabled', inactive: 'Disabled', unsaved: 'Unsaved changes', new: 'New zone', shipping: 'Offer shipping outside all areas',
-    shippingHelp: 'Arrive with shipping price pending. Confirm it with the customer before accepting.',
-    legacy: 'The old flat delivery fee is not used. Add and enable an area to offer local delivery.', invalid: 'Complete each enabled area with a name, price, and valid map boundary.',
-  } : {
-    title: 'Zonas de entrega local', desc: 'Define un radio o dibuja el límite por calles.', descInfo: 'Si las zonas se superponen, gana la de mayor prioridad. Un punto justo en el borde cuenta como dentro.', editorHelp: 'Guarda cada zona para conservar sus cambios.',
-    add: 'Agregar zona', openEditor: 'Abrir Editor', closeEditor: 'Listo', name: 'Nombre de zona', radius: 'Radio', polygon: 'Límite por calles', km: 'Radio (km)', priority: 'Prioridad',
-    charge: 'Costo de entrega', remove: 'Eliminar zona', corner: 'Quitar esquina', save: 'Guardar zona', active: 'Activa', inactive: 'Inactiva', unsaved: 'Cambios sin guardar', new: 'Zona nueva', shipping: 'Ofrecer envío fuera de las zonas',
-    shippingHelp: 'Llegan con el costo de envío pendiente. Confírmalo con el cliente antes de aceptar.',
-    legacy: 'La tarifa fija anterior ya no se usa. Agrega y activa una zona para ofrecer entrega local.', invalid: 'Completa cada zona activa con nombre, precio y un límite válido en el mapa.',
-  };
   const showIva = !!form.ticket?.showIva;
   const sc = { ...DEFAULTS.trackShowcase, ...(form.trackShowcase || {}) };
   const setSc = (patch) => setForm({ ...form, trackShowcase: { ...sc, ...patch } });
@@ -116,14 +103,14 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
 
   const save = async () => {
     if (areas.some((a) => a.enabled && !validDeliveryArea(a))) {
-      showAlert(t('common.error'), areaText.invalid);
+      showAlert(t('common.error'), t('ooArea.invalid'));
       return;
     }
     await commitSettings(form, 'all');
   };
 
   const saveArea = async (area) => {
-    if (!validDeliveryArea(area)) return showAlert(t('common.error'), areaText.invalid);
+    if (!validDeliveryArea(area)) return showAlert(t('common.error'), t('ooArea.invalid'));
     const baseline = persisted.current;
     const baseDelivery = { ...DEFAULTS.delivery, ...(baseline.delivery || {}) };
     const baseAreas = baseDelivery.areas || [];
@@ -178,7 +165,7 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           <input type="checkbox" className="switch" checked={!!delivery.enabled} onChange={e => setDelivery({ enabled: e.target.checked })} />
           <span><strong>{t('oo.deliveryOn')}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{t('oo.deliveryDesc')}</small></span>
         </label>
-        {delivery.enabled && !!delivery.feeCents && !areas.length && <small style={{ color: '#ad6500' }}>{areaText.legacy}</small>}
+        {delivery.enabled && !!delivery.feeCents && !areas.length && <small style={{ color: '#ad6500' }}>{t('ooArea.legacy')}</small>}
 
           <label style={{ display: 'grid', gap: 6 }}>
             <strong>{t('oo.menu')}</strong>
@@ -190,31 +177,31 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
           </label>
         </Card>
 
-        <Card icon="lucide:map" title={areaText.title} info={areaText.descInfo} section="onlineOrders">
-          <small style={{ color: 'var(--text-muted)' }}>{areaText.desc}</small>
+        <Card icon="lucide:map" title={t('ooArea.title')} info={t('ooArea.descInfo')} section="onlineOrders">
+          <small style={{ color: 'var(--text-muted)' }}>{t('ooArea.desc')}</small>
           <label style={{ ...row, cursor: 'pointer' }}>
             <input type="checkbox" className="switch" disabled={!!busy} checked={!!delivery.shippingEnabled} onChange={(e) => setDelivery({ shippingEnabled: e.target.checked })} />
-            <strong>{areaText.shipping}</strong>
+            <strong>{t('ooArea.shipping')}</strong>
           </label>
-          <small style={{ color: 'var(--text-muted)' }}>{areaText.shippingHelp}</small>
+          <small style={{ color: 'var(--text-muted)' }}>{t('ooArea.shippingHelp')}</small>
           {areas.map((area) => <div key={area.id} style={{ borderTop: '1px solid var(--border)', paddingTop: '8px', display: 'flex', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            <strong>{area.name || areaText.new}</strong>
-            <span>{area.kind === 'radius' ? areaText.radius : areaText.polygon}</span>
+            <strong>{area.name || t('ooArea.new')}</strong>
+            <span>{area.kind === 'radius' ? t('ooArea.radius') : t('ooArea.polygon')}</span>
             <span>{formatForDisplay(area.feeCents || 0, lang)}</span>
           </div>)}
           <Dialog.Root open={editorOpen} onOpenChange={setEditorOpen}>
-            <Dialog.Trigger asChild><button type="button" style={{ ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' }}>{areaText.openEditor}</button></Dialog.Trigger>
+            <Dialog.Trigger asChild><button type="button" style={{ ...input, cursor: 'pointer', fontWeight: 800, alignSelf: 'flex-start' }}>{t('ooArea.openEditor')}</button></Dialog.Trigger>
             <Dialog.Portal>
               <Dialog.Overlay style={{ position: 'fixed', inset: 0, zIndex: 2200, background: 'rgba(0,0,0,0.65)' }} />
               <Dialog.Content style={{ position: 'fixed', inset: '3vh 3vw', maxWidth: 1100, margin: 'auto', zIndex: 2201, background: 'var(--bg-surface)', color: 'var(--text-main)', borderRadius: 16, boxShadow: '0 18px 50px rgba(0,0,0,0.35)', display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, padding: 16 }}>
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <Dialog.Title style={{ margin: 0, fontSize: '1.1rem', lineHeight: 1.3 }}>{areaText.title}</Dialog.Title>
+                  <Dialog.Title style={{ margin: 0, fontSize: '1.1rem', lineHeight: 1.3 }}>{t('ooArea.title')}</Dialog.Title>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                    <button type="button" disabled={!!busy} style={{ ...input, cursor: 'pointer', fontWeight: 800 }} onClick={() => { const id = crypto.randomUUID(); setDelivery({ areas: [...areas, { id, name: '', enabled: true, kind: 'radius', center: null, radiusKm: 3, points: [], feeCents: 0, priority: 0 }] }); setEditingAreaId(id); }}>+ {areaText.add}</button>
-                    <Dialog.Close asChild><button type="button" style={{ ...input, cursor: 'pointer' }}>{areaText.closeEditor}</button></Dialog.Close>
+                    <button type="button" disabled={!!busy} style={{ ...input, cursor: 'pointer', fontWeight: 800 }} onClick={() => { const id = crypto.randomUUID(); setDelivery({ areas: [...areas, { id, name: '', enabled: true, kind: 'radius', center: null, radiusKm: 3, points: [], feeCents: 0, priority: 0 }] }); setEditingAreaId(id); }}>+ {t('ooArea.add')}</button>
+                    <Dialog.Close asChild><button type="button" style={{ ...input, cursor: 'pointer' }}>{t('ooArea.closeEditor')}</button></Dialog.Close>
                   </div>
                 </div>
-                <Dialog.Description style={{ color: 'var(--text-muted)', margin: '8px 0 16px' }}>{areaText.desc} {areaText.descInfo} {areaText.editorHelp}</Dialog.Description>
+                <Dialog.Description style={{ color: 'var(--text-muted)', margin: '8px 0 16px' }}>{t('ooArea.desc')} {t('ooArea.descInfo')} {t('ooArea.editorHelp')}</Dialog.Description>
                 <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, display: 'grid', alignContent: 'start', gap: 12, paddingRight: 4 }}>
                   <Suspense fallback={<small>…</small>}><DeliveryCoverageOverview areas={areas} lang={lang} /></Suspense>
                   {areas.map((area) => {
@@ -228,28 +215,28 @@ function OnlineOrdersTab({ menuData, saveSettingsToCloud, showAlert }) {
                           onClick={() => setEditingAreaId((current) => current === area.id ? null : area.id)}
                           style={{ ...input, cursor: 'pointer', flex: 1, minWidth: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8 }}>
                           <Icon icon={open ? 'lucide:chevron-down' : 'lucide:chevron-right'} style={{ flexShrink: 0 }} />
-                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><strong>{area.name || areaText.new}</strong><br /><small>{area.kind === 'radius' ? areaText.radius : areaText.polygon} · {formatForDisplay(area.feeCents || 0, lang)} · {area.enabled ? areaText.active : areaText.inactive}{dirty ? ` · ${areaText.unsaved}` : ''}</small></span>
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><strong>{area.name || t('ooArea.new')}</strong><br /><small>{area.kind === 'radius' ? t('ooArea.radius') : t('ooArea.polygon')} · {formatForDisplay(area.feeCents || 0, lang)} · {area.enabled ? t('ooArea.active') : t('ooArea.inactive')}{dirty ? ` · ${t('ooArea.unsaved')}` : ''}</small></span>
                         </button>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          <button type="button" aria-label={`${areaText.save}: ${area.name || areaText.new}`} title={areaText.save} disabled={!!busy} style={{ ...input, cursor: 'pointer', width: 42, minHeight: 42, display: 'grid', placeItems: 'center', padding: 0 }} onClick={() => saveArea(area)}><Icon icon="lucide:save" width="18" /></button>
-                          <button type="button" aria-label={`${areaText.remove}: ${area.name || areaText.new}`} title={areaText.remove} disabled={!!busy} style={{ ...input, cursor: 'pointer', width: 42, minHeight: 42, display: 'grid', placeItems: 'center', padding: 0, color: '#c0392b' }} onClick={() => deleteArea(area.id)}><Icon icon="lucide:trash-2" width="18" /></button>
+                          <button type="button" aria-label={`${t('ooArea.save')}: ${area.name || t('ooArea.new')}`} title={t('ooArea.save')} disabled={!!busy} style={{ ...input, cursor: 'pointer', width: 42, minHeight: 42, display: 'grid', placeItems: 'center', padding: 0 }} onClick={() => saveArea(area)}><Icon icon="lucide:save" width="18" /></button>
+                          <button type="button" aria-label={`${t('ooArea.remove')}: ${area.name || t('ooArea.new')}`} title={t('ooArea.remove')} disabled={!!busy} style={{ ...input, cursor: 'pointer', width: 42, minHeight: 42, display: 'grid', placeItems: 'center', padding: 0, color: '#c0392b' }} onClick={() => deleteArea(area.id)}><Icon icon="lucide:trash-2" width="18" /></button>
                         </div>
                       </div>
                       <div id={detailsId} hidden={!open}>
                         {open && <fieldset disabled={!!busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, display: 'grid', gap: 10 }}>
-                          <label style={{ ...row, cursor: 'pointer' }}><input type="checkbox" className="switch" aria-label={`${area.name || areaText.name}: ${lang === 'en' ? 'enabled' : 'activa'}`} checked={!!area.enabled} onChange={(e) => setArea(area.id, { enabled: e.target.checked })} />
-                            <input aria-label={areaText.name} style={{ ...input, flex: 1, minWidth: 100 }} placeholder={areaText.name} maxLength={80} value={area.name} onChange={(e) => setArea(area.id, { name: e.target.value })} /></label>
+                          <label style={{ ...row, cursor: 'pointer' }}><input type="checkbox" className="switch" aria-label={`${area.name || t('ooArea.name')}: ${lang === 'en' ? 'enabled' : 'activa'}`} checked={!!area.enabled} onChange={(e) => setArea(area.id, { enabled: e.target.checked })} />
+                            <input aria-label={t('ooArea.name')} style={{ ...input, flex: 1, minWidth: 100 }} placeholder={t('ooArea.name')} maxLength={80} value={area.name} onChange={(e) => setArea(area.id, { name: e.target.value })} /></label>
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                            <select aria-label={`${area.name || areaText.name}: ${areaText.radius} / ${areaText.polygon}`} style={input} value={area.kind} onChange={(e) => setArea(area.id, { kind: e.target.value })}>
-                              <option value="radius">{areaText.radius}</option><option value="polygon">{areaText.polygon}</option>
+                            <select aria-label={`${area.name || t('ooArea.name')}: ${t('ooArea.radius')} / ${t('ooArea.polygon')}`} style={input} value={area.kind} onChange={(e) => setArea(area.id, { kind: e.target.value })}>
+                              <option value="radius">{t('ooArea.radius')}</option><option value="polygon">{t('ooArea.polygon')}</option>
                             </select>
-                            <label>{areaText.charge} <input style={{ ...input, width: 90 }} type="number" min="0" step="0.5" value={fromCents(area.feeCents)} onChange={(e) => setArea(area.id, { feeCents: Math.max(0, toCents(e.target.value)) })} /></label>
-                            <label>{areaText.priority} <input style={{ ...input, width: 65 }} type="number" step="1" value={area.priority || 0} onChange={(e) => setArea(area.id, { priority: parseInt(e.target.value, 10) || 0 })} /></label>
-                            {area.kind === 'radius' && <label>{areaText.km} <input style={{ ...input, width: 75 }} type="number" min="0.01" step="0.1" value={area.radiusKm || ''} onChange={(e) => setArea(area.id, { radiusKm: Number(e.target.value) })} /></label>}
+                            <label>{t('ooArea.charge')} <input style={{ ...input, width: 90 }} type="number" min="0" step="0.5" value={fromCents(area.feeCents)} onChange={(e) => setArea(area.id, { feeCents: Math.max(0, toCents(e.target.value)) })} /></label>
+                            <label>{t('ooArea.priority')} <input style={{ ...input, width: 65 }} type="number" step="1" value={area.priority || 0} onChange={(e) => setArea(area.id, { priority: parseInt(e.target.value, 10) || 0 })} /></label>
+                            {area.kind === 'radius' && <label>{t('ooArea.km')} <input style={{ ...input, width: 75 }} type="number" min="0.01" step="0.1" value={area.radiusKm || ''} onChange={(e) => setArea(area.id, { radiusKm: Number(e.target.value) })} /></label>}
                           </div>
                           {!busy && <Suspense fallback={<small>…</small>}><DeliveryAreaMap area={area} lang={lang} onChange={(next) => { if (!busyRef.current) setArea(area.id, next); }} /></Suspense>}
                           {area.kind === 'polygon' && (area.points || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {area.points.map((_, i) => <button key={i} type="button" aria-label={`${areaText.corner} ${i + 1}`} style={{ ...input, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => setArea(area.id, { points: area.points.filter((__, n) => n !== i) })}><Icon icon="lucide:x" aria-hidden="true" style={{ color: '#c0392b' }} />{lang === 'en' ? 'Corner' : 'Esquina'} {i + 1}</button>)}
+                            {area.points.map((_, i) => <button key={i} type="button" aria-label={`${t('ooArea.corner')} ${i + 1}`} style={{ ...input, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }} onClick={() => setArea(area.id, { points: area.points.filter((__, n) => n !== i) })}><Icon icon="lucide:x" aria-hidden="true" style={{ color: '#c0392b' }} />{lang === 'en' ? 'Corner' : 'Esquina'} {i + 1}</button>)}
                           </div>}
                         </fieldset>}
                       </div>

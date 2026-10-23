@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done; next: P4/P7 items.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed).
 
 ## Goals
 
@@ -56,12 +56,12 @@ There are 7+ cases (`App.jsx:117`, `SetupScreen.jsx:81`, `PublicCFDI.jsx:135,137
 Most of them hide effects that use stale values or should be events (`CfdiTab`, `GeneralSettingsTab`, `MenusTab`, `DevicesTab`, `TablesTab`, `OnlineOrdersInbox`, `PublicOrder`, `CanvasEditor` ×4, …).
 **Fix:** review each one. Use stable callbacks (`useCallback`), move the logic into the handler, or pass the right dependencies. Keep a disable only where it's justified in one line.
 
-### P4: Timing-based waits instead of real signals
+### P4: Timing-based waits instead of real signals (done)
 
-- `OrdersTab.jsx:417`: waits with `setTimeout` for the DOM to render `TicketImage` before capturing it. The fix is to render it and capture from a ref callback or effect.
-- `SetupScreen.jsx:4332`: a fixed 1-second "wait for UX". Remove it.
-- `MenuHistoryPanel.jsx:72`, `PublicCFDI.jsx:198`: `window.location.reload()` to refresh data. The fix is to refetch state.
-- Done for 10 of the ~15 `setTimeout(() => setX(false), N)` flag resets via `src/hooks/useFlash.js`. Left: `useCheckout`/`useLoyalty` (they receive the setter from their caller) and MenuShareCard's `error`, which also holds real errors; convert them when those files are split.
+- `OrdersTab`: the PNG capture runs from an effect once the hidden `TicketImage` has rendered, instead of after a 300 ms timer.
+- `SetupScreen`: the 1-second "wait for UX" is removed.
+- `MenuHistoryPanel`: after a restore it calls `recheckCloud` (passed down from `useAdminData`) instead of reloading the page. `PublicCFDI` retries the lookup when the throttle countdown ends instead of reloading.
+- All timed flag resets use `src/hooks/useFlash.js`, including `useCheckout`'s receipt animation, `useLoyalty`'s phone shake and `MenuShareCard`'s clipboard notice (now separate from its real `error`).
 
 ### P5: Legacy paths that may be dead
 
@@ -82,7 +82,8 @@ Each one needs a yes/no from you: are there still installs that need it?
 
 ### P7: Translations embedded in components
 
-`OnlineOrdersTab.jsx:52–58` and `PublicOrder.jsx:111` have their own EN/ES dictionaries next to `translations.js`. Move them into the shared translations.
+- `OnlineOrdersTab`'s delivery-area dictionary moved into `translations.js` as `ooArea.*` (done).
+- `PublicOrder`'s dictionary stays in `components/publicOrder/strings.js` on purpose: `translations.js` is ~260 KB of mostly admin text, and the customer order page shouldn't download it.
 
 ## Step 1a: migration review
 

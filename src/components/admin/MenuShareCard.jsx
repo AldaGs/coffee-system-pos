@@ -29,6 +29,7 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
   const canvasRef = useRef(null);
   const [copied, flashCopied] = useFlash(1800);
   const [error, setError] = useState(null);
+  const [clipboardFailed, flashClipboardFailed] = useFlash(2400);
   const [menuUrl, setMenuUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [customDomain, setCustomDomain] = useState(() => readCustomDomain(kind));
@@ -175,8 +176,7 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
     } catch {
       // Older WebViews / non-https without clipboard API: surface a visible
       // fallback so the user knows the auto-copy failed and can select the URL.
-      setError('clipboard');
-      setTimeout(() => setError(null), 2400);
+      flashClipboardFailed();
     }
   };
 
@@ -299,10 +299,10 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
               Configura las credenciales de Supabase para generar el enlace público.
             </p>
           )}
-          {error === 'clipboard' && (
+          {clipboardFailed && (
             <p style={errorTextStyle}>{t('share.copyFallback')}</p>
           )}
-          {error && error !== 'clipboard' && (
+          {error && (
             <p style={errorTextStyle}>{error}</p>
           )}
 

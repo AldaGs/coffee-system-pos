@@ -89,6 +89,7 @@ function PublicCFDI({ ticketId }) {
   // Seconds left on a server throttle (too many unresolved ticket lookups).
   // Counts down so the customer knows to wait rather than giving up.
   const [retryIn, setRetryIn] = useState(0);
+  const [attempt, setAttempt] = useState(0); // bumps to re-run the lookup after a throttle
 
   // Form state
   const [hasSaved, setHasSaved] = useState(() => !!readSaved());
@@ -145,6 +146,7 @@ function PublicCFDI({ ticketId }) {
     const fetchTicket = async () => {
       try {
         setLoading(true);
+        setError(null);
         // One RPC instead of three anon table reads. The portal runs on the
         // public anon key (it ships inside the receipt QR), so the server
         // resolves the reference — sales.local_id, sales.ticket_id, or an open
@@ -185,24 +187,18 @@ function PublicCFDI({ ticketId }) {
     };
 
     fetchTicket();
-  }, [supabase, ticketId]);
+  }, [supabase, ticketId, attempt]);
 
 
-  // Tick the throttle countdown down to zero, then reload so the customer
-  // doesn't have to work out that they should try again themselves.
+  // Tick the throttle countdown down to zero, then look the ticket up again so
+  // the customer doesn't have to work out that they should try again themselves.
   useEffect(() => {
     if (retryIn <= 0) return;
-    const id = setInterval(() => {
-      setRetryIn(prev => {
-        if (prev <= 1) {
-          clearInterval(id);
-          window.location.reload();
-          return 0;
-        }
-        return prev - 1;
-      });
+    const id = setTimeout(() => {
+      if (retryIn === 1) setAttempt(a => a + 1);
+      setRetryIn(retryIn - 1);
     }, 1000);
-    return () => clearInterval(id);
+    return () => clearTimeout(id);
   }, [retryIn]);
 
   const handleChange = (e) => {

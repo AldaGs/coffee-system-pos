@@ -61,7 +61,7 @@ const recordRuleUsage = async (ticket) => {
 export const useCheckout = (posState) => {
   const {
     activeTicket, cartTotal, activeCashier, tipAmount = 0, loyaltySettings = null,
-    clearCurrentTicket, setSuccessTicket, showAlert, showConfirm, t,
+    clearCurrentTicket, flashSuccessTicket, showAlert, showConfirm, t,
     onAfterCheckout
   } = posState;
 
@@ -110,8 +110,8 @@ export const useCheckout = (posState) => {
     const isSplit = paymentsArray.length > 1;
     const masterMethodString = isSplit ? 'Split' : paymentsArray[0].method;
 
-    if (setSuccessTicket) {
-      setSuccessTicket({
+    if (flashSuccessTicket) {
+      flashSuccessTicket({
         name: ticketSnapshot.name,
         items: ticketSnapshot.items,
         total: ticketSnapshot.total,
@@ -122,7 +122,6 @@ export const useCheckout = (posState) => {
         discount: ticketSnapshot.discount,
         method: masterMethodString
       });
-      setTimeout(() => setSuccessTicket(null), 2500);
     }
 
     resetCheckoutState();

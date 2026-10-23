@@ -68,8 +68,8 @@ function MenuHistoryPanel({ onAfterRestore }) {
           await restoreVersion(row.id);
           await reload();
           showAlert?.(t('menuHistory.done'), t('menuHistory.restoreDone'));
-          if (onAfterRestore) onAfterRestore();
-          else setTimeout(() => window.location.reload(), 600);
+          // Refetch the menu so every tab shows the restored version.
+          onAfterRestore?.();
         } catch (err) {
           showAlert?.('Error', err.message);
         } finally {

@@ -206,6 +206,7 @@ function Admin() {
 
         {activeTab === 'menu' && (
           <MenuEditorTab
+            onMenuRestored={data.recheckCloud}
             {...catalog}
             {...assets}
             isAdvancedMode={isAdvanced}
