@@ -8,9 +8,8 @@
 //
 // Response envelope (sanitized — internal fields never reach the client):
 //   { menu: {id, kind, name, data}, shop, categories, modifier_groups }
-// For kind='live' we render categories/modifier_groups (catalog view).
-// For kind in ('pdf','image','designed') we render from menu.data — those
-// renderers ship in later phases.
+// kind='live' renders categories/modifier_groups (catalog view); 'pdf'/'image'
+// render menu.data.pages; 'designed' renders its canvas document, or a template.
 //
 // Routed at /menu and bypasses every App.jsx gate. URL: /menu?p=PROJECT_REF
 // (or a linked custom domain). The Supabase URL is derived from the ref and the
@@ -19,7 +18,7 @@
 
 import CanvasRenderer from './menuCanvas/CanvasRenderer';
 import { useMenuData } from './publicMenu/useMenuData';
-import { trackMenu, pageStyle, headerStyle, headerTitleStyle, navStyle, navButtonStyle, mainStyle, centerStyle } from './publicMenu/shared';
+import { trackMenu, pageStyle, headerStyle, headerTitleStyle, navStyle, navButtonStyle, mainStyle } from './publicMenu/shared';
 import { ItemList } from './publicMenu/items';
 import { UploadedMenu, PrintWrapper } from './publicMenu/UploadedMenu';
 import { TemplatedMenu } from './publicMenu/templates';
@@ -59,10 +58,9 @@ function PublicMenu() {
     return <TvMode data={data} brand={brand} lang={lang} />;
   }
 
-  // Designer kind:
-  //   - menu.data.document present → freeform canvas (Phase 4c) renders it.
-  //   - otherwise → template-mode (Phase 4a) renders categories via the
-  //     chosen template + theme.
+  // Designed kind:
+  //   - menu.data.document present → the freeform canvas renders it.
+  //   - otherwise → the chosen template + theme render the categories.
   if (menuKind === 'designed') {
     if (data.menu?.data?.document) {
       if (isPrintMode) {
@@ -94,25 +92,7 @@ function PublicMenu() {
     );
   }
 
-  // kind='designed' renderer ships in Phase 4. Placeholder for now.
-  if (menuKind !== 'live') {
-    return (
-      <div className="tinymenu-scroll" style={pageStyle}>
-        <header style={{ ...headerStyle, background: brand }}>
-          <h1 style={headerTitleStyle}>{shop.name || 'Menu'}</h1>
-        </header>
-        <div style={centerStyle}>
-          <div>
-            <p style={{ margin: 0, fontWeight: 700 }}>{data.menu?.name || 'Menú'}</p>
-            <p style={{ marginTop: 8, fontSize: '0.85rem', color: '#888' }}>
-              Este formato de menú ({menuKind}) aún no está disponible para mostrar.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  // kind='live': the catalog view. menus.kind only allows these four kinds.
   return (
     <div className="tinymenu-scroll" style={pageStyle}>
       <header style={{ ...headerStyle, background: brand }}>

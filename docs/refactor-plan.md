@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). P5 and P3 are done too. P2 is done too. Left: P6 (postponed).
+Status: **complete** (2026-10-23). Phases 1–6 and P1–P7 are done; the bugs found along the way are fixed (see "Bugs found during the refactor").
 
 ## Goals
 
@@ -70,9 +70,9 @@ All 25 removed; none left. 24 were effects that needed current values without re
 - Kept: the 2000 g / 10 reorder default, now described as the default for items without a reorder point (it isn't legacy).
 - Kept: the activity mapping for old action names. The register now logs discounts as `discount_applied` with metadata; old "Discount Applied" rows show their stored text.
 
-### P6: Unfinished placeholder
+### P6: Unfinished placeholder (done 2026-10-23)
 
-`PublicMenu.jsx:244` still shows a "Phase 4" placeholder for `kind='designed'` menus. The designed renderer (`CanvasRenderer`) exists now. **Decision:** postponed. No changes until the end of the refactor.
+The description above was out of date: designed menus already render (canvas document via `CanvasRenderer`, otherwise a template). The "aún no está disponible" placeholder was only reachable for a `kind` outside live/pdf/image/designed, which the `menus.kind` check constraint forbids, so it was removed along with the stale "later phases" comments.
 
 ### P7: Translations embedded in components
 
@@ -313,7 +313,7 @@ src/components/admin/<area>/   (decision)
 | 3 | The 1,100–1,600-line tabs, `Register.jsx`, `PublicOrder`, `PublicMenu`, P4, P6, P7 | 3 |
 | 4 | Done: `translations.js` (4,651 lines) split into `src/utils/translations/` (10 area files + `index.js`); same 2,244 keys and values per language, imports unchanged | — |
 | 5 | Done: P5 paths reviewed; approved ones removed | 0 |
-| 6 | P6: designed-menu page | end |
+| 6 | Done: P6 placeholder removed (designed menus already rendered) | end |
 
 Every PR: `npm run lint`, `npm test`, `npm run build` pass. Before a split, add tests for the code being pulled out (hooks and helpers) if it has none.
 
