@@ -1,4 +1,4 @@
-import { Group, Path, Rect, Text } from 'react-konva';
+import { Group, Image as KImage, Path, Rect, Text } from 'react-konva';
 import { formatDateField } from '../../../utils/canvasDocument';
 import { shadowKonvaProps } from './nodeStyle';
 import { useCanvasImage } from '../../../utils/canvasImageCache';
