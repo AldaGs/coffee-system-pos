@@ -36,10 +36,8 @@ export function useGlobalPeriods({ open, showAlert, showConfirm, t }) {
     }
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => { fetchGlobalPeriods(); }, 0);
-    return () => clearTimeout(timer);
-  }, [fetchGlobalPeriods]);
+  // State only changes after the network reply, so the load can start directly.
+  useEffect(() => { fetchGlobalPeriods(); }, [fetchGlobalPeriods]);
 
   // Live preview of the selected month's totals before closing.
   useEffect(() => {

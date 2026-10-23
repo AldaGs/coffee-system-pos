@@ -57,13 +57,12 @@ export default function SharedPinPad({
     }
   }, [onSubmit]);
 
-  // --- AUTO-VERIFY: trigger as soon as the 4th digit lands ---
+  // --- AUTO-VERIFY: as soon as the 4th digit has rendered ---
+  // An effect, not the key handler: callers' onSubmit reads the PIN from their
+  // own state, which only holds the 4th digit after this render. verifyingRef
+  // stops a second run.
   useEffect(() => {
-    if (pin.length === 4 && !error && !verifyingRef.current && !cooling) {
-      // Defer one tick so we don't setState inside a render commit.
-      const timer = setTimeout(() => { handleSubmit(); }, 0);
-      return () => clearTimeout(timer);
-    }
+    if (pin.length === 4 && !error && !verifyingRef.current && !cooling) handleSubmit();
   }, [pin, error, handleSubmit, cooling]);
 
   // --- UNIVERSAL KEYBOARD LISTENER (also gated by isVerifying) ---

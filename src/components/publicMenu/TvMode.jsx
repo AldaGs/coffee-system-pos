@@ -38,13 +38,10 @@ export function TvMode({ data, brand, lang }) {
     return [{ key: 'placeholder', kind: 'placeholder', payload: null }];
   }, [data, kind, menu.data]);
 
-  const [idx, setIdx] = useState(0);
+  const [rawIdx, setIdx] = useState(0);
   const [visible, setVisible] = useState(true);
-
-  // Reset index when slide set shrinks (e.g. a category was hidden).
-  useEffect(() => {
-    if (idx >= slides.length) setTimeout(() => setIdx(0), 0);
-  }, [slides.length, idx]);
+  // Back to the first slide if the set shrank under us (e.g. a category was hidden).
+  const idx = rawIdx < slides.length ? rawIdx : 0;
 
   // Rotation: hide → swap → show, for a clean crossfade.
   useEffect(() => {
@@ -52,7 +49,7 @@ export function TvMode({ data, brand, lang }) {
     const tick = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setIdx(i => (i + 1) % slides.length);
+        setIdx(i => ((i < slides.length ? i : 0) + 1) % slides.length);
         setVisible(true);
       }, 350);
     }, rotationMs);

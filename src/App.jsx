@@ -43,6 +43,8 @@ function MainApp() {
   // --- 2. SECURE SESSION STATE ---
   const [session, setSession] = useState(null);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
+  // Local mode and uninstalled devices have no cloud session to verify.
+  const needsSessionCheck = isInstalled && !!supabase && !localMode;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -113,10 +115,7 @@ function MainApp() {
   useEffect(() => {
     // Local mode has no Supabase session to verify — skip the whole cloud
     // auth/allowlist machinery and let the local credential gate take over.
-    if (!isInstalled || !supabase || localMode) {
-      setTimeout(() => setIsCheckingSession(false), 0);
-      return;
-    }
+    if (!needsSessionCheck) return;
 
     // Race any awaited promise against a hard timeout. Returns the
     // promise's value, or { __timedOut: true } if it didn't settle in N ms.
@@ -241,7 +240,7 @@ function MainApp() {
     });
 
     return () => subscription.unsubscribe();
-  }, [isInstalled, localMode]);
+  }, [needsSessionCheck]);
 
   const handleDeviceLogin = async (e) => {
     e.preventDefault();
@@ -370,7 +369,7 @@ function MainApp() {
 
   // --- GATE 2: THE DEVICE AUTHORIZATION SCREEN ---
   // If they have keys, but the device isn't logged into the Kiosk account, lock them out!
-  if (isCheckingSession) {
+  if (needsSessionCheck && isCheckingSession) {
     return (
       <div className="loader-container">
         <div className="spinner"></div>

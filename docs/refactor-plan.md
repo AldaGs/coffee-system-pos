@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). P5 and P3 are done too. Left: the P2 zero-delay timers, P6.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). P5 and P3 are done too. P2 is done too. Left: P6 (postponed).
 
 ## Goals
 
@@ -46,10 +46,9 @@ Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and
 4. Track applied migrations in a `schema_migrations` table, replacing the single `schema_version` string. `/api/install` runs only the missing files, one request per file or small batch, so each request stays under the Vercel time limit.
 5. Delete the SQL copies from `install.js`, `SetupScreen.jsx`, `_schemaDeltas.js` and `schema-latest.sql`, along with the manual sync rule in `schemaVersion.js`.
 
-### P2: `setTimeout(..., 0)` used to get around React's "no setState in effect" rule
+### P2: `setTimeout(..., 0)` around state updates (done 2026-10-23)
 
-There are 7+ cases (`App.jsx:117`, `SetupScreen.jsx:81`, `PublicCFDI.jsx:135,137`, `PublicMenu.jsx:141,808`, `CanvasEditor.jsx:134,577`, `GeneralSettingsTab.jsx:144,152`, `MenuShareCard.jsx:101`, `CfdiTab.jsx:169`). They delay a state update by one tick only to silence the lint rule, at the cost of an extra render and a brief flash of wrong state.
-**Fix:** compute the value while rendering, set it in the event handler, or use lazy initial state.
+None left in app code. `App.jsx` derives "needs a session check" while rendering; the public menu and CFDI pages start with their "missing link" error; TV mode picks a valid slide while rendering; Factura Global, the share card and the PIN pad call their work directly from the effect (the PIN pad stays an effect because callers' `onSubmit` reads the PIN from their own state). CFDI requests' was removed with the P3 fixes.
 
 ### P3: `eslint-disable react-hooks/exhaustive-deps` (done 2026-10-23)
 

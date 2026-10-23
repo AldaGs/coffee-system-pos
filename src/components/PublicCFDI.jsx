@@ -65,7 +65,9 @@ function PublicCFDI({ ticketId }) {
   const legal = useLegal(supabase); // consent line only when the shop wrote a privacy notice
   const [sale, setSale] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  // A link without ?p= can't reach any store.
+  const [error, setError] = useState(() =>
+    (new URLSearchParams(window.location.search).get('p') ? null : "Faltan parámetros en el enlace."));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
@@ -95,31 +97,20 @@ function PublicCFDI({ ticketId }) {
   }));
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const p = params.get('p');
-    let url = '';
-    let key = '';
-
-    if (p) {
-      url = `https://${p}.supabase.co`;
-      fetch(`https://${p}.supabase.co/storage/v1/object/public/menu/config.json`)
-        .then(res => {
-          if (!res.ok) throw new Error('config.json missing');
-          return res.json();
-        })
-        .then(config => {
-          key = config.k || config.anon_key;
-          if (url && key) {
-            setSupabase(createClient(url, key, { auth: { persistSession: false } }));
-          } else {
-            setError("Configuración inválida.");
-          }
-        })
-        .catch(() => setError("No se pudo cargar la configuración de la tienda."));
-      return;
-    }
-
-    setTimeout(() => setError("Faltan parámetros en el enlace."), 0);
+    const p = new URLSearchParams(window.location.search).get('p');
+    if (!p) return; // the initial error state covers it
+    const url = `https://${p}.supabase.co`;
+    fetch(`${url}/storage/v1/object/public/menu/config.json`)
+      .then(res => {
+        if (!res.ok) throw new Error('config.json missing');
+        return res.json();
+      })
+      .then(config => {
+        const key = config.k || config.anon_key;
+        if (key) setSupabase(createClient(url, key, { auth: { persistSession: false } }));
+        else setError("Configuración inválida.");
+      })
+      .catch(() => setError("No se pudo cargar la configuración de la tienda."));
   }, []);
 
   useEffect(() => {

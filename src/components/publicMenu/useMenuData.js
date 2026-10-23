@@ -7,22 +7,29 @@ const clientOpts = { auth: { persistSession: false, autoRefreshToken: false } };
 
 // Resolves the shop's anon client from the URL (?p= ref or a custom domain),
 // then loads the menu (?m= pins one) and refreshes it every 5 minutes.
+// True when the page is served from a shop's own domain (resolved via /api/resolve-domain).
+const onCustomDomain = () => {
+  const hostname = window.location.hostname;
+  return !!hostname &&
+    !hostname.includes('localhost') &&
+    !hostname.includes('127.0.0.1') &&
+    !hostname.endsWith('.vercel.app') &&
+    hostname !== 'tinypos.app' &&
+    hostname !== 'www.tinypos.app';
+};
+
 export function useMenuData({ isTvMode, isPrintMode }) {
   const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
+  // A link with neither ?p= nor a custom domain can't reach any store.
+  const [error, setError] = useState(() =>
+    (new URLSearchParams(window.location.search).get('p') || onCustomDomain() ? null : 'missing-config'));
   const [activeCategoryId, setActiveCategoryId] = useState(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pinnedId = params.get('m');
     const hostname = window.location.hostname;
-    const isCustomDomain =
-      hostname &&
-      !hostname.includes('localhost') &&
-      !hostname.includes('127.0.0.1') &&
-      !hostname.endsWith('.vercel.app') &&
-      hostname !== 'tinypos.app' &&
-      hostname !== 'www.tinypos.app';
+    const isCustomDomain = onCustomDomain();
 
     let cancelled = false;
     let interval = null;
@@ -81,8 +88,7 @@ export function useMenuData({ isTvMode, isPrintMode }) {
           if (!cancelled) setError('Error resolviendo el dominio.');
         });
     } else {
-      setTimeout(() => setError('missing-config'), 0);
-      return;
+      return; // no store in the link: the initial error state covers it
     }
 
     return () => {

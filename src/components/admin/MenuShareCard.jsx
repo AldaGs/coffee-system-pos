@@ -92,14 +92,13 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
     } finally {
       setUploading(false);
     }
-  }, [projectRef, anonKey, missingCreds, isOrder, page, linkedDomain]); // linkedDomain: rebuild after (un)linking
+  }, [projectRef, anonKey, missingCreds, isOrder, page]);
 
   // On mount (and whenever creds change), upload the config.
   useEffect(() => backfillCustomDomain(kind), [kind]);
 
-  useEffect(() => {
-    setTimeout(generateShortUrl, 0);
-  }, [generateShortUrl]);
+  // linkedDomain: the link's base URL reads the domain, so rebuild after (un)linking.
+  useEffect(() => { generateShortUrl(); }, [generateShortUrl, linkedDomain]);
 
   // Render the inline QR into the visible canvas once menuUrl is ready.
   useEffect(() => {
