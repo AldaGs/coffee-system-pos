@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import PendingSyncCard from './PendingSyncCard';
 import InfoTip from '../shared/InfoTip';
+import { useFlash } from '../../hooks/useFlash';
 
 const DEVICE_EMAIL_DOMAIN = 'device.tinypos.com';
 
@@ -61,7 +62,7 @@ function DevicesTab({ showAlert, showConfirm }) {
   const [submitStep, setSubmitStep] = useState(''); // 'authorizing' | 'provisioning' | ''
   const [error, setError] = useState('');
   const [created, setCreated] = useState(null);
-  const [copied, setCopied] = useState(null);
+  const [copied, flashCopied] = useFlash(1500, null);
 
   const slug = useMemo(() => slugifyDeviceName(deviceName), [deviceName]);
   const previewEmail = useCustomEmail
@@ -231,8 +232,7 @@ function DevicesTab({ showAlert, showConfirm }) {
   const copyToClipboard = async (text, label) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(label);
-      setTimeout(() => setCopied(null), 1500);
+      flashCopied(label);
     } catch {
       // ignore
     }

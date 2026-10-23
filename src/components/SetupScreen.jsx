@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { createClient } from '@supabase/supabase-js';
 import { isUpgradePending } from '../utils/appMode';
+import { useFlash } from '../hooks/useFlash';
 
 // Burn-after-reading: drop the HttpOnly Management-token cookie the moment a
 // setup flow finishes (success or failure) instead of waiting for its Max-Age.
@@ -41,7 +42,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
   const [creating, setCreating] = useState(false);
   const [provisionStatus, setProvisionStatus] = useState(''); // '', 'provisioning', 'ready'
   const [createdProject, setCreatedProject] = useState(null); // { ref, dbPass }
-  const [dbPassCopied, setDbPassCopied] = useState(false);
+  const [dbPassCopied, flashDbPassCopied] = useFlash(1500);
 
   const REGIONS = [
     { value: 'us-east-1', label: 'Este de EE.UU. (Norte de Virginia)' },
@@ -843,7 +844,7 @@ export default function SetupScreen({ initialMode, onBack, onComplete, onShowGui
                               <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#b8860b', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Contraseña de la base de datos</div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <code style={{ flex: 1, fontFamily: 'ui-monospace, monospace', fontSize: '0.95rem', color: 'var(--text-main)', wordBreak: 'break-all' }}>{createdProject.dbPass}</code>
-                                <button type="button" onClick={() => { navigator.clipboard?.writeText(createdProject.dbPass); setDbPassCopied(true); setTimeout(() => setDbPassCopied(false), 1500); }} style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                                <button type="button" onClick={() => { navigator.clipboard?.writeText(createdProject.dbPass); flashDbPassCopied(); }} style={{ border: '1px solid var(--border)', background: 'var(--bg-surface)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
                                   <Icon icon={dbPassCopied ? 'lucide:check' : 'lucide:copy'} /> {dbPassCopied ? 'Copiado' : 'Copiar'}
                                 </button>
                               </div>

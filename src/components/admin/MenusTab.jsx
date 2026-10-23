@@ -27,6 +27,7 @@ import CanvasEditor from '../menuCanvas/CanvasEditor';
 import QRCode from 'qrcode';
 import InfoTip from '../shared/InfoTip';
 import { useTranslation } from '../../hooks/useTranslation';
+import { useFlash } from '../../hooks/useFlash';
 
 function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
   const { t } = useTranslation();
@@ -972,7 +973,7 @@ function dayLabel(d, t) {
 function MenuShareBlock({ menu }) {
   const { t } = useTranslation();
   const canvasRef = useRef(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, flashCopied] = useFlash(1500);
 
   const link = (() => {
     if (typeof window === 'undefined') return '';
@@ -1000,8 +1001,7 @@ function MenuShareBlock({ menu }) {
   async function copy() {
     try {
       await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      flashCopied();
     } catch { /* ignore */ }
   }
 

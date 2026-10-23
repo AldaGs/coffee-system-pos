@@ -15,6 +15,7 @@ import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { supabase } from '../../supabaseClient';
 import { readCustomDomain, persistCustomDomain, menuBaseUrl, orderBaseUrl, backfillCustomDomain } from '../../utils/customDomainSync';
+import { useFlash } from '../../hooks/useFlash';
 
 const QR_SIZE = 180;       // rendered size in the card
 const QR_DOWNLOAD_SIZE = 1024; // larger version for the downloaded PNG
@@ -26,7 +27,7 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
   const page = isOrder ? 'order' : 'menu';
   const { t } = useTranslation();
   const canvasRef = useRef(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, flashCopied] = useFlash(1800);
   const [error, setError] = useState(null);
   const [menuUrl, setMenuUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -170,8 +171,7 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
     if (!menuUrl) return;
     try {
       await navigator.clipboard.writeText(menuUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
+      flashCopied();
     } catch {
       // Older WebViews / non-https without clipboard API: surface a visible
       // fallback so the user knows the auto-copy failed and can select the URL.

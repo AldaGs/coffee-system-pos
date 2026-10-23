@@ -17,6 +17,7 @@ import { APP_SCHEMA_VERSION } from '../../utils/schemaVersion';
 import { getBusinessProfile } from '../../utils/businessProfile';
 import { ClipCard, AlertsCard } from './PaymentAlertCards';
 import InfoTip from '../shared/InfoTip';
+import { useFlash } from '../../hooks/useFlash';
 
 // Session keys used by the schema-update OAuth round-trip. Mirror the
 // burn-after-reading pattern from DevicesTab — the Management token stays in an
@@ -54,7 +55,7 @@ function GeneralSettingsTab({
 
   const [pinChallenge, setPinChallenge] = useState({ isOpen: false, onAuthorized: null });
   const [pinAttempt, setPinAttempt] = useState('');
-  const [pinError, setPinError] = useState(false);
+  const [pinError, flashPinError, setPinError] = useFlash(500);
 
   const [brandColorInput, setBrandColorInput] = useState(generalSettings.brandColor || '#000000');
   const [brandColorInvalid, setBrandColorInvalid] = useState(false);
@@ -246,8 +247,7 @@ function GeneralSettingsTab({
       closePinChallenge();
       if (action) action();
     } else {
-      setPinError(true);
-      setTimeout(() => setPinError(false), 500);
+      flashPinError();
       setPinAttempt('');
     }
   };

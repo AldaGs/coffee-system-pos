@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useMenuStore } from '../../store/useMenuStore';
 import SharedPinPad from '../shared/SharedPinPad';
+import { useFlash } from '../../hooks/useFlash';
 
 // Self-contained PIN challenge. Owns the attempt input, shake feedback, and
 // verification call so Register doesn't have to coordinate four parallel
@@ -9,7 +10,7 @@ import SharedPinPad from '../shared/SharedPinPad';
 function PinChallengeModal({ challenge, setChallenge, activeCashier, showAlert }) {
   const { t } = useTranslation();
   const [pinAttempt, setPinAttempt] = useState('');
-  const [shake, setShake] = useState(false);
+  const [shake, flashShake, setShake] = useFlash(500);
   // Server-side PIN lockout (migration 044), so this pad freezes too instead
   // of insisting the PIN is wrong.
   const pinLockoutUntil = useMenuStore(state => state.pinLockoutUntil);
@@ -39,8 +40,7 @@ function PinChallengeModal({ challenge, setChallenge, activeCashier, showAlert }
         cb?.(authorizer || null);
       } else {
         attempts.current += 1;
-        setShake(true);
-        setTimeout(() => setShake(false), 500);
+        flashShake();
         setPinAttempt('');
       }
     } catch (err) {

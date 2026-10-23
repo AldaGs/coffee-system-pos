@@ -1,9 +1,9 @@
-import { useState } from 'react';
 import { Icon } from '@iconify/react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useQrScanner } from '../../hooks/useQrScanner';
 import { useNfcReader } from '../../hooks/useNfcReader';
 import { parsePhoneFromScan } from '../../utils/customerCapture';
+import { useFlash } from '../../hooks/useFlash';
 
 /**
  * QR-scan and NFC-tap capture, shown beneath the manual phone entry. Both are
@@ -14,7 +14,7 @@ import { parsePhoneFromScan } from '../../utils/customerCapture';
  */
 function CustomerCaptureControls({ onCapture }) {
   const { t } = useTranslation();
-  const [scanError, setScanError] = useState(false);
+  const [scanError, flashScanError, setScanError] = useFlash(2500);
 
   const handleDecoded = (raw) => {
     const phone = parsePhoneFromScan(raw);
@@ -22,8 +22,7 @@ function CustomerCaptureControls({ onCapture }) {
       setScanError(false);
       onCapture(phone);
     } else {
-      setScanError(true);
-      setTimeout(() => setScanError(false), 2500);
+      flashScanError();
     }
   };
 

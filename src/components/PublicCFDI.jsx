@@ -5,6 +5,7 @@ import { useLegal } from '../hooks/useLegal';
 import { Icon } from '@iconify/react';
 import { getCfdiPeriodWarning } from '../utils/cfdiUrl';
 import { parseConstancia } from '../utils/constanciaFiscal';
+import { useFlash } from '../hooks/useFlash';
 
 function decodeParam(value) {
   if (!value) return '';
@@ -78,7 +79,7 @@ function PublicCFDI({ ticketId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
-  const [folioCopied, setFolioCopied] = useState(false);
+  const [folioCopied, flashFolioCopied] = useFlash(2000);
   // Per-field validation errors for the fiscal form.
   const [fieldErrors, setFieldErrors] = useState({});
   // Constancia (Situación Fiscal) PDF upload → prefill state.
@@ -91,7 +92,7 @@ function PublicCFDI({ ticketId }) {
 
   // Form state
   const [hasSaved, setHasSaved] = useState(() => !!readSaved());
-  const [forgotMsg, setForgotMsg] = useState(false);
+  const [forgotMsg, flashForgotMsg] = useFlash(3000);
   const [formData, setFormData] = useState(() => ({
     rfc: '',
     razon_social: '',
@@ -221,8 +222,7 @@ function PublicCFDI({ ticketId }) {
     setFormData({ rfc: '', razon_social: '', regimen_fiscal: '601', uso_cfdi: 'G03', cp: '', email: '' });
     setFieldErrors({});
     setConstanciaState({ status: 'idle', message: '' });
-    setForgotMsg(true);
-    setTimeout(() => setForgotMsg(false), 3000);
+    flashForgotMsg();
   };
 
   const handleCopyFolio = async () => {
@@ -241,8 +241,7 @@ function PublicCFDI({ ticketId }) {
       try { document.execCommand('copy'); } catch { /* ignore */ }
       document.body.removeChild(ta);
     }
-    setFolioCopied(true);
-    setTimeout(() => setFolioCopied(false), 2000);
+    flashFolioCopied();
   };
 
   const handleConstanciaUpload = async (e) => {

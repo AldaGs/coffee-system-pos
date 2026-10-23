@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, and the Admin.jsx and CanvasEditor.jsx splits done** (2026-10-22). Rest of Phase 3 not started.
+Status: **1b, 2, the Admin.jsx and CanvasEditor.jsx splits, and useFlash done** (2026-10-22). Next: SetupScreen.jsx split.
 
 ## Goals
 
@@ -61,7 +61,7 @@ Most of them hide effects that use stale values or should be events (`CfdiTab`, 
 - `OrdersTab.jsx:417`: waits with `setTimeout` for the DOM to render `TicketImage` before capturing it. The fix is to render it and capture from a ref callback or effect.
 - `SetupScreen.jsx:4332`: a fixed 1-second "wait for UX". Remove it.
 - `MenuHistoryPanel.jsx:72`, `PublicCFDI.jsx:198`: `window.location.reload()` to refresh data. The fix is to refetch state.
-- Many `setTimeout(() => setX(false), N)` resets for copied/error flags (about 15 places). The fix is one small `useFlash()` hook that also clears its timer on unmount.
+- Done for 10 of the ~15 `setTimeout(() => setX(false), N)` flag resets via `src/hooks/useFlash.js`. Left: `useCheckout`/`useLoyalty` (they receive the setter from their caller) and MenuShareCard's `error`, which also holds real errors; convert them when those files are split.
 
 ### P5: Legacy paths that may be dead
 

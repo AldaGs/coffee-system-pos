@@ -64,6 +64,7 @@ import { createRealtimeChannel } from './utils/realtime';
 import { isCloudReachable } from './utils/network';
 import { fromCents } from './utils/moneyUtils';
 import { getBusinessProfile, getCachedBusinessType } from './utils/businessProfile';
+import { useFlash } from './hooks/useFlash';
 
 
 const getOrCreateDeviceId = () => {
@@ -462,7 +463,7 @@ function Register() {
   // --- LOYALTY & WHATSAPP STATES ---
   const [loyaltyModal, setLoyaltyModal] = useState({ isOpen: false, step: 'phone', phone: '', data: null });
   const [phoneError, setPhoneError] = useState(false); // shake on invalid phone in loyalty modal
-  const [pinShake, setPinShake] = useState(false);     // shake on wrong PIN (lock + challenge)
+  const [pinShake, flashPinShake, setPinShake] = useFlash(500);     // shake on wrong PIN (lock + challenge)
   const pinAttempts = useRef(0);                       // monotonic wrong-PIN counter (telemetry hook)
 
   // --- CASHIER PROFILES (CLOUD SYNCED) ---
@@ -506,8 +507,7 @@ function Register() {
         setSelectedProfile(null);
       } else {
         pinAttempts.current += 1;
-        setPinShake(true);
-        setTimeout(() => setPinShake(false), 500);
+        flashPinShake();
         setPinAttempt('');
       }
     } catch (err) {
