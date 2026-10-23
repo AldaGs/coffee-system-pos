@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab and GeneralSettingsTab done; next of the 1,100–1,600-line tabs: Register.jsx.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx done; next: PublicOrder.jsx.
 
 ## Goals
 
@@ -288,6 +288,20 @@ src/components/admin/<area>/   (decision)
 - `src/components/admin/settings/`: `useSchemaUpdate` (version read + OAuth resume), `useAdvancedModeToggle` (PIN challenge), `parseColor.js` (tested), section components (`CoreSections`, `SchemaSection`, `WorkflowCard`, `DeviceSections`) and `fields.jsx`.
 - Removed dead code: the legacy price repair (unreachable) and a commented-out sign-out card; Admin.jsx no longer passes `setInventoryItems`/`dexieSales` here.
 - P2/P3: the three `setTimeout(…, 0)` and the OAuth-resume `eslint-disable` are gone (initial state computed up front, real effect deps).
+
+### Register.jsx split (1,205 → 432 lines)
+
+- Money math moved to `src/utils/registerTotals.js` (`cartTotals`, `shiftTotals`) with tests; the code was moved as-is.
+- New hooks in `src/hooks/`: `useRegisterSync` (boot load + live mirrors), `useRegisterLock`, `useKdsSend`, `useTicketDiscounts`, `useItemPicker` (+ `createItemClick`), `useOrderNumbers`, `useReceiptSharing`, `useTablesLayout`.
+- P3: the auto-lock disable is gone; three remain, each with a reason (restore-on-login, KDS immediate send, the context memo).
+- Also fixed (found while checking JSX names): the CanvasEditor split had dropped `Image as KImage`, so designed menus with images crashed. Fixed in its own commit.
+
+## Open bugs found during the refactor (not fixed; need a decision)
+
+1. **Corte double-counts cash refunds.** `shiftTotals`: a sale refunded in the same shift is already counted net of its refund, and `shiftCashRefunds` subtracts the refund again, so expected cash is too low by the refunded amount. A refund on a sale from an earlier shift isn't counted at all. The test in `registerTotals.test.js` pins the current numbers.
+2. **Weekly order-number reset never happens.** Settings offers "weekly", `useOrderNumbers` only handles daily/monthly/yearly.
+3. **Custom date range ends a day early** west of UTC (`new Date('YYYY-MM-DD')`), in `analyticsMath.inPeriod`.
+4. **Menu history card errors in local mode** (`listVersions` has no local-mode guard).
 
 ## Order of work (one PR per step)
 

@@ -1,43 +1,21 @@
 import { Icon } from '@iconify/react';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from './db';
 import { useNavigate } from 'react-router-dom';
+import { db } from './db';
 import { supabase } from './supabaseClient';
-import { loadMenu } from './api/menu';
-import { loadFloors } from './api/floors';
-import { tablesOf } from './utils/floorDocument';
 import { isLocalMode } from './utils/appMode';
 import './App.css';
 import { PosContext } from './utils/PosContext';
 import { useDialog } from './hooks/useDialog';
-import OnlineOrdersInbox from './components/register/OnlineOrdersInbox';
 import { useTheme } from './hooks/useTheme';
+import { useTranslation } from './hooks/useTranslation';
 import { useAuthStore } from './store/useAuthStore';
 import { useMenuStore } from './store/useMenuStore';
 import { useCartStore } from './store/useCartStore';
-import { logActivity } from './services/activityService';
-import { consumePendingAuthorizer } from './utils/overrideAuthorizer';
-import { gateRegisterAction } from './utils/actionGate';
-import { useTranslation } from './hooks/useTranslation';
-import { calculateExpectedCash } from './utils/posMath';
-import { getOrderedVisibleCategories } from './utils/categoryUtils';
-import { toCents, formatForDisplay, normalizeMenuPrice } from './utils/moneyUtils';
-import { evaluateDiscounts } from './utils/discountEngine';
-import SharedPinPad from './components/shared/SharedPinPad';
-
-// Modular Child Components
-import BootScreen from './components/register/BootScreen';
-import LockScreen from './components/register/LockScreen';
-import CafeLayout from './components/register/CafeLayout';
-import OrderFlowLayout from './components/register/OrderFlowLayout';
-import FloorLayout from './components/register/FloorLayout';
-import TicketArea from './components/register/TicketArea';
-import ModifierModal from './components/register/ModifierModal';
-import CheckoutModal from './components/register/CheckoutModal';
-import LoyaltyModal from './components/register/LoyaltyModal';
-import FlyingReceipt from './components/register/FlyingReceipt';
-import ExpenseModal from './components/register/ExpenseModal';
+import { formatForDisplay } from './utils/moneyUtils';
+import { cartTotals, shiftTotals } from './utils/registerTotals';
+import { getBusinessProfile, getCachedBusinessType } from './utils/businessProfile';
 import { useToastStack } from './components/ui/arc';
 import { usePresence } from './hooks/usePresence';
 import { useCheckout } from './hooks/useCheckout';
@@ -49,23 +27,32 @@ import { useShiftStateValue } from './hooks/useShiftState';
 import { useTickets } from './hooks/useTickets';
 import { usePinChallenge } from './hooks/usePinChallenge';
 import { usePreventAccidentalExit } from './hooks/usePreventAccidentalExit';
-
+import { useRegisterSync } from './hooks/useRegisterSync';
+import { useRegisterLock } from './hooks/useRegisterLock';
+import { useOrderNumbers } from './hooks/useOrderNumbers';
+import { useItemPicker, createItemClick } from './hooks/useItemPicker';
+import { useTicketDiscounts } from './hooks/useTicketDiscounts';
+import { useTablesLayout } from './hooks/useTablesLayout';
+import { useReceiptSharing } from './hooks/useReceiptSharing';
+import { useKdsSend } from './hooks/useKdsSend';
+import SharedPinPad from './components/shared/SharedPinPad';
+import HelpModal from './components/shared/HelpModal';
+import OnlineOrdersInbox from './components/register/OnlineOrdersInbox';
+import LockScreen from './components/register/LockScreen';
+import CafeLayout from './components/register/CafeLayout';
+import OrderFlowLayout from './components/register/OrderFlowLayout';
+import FloorLayout from './components/register/FloorLayout';
+import TicketArea from './components/register/TicketArea';
+import ModifierModal from './components/register/ModifierModal';
+import CheckoutModal from './components/register/CheckoutModal';
+import LoyaltyModal from './components/register/LoyaltyModal';
+import FlyingReceipt from './components/register/FlyingReceipt';
+import ExpenseModal from './components/register/ExpenseModal';
 import CorteModal from './components/register/CorteModal';
 import PinChallengeModal from './components/register/PinChallengeModal';
 import SyncStatusModal from './components/register/SyncStatusModal';
-import HelpModal from './components/shared/HelpModal';
 import DiscountModal from './components/register/DiscountModal';
 import TicketImage from './components/register/TicketImage';
-import { printRawReceipt as printRawReceiptUtil, sendFinalMessage as sendFinalMessageUtil, saveTicketAsPNG as saveTicketAsPNGUtil } from './utils/sharingUtils';
-import { fetchAndMergeSales } from './services/salesSync';
-import { fetchAndMergeExpenses } from './services/expenseSync';
-import { fetchActiveTickets } from './services/ticketSync';
-import { createRealtimeChannel } from './utils/realtime';
-import { isCloudReachable } from './utils/network';
-import { fromCents } from './utils/moneyUtils';
-import { getBusinessProfile, getCachedBusinessType } from './utils/businessProfile';
-import { useFlash } from './hooks/useFlash';
-
 
 const getOrCreateDeviceId = () => {
   let id = localStorage.getItem('tinypos_device_id');
@@ -76,666 +63,124 @@ const getOrCreateDeviceId = () => {
   return id;
 };
 
-// Per-device register layout. CRITICAL: the CHOICE is read EXCLUSIVELY from
-// localStorage (set in Admin → Device Settings) and is never synced to
-// Supabase, so each physical station can run a different layout against the
-// same store. When a station has never chosen one, the default is seeded from
-// the store-wide business type (restaurant → tables, e-commerce → orders,
-// etc.) rather than a hardcoded 'cafe' — an operator can still override it.
+// The layout is chosen per device (Admin → Device settings, localStorage only)
+// and defaults from the store's business type. It applies on the next load.
 const getLayoutMode = () => {
   try {
-    const stored = localStorage.getItem('tinypos_layout_mode');
-    if (stored) return stored;
-    return getBusinessProfile(getCachedBusinessType()).defaultLayout;
+    return localStorage.getItem('tinypos_layout_mode') || getBusinessProfile(getCachedBusinessType()).defaultLayout;
   } catch {
     return 'cafe';
   }
 };
 
-
 function Register() {
   usePreventAccidentalExit();
   const navigate = useNavigate();
   const { t, lang } = useTranslation();
-
-  // --- ZUSTAND GLOBAL STORES ---
-  const { isLocked, setIsLocked, activeCashier, setActiveCashier, sessionTime, setSessionTime } = useAuthStore();
-  const { menuData, setMenuData, recipes, setRecipes, activeCategory, setActiveCategory, setIsLoading, getPosSettings, lastSyncedAt, pinLockoutUntil } = useMenuStore();
+  const { isLocked, setIsLocked, activeCashier } = useAuthStore();
+  const { menuData, recipes, activeCategory, setActiveCategory, getPosSettings, lastSyncedAt, pinLockoutUntil } = useMenuStore();
   const { activeTicketId, setActiveTicketId, isCheckoutModalOpen, splitMode, setSplitMode, splitPayments, nWays, setNWays, customVal, setCustomVal, paidProductIds, tipAmount, setTipAmount, tipPercentage, setTipPercentage } = useCartStore();
-
-
-
-  const [myDeviceId] = useState(getOrCreateDeviceId);
-
-  // Read the per-device layout once at mount. Changing it in Admin → Device
-  // Settings writes localStorage; it takes effect on the next register load
-  // (full reload), which is the desired "configure the station, then run it"
-  // behavior for a physical terminal.
-  const [layoutMode] = useState(getLayoutMode);
-
-  // The 'tables' (floor-plan) layout is built on the same ticket flow as
-  // 'orders' — it adds a floor map in front (Phase 4). Until that lands, and for
-  // all the shared ticket/checkout plumbing, both modes are driven by this flag.
-  const orderFlowMode = layoutMode === 'orders' || layoutMode === 'tables';
-
-  // Tables layout: the saved floor plan(s) and which table's ticket flow is open
-  // (null = show the floor map). Floors are config that rarely changes mid-shift,
-  // so they're fetched once (loadFloors dispatches cloud vs. local) rather than
-  // live-queried.
-  const [floors, setFloors] = useState([]);
-  const [selectedTableId, setSelectedTableId] = useState(null);
-  useEffect(() => {
-    if (layoutMode !== 'tables') return;
-    let cancelled = false;
-    loadFloors().then(f => { if (!cancelled) setFloors(f); }).catch(err => console.error('Floor load failed:', err));
-    return () => { cancelled = true; };
-  }, [layoutMode]);
-
-  // Drill-down step for the orders ("Mesas/Pedidos") layout: 'tickets' ->
-  // 'categories' -> 'items'. Lifted here (rather than inside OrderFlowLayout)
-  // so the sibling TicketArea — which serves as the flow's "ticket content"
-  // screen — can advance it via its Add-product button. Inert in cafe mode.
-  const [orderFlowStep, setOrderFlowStep] = useState('tickets');
-
-  const posSettings = getPosSettings(); // Dynamically grabs our fallback-safe settings!
-
+  const posSettings = getPosSettings();
   const { showAlert, showConfirm, showPrompt } = useDialog();
   const { updateTheme } = useTheme();
-  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
-  const [hasValidSession, setHasValidSession] = useState(true);
-
-  // Refs to prevent Realtime re-subscription storms
-  const activeTicketIdRef = useRef(null);
-  const activeCashierRef = useRef(null);
-  const sessionTimeRef = useRef(0);
-
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [pendingItem, setPendingItem] = useState(null);
-  const [successTicket, setSuccessTicket] = useState(null);
   const { toast } = useToastStack();
   const showToast = (message, type = 'success') => toast({ type, title: message });
-  const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
 
-  // --- REALTIME ACTIVE TICKETS (multi-device live sync) ---------------------
-  // Boot does a one-shot fetchActiveTickets(); this keeps the local Dexie cache
-  // live afterwards so every station sees opens/edits/closes as they happen —
-  // essential for the tables floor map (its per-table status is derived from
-  // this query) and a correctness win for the orders layout too. Cloud mode
-  // only; local ('guest') installs have no Supabase to subscribe to.
-  useEffect(() => {
-    if (isLocalMode()) return;
-    const { cleanup } = createRealtimeChannel(
-      'register-active-tickets',
-      { event: '*', schema: 'public', table: 'active_tickets' },
-      async (payload) => {
-        const { eventType, new: newRow, old: oldRow } = payload;
-        if (eventType === 'DELETE') {
-          if (oldRow?.id != null) await db.active_tickets.delete(oldRow.id);
-        } else if (newRow?.id != null) {
-          // INSERT/UPDATE → mirror the cloud row (the source of truth for
-          // active tickets, same philosophy as the boot overwrite).
-          await db.active_tickets.put(newRow);
-        }
-      },
-      // Degraded-link fallback: if the websocket keeps flapping, stop churning
-      // handshakes and poll a full resync instead so the floor map still tracks
-      // other stations. fetchActiveTickets overwrites Dexie with cloud truth and
-      // self-guards on isCloudReachable().
-      { poll: fetchActiveTickets },
-    );
-    return cleanup;
-  }, []);
-
-  // --- REALTIME INVENTORY (multi-device stock truth) ------------------------
-  // Boot refreshes db.inventory once; this keeps it live for the rest of the
-  // shift, so a sale, restock or audit on another station lands here instead of
-  // this register slowly drifting away from the real count. Cloud mode only.
-  useEffect(() => {
-    if (isLocalMode()) return;
-    const { cleanup } = createRealtimeChannel(
-      'register-inventory',
-      { event: '*', schema: 'public', table: 'inventory' },
-      async (payload) => {
-        const { eventType, new: newRow, old: oldRow } = payload;
-        if (eventType === 'DELETE') {
-          if (oldRow?.id != null) await db.inventory.delete(oldRow.id);
-        } else if (newRow?.id != null) {
-          await db.inventory.put(newRow);
-        }
-      },
-      {
-        // Degraded link: fall back to a full re-pull rather than churning
-        // handshakes, same shape as the active_tickets channel above.
-        poll: async () => {
-          if (!isCloudReachable()) return;
-          try {
-            const { data } = await supabase.from('inventory').select('*');
-            if (data) await db.inventory.bulkPut(data);
-          } catch { /* next tick */ }
-        },
-      },
-    );
-    return cleanup;
-  }, []);
-
-  // --- MENU FETCH & OFFLINE CACHE ENGINE ---
-  useEffect(() => {
-    const fetchMenuAndRecipes = async () => {
-      try {
-        // 1. Fetch Menu (dedicated tables) + Settings (residual shop_settings.menu_data).
-        //    Merged so the in-memory `menuData` shape stays identical for the
-        //    Register UI and modifier rendering logic.
-        //
-        //    Local ('guest') mode has no cloud project: load the menu from Dexie
-        //    (via the dispatcher) and merge with whatever settings are already
-        //    cached locally by useMenuStore. The cloud-only fetches (shop_settings,
-        //    recipes) are skipped entirely — supabase is null in this mode.
-        let merged;
-        if (isLocalMode()) {
-          const menu = await loadMenu();
-          const cachedSettings = useMenuStore.getState().menuData || {};
-          merged = { ...cachedSettings, ...menu };
-          setMenuData(merged);
-        } else {
-          const [menu, settingsRes, recipeResp] = await Promise.all([
-            loadMenu(),
-            supabase.from('shop_settings').select('menu_data').eq('id', 1).single(),
-            supabase.from('recipes').select('*')
-          ]);
-          if (settingsRes.error) throw settingsRes.error;
-          if (recipeResp.error) throw recipeResp.error;
-
-          const settings = settingsRes.data?.menu_data || {};
-          merged = { ...menu, ...settings };
-          setMenuData(merged);
-          setRecipes(recipeResp.data);
-        }
-
-        // SAFE ACTIVE CATEGORY ASSIGNMENT
-        // Open on the first *visible, ordered* tab (matches MenuArea) instead
-        // of whatever happens to be the first raw object key. Same helper the
-        // tabs use, so the boot default can't drift apart from MenuArea.
-        const allCats = Object.keys(merged.categories || {});
-        if (allCats.length > 0) {
-          const ordered = getOrderedVisibleCategories(merged);
-          setActiveCategory(ordered[0] || allCats[0]);
-        }
-
-        // Steps 3-5 pull data down from other devices via Supabase. In local
-        // ('guest') mode there is nothing to pull — Dexie is the only store —
-        // so skip them; live queries already read the local tables directly.
-        if (!isLocalMode()) {
-          // 3. Pull down active tickets from other devices into local Dexie
-          await fetchActiveTickets();
-
-          // 4. Pull down historical sales into local Dexie (for OrdersTab refunds)
-          await fetchAndMergeSales();
-
-          // 5. Pull down expenses from every device so shift calc covers the
-          // whole shop, not just this terminal's local writes.
-          await fetchAndMergeExpenses();
-
-          // 6. Refresh the local stock mirror from the cloud.
-          // db.inventory was previously only ever repopulated by the Admin tab,
-          // so a register-only device decremented its copy on every sale and
-          // never saw anyone else's — the mirror drifted down forever and the
-          // pre-flight stock check started rejecting sales the server would
-          // have accepted. The cloud row is the source of truth; overwrite.
-          try {
-            const { data: invData } = await supabase.from('inventory').select('*');
-            if (invData) await db.inventory.bulkPut(invData);
-          } catch (e) {
-            console.warn('Inventory refresh failed; using local mirror.', e.message);
-          }
-        }
-
-        setIsLoading(false);
-      } catch (err) {
-        console.warn("Failed to fetch fresh menu or sync, using cache.", err);
-        setIsLoading(false);
-      }
-    };
-    fetchMenuAndRecipes();
-  }, [setMenuData, setRecipes, setActiveCategory, setIsLoading]);
-
-  const {
-    expenses, expenseQueue, setExpenseQueue,
-    isExpenseModalOpen, setIsExpenseModalOpen,
-    expenseForm, setExpenseForm,
-    handleSaveExpense,
-    isSavingExpense
-} = useExpenses({ activeCashier, t, showAlert });
-
-  // --- DISCOUNT STATE & LOGIC ---
-  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
-  const [discountForm, setDiscountForm] = useState({ type: 'percentage', value: '' });
-
-  const handleApplyDiscount = async () => {
-    // The manual amount field is optional: cashier presets and coupon codes
-    // apply themselves on tap, so an empty field just means "I'm done here".
-    // Treat Apply as Done and close without flagging an invalid amount.
-    const raw = String(discountForm.value ?? '').trim();
-    if (raw === '') {
-      setIsDiscountModalOpen(false);
-      setDiscountForm({ type: 'percentage', value: '' });
-      return;
-    }
-
-    const val = discountForm.type === 'percentage'
-      ? parseFloat(raw)
-      : toCents(raw);
-
-    if (isNaN(val) || val <= 0) return showAlert(t('discount.invalidTitle'), t('discount.invalidDesc'));
-
-    if (activeTicket) {
-      await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
-
-      // LOG ACTIVITY — fourth arg picks up the manager override (if any)
-      // that gateRegisterAction stashed at the gate.
-      logActivity(
-        'Discount Applied',
-        `A ${discountForm.type === 'percentage' ? discountForm.value + '%' : formatForDisplay(val)} discount was applied to ticket: ${activeTicket.name}`,
-        null,
-        consumePendingAuthorizer()
-      );
-    }
-    setIsDiscountModalOpen(false);
-    setDiscountForm({ type: 'percentage', value: '' }); // Reset form
-  };
-
-  const handleRemoveDiscount = async () => {
-    if (activeTicket) {
-      const updatedItems = { ...activeTicket };
-      delete updatedItems.discount;
-      await db.active_tickets.put(updatedItems);
-    }
-    setIsDiscountModalOpen(false);
-  };
-
-  // Toggle an attended ("cashier-applied") preset promo onto the active ticket.
-  // The engine only evaluates a manual-trigger rule while its id sits in the
-  // ticket's activatedManualRuleIds, so this is all it takes to apply/remove one.
-  const handleToggleManualRule = async (rule) => {
-    if (!activeTicket) return;
-    const current = activeTicket.activatedManualRuleIds || [];
-    const isOn = current.includes(rule.id);
-
-    const applyToggle = async (authorizer) => {
-      const next = isOn ? current.filter(id => id !== rule.id) : [...current, rule.id];
-      await db.active_tickets.update(activeTicket.id, { activatedManualRuleIds: next });
-      if (!isOn) {
-        logActivity(
-          'Discount Applied',
-          `Promo "${rule.name}" was applied to ticket: ${activeTicket.name}`,
-          null,
-          authorizer || consumePendingAuthorizer()
-        );
-      }
-    };
-
-    // Removing never needs approval; applying an approval-gated rule goes
-    // through the manager-override PIN gate first.
-    if (!isOn && rule.requireApproval) {
-      gateRegisterAction({
-        posSettings,
-        activeCashier,
-        requirePin,
-        title: t('disc.approvalTitle'),
-        run: (authorizer) => applyToggle(authorizer),
-      });
-      return;
-    }
-    applyToggle();
-  };
-
-  // --- OFFLINE SYNC QUEUES & MODAL ---
-  const syncQueue = useLiveQuery(() => db.syncQueue.toArray(), []) || [];
-
-  const [waQueue] = useState(() => {
-    const saved = localStorage.getItem('tinypos_wa_queue');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [myDeviceId] = useState(getOrCreateDeviceId);
+  const [layoutMode] = useState(getLayoutMode);
+  // 'tables' is the orders flow with a floor map in front of it.
+  const orderFlowMode = layoutMode === 'orders' || layoutMode === 'tables';
+  // Orders layout drill-down: 'tickets' → 'categories' → 'items'. Lives here so
+  // TicketArea's "Add product" can advance it.
+  const [orderFlowStep, setOrderFlowStep] = useState('tickets');
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
-  const [clipDeadlines, setClipDeadlines] = useState({}); // ticketId -> auto-cancel time (unpaid Clip orders)
+  const [successTicket, setSuccessTicket] = useState(null);
+  const [clipDeadlines, setClipDeadlines] = useState({}); // ticketId -> auto-cancel time for unpaid Clip orders
+  const [hasValidSession, setHasValidSession] = useState(true);
+  const [loyaltyModal, setLoyaltyModal] = useState({ isOpen: false, step: 'phone', phone: '', data: null });
+  const [phoneError, setPhoneError] = useState(false);
+
+  const tickets = useLiveQuery(() => db.active_tickets.toArray(), []) || [];
+  const dexieSales = useLiveQuery(() => db.sales.toArray(), []) || [];
+  const syncQueue = useLiveQuery(() => db.syncQueue.toArray(), []) || [];
+
+  useRegisterSync();
+  usePresence(myDeviceId, showAlert);
+  const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
+  const lock = useRegisterLock({ tickets, autoLockMinutes: posSettings.autoLockMinutes, menuData, showAlert, t });
+  const cashiers = menuData?.cashiers || [];
+
+  const { expenses, expenseQueue, setExpenseQueue, isExpenseModalOpen, setIsExpenseModalOpen, expenseForm, setExpenseForm, handleSaveExpense, isSavingExpense } =
+    useExpenses({ activeCashier, t, showAlert });
+
+  // WhatsApp receipts that couldn't be sent yet; shown in the sync modal.
+  const [waQueue] = useState(() => JSON.parse(localStorage.getItem('tinypos_wa_queue') || '[]'));
+  useEffect(() => { localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue)); }, [waQueue]);
+
+  useSyncQueue({ expenseQueue, clearExpenseQueue: () => setExpenseQueue([]), onAuthError: () => setHasValidSession(false) });
 
   useEffect(() => {
-    localStorage.setItem('tinypos_wa_queue', JSON.stringify(waQueue));
-  }, [waQueue]);
+    supabase.auth.getSession().then(({ data: { session } }) => setHasValidSession(!!session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setHasValidSession(!!session));
+    return () => subscription.unsubscribe();
+  }, []);
+  const isCurrentlyOffline = !navigator.onLine || !hasValidSession;
+  const totalOfflineRecords = syncQueue.length + expenseQueue.length + waQueue.length;
 
-  useSyncQueue({
-    expenseQueue,
-    clearExpenseQueue: () => setExpenseQueue([]),
-    onAuthError: () => setHasValidSession(false)
-  });
-
-  // --- CORTE / ORDER NUMBER — Dexie-backed (was localStorage) ---
-  const [lastCorteTimestamp, setLastCorteTimestamp] = useShiftStateValue('lastCorteTimestamp', new Date(0).toISOString());
-  const [isCorteModalOpen, setIsCorteModalOpen] = useState(false);
-  const [countedCash, setCountedCash] = useState("");
-
-  const [nextOrderNum, setNextOrderNum] = useShiftStateValue('nextOrderNum', 1);
-  const [lastResetDate, setLastResetDate] = useShiftStateValue('lastResetDate', new Date().toDateString());
-
+  // A share/print intent can interrupt the state update that closes the ticket
+  // sheet on mobile, so close it whenever the page becomes visible again.
   useEffect(() => {
-    const policy = menuData?.posSettings?.orderResetPolicy || 'daily';
-    const today = new Date();
-    const lastReset = new Date(lastResetDate);
-    let shouldReset = false;
-
-    if (policy === 'daily' && today.toDateString() !== lastReset.toDateString()) {
-      shouldReset = true;
-    } else if (policy === 'monthly' && today.getMonth() !== lastReset.getMonth()) {
-      shouldReset = true;
-    } else if (policy === 'yearly' && today.getFullYear() !== lastReset.getFullYear()) {
-      shouldReset = true;
-    }
-
-    if (shouldReset) {
-      setNextOrderNum(1);
-      setLastResetDate(today.toDateString());
-    }
-  }, [menuData?.posSettings?.orderResetPolicy, lastResetDate, setNextOrderNum, setLastResetDate]);
-
-  // --- BOTTOM SHEET STATE ---
-  const [isActionSheetOpen, setIsActionSheetOpen] = useState(false);
-
-  // Force-close the ticket bottom sheet whenever the page becomes visible
-  // again. Mobile WebViews can interrupt React's state flush when the Web
-  // Share / WhatsApp / print intent opens, leaving setIsActionSheetOpen(false)
-  // uncommitted. The user then comes back to a half-open sheet missing its
-  // close affordance. Closing on visibility-resume is cheap insurance — worst
-  // case the user has to tap "options" again after briefly switching apps.
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') setIsActionSheetOpen(false);
-    };
+    const onVisible = () => { if (document.visibilityState === 'visible') setIsActionSheetOpen(false); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
-  // --- DEVICE IDENTITY & SESSION ---
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  useEffect(() => { if (posSettings) updateTheme(posSettings); }, [posSettings, updateTheme]);
 
-  const { challenge: pinChallenge, setChallenge: setPinChallenge, requirePin } = usePinChallenge();
+  // --- Shift (corte) ---
+  const [lastCorteTimestamp, setLastCorteTimestamp] = useShiftStateValue('lastCorteTimestamp', new Date(0).toISOString());
+  const [isCorteModalOpen, setIsCorteModalOpen] = useState(false);
+  const [countedCash, setCountedCash] = useState('');
+  const [nextOrderNum, setNextOrderNum] = useOrderNumbers(menuData?.posSettings?.orderResetPolicy || 'daily');
+  const {
+    shiftOrders, shiftExpenses, shiftCashSales, shiftCardSales, shiftTransferSales, shiftClipSales, shiftTotalExpenses, expectedCash,
+  } = shiftTotals(dexieSales, expenses, lastCorteTimestamp);
 
-
-  // --- LOYALTY & WHATSAPP STATES ---
-  const [loyaltyModal, setLoyaltyModal] = useState({ isOpen: false, step: 'phone', phone: '', data: null });
-  const [phoneError, setPhoneError] = useState(false); // shake on invalid phone in loyalty modal
-  const [pinShake, flashPinShake, setPinShake] = useFlash(500);     // shake on wrong PIN (lock + challenge)
-  const pinAttempts = useRef(0);                       // monotonic wrong-PIN counter (telemetry hook)
-
-  // --- CASHIER PROFILES (CLOUD SYNCED) ---
-  // Read directly from menuData. Cashiers are seeded at onboarding — no
-  // hardcoded Admin/1234 fallback.
-  const cashiers = menuData?.cashiers || [];
-
-  // Keep refs in sync (moved here to ensure state is initialized)
-  useEffect(() => { activeTicketIdRef.current = activeTicketId; }, [activeTicketId]);
-  useEffect(() => { activeCashierRef.current = activeCashier; }, [activeCashier]);
-  useEffect(() => { sessionTimeRef.current = sessionTime; }, [sessionTime]);
-
-
-  // Lock Screen temporary states
-  const [selectedProfile, setSelectedProfile] = useState(null);
-  const [pinAttempt, setPinAttempt] = useState('');
-
-  // --- UNLOCK LOGIC & ENTER KEY ---
-  const handleUnlockSubmit = async () => {
-    if (!selectedProfile) return;
-    const { verifyPin, verifyAdminPin } = useMenuStore.getState();
-
-    try {
-      // 1. Does it match the selected profile's own PIN?
-      const isProfileMatch = await verifyPin(selectedProfile.id, pinAttempt);
-
-      // 2. Does it match ANY profile marked as isAdmin or Master PIN?
-      const isStaffAdmin = await verifyAdminPin(pinAttempt);
-
-      if (isProfileMatch || isStaffAdmin) {
-        pinAttempts.current = 0;
-        setIsLocked(false);
-        setActiveCashier(selectedProfile);
-        localStorage.setItem('tinypos_activeCashier', JSON.stringify(selectedProfile));
-
-        const newSessionTime = Date.now();
-        setSessionTime(newSessionTime);
-        localStorage.setItem('tinypos_session_time', newSessionTime.toString());
-
-        setPinAttempt('');
-        setSelectedProfile(null);
-      } else {
-        pinAttempts.current += 1;
-        flashPinShake();
-        setPinAttempt('');
-      }
-    } catch (err) {
-      showAlert(t('lock.loginErrorTitle'), err.message);
-      setPinAttempt('');
-    }
-  };
-
-  const handlePinKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      handleUnlockSubmit();
-    }
-  };
-
-  // --- CONTEXT RESTORATION (Snap to current data on login) ---
-  useEffect(() => {
-    // If the screen just unlocked, and we know who the cashier is
-    if (!isLocked && activeCashier && tickets.length > 0) {
-
-      // Find all tickets belonging to this specific cashier
-      const myTickets = tickets.filter(t => t.cashier_id === activeCashier.id);
-
-      if (myTickets.length > 0) {
-        // Sort them to find the newest one (highest ID)
-        const newestTicket = myTickets.sort((a, b) => b.id - a.id)[0];
-
-        // Snap the UI to that ticket immediately
-        setActiveTicketId(newestTicket.id);
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLocked, activeCashier]); // This runs exactly once when you unlock the screen
-
-
-
-  // --- ORDER HISTORY (ANALYTICS LEDGER) ---
-  const dexieSales = useLiveQuery(() => db.sales.toArray(), []) || [];
-
-  // --- AUTO-LOCK LOGIC ---
-  useEffect(() => {
-    if (!menuData || isLocked || posSettings.autoLockMinutes === 0) return;
-
-    let timeoutId;
-    let lastReset = 0;
-    const THROTTLE_MS = 1000;
-
-    const lockScreen = () => setIsLocked(true);
-
-    const doReset = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(lockScreen, posSettings.autoLockMinutes * 60000);
-    };
-
-    // Throttled — a busy POS fires mousemove hundreds of times/min; we don't
-    // need to re-arm the timeout on every pixel.
-    const resetTimer = () => {
-      const now = Date.now();
-      if (now - lastReset < THROTTLE_MS) return;
-      lastReset = now;
-      doReset();
-    };
-
-    const passive = { passive: true };
-    window.addEventListener('mousemove', resetTimer, passive);
-    window.addEventListener('touchstart', resetTimer, passive);
-    window.addEventListener('keydown', resetTimer, passive);
-
-    doReset();
-
-    return () => {
-      clearTimeout(timeoutId);
-      window.removeEventListener('mousemove', resetTimer, passive);
-      window.removeEventListener('touchstart', resetTimer, passive);
-      window.removeEventListener('keydown', resetTimer, passive);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menuData, isLocked, posSettings.autoLockMinutes]);
-
-  // --- EXTRACTED HOOKS (Issue 3.6) ---
-  usePresence(myDeviceId, showAlert);
-
-  // --- SHIFT CALCULATIONS ---
-  // 1. Filter data to ONLY include things that happened after the last Corte
-  const shiftOrders = dexieSales.filter(o => new Date(o.created_at) > new Date(lastCorteTimestamp));
-  const shiftExpenses = expenses.filter(e => new Date(e.timestamp) > new Date(lastCorteTimestamp));
-
-  // 2. Break down the revenue by payment method
-  const calcTotalByMethod = (method) => {
-    return shiftOrders.reduce((sum, o) => {
-      let netSale = o.total_amount || 0;
-      if (o.status === 'refunded') return sum;
-      if (o.status === 'partial_refund') netSale -= (o.refund_amount || 0);
-
-      if (o.payment_method === method) return sum + netSale;
-      if (o.payment_method === 'Split' && o.splits) {
-        const splitAmount = o.splits.filter(s => s.method === method).reduce((acc, s) => acc + s.amount, 0);
-        return sum + splitAmount;
-      }
-      return sum;
-    }, 0);
-  };
-
-  const shiftCashSales = calcTotalByMethod('Cash');
-  const shiftCardSales = calcTotalByMethod('Card');
-  const shiftTransferSales = calcTotalByMethod('Transfer');
-  const shiftClipSales = calcTotalByMethod('Clip');
-
-  // 3. Sum up the CASH expenses that actually left the drawer. Inventory costs
-  // paid from the bank or the owner's own pocket are still recorded as expenses
-  // for the books (COGS/P&L), but no physical cash left the register for those,
-  // so they must not move the drawer Corte — otherwise the count never
-  // reconciles. The pocket lives in the expense's `payment_source` column
-  // (see migration 028); only 'caja' (petty cash) counts against the drawer.
-  // Rows with no payment_source (legacy / manual register expenses) default to
-  // drawer cash, preserving prior behavior.
-  const leftTheDrawer = (e) => e.payment_source !== 'banco' && e.payment_source !== 'dueno';
-  const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + (leftTheDrawer(e) ? e.amount : 0), 0);
-
-  // 4. Calculate Expected Cash in Drawer (Cash In - Cash Out)
-  const shiftCashRefunds = shiftOrders.reduce((sum, o) => {
-    if (o.status === 'refunded' || o.status === 'partial_refund') {
-      if (o.payment_method === 'Cash' || (o.payment_method === 'Split' && o.splits?.some(s => s.method === 'Cash'))) {
-        return sum + (o.refund_amount || 0);
-      }
-    }
-    return sum;
-  }, 0);
-  const expectedCash = calculateExpectedCash(shiftCashSales, shiftCashRefunds, shiftTotalExpenses);
-
-  const totalOfflineRecords = syncQueue.length + expenseQueue.length + waQueue.length;
-
-  useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setHasValidSession(!!session);
-    };
-    checkSession();
-
-    // Listen for auth changes locally too, to update the badge immediately
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setHasValidSession(!!session);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const isCurrentlyOffline = !navigator.onLine || !hasValidSession;
-
-  const visibleTickets = posSettings.ticketVisibility === 'isolated'
-    ? tickets.filter(t => t.cashier_id === activeCashier?.id)
-    : tickets;
-
-  const activeTicket = visibleTickets.find(t => t.id === activeTicketId) || null;
-
+  // --- Tickets and cart ---
+  const visibleTickets = posSettings.ticketVisibility === 'isolated' ? tickets.filter((tk) => tk.cashier_id === activeCashier?.id) : tickets;
+  const activeTicket = visibleTickets.find((tk) => tk.id === activeTicketId) || null;
+  const picker = useItemPicker({ menuData });
+  const { isModalOpen, setIsModalOpen, pendingItem, setPendingItem, handleToggleModifier, handleTextModifierChange } = picker;
   const {
     handleNewTicket, handleNewTableTicket, handleRenameTicket, clearCurrentTicket, handleCancelTicket,
-    addToTicket, handleUpdateItemQty, handleRemoveItem
+    addToTicket, handleUpdateItemQty, handleRemoveItem,
   } = useTickets({
     myDeviceId, activeCashier, posSettings, recipes,
     activeTicket, setActiveTicketId, tickets,
     nextOrderNum, setNextOrderNum,
     showAlert, showConfirm, showPrompt, showToast, t,
-    setPendingItem, setIsModalOpen
+    setPendingItem, setIsModalOpen,
   });
+  const handleItemClick = createItemClick({ menuData, addToTicket, setPendingItem, setIsModalOpen, showPrompt, showAlert, t });
 
-  const cartSubtotal = activeTicket ? activeTicket.items.reduce((total, item) => {
-    let itemCost = normalizeMenuPrice(item.basePrice);
-    item.selectedModifiers.forEach(mod => { itemCost += normalizeMenuPrice(mod.price); });
-    const itemTotal = itemCost * (item.qty || 1);
-    return total + itemTotal;
-  }, 0) : 0;
+  const {
+    cartSubtotal, cartTotal, autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
+    enrichedTicket: enrichedActiveTicket,
+  } = cartTotals(activeTicket, { rules: menuData?.discountRules || [], advanced: !!posSettings?.isAdvancedMode });
 
-  // Auto-discounts are evaluated by the pure engine (src/utils/discountEngine.js)
-  // which handles scheduling, bundle conditions, buy-X-get-Y deals, priority
-  // stacking, and clamping. Only runs in advanced mode.
-  let autoDiscountAmount = 0;
-  let autoDiscountCart = 0;
-  let autoDiscountByItemUid = {};
-  let activeAutoRuleName = "";
-  let autoDiscountRuleNames = [];
-  let appliedDiscountRuleIds = [];
-  let appliedDiscountBreakdown = [];
+  const discounts = useTicketDiscounts({ activeTicket, posSettings, activeCashier, requirePin, showAlert, t });
 
-  if (posSettings?.isAdvancedMode) {
-    const evalResult = evaluateDiscounts({
-      rules: menuData?.discountRules || [],
-      ticket: activeTicket,
-      cartSubtotal,
-      activatedRuleIds: activeTicket?.activatedManualRuleIds || [],
-    });
-    autoDiscountAmount = evalResult.autoDiscountAmount;
-    autoDiscountCart = evalResult.autoDiscountCart;
-    autoDiscountByItemUid = evalResult.autoDiscountByItemUid;
-    autoDiscountRuleNames = evalResult.appliedRuleNames;
-    appliedDiscountRuleIds = evalResult.appliedRuleIds;
-    appliedDiscountBreakdown = evalResult.appliedRules;
-    activeAutoRuleName = evalResult.appliedRuleNames[0] || "";
-  }
+  const { floors, selectedTable, handleSelectTable, handleBackToFloor } =
+    useTablesLayout({ layoutMode, setActiveTicketId, setIsMobileCartOpen, setOrderFlowStep });
+  // New ticket inside a table: asks for seats (default: the table's), then opens the menu.
+  const handleNewTableTicketBridge = (table, onCreated) => handleNewTableTicket(table.id, table.seats || 4, onCreated);
 
-  let manualDiscountAmount = 0;
-  if (activeTicket?.discount) {
-    const subtotalAfterAuto = Math.max(0, cartSubtotal - autoDiscountAmount);
-    if (activeTicket.discount.type === 'percentage') {
-      const discountPct = activeTicket.discount.value;
-      const safePct = Math.max(0, Math.min(discountPct, 100));
-      manualDiscountAmount = Math.round(subtotalAfterAuto * (safePct / 100));
-    } else if (activeTicket.discount.type === 'flat') {
-      const discountCents = activeTicket.discount.value; // It's already in cents! No normalizeMenuPrice needed here.
-      manualDiscountAmount = Math.max(0, Math.min(discountCents, subtotalAfterAuto));
-    }
-  }
-
-  const totalDiscounts = autoDiscountAmount + manualDiscountAmount;
-  const cartTotal = Math.max(0, cartSubtotal - totalDiscounts);
-
-  const enrichedActiveTicket = activeTicket ? {
-    ...activeTicket,
-    autoDiscountRuleName: activeAutoRuleName || null,
-    autoDiscountRuleNames: autoDiscountRuleNames.length ? autoDiscountRuleNames : null,
-    appliedDiscountRuleIds: appliedDiscountRuleIds.length ? appliedDiscountRuleIds : null,
-    appliedDiscountBreakdown: appliedDiscountBreakdown.length ? appliedDiscountBreakdown : null,
-    autoDiscountAmount: autoDiscountAmount || 0,
-    manualDiscountAmount: manualDiscountAmount || 0
-  } : null;
-
-  // After a sale completes in the orders ("Mesas/Pedidos") layout, drop back
-  // to the tickets list instead of riding along on whatever ticket
-  // clearCurrentTicket auto-selected next — landing on someone else's open
-  // ticket right after closing a sale is confusing.
+  // In the orders layout, a finished sale goes back to the tickets list instead
+  // of landing on whichever ticket clearCurrentTicket picked next.
   const onAfterCheckout = () => {
     if (!orderFlowMode) return;
     setActiveTicketId(null);
@@ -743,257 +188,35 @@ function Register() {
     setOrderFlowStep('tickets');
   };
 
-  // --- TABLES LAYOUT: floor <-> table-scoped ticket flow --------------------
-  // The selected table node, resolved across every floor's canvas document.
-  const selectedTable = useMemo(() => {
-    if (!selectedTableId) return null;
-    for (const f of floors) {
-      const hit = tablesOf(f.document).find(tb => tb.id === selectedTableId);
-      if (hit) return hit;
-    }
-    return null;
-  }, [selectedTableId, floors]);
-
-  // Tap a table on the floor map → open its scoped ticket rail.
-  const handleSelectTable = (table) => {
-    setSelectedTableId(table.id);
-    setActiveTicketId(null);
-    setOrderFlowStep('tickets');
-  };
-  // Back arrow in the scoped rail → return to the floor map.
-  const handleBackToFloor = () => {
-    setSelectedTableId(null);
-    setActiveTicketId(null);
-    setIsMobileCartOpen(false);
-  };
-  // "New ticket" inside a table → seats prompt then create+select (onCreated
-  // advances to the menu). Seats default to the table's expected count.
-  const handleNewTableTicketBridge = (table, onCreated) => {
-    handleNewTableTicket(table.id, table.seats || 4, onCreated);
-  };
-
-  // --- HOOK DEPENDENCIES (all computed values now available) ---
   const hookDeps = {
     expectedCash, countedCash, shiftCashSales, shiftCardSales, shiftTransferSales, shiftClipSales,
     shiftTotalExpenses, activeCashier, myDeviceId, setIsCorteModalOpen,
     setCountedCash, setLastCorteTimestamp, t, showAlert, showConfirm,
     loyaltyModal, setLoyaltyModal, activeTicket: enrichedActiveTicket, menuData, setPhoneError,
     loyaltySettings: menuData?.loyaltySettings || null,
-    cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket, onAfterCheckout
+    cartTotal, tipAmount, setSuccessTicket, clearCurrentTicket, onAfterCheckout,
   };
-
   const { handleProcessCorte } = useShiftCorte(hookDeps);
   const { handleOpenCheckout, handleCancelCheckout, handlePartialPayment, handleSavePartialPayments, handleVoidPartialPayments } = useCheckout(hookDeps);
   const { handleCheckLoyalty, handleRedeemReward, handleDetachLoyalty, handleAttachCustomer } = useLoyalty(hookDeps);
+  const { printRawReceipt, sendFinalMessage, handleSaveAsPNG, handleGuestReceipt } = useReceiptSharing({
+    menuData, posSettings, enrichedTicket: enrichedActiveTicket, cartTotal, loyaltyModal, setLoyaltyModal, setPhoneError, showAlert, t, lang,
+  });
+  const handleSendToKds = useKdsSend({ tickets, posSettings, showToast, showAlert, t });
 
-  // --- THEME INJECTION LOGIC ---
-  useEffect(() => {
-    if (posSettings) {
-      updateTheme(posSettings);
-    }
-  }, [posSettings, updateTheme]);
-
-
-  const handleItemClick = (item) => {
-    // Hidden modifier groups don't prompt the cashier, so an item whose only
-    // groups are hidden skips the modal and adds straight to the ticket.
-    const hasVisibleModifiers = (item.allowedModifiers || []).some(
-      k => menuData?.modifierGroups?.[k] && !menuData?.modifierGroupSettings?.[k]?.isHidden
-    );
-    if (item.priceType === 'variable') {
-      showPrompt(
-        `${t('menu.promptVariablePrice') || 'Enter Price for'} ${item.name}`,
-        '',
-        (inputValue) => {
-          const customPrice = toCents(inputValue);
-          if (isNaN(customPrice) || customPrice < 0) {
-            return showAlert(t('common.error'), t('check.alertInvalid'));
-          }
-
-          if (hasVisibleModifiers) {
-            setPendingItem({ ...item, basePrice: customPrice, selectedModifiers: [] });
-            setIsModalOpen(true);
-          } else {
-            addToTicket(item, [], customPrice);
-          }
-        },
-        item.basePrice > 0 ? String(fromCents(item.basePrice)) : '',
-        t('common.save'),
-        t('common.cancel'),
-        'decimal'
-      );
-      return;
-    }
-
-    if (hasVisibleModifiers) {
-      setPendingItem({ ...item, selectedModifiers: [] });
-      setIsModalOpen(true);
-    } else {
-      addToTicket(item, []);
-    }
-  };
-
-  const handleToggleModifier = (modGroupKey, modifierObj) => {
-    const allowMultiple = !!menuData?.modifierGroupSettings?.[modGroupKey]?.allowMultiple;
-    let updatedModifiers = [...pendingItem.selectedModifiers];
-
-    if (allowMultiple) {
-      const sameOptionIdx = updatedModifiers.findIndex(m => m.id === modifierObj.id && m.groupId === modGroupKey);
-      if (sameOptionIdx >= 0) {
-        updatedModifiers.splice(sameOptionIdx, 1);
-      } else {
-        updatedModifiers.push({ ...modifierObj, groupId: modGroupKey });
-      }
-    } else {
-      const existingIndex = updatedModifiers.findIndex(m => m.groupId === modGroupKey);
-      if (existingIndex >= 0) {
-        updatedModifiers[existingIndex] = { ...modifierObj, groupId: modGroupKey };
-      } else {
-        updatedModifiers.push({ ...modifierObj, groupId: modGroupKey });
-      }
-    }
-    setPendingItem({ ...pendingItem, selectedModifiers: updatedModifiers });
-  };
-
-  // NEW: Handles typing into a text modifier field
-  const handleTextModifierChange = (modGroupKey, option, text) => {
-    let updatedModifiers = [...pendingItem.selectedModifiers];
-    const existingIndex = updatedModifiers.findIndex(m => m.id === option.id);
-
-    if (text.trim() === '') {
-      // If they delete the text, remove the modifier entirely
-      if (existingIndex >= 0) updatedModifiers.splice(existingIndex, 1);
-    } else {
-      // If typing, add or update the text value
-      if (existingIndex >= 0) {
-        updatedModifiers[existingIndex].textValue = text;
-      } else {
-        updatedModifiers.push({ ...option, groupId: modGroupKey, textValue: text });
-      }
-    }
-    setPendingItem({ ...pendingItem, selectedModifiers: updatedModifiers });
-  };
-
-  const printRawReceipt = async (ticket, total) => {
-    const receiptSettings = menuData?.receiptSettings || {
-      header: posSettings?.name || "",
-      subheader: "",
-      footer: "",
-      enableTaxBreakdown: false,
-      taxRate: 16,
-      logo: null
-    };
-    try {
-      await printRawReceiptUtil(ticket, total, { t, lang, receiptSettings });
-    } catch (err) {
-      if (err.message !== "unsupported") {
-        showAlert(t('receipt.printerErr'), t('receipt.printerErrDesc'));
-      } else {
-        showAlert(t('receipt.unsupportedTitle'), t('receipt.unsupportedMsg'));
-      }
-    }
-  };
-
-  // --- WHATSAPP RECEIPT LOGIC ---
-  const sendFinalMessage = (phone, loyaltyData) => {
-    const receiptSettings = menuData?.receiptSettings || {
-      header: posSettings.name || 'TinyPOS',
-      subheader: '',
-      footer: '',
-      enableTaxBreakdown: false,
-      taxRate: 16
-    };
-    sendFinalMessageUtil(phone, enrichedActiveTicket, cartTotal, { t, lang, receiptSettings, loyaltyData });
-    setLoyaltyModal({ isOpen: false, step: 'phone', phone: '', data: null });
-  };
-
-  const handleSaveAsPNG = async (ticket) => {
-    try {
-      // Capture the hidden TicketImage element
-      await saveTicketAsPNGUtil('ticket-to-capture', `ticket-${ticket.name || 'pos'}.png`);
-    } catch (err) {
-      showAlert(t('common.error'), t('receipt.savePngErrorPrefix') + err.message);
-    }
-  };
-
-  // --- 2. THE GUEST CHECKOUT (NO TRACKING) ---
-  const handleGuestReceipt = () => {
-    const cleanPhone = loyaltyModal.phone.replace(/\D/g, '');
-    if (cleanPhone.length < 10) return setPhoneError(true);
-    sendFinalMessage(cleanPhone, null);
-  };
-
+  // Vertical wheel scrolls horizontal strips (category tabs, ticket rail).
   const handleWheelScroll = (e) => {
-    if (e.deltaY !== 0) {
-      const canScrollLeft = e.currentTarget.scrollLeft > 0;
-      const canScrollRight = e.currentTarget.scrollLeft < (e.currentTarget.scrollWidth - e.currentTarget.clientWidth);
-      if ((e.deltaY < 0 && canScrollLeft) || (e.deltaY > 0 && canScrollRight)) {
-        e.preventDefault();
-        e.currentTarget.scrollLeft += e.deltaY;
-      }
+    if (e.deltaY === 0) return;
+    const el = e.currentTarget;
+    const canLeft = el.scrollLeft > 0;
+    const canRight = el.scrollLeft < el.scrollWidth - el.clientWidth;
+    if ((e.deltaY < 0 && canLeft) || (e.deltaY > 0 && canRight)) {
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
     }
   };
 
-  // --- KDS SEND (shared by the manual button and immediate mode) ---
-  // Guards against concurrent double-sends: the local kds_sent flag only flips
-  // after the awaited db write, so a re-render in that window could otherwise
-  // insert a second order_fulfillment row for the same ticket.
-  const kdsSendingRef = useRef(new Set());
-  const handleSendToKds = async (ticket, { silent = false } = {}) => {
-    if (!ticket || ticket.kds_sent || kdsSendingRef.current.has(ticket.id)) return;
-    kdsSendingRef.current.add(ticket.id);
-    try {
-      // 1. Locally mark as sent
-      await db.active_tickets.update(ticket.id, { kds_sent: true });
-
-      // 2. Update Supabase
-      if (!isLocalMode()) {
-        // Critical path: the durable KDS record. If this fails, the send failed.
-        // Scheduled online orders carry their time so KDS/logistics can hold them.
-        const { data: oo } = await supabase.from('online_orders')
-          .select('pickup_at').eq('active_ticket_id', ticket.id).maybeSingle();
-        const { error: insertErr } = await supabase.from('order_fulfillment').insert({
-          active_ticket_id: ticket.id,
-          customer_name: ticket.name,
-          items: ticket.items,
-          payment_status: 'unpaid',
-          status: 'received',
-          ...(oo?.pickup_at ? { delivery_date: oo.pickup_at } : {})
-        });
-        if (insertErr) throw insertErr;
-
-        // Best-effort: flag the cloud ticket too. The KDS never reads this
-        // column, and it may be absent on older installs — a failure here must
-        // not abort the send or roll back the insert above.
-        const { error: flagErr } = await supabase
-          .from('active_tickets').update({ kds_sent: true }).eq('id', ticket.id);
-        if (flagErr) console.warn('Cloud kds_sent flag update failed (non-fatal):', flagErr.message);
-      }
-      if (!silent) showToast("Pedido enviado a cocina");
-    } catch (err) {
-      console.error('Failed to send to KDS:', err);
-      // Roll back the local flag so the ticket can be retried.
-      await db.active_tickets.update(ticket.id, { kds_sent: false }).catch(() => {});
-      if (!silent) showAlert(t('common.error'), "No se pudo enviar a la cocina");
-    } finally {
-      kdsSendingRef.current.delete(ticket.id);
-    }
-  };
-
-  // --- KDS IMMEDIATE MODE ---
-  // When enabled, any ticket that has items and hasn't been sent yet is pushed
-  // to the kitchen automatically (no "Enviar a Cocina" button press needed).
-  // Dedup is via kds_sent, so each ticket inserts exactly one order_fulfillment row.
-  useEffect(() => {
-    if (!posSettings?.kdsEnabled || posSettings?.kdsMode !== 'immediate') return;
-    tickets
-      .filter(tk => !tk.kds_sent && Array.isArray(tk.items) && tk.items.length > 0)
-      .forEach(tk => handleSendToKds(tk, { silent: true }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tickets, posSettings?.kdsEnabled, posSettings?.kdsMode]);
-
-  // Bundle global state for the context wormhole. Memoized so that unrelated
-  // re-renders (e.g. a PIN keystroke) don't cascade through every context consumer.
+  // Memoized so unrelated re-renders (a PIN keystroke) don't re-render every consumer.
   const posState = useMemo(() => ({
     cartTotal, activeTicket: enrichedActiveTicket, menuData, posSettings, activeCashier,
     isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
@@ -1004,15 +227,19 @@ function Register() {
     handleOpenCheckout, handlePartialPayment, handleCancelTicket, printRawReceipt, handleSaveAsPNG,
     handleRedeemReward, handleDetachLoyalty, handleAttachCustomer, setLoyaltyModal, loyaltyModal,
     pendingItem, handleToggleModifier, handleTextModifierChange, addToTicket,
-    handleSendToKds, setIsHelpModalOpen, clipDeadlines
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    handleSendToKds, setIsHelpModalOpen, clipDeadlines,
+  // Handlers are new functions each render; these values are what consumers react to.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [
     cartTotal, enrichedActiveTicket, menuData, posSettings, activeCashier,
     isCurrentlyOffline, totalOfflineRecords, shiftOrders, shiftExpenses, tickets,
     activeTicketId, visibleTickets, cartSubtotal,
     autoDiscountAmount, autoDiscountCart, autoDiscountByItemUid, activeAutoRuleName, manualDiscountAmount,
-    loyaltyModal, pendingItem, clipDeadlines
+    loyaltyModal, pendingItem, clipDeadlines,
   ]);
+
+  const { selectedProfile, setSelectedProfile, pinAttempt, setPinAttempt, pinShake, setPinShake, handleUnlockSubmit, handlePinKeyDown } = lock;
+  const { isDiscountModalOpen, setIsDiscountModalOpen, discountForm, setDiscountForm, handleApplyDiscount, handleRemoveDiscount, handleToggleManualRule } = discounts;
 
   // --- 1. LOCK SCREEN GUARD ---
   if (isLocked) {
