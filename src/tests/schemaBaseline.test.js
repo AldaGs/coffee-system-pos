@@ -1,22 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { PGlite } from '@electric-sql/pglite';
-import { pgcrypto } from '@electric-sql/pglite/contrib/pgcrypto';
 import { APP_SCHEMA_VERSION } from '../utils/schemaVersion';
 import { listMigrations } from '../../api/_migrations.js';
-
-// The pieces of a Supabase project the schema relies on.
-const SUPABASE_STUB = `
-CREATE ROLE anon; CREATE ROLE authenticated; CREATE ROLE service_role;
-CREATE SCHEMA auth; CREATE SCHEMA storage; CREATE SCHEMA extensions;
-CREATE TABLE auth.users (id uuid PRIMARY KEY, email text);
-CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS 'SELECT NULL::uuid';
-CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql AS 'SELECT NULL::text';
-CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql AS 'SELECT ''{}''::jsonb';
-CREATE TABLE storage.buckets (id text PRIMARY KEY, name text, public bool, file_size_limit bigint, allowed_mime_types text[]);
-CREATE TABLE storage.objects (id uuid, bucket_id text, name text, owner uuid);
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-CREATE PUBLICATION supabase_realtime;
-`;
+import { migratedDb } from './pgliteDb';
 
 const tables = (db) => db.query(`
   SELECT table_name, column_name, data_type FROM information_schema.columns
@@ -32,9 +17,7 @@ describe('schema baseline', () => {
   });
 
   it('applies on an empty Supabase-like database and re-applies as a no-op', async () => {
-    const db = await PGlite.create({ extensions: { pgcrypto } });
-    await db.exec(SUPABASE_STUB);
-    for (const m of listMigrations()) await db.exec(m.sql);
+    const db = await migratedDb();
     const first = await tables(db);
     for (const m of listMigrations()) await db.exec(m.sql);
     expect(await tables(db)).toEqual(first);

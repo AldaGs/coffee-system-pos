@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b done** (2026-10-22). Phases 2+ not started.
+Status: **1b and 2 done** (2026-10-22). Phase 3 not started.
 
 ## Goals
 
@@ -258,7 +258,7 @@ src/components/admin/<area>/   (decision)
 | 0 | Review this document; decide on P1 drift and P5 legacy paths | you |
 | 1a | **P1** check migrations against install.js; tag each feature/fix; you review the list | Phase 0 |
 | 1b | **P1** baseline + comparison test (incl. diff vs a deployed tenant), `schema_migrations` runner (still writes `schema_version`), rewrite the schema-copy test, remove the SQL copies (SetupScreen drops to ~1,050 lines) | 1a |
-| 2 | Smoke tests (sale + sync, public order, CFDI request) | — |
+| 2 | Smoke tests (sale + sync, public order, CFDI request): done, `src/tests/smoke.test.js` on PGlite | — |
 | 3 | Split `Admin.jsx`. This is the reference for the pattern, so you review the style here | 2 |
 | 3 | Shared helpers: `useFlash`; apply P2/P3 fixes in each file as it is split, so lines are touched once | Admin split |
 | 3 | Split `CanvasEditor.jsx` (toolbar, node renderers, panels, `useCanvasHistory`, `useSelection`) | 3 |
