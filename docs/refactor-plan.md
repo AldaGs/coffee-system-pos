@@ -232,7 +232,7 @@ Existing installs at 5.5 are marked as having `000` applied and only run 069+. I
 - Removed: `_schemaDeltas.js`, `schema-latest.sql`, the SQL copies in install.js/SetupScreen (5,082 → 1,040 lines).
 - `schemaBaseline.test.js` applies all migrations twice on PGlite with a Supabase stub.
 - Deployed diff (JardinOcultoPOS): tables/columns/triggers match. Prod-only and left out: `verify_admin_pin`, `provision_schema`, `deduct_inventory(jsonb)`, `active_tickets.senttobarista`, `app_runtime_config`, `tips_reconciliation` (no app uses them).
-- Follow-up fix: a tinypos-only tenant (no tinylogistics) has no `order_fulfillment`; `get_order_status` for delivery orders would then error. SetupScreen used to create a wrong-shaped copy.
+- Follow-up fix done in migration 069 (5.6): `get_order_status` tolerates a missing `order_fulfillment`.
 
 ## Comment rules (applied to every file we touch)
 

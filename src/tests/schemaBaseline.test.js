@@ -26,8 +26,9 @@ describe('schema baseline', () => {
   it('migration files are numbered without gaps and the app version is current', () => {
     const names = listMigrations().map((m) => m.id);
     expect(names[0]).toBe('000_baseline');
-    names.forEach((n, i) => expect(n.slice(0, 3)).toBe(String(i).padStart(3, '0')));
-    expect(APP_SCHEMA_VERSION).toBe('5.5');
+    // After the baseline, numbering continues where the archive (001–068) stopped.
+    names.slice(1).forEach((n, i) => expect(n.slice(0, 3)).toBe(String(69 + i).padStart(3, '0')));
+    expect(APP_SCHEMA_VERSION).toBe('5.6');
   });
 
   it('applies on an empty Supabase-like database and re-applies as a no-op', async () => {
@@ -49,6 +50,12 @@ describe('schema baseline', () => {
     expect(cols).toEqual(expect.arrayContaining(['kds_sent', 'table_id', 'seats', 'online_paid']));
     const trig = await db.query(`SELECT 1 FROM pg_trigger WHERE tgname = 'sales_cfdi_notify'`);
     expect(trig.rows).toHaveLength(1);
+
+    // POS-only shop: a delivery order's status must not need order_fulfillment.
+    await db.exec(`INSERT INTO public.online_orders (token, customer_name, phone, items, total_cents, status, order_type, active_ticket_id)
+      VALUES (repeat('a', 32), 'x', '1', '[]', 100, 'accepted', 'delivery', 1)`);
+    const status = await db.query(`SELECT public.get_order_status(repeat('a', 32)) AS s`);
+    expect(status.rows[0].s).toMatchObject({ found: true, status: 'accepted' });
     await db.close();
   }, 120_000);
 });
