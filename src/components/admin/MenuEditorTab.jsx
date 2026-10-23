@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
+import * as Menu from '@radix-ui/react-dropdown-menu';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useDialog } from '../../hooks/useDialog';
 import { formatForDisplay, fromCents } from '../../utils/moneyUtils';
@@ -822,42 +823,36 @@ function useCompactLayout() {
 }
 
 // "⋯" button with a small dropdown of secondary actions (falsy entries skipped).
+// The menu renders in a portal so the category card's overflow can't clip it,
+// and flips above the button when there's no room below.
 function OverflowMenu({ actions, title }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
-  }, [open]);
   const items = actions.filter(Boolean);
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        title={title}
-        aria-label={title}
-        aria-expanded={open}
-        style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-      >
-        <Icon icon="lucide:more-horizontal" />
-      </button>
-      {open && (
-        <div role="menu" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 20, minWidth: '200px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', padding: '6px', display: 'flex', flexDirection: 'column' }}>
+    <Menu.Root modal={false}>
+      <Menu.Trigger asChild>
+        <button
+          title={title}
+          aria-label={title}
+          style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--brand-color)', borderRadius: '10px', padding: '8px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+        >
+          <Icon icon="lucide:more-horizontal" />
+        </button>
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Content align="end" sideOffset={6} collisionPadding={12}
+          style={{ zIndex: 1000, minWidth: '200px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.15)', padding: '6px', display: 'flex', flexDirection: 'column' }}>
           {items.map((a, i) => (
-            <button
+            <Menu.Item
               key={i}
-              role="menuitem"
-              onClick={() => { setOpen(false); a.onClick(); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', background: 'transparent', border: 'none', borderRadius: '8px', cursor: 'pointer', color: a.danger ? '#e74c3c' : 'var(--text-main)', fontSize: '0.9rem', fontWeight: 600, textAlign: 'left' }}
+              onSelect={a.onClick}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '8px', cursor: 'pointer', color: a.danger ? '#e74c3c' : 'var(--text-main)', fontSize: '0.9rem', fontWeight: 600 }}
             >
               <Icon icon={a.icon} style={{ flexShrink: 0 }} />
               {a.label}
-            </button>
+            </Menu.Item>
           ))}
-        </div>
-      )}
-    </div>
+        </Menu.Content>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
