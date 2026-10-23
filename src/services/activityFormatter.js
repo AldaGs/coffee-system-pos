@@ -25,10 +25,11 @@ const ACTIONS = {
     icon: 'lucide:percent',
     color: '#e74c3c',
     labelKey: 'activity.action.discount',
-    describe: (m, t) => interp(t('activity.desc.discount'), {
-      value: m.type === 'percentage' ? `${m.value}%` : `$${fmt(m.value)}`,
-      ticket: m.ticket_name || '—'
-    })
+    // Old "Discount Applied" rows carry no metadata: '' falls back to their stored text.
+    describe: (m, t) => (m.ticket_name ? interp(t('activity.desc.discount'), {
+      value: m.promo ? `"${m.promo}"` : m.type === 'percentage' ? `${m.value}%` : fmt(m.value),
+      ticket: m.ticket_name
+    }) : '')
   },
   expense_added: {
     icon: 'lucide:receipt',

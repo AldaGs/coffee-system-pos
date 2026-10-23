@@ -61,18 +61,13 @@ async function connect() {
       ref = r.projectRef;
     }
   }
-  if (ref) {
-    const url = `https://${ref}.supabase.co`;
-    const res = await fetch(`${url}/storage/v1/object/public/menu/config.json`);
-    if (!res.ok) throw new Error('config');
-    const { k } = await res.json();
-    if (!k) throw new Error('config');
-    return createClient(url, k, opts);
-  }
-  const dec = (v) => { try { return atob(v.replace(/-/g, '+').replace(/_/g, '/')); } catch { return ''; } };
-  const u = dec(params.get('u') || ''); const k = dec(params.get('k') || '');
-  if (!u || !k) throw new Error('config');
-  return createClient(u, k, opts);
+  if (!ref) throw new Error('config');
+  const url = `https://${ref}.supabase.co`;
+  const res = await fetch(`${url}/storage/v1/object/public/menu/config.json`);
+  if (!res.ok) throw new Error('config');
+  const { k } = await res.json();
+  if (!k) throw new Error('config');
+  return createClient(url, k, opts);
 }
 
 export function useClient() {

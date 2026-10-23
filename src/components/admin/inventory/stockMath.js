@@ -1,6 +1,6 @@
 // Pure stock and cost math for the inventory tab. Costs are millicents per unit.
 
-// Reorder point: the item's own reorder_point, or the old default (2000 g / 10 units) when unset.
+// Reorder point: the item's own reorder_point, or the default (2000 g / 10 units) when unset.
 export function reorderThreshold(item) {
   const rp = Number(item.reorder_point) || 0;
   if (rp > 0) return rp;

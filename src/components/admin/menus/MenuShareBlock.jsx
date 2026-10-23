@@ -1,34 +1,22 @@
 import { useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { menuBaseUrl } from '../../../utils/customDomainSync';
+import { storedProjectRef } from '../../../utils/projectRef';
 import QRCode from 'qrcode';
 import { useTranslation } from '../../../hooks/useTranslation';
 import { useFlash } from '../../../hooks/useFlash';
 import { btnSecondary } from './menuShared';
 
-// Per-menu deep link. Resolves a /menu?u=…&k=…&m=<id> URL using the same
-// localStorage creds the central MenuShareCard uses. Each non-live menu
-// gets its own block so a shop can print one QR per menu (Brunch QR
-// always shows brunch regardless of time).
+// Per-menu deep link: /menu?p=<ref>&m=<id>. Each non-live menu gets its own
+// block so a shop can print one QR per menu (Brunch QR always shows brunch
+// regardless of time).
 export function MenuShareBlock({ menu }) {
   const { t } = useTranslation();
   const canvasRef = useRef(null);
   const [copied, flashCopied] = useFlash(1500);
 
-  const link = (() => {
-    if (typeof window === 'undefined') return '';
-    const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
-    const key = localStorage.getItem('tinypos_supabase_anon_key');
-    if (!supabaseUrl || !key) return '';
-    const projectRef = (() => {
-      try { return new URL(supabaseUrl).hostname.split('.')[0]; }
-      catch { return ''; }
-    })();
-    if (projectRef) {
-      return `${menuBaseUrl()}/menu?p=${projectRef}&m=${menu.id}`;
-    }
-    return `${menuBaseUrl()}/menu?u=${btoa(supabaseUrl)}&k=${btoa(key)}&m=${menu.id}`;
-  })();
+  const ref = storedProjectRef();
+  const link = ref ? `${menuBaseUrl()}/menu?p=${ref}&m=${menu.id}` : '';
 
   useEffect(() => {
     if (!canvasRef.current || !link) return;

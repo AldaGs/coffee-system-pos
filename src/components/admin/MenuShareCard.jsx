@@ -86,15 +86,13 @@ function MenuShareCard({ menuData, kind = 'menu' }) {
     } catch (err) {
       console.error('MenuShareCard: config upload failed', err);
       setError(err.message || 'Error uploading config');
-      // Fall back to the long URL so the QR is still usable.
+      // Still show the short link: config.json from an earlier upload keeps it working.
       const origin = isOrder ? orderBaseUrl() : menuBaseUrl();
-      const u = btoa(supabaseUrl);
-      const k = btoa(anonKey);
-      setMenuUrl(`${origin}/${page}?u=${u}&k=${k}`);
+      setMenuUrl(`${origin}/${page}?p=${projectRef}`);
     } finally {
       setUploading(false);
     }
-  }, [projectRef, anonKey, missingCreds, supabaseUrl, isOrder, page, linkedDomain]); // linkedDomain: rebuild after (un)linking
+  }, [projectRef, anonKey, missingCreds, isOrder, page, linkedDomain]); // linkedDomain: rebuild after (un)linking
 
   // On mount (and whenever creds change), upload the config.
   useEffect(() => backfillCustomDomain(kind), [kind]);

@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). Left: P5 decisions, P2/P3 leftovers, P6.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). P5 is done too. Left: P2/P3 leftovers, P6.
 
 ## Goals
 
@@ -63,18 +63,14 @@ Most of them hide effects that use stale values or should be events (`CfdiTab`, 
 - `MenuHistoryPanel`: after a restore it calls `recheckCloud` (passed down from `useAdminData`) instead of reloading the page. `PublicCFDI` retries the lookup when the throttle countdown ends instead of reloading.
 - All timed flag resets use `src/hooks/useFlash.js`, including `useCheckout`'s receipt animation, `useLoyalty`'s phone shake and `MenuShareCard`'s clipboard notice (now separate from its real `error`).
 
-### P5: Legacy paths that may be dead
+### P5: Legacy paths (decided and done 2026-10-23)
 
-Each one needs a yes/no from you: are there still installs that need it?
-
-- ~~`GeneralSettingsTab` "Scan / Repair Legacy Prices" tool~~: removed. It was already unreachable (button and scanner commented out).
-- `PublicMenu` long URL `?u=&k=` (base64 keys in the URL) plus its 5-minute polling.
-- `OrdersTab` "lite ticket" built from `items_sold` names for orders from before `local_id`.
-- One-time localStorage migrations: `useExpenses.migrateLegacyExpenses`, `useShiftState.migrateLegacyShiftState`.
-- `InventoryTab` reorder heuristic (2000 g / 10) used when `reorder_point` is unset.
-- `activityFormatter` mapping for old `action_type` values.
-
-**Decision:** we review each path one at a time before deciding. If a path is no longer needed, delete it. If it is, keep it isolated in a `legacy/` helper with a one-line reason.
+- Removed: the "Scan / Repair Legacy Prices" tool (earlier).
+- Removed: `?u=&k=` links on the menu, order and CFDI pages. The five places that still built them (per-menu QR, TV, canvas print, share-card fallback, CFDI fallback) now build `?p=` links via `utils/projectRef.js`.
+- Removed: the "lite ticket" built from `items_sold` for orders saved before `items` existed (old receipts are backed up).
+- Removed: the one-time localStorage moves in `useExpenses` and `useShiftState`.
+- Kept: the 2000 g / 10 reorder default, now described as the default for items without a reorder point (it isn't legacy).
+- Kept: the activity mapping for old action names. The register now logs discounts as `discount_applied` with metadata; old "Discount Applied" rows show their stored text.
 
 ### P6: Unfinished placeholder
 
@@ -318,7 +314,7 @@ src/components/admin/<area>/   (decision)
 | 3 | Split what's left of `SetupScreen.jsx` (one component per setup step + `useProvisioning`) | 1 |
 | 3 | The 1,100–1,600-line tabs, `Register.jsx`, `PublicOrder`, `PublicMenu`, P4, P6, P7 | 3 |
 | 4 | Done: `translations.js` (4,651 lines) split into `src/utils/translations/` (10 area files + `index.js`); same 2,244 keys and values per language, imports unchanged | — |
-| 5 | P5: review each path, remove the ones you approve | 0 |
+| 5 | Done: P5 paths reviewed; approved ones removed | 0 |
 | 6 | P6: designed-menu page | end |
 
 Every PR: `npm run lint`, `npm test`, `npm run build` pass. Before a split, add tests for the code being pulled out (hooks and helpers) if it has none.

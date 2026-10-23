@@ -3,22 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 import { createPageTracker } from '../../utils/pageTracker';
 import { hasMenuTracker, mapGroups, setMenuTracker, trackMenu } from './shared';
 
-// Standard base64 → string. Tolerates URL-safe variants in case the link was
-// rewritten by a QR scanner or messaging app.
-function decodeParam(value) {
-  if (!value) return '';
-  try {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-    return atob(normalized);
-  } catch {
-    return '';
-  }
-}
-
 const clientOpts = { auth: { persistSession: false, autoRefreshToken: false } };
 
-// Resolves the shop's anon client from the URL (?p= ref, custom domain, or
-// legacy ?u=&k=), then loads the menu (?m= pins one) and refreshes it every 5 minutes.
+// Resolves the shop's anon client from the URL (?p= ref or a custom domain),
+// then loads the menu (?m= pins one) and refreshes it every 5 minutes.
 export function useMenuData({ isTvMode, isPrintMode }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
@@ -93,14 +81,8 @@ export function useMenuData({ isTvMode, isPrintMode }) {
           if (!cancelled) setError('Error resolviendo el dominio.');
         });
     } else {
-      // Legacy long-URL path: ?u=BASE64_URL&k=BASE64_KEY (backwards compat).
-      const supabaseUrl = decodeParam(params.get('u'));
-      const publishableKey = decodeParam(params.get('k'));
-      if (!supabaseUrl || !publishableKey) {
-        setTimeout(() => setError('missing-config'), 0);
-        return;
-      }
-      start(createClient(supabaseUrl, publishableKey, clientOpts));
+      setTimeout(() => setError('missing-config'), 0);
+      return;
     }
 
     return () => {

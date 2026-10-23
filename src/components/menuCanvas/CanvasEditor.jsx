@@ -10,6 +10,7 @@ import { PaletteContext } from './paletteContext';
 import { updateMenu } from '../../api/menus';
 import { openInBrowser } from '../../utils/openInBrowser';
 import { menuBaseUrl } from '../../utils/customDomainSync';
+import { storedProjectRef } from '../../utils/projectRef';
 import AssetPicker from './AssetPicker';
 import ItemPicker from './ItemPicker';
 import { ContextMenu } from './editor/ContextMenu';
@@ -119,14 +120,13 @@ export default function CanvasEditor({ menu, menuData, onClose, showAlert }) {
 
   // The public page prints itself when opened with ?print=1.
   function openPrint() {
-    const url = localStorage.getItem('tinypos_supabase_url');
-    const key = localStorage.getItem('tinypos_supabase_anon_key');
-    if (!url || !key) {
+    const ref = storedProjectRef();
+    if (!ref) {
       showAlert?.(t('canvas.missingConfigTitle'), t('canvas.missingConfigDesc'));
       return;
     }
     if (dirty && !window.confirm(t('canvas.unsavedPrint'))) return;
-    const go = () => openInBrowser(`${menuBaseUrl()}/menu?u=${btoa(url)}&k=${btoa(key)}&m=${menu.id}&print=1`);
+    const go = () => openInBrowser(`${menuBaseUrl()}/menu?p=${ref}&m=${menu.id}&print=1`);
     if (dirty) save().then(go).catch(() => {}); else go();
   }
 

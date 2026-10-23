@@ -1,3 +1,5 @@
+import { storedProjectRef } from './projectRef';
+
 /**
  * Shared CFDI URL builder.
  *
@@ -27,17 +29,7 @@ export function buildCfdiUrl(ticketOrSaleId) {
     localStorage.getItem('tinypos_cfdi_custom_domain') ||
     syncedDomain;
   const baseUrl = cfdiDomain ? `https://${cfdiDomain}` : window.location.origin;
-  const supabaseUrl = localStorage.getItem('tinypos_supabase_url');
-  const anonKey = localStorage.getItem('tinypos_supabase_anon_key');
-
-  const projectRef = supabaseUrl
-    ? new URL(supabaseUrl).hostname.split('.')[0]
-    : '';
-
-  if (projectRef) {
-    return `${baseUrl}/cfdi/${ticketOrSaleId}?p=${projectRef}`;
-  }
-  return `${baseUrl}/cfdi/${ticketOrSaleId}?u=${btoa(supabaseUrl)}&k=${btoa(anonKey)}`;
+  return `${baseUrl}/cfdi/${ticketOrSaleId}?p=${storedProjectRef()}`;
 }
 
 /**

@@ -17,6 +17,7 @@ import PublicPageTraffic from './PublicPageTraffic';
 import { findScheduleConflicts } from '../../utils/scheduleConflicts';
 import { openInBrowser } from '../../utils/openInBrowser';
 import { menuBaseUrl } from '../../utils/customDomainSync';
+import { storedProjectRef } from '../../utils/projectRef';
 import CanvasEditor from '../menuCanvas/CanvasEditor';
 import InfoTip from '../shared/InfoTip';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -42,19 +43,15 @@ function MenusTab({ showAlert, showConfirm, menuData, onSetItemPublicFields }) {
     setExpandedId(created.id); // open the editor so the user can pick template + categories
   }
 
-  // Open /menu/tv in a new tab with the same base64 creds the share card
-  // uses, so any device that opens the link gets a full-screen rotating menu
-  // without needing to log in.
+  // Open /menu/tv?p=<ref> in a new tab, so any device that opens the link gets
+  // a full-screen rotating menu without needing to log in.
   function openTvView() {
-    if (typeof window === 'undefined') return;
-    const url = localStorage.getItem('tinypos_supabase_url');
-    const key = localStorage.getItem('tinypos_supabase_anon_key');
-    if (!url || !key) {
+    const ref = storedProjectRef();
+    if (!ref) {
       showAlert?.(t('menusTab.missingConfigTitle'), t('menusTab.missingConfigDesc'));
       return;
     }
-    const tvUrl = `${menuBaseUrl()}/menu/tv?u=${btoa(url)}&k=${btoa(key)}`;
-    openInBrowser(tvUrl);
+    openInBrowser(`${menuBaseUrl()}/menu/tv?p=${ref}`);
   }
 
   if (loading) return <div className="admin-section fade-in"><p>{t('menusTab.loading')}</p></div>;

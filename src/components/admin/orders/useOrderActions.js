@@ -9,18 +9,10 @@ import { reopenSale } from '../../../services/reopenService';
 import { consumePendingAuthorizer } from '../../../utils/overrideAuthorizer';
 import { queueSaleUpdate, saveSaleUpdate, ticketLabel } from './saleUpdate';
 
-// The ticket a stored sale prints/shares as. Legacy sales only kept item names.
-export const getOrderTicket = (order) => {
-  if (order.items && Array.isArray(order.items)) {
-    return { name: order.order_name || String(order.id), items: order.items, discount: order.discount, created_at: order.created_at };
-  }
-  return {
-    name: order.order_name || String(order.id),
-    // We don't have historical item prices in legacy sales.
-    items: (order.items_sold || []).map(name => ({ name, basePrice: 0, qty: 1, emoji: '☕', selectedModifiers: [] })),
-    created_at: order.created_at
-  };
-};
+// The ticket a stored sale prints/shares as.
+export const getOrderTicket = (order) => ({
+  name: order.order_name || String(order.id), items: order.items || [], discount: order.discount, created_at: order.created_at,
+});
 
 // Per-order actions other than refunds: reopen, CFDI folio, print and share.
 export function useOrderActions({ menuData, generalSettings, posSettings, activeCashier, requirePin, recipes, showAlert, showPrompt, showConfirm, t, lang }) {

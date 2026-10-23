@@ -150,8 +150,3 @@ export function paymentTag(paymentSource) {
   if (paymentSource === 'dueno') return ' [Dueño]';
   return '';
 }
-
-// Stock at or below which an item should be reordered. A per-item
-// `reorder_point` (migration 026) takes precedence; when it's unset (0) we fall
-// back to the legacy heuristic (2000 for grams, 10 otherwise) so existing
-// installs keep their prior low-stock behavior.

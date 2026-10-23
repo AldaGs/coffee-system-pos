@@ -3,7 +3,7 @@ import { db } from '../db';
 import { logActivity } from '../services/activityService';
 import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 import { gateRegisterAction } from '../utils/actionGate';
-import { toCents, formatForDisplay } from '../utils/moneyUtils';
+import { toCents } from '../utils/moneyUtils';
 
 const EMPTY_FORM = { type: 'percentage', value: '' };
 
@@ -27,12 +27,7 @@ export function useTicketDiscounts({ activeTicket, posSettings, activeCashier, r
     if (activeTicket) {
       await db.active_tickets.update(activeTicket.id, { discount: { type: discountForm.type, value: val } });
       // The fourth argument is the manager override, if the gate asked for one.
-      logActivity(
-        'Discount Applied',
-        `A ${discountForm.type === 'percentage' ? discountForm.value + '%' : formatForDisplay(val)} discount was applied to ticket: ${activeTicket.name}`,
-        null,
-        consumePendingAuthorizer(),
-      );
+      logActivity('discount_applied', null, { type: discountForm.type, value: val, ticket_name: activeTicket.name }, consumePendingAuthorizer());
     }
     close();
   };
@@ -57,7 +52,7 @@ export function useTicketDiscounts({ activeTicket, posSettings, activeCashier, r
         activatedManualRuleIds: isOn ? current.filter((id) => id !== rule.id) : [...current, rule.id],
       });
       if (!isOn) {
-        logActivity('Discount Applied', `Promo "${rule.name}" was applied to ticket: ${activeTicket.name}`, null, authorizer || consumePendingAuthorizer());
+        logActivity('discount_applied', null, { promo: rule.name, ticket_name: activeTicket.name }, authorizer || consumePendingAuthorizer());
       }
     };
     if (!isOn && rule.requireApproval) {

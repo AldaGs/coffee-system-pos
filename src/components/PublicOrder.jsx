@@ -6,8 +6,8 @@
 // Talks to Supabase only through the anon key and two RPCs: get_active_menu
 // (menu), public_place_order (submit; server reprices) and get_order_status
 // (token lookup). Customer details and past orders live in this browser's
-// localStorage only. Connection bootstrap mirrors PublicMenu (?p= ref,
-// custom domain, legacy ?u=&k=).
+// localStorage only. Connection bootstrap mirrors PublicMenu (?p= ref or
+// custom domain).
 
 import { useState } from 'react';
 import { STR } from './publicOrder/strings';

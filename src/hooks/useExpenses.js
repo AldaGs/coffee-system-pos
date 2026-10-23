@@ -8,33 +8,7 @@ import { consumePendingAuthorizer } from '../utils/overrideAuthorizer';
 import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
 
-const LS_EXPENSES_KEY = 'tinypos_expenses';
 const LS_QUEUE_KEY = 'tinypos_expense_queue';
-const LS_MIGRATED_FLAG = 'tinypos_expenses_dexie_migrated';
-
-// One-shot import of any legacy localStorage expense rows into Dexie. Runs at
-// most once per device; the flag prevents re-importing after a user clears the
-// Dexie table on purpose.
-async function migrateLegacyExpenses() {
-  if (localStorage.getItem(LS_MIGRATED_FLAG) === '1') return;
-  try {
-    const raw = localStorage.getItem(LS_EXPENSES_KEY);
-    if (raw) {
-      const legacy = JSON.parse(raw);
-      if (Array.isArray(legacy) && legacy.length > 0) {
-        const normalized = legacy.map(e => ({
-          ...e,
-          id: typeof e.id === 'string' ? e.id : crypto.randomUUID()
-        }));
-        await db.expenses.bulkPut(normalized);
-      }
-      localStorage.removeItem(LS_EXPENSES_KEY);
-    }
-  } catch (err) {
-    console.warn('Expense migration skipped:', err);
-  }
-  localStorage.setItem(LS_MIGRATED_FLAG, '1');
-}
 
 export function useExpenses({ activeCashier, t, showAlert }) {
   // Pending cloud-sync queue — still in localStorage so the existing
@@ -47,8 +21,6 @@ export function useExpenses({ activeCashier, t, showAlert }) {
   useEffect(() => {
     localStorage.setItem(LS_QUEUE_KEY, JSON.stringify(expenseQueue));
   }, [expenseQueue]);
-
-  useEffect(() => { migrateLegacyExpenses(); }, []);
 
   const expenses = useLiveQuery(() => db.expenses.orderBy('timestamp').toArray(), []) || [];
 

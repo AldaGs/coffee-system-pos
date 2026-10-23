@@ -7,16 +7,6 @@ import { getCfdiPeriodWarning } from '../utils/cfdiUrl';
 import { parseConstancia } from '../utils/constanciaFiscal';
 import { useFlash } from '../hooks/useFlash';
 
-function decodeParam(value) {
-  if (!value) return '';
-  try {
-    const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
-    return atob(normalized);
-  } catch {
-    return '';
-  }
-}
-
 // --- Fiscal input validation (SAT structures) ---
 // RFC: 3 letters (moral) or 4 letters (física) + 6 digits (date) + 3 alphanumeric homoclave.
 const RFC_RE = /^[A-ZÑ&]{3,4}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]$/;
@@ -129,15 +119,7 @@ function PublicCFDI({ ticketId }) {
       return;
     }
 
-    const u = params.get('u');
-    const k = params.get('k');
-    if (u && k) {
-      url = decodeParam(u);
-      key = decodeParam(k);
-      setTimeout(() => setSupabase(createClient(url, key, { auth: { persistSession: false } })), 0);
-    } else {
-      setTimeout(() => setError("Faltan parámetros en el enlace."), 0);
-    }
+    setTimeout(() => setError("Faltan parámetros en el enlace."), 0);
   }, []);
 
   useEffect(() => {
