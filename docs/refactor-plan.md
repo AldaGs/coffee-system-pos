@@ -38,8 +38,13 @@ Status: **draft for review**. Nothing in this document has been changed in code 
 - The SetupScreen copy and the `install.js` copy differ by **~580 lines**. For example, SetupScreen creates `order_fulfillment` and `active_tickets.kds_sent/table_id/seats` in places where `install.js` doesn't. A first install from SetupScreen and a full reinstall from `install.js` can therefore produce different databases.
 - `db/schema-latest.sql` calls itself a mirror but is stuck at 3.2.
 
-**Fix:** keep one source of truth, `db/schema.sql` (or one module under `api/`). `install.js` reads it, and SetupScreen calls `/api/install` (or a shared endpoint) instead of sending its own SQL to `/api/run-sql`. Delete the copies. That removes about 8,000 duplicated lines and the manual sync rule.
-*Needs a decision:* we have to reconcile the ~580 lines of drift first, picking the correct version of each difference. That needs your review.
+**Decision: migrations are the only source.** `db/migrations/` already has 68 files (001–068), and the same SQL is copied into `_schemaDeltas.js`, `install.js`, `SetupScreen.jsx` and `schema-latest.sql`.
+
+1. Check that the 68 files really build what `install.js` builds today, and add the missing pieces as new migrations.
+2. Review each migration and tag it as **feature** or **fix** (a fix corrects an unwanted behavior from an earlier migration).
+3. Recommended: squash everything up to today into `000_baseline.sql` for new installs, with each fix folded into its feature. Already-applied files are never edited, because existing installs have run them. An automated test checks that the baseline and running the 68 files one by one produce the same database.
+4. Track applied migrations in a `schema_migrations` table, replacing the single `schema_version` string. `/api/install` runs only the missing files, one request per file or small batch, so each request stays under the Vercel time limit.
+5. Delete the SQL copies from `install.js`, `SetupScreen.jsx`, `_schemaDeltas.js` and `schema-latest.sql`, along with the manual sync rule in `schemaVersion.js`.
 
 ### P2: `setTimeout(..., 0)` used to get around React's "no setState in effect" rule
 
@@ -69,11 +74,11 @@ Each one needs a yes/no from you: are there still installs that need it?
 - `InventoryTab` reorder heuristic (2000 g / 10) used when `reorder_point` is unset.
 - `activityFormatter` mapping for old `action_type` values.
 
-If a path is no longer needed, delete it. If it is, keep it isolated in a `legacy/` helper with a one-line reason.
+**Decision:** we review each path one at a time before deciding. If a path is no longer needed, delete it. If it is, keep it isolated in a `legacy/` helper with a one-line reason.
 
 ### P6: Unfinished placeholder
 
-`PublicMenu.jsx:244` still shows a "Phase 4" placeholder for `kind='designed'` menus. The designed renderer (`CanvasRenderer`) exists now. Either wire it up or remove the branch.
+`PublicMenu.jsx:244` still shows a "Phase 4" placeholder for `kind='designed'` menus. The designed renderer (`CanvasRenderer`) exists now. **Decision:** postponed. No changes until the end of the refactor.
 
 ### P7: Translations embedded in components
 
@@ -89,7 +94,7 @@ If a path is no longer needed, delete it. If it is, keep it isolated in a `legac
 ## Split pattern
 
 ```
-src/features/<area>/
+src/components/admin/<area>/   (decision)
   <Area>Tab.jsx         // layout + composition only
   components/…          // one section/step per file
   use<Area>Data.js      // fetching, saving, derived state
@@ -101,20 +106,19 @@ src/features/<area>/
 | Phase | Step | Depends on |
 |---|---|---|
 | 0 | Review this document; decide on P1 drift and P5 legacy paths | you |
-| 1 | **P1** single schema source: reconcile drift, remove the SQL copies from SetupScreen and install.js (SetupScreen drops to ~1,050 lines) | Phase 0 |
+| 1a | **P1** check migrations against install.js; tag each feature/fix; you review the list | Phase 0 |
+| 1b | **P1** baseline + comparison test, `schema_migrations` runner, remove the SQL copies (SetupScreen drops to ~1,050 lines) | 1a |
 | 2 | Shared helpers: `useFlash`, P2 fixes, P3 review (small, touches many files) | — |
 | 3 | Split `Admin.jsx`. This is the reference for the pattern, so you review the style here | 2 |
 | 3 | Split `CanvasEditor.jsx` (toolbar, node renderers, panels, `useCanvasHistory`, `useSelection`) | 3 |
 | 3 | Split what's left of `SetupScreen.jsx` (one component per setup step + `useProvisioning`) | 1 |
 | 3 | The 1,100–1,600-line tabs, `Register.jsx`, `PublicOrder`, `PublicMenu`, P4, P6, P7 | 3 |
-| 4 | Data files: `translations.js` split per area (`translations/<area>.js`); `_schemaDeltas.js` split into one file per version under `db/deltas/`. Only how they're organized changes, not their contents | — |
-| 5 | P5 removals you approved | 0 |
+| 4 | Data files: `translations.js` split per area (`translations/<area>.js`). Only how it's organized changes, not its contents (`_schemaDeltas.js` goes away in Phase 1) | — |
+| 5 | P5: review each path, remove the ones you approve | 0 |
+| 6 | P6: designed-menu page | end |
 
 Every PR: `npm run lint`, `npm test`, `npm run build` pass. Before a split, add tests for the code being pulled out (hooks and helpers) if it has none.
 
 ## Open questions for you
 
-1. **P1:** OK to make one schema file the only source? Do you want to review the ~580-line drift list item by item, or should I propose a resolution for each item?
-2. **P5:** which legacy paths can be removed?
-3. **P6:** wire up the designed-menu renderer, or remove the placeholder?
-4. Folder layout: is `src/features/<area>/` OK, or would you rather keep `src/components/admin/<area>/`?
+1. **P1:** squash into a baseline (recommended) or only tag migrations as feature/fix?
