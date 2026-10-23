@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). Next: the 1,100–1,600-line tabs.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab done; next of the 1,100–1,600-line tabs: GeneralSettingsTab.
 
 ## Goals
 
@@ -276,6 +276,12 @@ src/components/admin/<area>/   (decision)
 - P2: `authorized` is read from the URL as initial state instead of `setTimeout(…, 0)`; the OAuth effect's disable is gone (`fetchProjects` is a stable callback).
 - P4: the 1-second "wait for UX" before booting is removed; the alert uses `useFlash`.
 - Removed two `console.log`s; one printed the project's API keys (service_role included) to the browser console.
+
+### InventoryTab.jsx split (1,585 → 177 lines)
+
+- `src/components/admin/inventory/`: `inventoryStore.js` (two-mode writes, lots, expenses), `stockMath.js` (reorder point, cost blending for restock and roast; tested), `useLots`, `useStockActions`, and one component per block (forms, lots, deleted/history, item panels, list).
+- The roast now registers its lot through `registerLot` instead of a second inline copy; the `drawDownLotsFIFO` pass-through wrapper is gone.
+- Fixed: the "See Deleted" view never rendered (its JSX returned a function, `})}` instead of `})()}`).
 
 ## Order of work (one PR per step)
 
