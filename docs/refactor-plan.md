@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **draft for review**. Nothing in this document has been changed in code yet.
+Status: **1b done** (2026-10-22). Phases 2+ not started.
 
 ## Goals
 
@@ -223,6 +223,16 @@ Existing installs at 5.5 are marked as having `000` applied and only run 069+. I
 3. **Smoke tests before Phase 3.** Add about 3 end-to-end checks: ring a sale and sync it, place a public order, request a CFDI. Run them after every split PR.
 4. **The schema-copy test.** The existing test that requires the SQL copies to match will fail once 1b removes them. Rewriting it is part of 1b.
 5. **Feature freeze on schema during Phase 1.** A migration added while 1b is in flight has to land in both the baseline and the archive. Ship pending work (e.g. `docs/online-orders-inbox-ux.md`) before 1b or after it.
+
+## Step 1b: done
+
+- `db/migrations/000_baseline.sql` = old install.js script + drift fixes (floor_plan, `active_tickets.kds_sent/table_id/seats`, realtime, 060's CFDI-request trigger; `order_fulfillment` ALTERs only when tinylogistics' table exists). 001–068 moved to `archive/`.
+- Simplification vs the plan: no 1.9–3.1 files written. The baseline is idempotent, so installs older than 5.5 just run it (same as the old full-script fallback).
+- `/api/install` runs pending files from `public.schema_migrations`, one request each, then stamps `schema_version`. SetupScreen calls it, then seeds only the admin PIN.
+- Removed: `_schemaDeltas.js`, `schema-latest.sql`, the SQL copies in install.js/SetupScreen (5,082 → 1,040 lines).
+- `schemaBaseline.test.js` applies all migrations twice on PGlite with a Supabase stub.
+- Deployed diff (JardinOcultoPOS): tables/columns/triggers match. Prod-only and left out: `verify_admin_pin`, `provision_schema`, `deduct_inventory(jsonb)`, `active_tickets.senttobarista`, `app_runtime_config`, `tips_reconciliation` (no app uses them).
+- Follow-up fix: a tinypos-only tenant (no tinylogistics) has no `order_fulfillment`; `get_order_status` for delivery orders would then error. SetupScreen used to create a wrong-shaped copy.
 
 ## Comment rules (applied to every file we touch)
 

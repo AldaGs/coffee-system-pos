@@ -1,4 +1,7 @@
 {
+  "functions": {
+    "api/install.js": { "includeFiles": "db/migrations/*.sql" }
+  },
   "rewrites": [
     {
       "source": "/api/add-domain",

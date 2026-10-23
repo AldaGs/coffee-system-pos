@@ -1,67 +1,33 @@
-# Schema migrations — how they actually run
+# Schema migrations
 
-Three places hold the DDL for this app, and a contributor change is only
-"live on an install" once that install pulls the new SQL through the right
-trigger. Confusing the triggers is the #1 cause of schema drift bugs.
+`db/migrations/NNN_*.sql` is the only schema source.
 
-## The three DDL sources (keep in sync)
+- `000_baseline.sql` is the full schema as of 5.5 (old 001–068 squashed, drift fixed).
+  It is idempotent, so it also upgrades installs older than 5.5.
+- Every change after that is a new file, `069_….sql`, `070_….sql`, … Bump
+  `APP_SCHEMA_VERSION` in `src/utils/schemaVersion.js` with it.
+- `archive/` holds the old 001–068 files for reference. Nothing runs them.
 
-| File | When it runs | Audience |
-|---|---|---|
-| `src/components/SetupScreen.jsx` (`schemaQuery` ~line 104–846) | First-time install — user clicks "New install" or initial connect flow | Fresh Supabase project, no tables yet |
-| `api/install.js` (`schemaQuery` ~line 15–871) | Existing install — Admin → Settings → "Update Schema" | Existing project, schema may be stale |
-| `db/migrations/NNN_*.sql` | Manual one-off in Supabase SQL editor | Last resort / contributor reference |
+## How they run
 
-When you add a column, table, RPC, constraint, etc., **edit all three.**
-The migration file lets a contributor apply just that diff; the two embedded
-copies let real users get the change without paste-and-pray.
+`/api/install` (first install from SetupScreen, and Admin → Settings → "Update
+Schema") creates `public.schema_migrations`, runs every file not listed there
+(one Management API request per file, each in its own transaction), records it,
+then stamps `schema_meta.schema_version` for sibling apps and cached clients.
+An install that predates the ledger and is stamped 5.5 counts the baseline as
+already applied.
 
-## The two SQL endpoints (both safe)
+"Connect to existing" in SetupScreen runs no SQL; only "Update Schema" applies
+new migrations to an existing project.
 
-| Endpoint | Caller | Behavior |
-|---|---|---|
-| `/api/run-sql` | SetupScreen install flow | Proxies to Management API `/database/query`. Propagates non-2xx as error. |
-| `/api/install` | Admin "Update Schema" button | Same endpoint, wraps with `success: false` envelope. Propagates errors. |
+Tables owned by tinylogistics / tinybooks (`order_fulfillment`,
+`push_subscriptions`, `book_*`, …) live in the same database. Never create or
+drop them here.
 
-Both wrap the full SQL string in a single transaction server-side
-(Management API behavior). **One failed statement rolls back the whole
-batch and surfaces an error to the user.** Silent failures don't happen
-through these paths — if the user reports a missing column or function,
-the schema simply wasn't re-applied, not partially applied.
+`src/tests/schemaBaseline.test.js` runs every file twice on an in-process
+Postgres (PGlite) with a Supabase stub, so a migration must be idempotent.
 
-## The gotcha that bit us twice
-
-`SetupScreen.jsx` has TWO buttons that both touch the same project:
-
-- **"New install" / `handleHolyGrailInstall`** — runs the full `schemaQuery`.
-- **"Connect to existing" / `handleStandardConnect`** — re-fetches the anon
-  key and stores it. **Does NOT run any SQL.**
-
-A user who clicks "Connect to existing" expecting it to "refresh" the
-schema gets the same DDL their project was created with, regardless of
-what's been pushed to `main` since. The only way to apply new DDL to an
-existing install is the **"Update Schema" button in Admin → Settings**
-(which runs `/api/install`).
-
-If you change the schema and want to verify it landed:
-
-1. Push the code.
-2. Have the user click Admin → Settings → "Update Schema".
-3. Watch for the success toast.
-
-NOT just "re-connect" in SetupScreen.
-
-## Migration-authoring conventions
-
-Schema 3.2 adds `049_online_delivery_areas.sql` for point-in-area delivery
-pricing and optional shipping quotes. Schema 3.3 adds
-`050_public_delivery_coverage.sql` for the customer map's whitelisted area
-overlay. Schema 4.0 adds `055_order_alerts.sql` (pg_net trigger → the
-`order-alert` Edge Function for Telegram / Web Push new-order alerts); 4.1 adds `056_order_alert_devices.sql` (device table renamed off a
-sibling app's `push_subscriptions`); 4.2 adds `057_page_events.sql` (cookieless
-public-page analytics); 4.3 adds `058_page_analytics_page_filter.sql` (per-page filter). The current full schema is mirrored in
-`db/schema-latest.sql`, `api/install.js` and `src/components/SetupScreen.jsx`;
-the in-app upgrade path also includes the same SQL in `api/_schemaDeltas.js`.
+## Writing a migration
 
 `CREATE TABLE IF NOT EXISTS` and `CREATE OR REPLACE FUNCTION` are
 forgiving, but they silently skip if the prior version already exists.

@@ -1,21 +1,7 @@
-// Single source of truth for the schema version this build of the app
-// expects. The same string is also hardcoded into the SQL in
-// api/install.js and src/components/SetupScreen.jsx — when bumping the
-// schema, change ALL THREE in the same commit:
-//
-//   1. This constant
-//   2. The literal in api/install.js schemaQuery (INSERT INTO schema_meta)
-//   3. The literal in SetupScreen.jsx schemaQuery (mirror)
-//   4. api/_schemaDeltas.js — append the version to VERSION_ORDER AND add a
-//      { version, sql } delta. The "Update Schema" button applies only the
-//      delta, not the full script, so a missing delta makes it report
-//      "up to date" without actually upgrading.
-//
-// The Update Schema button in General Settings reads `value` from
-// public.schema_meta WHERE key='schema_version' and compares to this
-// constant; if they differ, the UI surfaces "Update available."
-//
-// SCHEMA: bump me when changing the install SQL.
+// Schema version this build expects. To change the schema, add the next
+// db/migrations/NNN_*.sql file and bump this; /api/install runs the new file
+// and stamps public.schema_meta.schema_version, which General Settings
+// compares against this to offer "Update available."
 //
 // 5.5 — get_order_status returns tracking_token (tinylogistics) + cfdi_ref for the purchase page links.
 // 5.4 — CFDI email text: cfdi_email_settings.email_message/email_footer + set_cfdi_email_message; redeploys cfdi-email (placeholders, preview).

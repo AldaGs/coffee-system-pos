@@ -29,11 +29,6 @@ const SS_SCHEMA_OAUTH_DONE = 'tinypos_schema_oauth_done';
 function clearMgmtToken() {
   try { fetch('/api/supabase?op=clear', { method: 'POST' }).catch(() => {}); } catch { /* noop */ }
 }
-// The DB version at click time, stashed before the OAuth redirect so the
-// post-callback install POST can request just the delta (the async
-// fetchSchemaVersion may not have re-resolved by the time the resume effect
-// runs). Empty/absent → server runs the full script.
-const SS_SCHEMA_FROM = 'tinypos_schema_from_version';
 
 function projectRefFromUrl(url) {
   try { return new URL(url).hostname.split('.')[0] || null; }
@@ -134,7 +129,6 @@ function GeneralSettingsTab({
 
     const finishCleanup = () => {
       try { sessionStorage.removeItem(SS_SCHEMA_OAUTH_DONE); } catch { /* noop */ }
-      try { sessionStorage.removeItem(SS_SCHEMA_FROM); } catch { /* noop */ }
       clearMgmtToken();
     };
 
@@ -151,13 +145,10 @@ function GeneralSettingsTab({
       setSchemaUpdating(true);
       setTimeout(() => schemaBtnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 0);
       try {
-        const fromVersion = (() => {
-          try { return sessionStorage.getItem(SS_SCHEMA_FROM) || undefined; } catch { return undefined; }
-        })();
         const res = await fetch('/api/install', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ projectRef, fromVersion }),
+          body: JSON.stringify({ projectRef }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok || data?.success === false) {
@@ -187,9 +178,6 @@ function GeneralSettingsTab({
       t('settings.schemaUpdateConfirmDesc'),
       () => {
         try { sessionStorage.setItem(SS_SCHEMA_OAUTH_FLAG, '1'); } catch { /* noop */ }
-        // Stash the installed version so the resume POST can request just the
-        // delta. '' when unknown → server falls back to the full script.
-        try { sessionStorage.setItem(SS_SCHEMA_FROM, (dbVersion && dbVersion !== 'unknown') ? dbVersion : ''); } catch { /* noop */ }
         // /api/auth/start mints a random state + PKCE verifier server-side
         // (HttpOnly cookies) and redirects on to Supabase. Scopes live there,
         // keyed by flow, so this page can't ask for more than it needs.
