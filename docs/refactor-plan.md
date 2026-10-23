@@ -111,9 +111,21 @@ The 68 files don't describe the whole database. These pieces exist in `install.j
 | `floor_plan` table | only listed in grants, not created | created | 025 creates it | migration 025; install.js is missing it |
 | `order_fulfillment` | `ALTER` only | `CREATE TABLE` | none | don't create it (tinylogistics owns it); SetupScreen is wrong |
 | `active_tickets.kds_sent / table_id / seats` | missing | present | 025 (`table_id`, `seats`) | to check one by one in 1b |
-| `push_subscriptions` | — | — | 055 created, 056 replaced it | drop from the baseline |
-| `notify_cfdi_request` / `sales_cfdi_notify` | not found by name | — | 060 | check whether install.js renamed or inlined them |
+| `push_subscriptions` | — | — | 055 created, 056 replaced it | leave out of tinypos SQL; the deployed table is tinylogistics' (never drop it) |
+| `notify_cfdi_request` / `sales_cfdi_notify` | missing | — | 060 | migration 060 (deployed); install.js is missing it |
 | `db/schema-latest.sql` | — | — | — | stale (3.2). Delete it. |
+
+### Deployed check (2026-10-22, JardinOcultoPOS, `schema_version` 5.5)
+
+Read-only check of the tables, functions and triggers in `public`, compared by name against `install.js` and `db/migrations/`. Columns were only checked where noted.
+
+- **Shared database confirmed.** `schema_meta` also holds `logistics_schema_version` (0.16) and `logistics_migration`, and the same `public` schema has 22 `book_*` tables (tinybooks) plus `employees_logistics`, `logistics_settings`, `notification_*`, `order_fulfillment`, `google_calendar_config`, `calendar_sync_settings`, `tracking_pin_attempts` and the tracking/fulfillment functions and triggers (tinylogistics). The baseline must not create or drop any of these. The comparison test has to ignore them.
+- **`push_subscriptions` belongs to tinylogistics.** The deployed table has `user_id`, so it's tinylogistics' version (`tinylogistics/db/migrations/0001_logistics_core.sql`), not the one from 055. "Drop from the baseline" means leaving it out of tinypos's SQL. Never `DROP` it.
+- **`active_tickets.kds_sent` exists in production and is used by the app** (`Register.jsx`, `TicketArea.jsx`, `onlineOrders.js`), but only SetupScreen creates it. A reinstall from `install.js` or the migrations alone would miss it. It goes into the baseline.
+- **`notify_cfdi_request` + trigger `sales_cfdi_notify` are deployed** (migration 060) but `install.js` doesn't create them. A full reinstall loses CFDI request alerts. The baseline takes them from 060.
+- **`floor_plan` is deployed** (migration 025). `install.js` only grants on it, which confirms that `install.js` is missing it.
+- **No known source:** `app_runtime_config` (key/value table) and `tips_reconciliation` (shaped like a view) aren't in any `.sql` in the four repos. They were probably created by hand in the dashboard. Decide in 1b: adopt them into a migration or drop them.
+- Nothing that `install.js` or the migrations create is missing from production.
 
 The ~580-line SetupScreen vs install.js diff will be checked line by line in 1b with a script that runs both on a test Postgres and compares the resulting databases.
 
@@ -204,6 +216,14 @@ db/migrations/
 ```
 Existing installs at 5.5 are marked as having `000` applied and only run 069+. Installs older than 5.5 run the old files 001–068 (kept in `db/migrations/archive/`) plus the 1.9–3.1 files we write from `install.js`.
 
+## Before starting
+
+1. **Compare against a deployed database, not just `install.js`.** The deployed schema is the truth. In 1b, take a schema-only dump of at least one real tenant (the Supabase MCP is connected to one) and diff it against the baseline. That catches hand patches and skipped deltas.
+2. **Check the sibling apps.** tinykds, tinylogistics and tinybooks share the Supabase project. Check whether any of them reads `schema_meta` / `schema_version` or creates shared tables (`order_fulfillment`). Keep writing `schema_version` next to `schema_migrations` for at least one release, for them and for cached PWA clients.
+3. **Smoke tests before Phase 3.** Add about 3 end-to-end checks: ring a sale and sync it, place a public order, request a CFDI. Run them after every split PR.
+4. **The schema-copy test.** The existing test that requires the SQL copies to match will fail once 1b removes them. Rewriting it is part of 1b.
+5. **Feature freeze on schema during Phase 1.** A migration added while 1b is in flight has to land in both the baseline and the archive. Ship pending work (e.g. `docs/online-orders-inbox-ux.md`) before 1b or after it.
+
 ## Comment rules (applied to every file we touch)
 
 - Delete comments that repeat the code (`// set loading to true`), section banners on tiny blocks, and stale history ("added in v2.3…").
@@ -227,9 +247,10 @@ src/components/admin/<area>/   (decision)
 |---|---|---|
 | 0 | Review this document; decide on P1 drift and P5 legacy paths | you |
 | 1a | **P1** check migrations against install.js; tag each feature/fix; you review the list | Phase 0 |
-| 1b | **P1** baseline + comparison test, `schema_migrations` runner, remove the SQL copies (SetupScreen drops to ~1,050 lines) | 1a |
-| 2 | Shared helpers: `useFlash`, P2 fixes, P3 review (small, touches many files) | — |
+| 1b | **P1** baseline + comparison test (incl. diff vs a deployed tenant), `schema_migrations` runner (still writes `schema_version`), rewrite the schema-copy test, remove the SQL copies (SetupScreen drops to ~1,050 lines) | 1a |
+| 2 | Smoke tests (sale + sync, public order, CFDI request) | — |
 | 3 | Split `Admin.jsx`. This is the reference for the pattern, so you review the style here | 2 |
+| 3 | Shared helpers: `useFlash`; apply P2/P3 fixes in each file as it is split, so lines are touched once | Admin split |
 | 3 | Split `CanvasEditor.jsx` (toolbar, node renderers, panels, `useCanvasHistory`, `useSelection`) | 3 |
 | 3 | Split what's left of `SetupScreen.jsx` (one component per setup step + `useProvisioning`) | 1 |
 | 3 | The 1,100–1,600-line tabs, `Register.jsx`, `PublicOrder`, `PublicMenu`, P4, P6, P7 | 3 |
@@ -241,4 +262,4 @@ Every PR: `npm run lint`, `npm test`, `npm run build` pass. Before a split, add 
 
 ## Open questions for you
 
-1. **P1:** squash into a baseline (recommended) or only tag migrations as feature/fix?
+1. **P1:** squash into a baseline (recommended) or only tag migrations as feature/fix? Without a baseline, new installs replay 68 files plus the missing 1.9–3.1 versions, and the fix chains stay tangled.
