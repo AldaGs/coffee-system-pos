@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed).
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab, MenusTab and OrdersTab done, plus P4 and P7. Phase 3 is complete except P6 (postponed); the refactor bugs and Phase 4 are done (2026-10-23). Left: P5 decisions, P2/P3 leftovers, P6.
 
 ## Goals
 
@@ -317,7 +317,7 @@ src/components/admin/<area>/   (decision)
 | 3 | Split `CanvasEditor.jsx` (toolbar, node renderers, panels, `useCanvasHistory`, `useSelection`) | 3 |
 | 3 | Split what's left of `SetupScreen.jsx` (one component per setup step + `useProvisioning`) | 1 |
 | 3 | The 1,100–1,600-line tabs, `Register.jsx`, `PublicOrder`, `PublicMenu`, P4, P6, P7 | 3 |
-| 4 | Data files: `translations.js` split per area (`translations/<area>.js`). Only how it's organized changes, not its contents (`_schemaDeltas.js` goes away in Phase 1) | — |
+| 4 | Done: `translations.js` (4,651 lines) split into `src/utils/translations/` (10 area files + `index.js`); same 2,244 keys and values per language, imports unchanged | — |
 | 5 | P5: review each path, remove the ones you approve | 0 |
 | 6 | P6: designed-menu page | end |
 
