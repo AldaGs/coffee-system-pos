@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx and CanvasEditor.jsx splits, and useFlash done** (2026-10-22). Next: SetupScreen.jsx split.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). Next: the 1,100–1,600-line tabs.
 
 ## Goals
 
@@ -269,6 +269,13 @@ src/components/admin/<area>/   (decision)
 - P2: both `setTimeout(…, 0)` gone (path editing is derived from the selection; the mobile sheet opens via a render-time check).
 - P3: 6 disables → 3, each with a one-line reason (font loading keyed on the font list, one-shot PNG export, text measuring that ignores the parent's new `onMeasure` each render).
 - The rest of CanvasEditor.jsx is mostly the JSX layout of the stage and panels; splitting it further would only pass props around.
+
+### SetupScreen.jsx split (1,041 → 128 lines)
+
+- `src/components/setup/`: `useProvisioning` (OAuth return, projects, create + poll, install, connect), one component per step (`AuthorizeStep`, `ProjectStep`, `AdminStep`), `setupStyles.js`.
+- P2: `authorized` is read from the URL as initial state instead of `setTimeout(…, 0)`; the OAuth effect's disable is gone (`fetchProjects` is a stable callback).
+- P4: the 1-second "wait for UX" before booting is removed; the alert uses `useFlash`.
+- Removed two `console.log`s; one printed the project's API keys (service_role included) to the browser console.
 
 ## Order of work (one PR per step)
 
