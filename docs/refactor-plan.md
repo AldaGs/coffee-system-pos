@@ -1,6 +1,6 @@
 # Refactor plan: big files, comments and patches
 
-Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx and CfdiTab done; next: MenusTab.
+Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and useFlash done** (2026-10-22). InventoryTab, GeneralSettingsTab and Register.jsx, PublicOrder.jsx, PublicMenu.jsx, CfdiTab and MenusTab done; next: OrdersTab.
 
 ## Goals
 
@@ -26,7 +26,7 @@ Status: **1b, 2, the Admin.jsx, CanvasEditor.jsx and SetupScreen.jsx splits, and
 | `src/components/PublicOrder.jsx` | 1,154 | Done: 33 lines + `publicOrder/` (shared, ui, strings, orderMath, hooks, CheckoutPanel, Order, Track) |
 | `src/components/admin/CfdiTab.jsx` | 1,134 | Done: 102 lines + `admin/cfdi/` (4 hooks, panels, RequestCard, modals; monthSummary tested) |
 | `src/components/PublicMenu.jsx` | 1,132 | Done: 169 lines + `publicMenu/` (useMenuData, shared, items, templates, UploadedMenu, TvMode, states) |
-| `src/components/admin/MenusTab.jsx` | 1,115 | |
+| `src/components/admin/MenusTab.jsx` | 1,115 | Done: 162 lines + `admin/menus/` (useMenusList, MenuCard, editors, share block) |
 | `src/components/admin/OrdersTab.jsx` | 1,105 | |
 
 ## Root problems found (what we fix, not just move)
