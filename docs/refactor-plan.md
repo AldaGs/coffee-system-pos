@@ -297,12 +297,12 @@ src/components/admin/<area>/   (decision)
 - P3: the auto-lock disable is gone; three remain, each with a reason (restore-on-login, KDS immediate send, the context memo).
 - Also fixed (found while checking JSX names): the CanvasEditor split had dropped `Image as KImage`, so designed menus with images crashed. Fixed in its own commit.
 
-## Open bugs found during the refactor (not fixed; need a decision)
+## Bugs found during the refactor (fixed 2026-10-23)
 
-1. **Corte double-counts cash refunds.** `shiftTotals`: a sale refunded in the same shift is already counted net of its refund, and `shiftCashRefunds` subtracts the refund again, so expected cash is too low by the refunded amount. A refund on a sale from an earlier shift isn't counted at all. The test in `registerTotals.test.js` pins the current numbers.
-2. **Weekly order-number reset never happens.** Settings offers "weekly", `useOrderNumbers` only handles daily/monthly/yearly.
-3. **Custom date range ends a day early** west of UTC (`new Date('YYYY-MM-DD')`), in `analyticsMath.inPeriod`.
-4. **Menu history card errors in local mode** (`listVersions` has no local-mode guard).
+1. **Corte double-counted cash refunds** and missed refunds on sales from an earlier shift. Each refund now records `{ at, cents }` in `sales.refund_log` (migration 071); the corte takes cash in once and subtracts cash refunds by the shift they were paid in. Refunds from before 5.8 have no date and count with their sale, once.
+2. **Weekly order-number reset never happened.** `resetDue` handles weekly (weeks start Monday); monthly now also resets when the same month comes round a year later.
+3. **Custom date range ended a day early west of UTC.** `localDayRange` reads picker dates as local days, in `analyticsMath` and `cogsMath`.
+4. **Menu history errored in local mode.** The card is hidden there; snapshots only exist in the cloud database.
 
 ## Order of work (one PR per step)
 

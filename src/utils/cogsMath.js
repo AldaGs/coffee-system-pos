@@ -1,4 +1,5 @@
 import { millicentsToCents, normalizeUnitCostToMillicents } from './moneyUtils';
+import { localDayRange } from './localDayRange';
 
 // Returns true if the log's created_at falls inside the active time filter.
 // Shared by the Analytics aggregation and the Excel export so wastage totals
@@ -11,8 +12,7 @@ function isLogInTimeFilter(log, timeFilter, dateRange, now = new Date()) {
   if (timeFilter === 'today') return logDate.toDateString() === now.toDateString();
   if (timeFilter === 'custom') {
     if (!dateRange?.start || !dateRange?.end) return true;
-    const start = new Date(dateRange.start); start.setHours(0, 0, 0, 0);
-    const end = new Date(dateRange.end); end.setHours(23, 59, 59, 999);
+    const [start, end] = localDayRange(dateRange);
     return logDate >= start && logDate <= end;
   }
   const daysDiff = (now - logDate) / (1000 * 60 * 60 * 24);

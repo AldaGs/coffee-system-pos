@@ -1,3 +1,5 @@
+import { localDayRange } from '../../../utils/localDayRange';
+
 const DAYS = { week: 7, month: 30, '6months': 180, year: 365 };
 
 // Whether a row's date falls in the selected period. 'today' is the calendar
@@ -7,10 +9,7 @@ export function inPeriod(date, timeFilter, dateRange, now = new Date()) {
   const d = new Date(date);
   if (timeFilter === 'custom') {
     if (!dateRange.start || !dateRange.end) return true;
-    const start = new Date(dateRange.start);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(dateRange.end);
-    end.setHours(23, 59, 59, 999);
+    const [start, end] = localDayRange(dateRange);
     return d >= start && d <= end;
   }
   if (timeFilter === 'today') return d.toDateString() === now.toDateString();

@@ -13,7 +13,7 @@ describe('schema baseline', () => {
     expect(names[0]).toBe('000_baseline');
     // After the baseline, numbering continues where the archive (001–068) stopped.
     names.slice(1).forEach((n, i) => expect(n.slice(0, 3)).toBe(String(69 + i).padStart(3, '0')));
-    expect(APP_SCHEMA_VERSION).toBe('5.7');
+    expect(APP_SCHEMA_VERSION).toBe('5.8');
   });
 
   it('applies on an empty Supabase-like database and re-applies as a no-op', async () => {

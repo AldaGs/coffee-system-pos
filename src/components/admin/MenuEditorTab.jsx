@@ -755,7 +755,8 @@ function MenuEditorTab({
         </div>
       </div>
 
-      <MenuHistoryPanel onAfterRestore={onMenuRestored} />
+      {/* Snapshots live in the cloud database; local stores have none. */}
+      {!isLocalMode() && <MenuHistoryPanel onAfterRestore={onMenuRestored} />}
 
       <input
         ref={fileInputRef}

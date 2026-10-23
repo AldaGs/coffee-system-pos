@@ -58,7 +58,7 @@ export const restockCandidates = (order, mode, refundItems) =>
 // (so vendor settlement can attribute the refund to the exact product returned).
 // tipRefundMode: 'none' = staff keeps the tip, 'proportional' = tip * (refund/total),
 // 'full' = give back the whole remaining tip.
-export function planRefund({ order, mode, refundItems, customCents, tipRefundMode }) {
+export function planRefund({ order, mode, refundItems, customCents, tipRefundMode, now = new Date().toISOString() }) {
   const isFull = mode === 'all';
   const isItems = mode === 'items';
   let rAmt = isFull
@@ -105,7 +105,9 @@ export function planRefund({ order, mode, refundItems, customCents, tipRefundMod
     tipRefundDelta = Math.min(tipRefundDelta, tipRemaining);
   }
 
-  const update = { status, refund_amount: prevRefund + rAmt };
+  // refund_log dates each refund, so the corte can subtract it in the shift it
+  // happened in, even when the sale is from an earlier shift.
+  const update = { status, refund_amount: prevRefund + rAmt, refund_log: [...(order.refund_log || []), { at: now, cents: rAmt }] };
   if (tipRefundDelta > 0) update.tip_refunded = tipAlreadyRefunded + tipRefundDelta;
   if (refundedItems) update.refunded_items = refundedItems;
   return { amount: rAmt, status, prevRefund, tipRefundDelta, update };

@@ -68,16 +68,23 @@ export function shiftTotals(sales, expenses, lastCorteTimestamp) {
 
   const shiftCashSales = byMethod('Cash');
   const shiftTotalExpenses = shiftExpenses.reduce((sum, e) => sum + (leftTheDrawer(e) ? e.amount : 0), 0);
-  const shiftCashRefunds = shiftOrders.reduce((sum, o) => {
-    const refunded = o.status === 'refunded' || o.status === 'partial_refund';
-    const touchedCash = o.payment_method === 'Cash' || (o.payment_method === 'Split' && o.splits?.some((s) => s.method === 'Cash'));
-    return refunded && touchedCash ? sum + (o.refund_amount || 0) : sum;
+
+  // The drawer: cash that came in this shift (before any refund), minus cash
+  // refunds paid out this shift, whichever shift the sale was from. Refunds
+  // made before refund_log existed have no date; they count with their sale.
+  const touchedCash = (o) => o.payment_method === 'Cash' || (o.payment_method === 'Split' && o.splits?.some((s) => s.method === 'Cash'));
+  const cashIn = shiftOrders.reduce((sum, o) => sum + (o.payment_method === 'Cash' ? (o.total_amount || 0)
+    : o.payment_method === 'Split' && o.splits ? o.splits.filter((s) => s.method === 'Cash').reduce((acc, s) => acc + s.amount, 0) : 0), 0);
+  const shiftCashRefunds = sales.reduce((sum, o) => {
+    if (!touchedCash(o)) return sum;
+    if (o.refund_log?.length) return sum + o.refund_log.filter((r) => new Date(r.at) > since).reduce((acc, r) => acc + (r.cents || 0), 0);
+    return new Date(o.created_at) > since ? sum + (o.refund_amount || 0) : sum;
   }, 0);
 
   return {
     shiftOrders, shiftExpenses, shiftCashSales,
     shiftCardSales: byMethod('Card'), shiftTransferSales: byMethod('Transfer'), shiftClipSales: byMethod('Clip'),
-    shiftTotalExpenses,
-    expectedCash: calculateExpectedCash(shiftCashSales, shiftCashRefunds, shiftTotalExpenses),
+    shiftTotalExpenses, shiftCashRefunds,
+    expectedCash: calculateExpectedCash(cashIn, shiftCashRefunds, shiftTotalExpenses),
   };
 }

@@ -3,6 +3,7 @@ import { db } from '../db';
 import { isLocalMode } from '../utils/appMode';
 import { isCloudReachable } from '../utils/network';
 import { chunkArray, runSyncChunk } from '../utils/syncBatch';
+import { updateCloudSale } from './saleCloudUpdate';
 
 // How many times a single updateQueue row is retried before it is treated as
 // stuck. A row that fails this often is not going to drain on its own — it needs
@@ -249,11 +250,7 @@ export const attemptBackgroundSync = async (expenseQueue, clearExpenseQueue) => 
         try {
           let error = null;
           if (update.type === 'sale_update') {
-            const query = update.local_id
-              ? supabase.from('sales').update(update.data).eq('local_id', update.local_id)
-              : supabase.from('sales').update(update.data).eq('id', update.cloud_id);
-            const { error: err } = await query;
-            error = err;
+            ({ error } = await updateCloudSale(update, update.data));
           } else if (update.type === 'sale_delete') {
             const query = update.local_id
               ? supabase.from('sales').delete().eq('local_id', update.local_id)

@@ -10,7 +10,8 @@ describe('planRefund', () => {
   it('full refund returns the rest of the total and the whole tip', () => {
     const p = planRefund({ order, mode: 'all', refundItems: {}, tipRefundMode: 'full' });
     expect(p).toMatchObject({ amount: 17000, status: 'refunded', tipRefundDelta: 2000 });
-    expect(p.update).toEqual({ status: 'refunded', refund_amount: 17000, tip_refunded: 2000 });
+    expect(p.update).toMatchObject({ status: 'refunded', refund_amount: 17000, tip_refunded: 2000 });
+    expect(p.update.refund_log).toEqual([{ at: expect.any(String), cents: 17000 }]);
   });
 
   it('per-item refund prices modifiers and merges into earlier refunds', () => {

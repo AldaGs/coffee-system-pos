@@ -13,6 +13,10 @@ describe('analyticsMath', () => {
     expect(inPeriod('2026-10-03T12:00:00', 'custom', { start: '2026-10-01', end: '2026-10-05' }, now)).toBe(true);
     expect(inPeriod('2026-10-08T12:00:00', 'custom', { start: '2026-10-01', end: '2026-10-05' }, now)).toBe(false);
     expect(inPeriod('2020-01-01', 'custom', { start: '2026-10-01', end: '' }, now)).toBe(true);
+    // The edges are local days: an evening sale on the last day is in, the next morning is out (failed west of UTC).
+    expect(inPeriod(new Date(2026, 9, 5, 21), 'custom', { start: '2026-10-01', end: '2026-10-05' }, now)).toBe(true);
+    expect(inPeriod(new Date(2026, 9, 1, 0, 30), 'custom', { start: '2026-10-01', end: '2026-10-05' }, now)).toBe(true);
+    expect(inPeriod(new Date(2026, 9, 6, 0, 30), 'custom', { start: '2026-10-01', end: '2026-10-05' }, now)).toBe(false);
   });
 
   it('totals revenue, refunds, expenses and tenders', () => {

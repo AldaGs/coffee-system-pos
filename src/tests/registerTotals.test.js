@@ -52,8 +52,26 @@ describe('shiftTotals', () => {
     expect(s.shiftOrders).toHaveLength(5);
     expect([s.shiftCashSales, s.shiftCardSales, s.shiftTransferSales, s.shiftClipSales]).toEqual([12500, 5000, 0, 3000]);
     expect(s.shiftTotalExpenses).toBe(700);
-    // Current behavior: 12,500 cash (already net of the 500 refund) - 500 refund again - 700.
-    // The refund is counted twice; see "Open bugs" in docs/refactor-plan.md.
-    expect(s.expectedCash).toBe(11300);
+    // 13,000 cash in (10,000 + 1,000 split + 2,000) - the 500 refund once - 700 expense.
+    expect(s.shiftCashRefunds).toBe(500);
+    expect(s.expectedCash).toBe(11800);
+  });
+
+  it('subtracts a dated refund in the shift it was paid out, whatever shift the sale was from', () => {
+    const corte = '2026-10-22T08:00:00Z';
+    const sales = [
+      // Yesterday's cash sale, 300 refunded today and 200 before the corte.
+      { created_at: '2026-10-21T12:00:00Z', total_amount: 5000, payment_method: 'Cash', status: 'partial_refund', refund_amount: 500,
+        refund_log: [{ at: '2026-10-21T13:00:00Z', cents: 200 }, { at: '2026-10-22T09:00:00Z', cents: 300 }] },
+      // Today's card sale refunded today: not cash.
+      { created_at: '2026-10-22T09:00:00Z', total_amount: 4000, payment_method: 'Card', status: 'refunded', refund_amount: 4000,
+        refund_log: [{ at: '2026-10-22T09:30:00Z', cents: 4000 }] },
+      // Today's cash sale fully refunded today: in and out cancel.
+      { created_at: '2026-10-22T10:00:00Z', total_amount: 1500, payment_method: 'Cash', status: 'refunded', refund_amount: 1500,
+        refund_log: [{ at: '2026-10-22T10:05:00Z', cents: 1500 }] },
+    ];
+    const s = shiftTotals(sales, [], corte);
+    expect(s.shiftCashRefunds).toBe(1800);
+    expect(s.expectedCash).toBe(1500 - 1800);
   });
 });
