@@ -55,7 +55,7 @@ function CheckoutModal({
     const hasInput = tendered.trim() !== '';
     // Quick-pick: exact amount plus the next common bills that cover it (MXN).
     const bills = [2000, 5000, 10000, 20000, 50000, 100000];
-    const quick = [due, ...bills.filter(b => b > due).slice(0, 4)];
+    const quick = [due, ...bills.filter(b => b > due).slice(0, 3)];
     return (
       <div className="modal-overlay">
         <div className="modal-content" style={{ textAlign: 'center', maxWidth: '480px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -69,9 +69,9 @@ function CheckoutModal({
             onChange={(e) => setTendered(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && hasInput && diff >= 0) confirmCash(); }}
             style={{ width: '100%', padding: '16px', fontSize: '1.6rem', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', boxSizing: 'border-box', marginBottom: '10px' }} />
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px', marginBottom: '16px' }}>
             {quick.map((c, i) => (
-              <button key={c} onClick={() => setTendered((c / 100).toFixed(2))} style={{ flex: '1 1 28%', padding: '12px 6px', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold', cursor: 'pointer' }}>
+              <button key={c} onClick={() => setTendered((c / 100).toFixed(2))} style={{ padding: '12px 6px', borderRadius: '8px', border: '2px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)', fontWeight: 'bold', cursor: 'pointer' }}>
                 {i === 0 ? t('check.cashExact') : formatForDisplay(c)}
               </button>
             ))}
