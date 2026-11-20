@@ -69,6 +69,17 @@ describe('cfdi-email', () => {
     expect(html).toContain('Visítanos en Café');
   });
 
+  it('BCCs the configured addresses on invoice emails', async () => {
+    const { f, calls } = fakeFetch([
+      ['cfdi_email_settings', () => json([{ ...CFG, bcc: ' conta@x.mx, , jefe@x.mx ' }])],
+      ['sales?id=eq.7&select', () => json([{ ...SALE, cfdi_zip_path: null }])],
+      ['api.resend.com', () => json({ id: 'e1' })],
+      ['sales?id=eq.7', () => json([])],
+    ]);
+    await makeCfdiEmail(env, f)(post({ sale_id: 7, secret: 's3cret' }));
+    expect(JSON.parse(calls.find(c => c.url.includes('resend')).init.body).bcc).toEqual(['conta@x.mx', 'jefe@x.mx']);
+  });
+
   it('is deployed with the other functions', () => {
     expect(CLIP_FUNCTIONS['cfdi-email'].startsWith('Deno.serve((')).toBe(true);
   });

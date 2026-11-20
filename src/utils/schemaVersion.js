@@ -3,6 +3,7 @@
 // and stamps public.schema_meta.schema_version, which General Settings
 // compares against this to offer "Update available."
 //
+// 5.9 — CFDI: 'declined' request status + cfdi_email_settings.bcc / set_cfdi_email_bcc; redeploys cfdi-email (BCC).
 // 5.8 — sales.refund_log: dated refunds for the corte.
 // 5.7 — restore_menu_version works with pg_safeupdate (menu history "Restaurar").
 // 5.6 — get_order_status works without tinylogistics' order_fulfillment (POS-only shops).
@@ -141,4 +142,4 @@
 //       on the auth schema.
 // 0.1 — initial introduction of app_users, schema_meta, and the cashier_pin
 //       management RPCs.
-export const APP_SCHEMA_VERSION = '5.8';
+export const APP_SCHEMA_VERSION = '5.9';

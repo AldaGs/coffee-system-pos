@@ -41,6 +41,7 @@ export function makeCfdiEmail(env, fetch) {
       body: JSON.stringify({
         from: m.from, to: [m.to], subject: m.subject, html: m.html,
         ...(m.replyTo ? { reply_to: m.replyTo } : {}),
+        ...(m.bcc?.length ? { bcc: m.bcc } : {}),
         ...(m.attachments.length ? { attachments: m.attachments } : {}),
       }),
     }),
@@ -84,6 +85,8 @@ ${link ? `<p><a href="${esc(link)}" style="display:inline-block;padding:12px 20p
       to: sale.fiscal_profiles.email,
       from: cfg.from_address,
       replyTo: cfg.reply_to,
+      // Comma-separated in settings (e.g. the accountant); invoice emails only, not tests.
+      bcc: String(cfg.bcc || '').split(',').map((s) => s.trim()).filter(Boolean),
       subject: `${biz}: tu factura ${sale.cfdi_folio || ''}`.trim(),
       attachments,
       html: renderHtml(cfg, vars, linkFor(cfg, sale), attachments.length > 0),

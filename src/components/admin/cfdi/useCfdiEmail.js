@@ -16,7 +16,7 @@ const invokeEmail = async (body) => {
 // on schemas too old to have it, which hides the whole feature.
 export function useCfdiEmail({ showAlert, t, onResent }) {
   const [emailStatus, setEmailStatus] = useState(null);
-  const [emailForm, setEmailForm] = useState({ apiKey: '', from: '', replyTo: '', enabled: false, message: '', footer: '' });
+  const [emailForm, setEmailForm] = useState({ apiKey: '', from: '', replyTo: '', bcc: '', enabled: false, message: '', footer: '' });
   const [emailBusy, setEmailBusy] = useState(null);
   const [emailPreview, setEmailPreview] = useState(null); // rendered HTML from the function
 
@@ -24,7 +24,7 @@ export function useCfdiEmail({ showAlert, t, onResent }) {
     if (!data) return;
     setEmailStatus(data);
     setEmailForm(prev => ({
-      ...prev, from: data.from_address || '', replyTo: data.reply_to || '', enabled: !!data.enabled,
+      ...prev, from: data.from_address || '', replyTo: data.reply_to || '', bcc: data.bcc || '', enabled: !!data.enabled,
       message: data.email_message || '', footer: data.email_footer || '',
     }));
   }), []);
@@ -45,7 +45,8 @@ export function useCfdiEmail({ showAlert, t, onResent }) {
       p_hook_url: `${supabaseUrl}/functions/v1/cfdi-email`,
       p_enabled: emailForm.enabled,
     });
-    const { error: msgError } = error ? {} : await supabase.rpc('set_cfdi_email_message', { p_message: emailForm.message, p_footer: emailForm.footer });
+    const { error: msgError } = error ? {} : await supabase.rpc('set_cfdi_email_message', { p_message: emailForm.message, p_footer: emailForm.footer })
+      .then(r => r.error ? r : supabase.rpc('set_cfdi_email_bcc', { p_bcc: emailForm.bcc }));
     setEmailBusy(null);
     if (error || msgError) return showAlert(t('common.error'), (error || msgError).message);
     setEmailForm(prev => ({ ...prev, apiKey: '' }));

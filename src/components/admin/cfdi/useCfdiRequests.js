@@ -106,6 +106,11 @@ export function useCfdiRequests({ showAlert, showConfirm, t }) {
       submit(() => update(item, { cfdi_status: 'canceled' }), t('cfdiTab.canceled'), t('cfdiTab.cancelError')));
   };
 
+  const handleDecline = (item) => {
+    showConfirm(t('cfdiTab.declineTitle'), t('cfdiTab.declineConfirm'), () =>
+      submit(() => update(item, { cfdi_status: 'declined' }), t('cfdiTab.declined'), t('cfdiTab.declineError')));
+  };
+
   const handleCopy = (text, label) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
@@ -127,13 +132,13 @@ export function useCfdiRequests({ showAlert, showConfirm, t }) {
 
   const filteredRequests = requests.filter(r => {
     if (filter === 'pending') return r.cfdi_status === 'requested' || r.cfdi_status === 'reopened';
-    if (filter === 'issued') return r.cfdi_status === 'issued' || r.cfdi_status === 'canceled';
+    if (filter === 'issued') return r.cfdi_status === 'issued' || r.cfdi_status === 'canceled' || r.cfdi_status === 'declined';
     return true;
   });
 
   return {
     loading, requests, filteredRequests, filter, setFilter, isSubmitting, fetchRequests,
     folioModal, setFolioModal, closeFolio: () => setFolioModal(CLOSED_FOLIO), reopenModal, setReopenModal,
-    handleReopen, handleMarkIssued, handleCancel, handleCopy, handleShareCFDI,
+    handleReopen, handleMarkIssued, handleCancel, handleDecline, handleCopy, handleShareCFDI,
   };
 }

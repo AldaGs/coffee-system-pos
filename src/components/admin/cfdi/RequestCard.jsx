@@ -5,7 +5,9 @@ import { REOPEN_FIELDS, fmtCents, reopenFieldLabel } from './cfdiShared';
 const FISCAL_FIELDS = REOPEN_FIELDS;
 
 export default function RequestCard({ req, requests, email, dateLocale, t }) {
-  const { isSubmitting, handleCopy, handleShareCFDI, handleCancel, setReopenModal, setFolioModal } = requests;
+  const { isSubmitting, handleCopy, handleShareCFDI, handleCancel, handleDecline, setReopenModal, setFolioModal } = requests;
+  const pending = req.cfdi_status === 'requested' || req.cfdi_status === 'reopened';
+  const closed = req.cfdi_status === 'canceled' || req.cfdi_status === 'declined';
   const { emailStatus, emailBusy, handleResendEmail } = email;
   return (
     <div key={`${req.sourceTable}-${req.id}`} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -37,7 +39,8 @@ export default function RequestCard({ req, requests, email, dateLocale, t }) {
             </span>
           )}
           {req.cfdi_status === 'canceled' && <span style={{ background: 'rgba(231, 76, 60, 0.1)', color: '#c0392b', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>{t('cfdiTab.statusCanceled')}</span>}
-          
+          {req.cfdi_status === 'declined' && <span style={{ background: 'rgba(127, 140, 141, 0.12)', color: '#7f8c8d', padding: '6px 12px', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold' }}>{t('cfdiTab.statusDeclined')}</span>}
+
           <button onClick={() => handleShareCFDI(req)} title={t('cfdiTab.copyLink')} style={{ background: 'var(--bg-main)', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '6px', borderRadius: '50%', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
             <Icon icon="lucide:link" />
           </button>
@@ -73,17 +76,27 @@ export default function RequestCard({ req, requests, email, dateLocale, t }) {
 
       {/* Actions */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', flexWrap: 'wrap', marginTop: '10px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-        {(req.cfdi_status === 'requested' || req.cfdi_status === 'reopened' || req.cfdi_status === 'canceled') && (
-          <button 
+        {pending && (
+          <button
+            disabled={isSubmitting}
+            onClick={() => handleDecline(req)}
+            style={{ background: 'transparent', border: '1px solid #e74c3c', color: '#c0392b', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+          >
+            <Icon icon="lucide:ban" /> {t('cfdiTab.declineTitle')}
+          </button>
+        )}
+
+        {(pending || closed) && (
+          <button
             disabled={isSubmitting}
             onClick={() => setReopenModal({ item: req, fields: [], note: '' })}
             style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
           >
-            {req.cfdi_status === 'canceled' ? t('cfdiTab.newRequest') : t('cfdiTab.reopenRequest')}
+            {closed ? t('cfdiTab.newRequest') : t('cfdiTab.reopenRequest')}
           </button>
         )}
 
-        {(req.cfdi_status === 'requested' || req.cfdi_status === 'reopened') && (
+        {pending && (
             <button 
               disabled={isSubmitting || !req.isPaid}
               title={!req.isPaid ? t('cfdiTab.mustBePaid') : ''}

@@ -35,6 +35,14 @@ export default function EmailPanel({ email, t }) {
         onChange={e => setEmailForm(prev => ({ ...prev, replyTo: e.target.value }))}
         style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
       />
+      <input
+        type="email"
+        multiple
+        placeholder={t('cfdiTab.bccPlaceholder')}
+        value={emailForm.bcc}
+        onChange={e => setEmailForm(prev => ({ ...prev, bcc: e.target.value }))}
+        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-main)', color: 'var(--text-main)' }}
+      />
       <strong style={{ color: 'var(--text-main)', marginTop: '4px' }}>{t('cfdiTab.messageTitle')}</strong>
       <small style={{ color: 'var(--text-muted)' }}>
         {t('cfdiTab.use')} {['{cliente}', '{negocio}', '{folio}', '{rfc}', '{ticket}'].map((p, i) => (

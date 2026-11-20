@@ -358,6 +358,8 @@ function PublicCFDI({ ticketId }) {
   const isRequested = sale?.cfdi_status === 'requested';
   const isReopened = sale?.cfdi_status === 'reopened';
   const isCanceled = sale?.cfdi_status === 'canceled';
+  // Declined reads like canceled for the customer: no form, just a notice.
+  const isDeclined = sale?.cfdi_status === 'declined';
   const reopenNote = isReopened ? sale?.cfdi_reopen_note : null;
   const FIELD_LABELS = { rfc: 'RFC', razon_social: 'Razón Social', cp: 'Código Postal', regimen_fiscal: 'Régimen Fiscal', uso_cfdi: 'Uso del CFDI', email: 'Correo' };
 
@@ -369,7 +371,7 @@ function PublicCFDI({ ticketId }) {
 
   // The form is editable if it's paid AND (status is none OR reopened)
   // If it's requested, it's read-only. If it's issued or canceled, we hide the form.
-  const isEditable = isPaid && (!isRequested && !isIssued && !isCanceled) && !blockedByGlobal;
+  const isEditable = isPaid && (!isRequested && !isIssued && !isCanceled && !isDeclined) && !blockedByGlobal;
 
   // Only allow submitting once every required fiscal field is filled and valid.
   const formComplete = isFiscalComplete(formData);
@@ -472,7 +474,7 @@ function PublicCFDI({ ticketId }) {
             </div>
           )}
 
-          {!blockedByGlobal && isPaid && !isRequested && !isIssued && !isReopened && !isCanceled && !success && (() => {
+          {!blockedByGlobal && isPaid && !isRequested && !isIssued && !isReopened && !isCanceled && !isDeclined && !success && (() => {
             const warn = getCfdiPeriodWarning(sale.created_at);
             const crossMonth = warn?.crossMonth;
             const accent = crossMonth ? '#f39c12' : '#27ae60';
@@ -567,8 +569,15 @@ function PublicCFDI({ ticketId }) {
             </div>
           )}
 
-          {/* Form */}
-          {(!success && !isIssued && !isCanceled && !blockedByGlobal) && (
+          {isDeclined && (
+            <div style={{ background: 'rgba(127, 140, 141, 0.1)', border: '1px solid #95a5a6', color: '#5d6d6e', padding: '20px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
+              <Icon icon="lucide:ban" style={{ fontSize: '3rem', marginBottom: '10px' }} />
+              <h3 style={{ margin: '0 0 10px 0' }}>Solicitud rechazada</h3>
+              <p style={{ margin: 0 }}>El establecimiento no pudo procesar esta solicitud de factura. Contáctalo si tienes dudas.</p>
+            </div>
+          )}
+
+          {/* Form */}          {(!success && !isIssued && !isCanceled && !isDeclined && !blockedByGlobal) && (
             <form noValidate onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
 
               {/* Constancia upload — prefills RFC, razón social, CP y régimen. */}
