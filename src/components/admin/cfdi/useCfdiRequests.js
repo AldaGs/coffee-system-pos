@@ -2,11 +2,13 @@ import { useState, useEffect, useEffectEvent, useCallback } from 'react';
 import { supabase } from '../../../supabaseClient';
 import { buildCfdiUrl, ensureCfdiConfig } from '../../../utils/cfdiUrl';
 import { ZIP_BUCKET, purgeExpiredZips } from './cfdiShared';
+import { useToastStack } from '../../ui/arc';
 
 const CLOSED_FOLIO = { isOpen: false, item: null, folio: '' };
 
 // CFDI requests from paid sales and open tickets, and every action on one.
 export function useCfdiRequests({ showAlert, showConfirm, t }) {
+  const { toast } = useToastStack();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState([]);
   const [filter, setFilter] = useState('pending'); // 'pending' (requested, reopened) | 'issued'
@@ -107,7 +109,8 @@ export function useCfdiRequests({ showAlert, showConfirm, t }) {
   const handleCopy = (text, label) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
-    showAlert(t('cfdiTab.copiedTitle'), t('cfdiTab.copiedDesc').replace('{label}', label));
+    // Fixed id: rapid copies morph one toast instead of stacking a pile.
+    toast({ id: 'cfdi-copy', type: 'success', title: t('cfdiTab.copiedTitle'), description: t('cfdiTab.copiedDesc').replace('{label}', label), duration: 2500 });
   };
 
   const handleShareCFDI = (req) => {
@@ -118,7 +121,7 @@ export function useCfdiRequests({ showAlert, showConfirm, t }) {
       navigator.share({ title: t('cfdiTab.shareTitle'), text: t('cfdiTab.shareText'), url: cfdiUrl }).catch(console.error);
     } else {
       navigator.clipboard.writeText(cfdiUrl);
-      showAlert(t('cfdiTab.copiedTitle'), t('cfdiTab.linkCopied'));
+      toast({ id: 'cfdi-copy', type: 'success', title: t('cfdiTab.copiedTitle'), description: t('cfdiTab.linkCopied'), duration: 2500 });
     }
   };
 
